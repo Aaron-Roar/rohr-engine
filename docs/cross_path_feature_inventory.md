@@ -273,11 +273,13 @@ fresh `/tmp/parity_goal2_sdk` and `/tmp/parity_goal2_sdk_windows` installations.
 This closes G11, G16, G17's snapshot omission and V3 within the frozen
 applicability boundaries. The earlier matrix and ledgers remain historical;
 construction-equivalence acceptance (V4) and interactive acceptance (V5) remained
-open at that boundary. V4 is closed in the goal 4 section below. Current readers
-accept only project format 11 and runtime-state format 9;
+open at that boundary. V4 is closed in the goal 4 section below. Readers at that
+boundary accepted only project format 11 and runtime-state format 9;
 older and future versions fail transactionally. The frozen P4 migration case is
 replaced by current-version round trips and unsupported-version rejection.
 Public APIs and application-owned state boundaries are unchanged.
+The later C10 corrective goal advances these to project 12/runtime 10 and
+introduces directional response; its compatibility boundary is recorded below.
 
 | Inventory scope | Persistence/generation evidence and outcome |
 |---|---|
@@ -464,7 +466,7 @@ returning. The original failed fixture remains available for comparison.
 | 2. Visuals and visibility | Inspect `push_marker`, `spin_marker`, pin/weld/spring, the mirrored sprite, playing animations and `empty_animation`. Spring endpoints have different colors/scales/offsets. Toggle editor eyes separately from Visible in App, including the parent; rebuild and verify only app visibility affects runtime drawing and hidden bodies still simulate. Restore parent visibility without changing child settings. Empty animation must not prevent rendering. | Pending |
 | 3. Editor interaction | Select geometry, drag from the selecting press, use child-selection and rotation handles, and undo/redo each gesture. Pick force targets/references from menus and the viewport, checking hover highlights. Scroll a long selector; check modal menus do not move underlying items. Drag the slider thumb without moving its parent. Rename via Enter/Escape and confirm subsequent keyboard navigation works. | User-reported failures: oversized force/torque picking, persistent/overlapping child panels, first-element activation, object/joint scrolling, and delayed joint clamping. C6 panel lifecycle/scrolling and C8 source picking complete with user acceptance; C14 and broader interaction retests pending. |
 | 4. Input and audio | Exercise the starter's configured logical input actions and text entry without unintended gameplay input while editing. Run the installed-SDK `audio` example: Play Water Splash produces sound; music play/pause/resume and track switching work; Quit/escape shuts down. Review window size/aspect settings. Muted description defaults and queued/applied audio state retain their automated fixture evidence; silent startup alone is not proof of muted playback. | Pending |
-| 5. Project lifecycle and delivery | Build/run the application and Simulate Scene. The application includes direct-API extras; scene simulation contains authored objects. Verify run/pause/stop, return to Editor, close/reopen/reorder tabs through View, rebuild a visible edit and replay. Close/switch a project during an active build and verify cancellation; terminal interrupt reaches the subprocess. Launch installed-SDK artifacts outside their source directories. | User-reported failures: relocation, repeat builds, missing CMake recovery, generation diagnostics, and incomplete-joint generation. Startup error 21 reproduced in rohr-project-1. C1 diagnostics, C2 relocation/repeat builds, C3 missing CMake recovery, C4 partial-spawn startup, and C5 incomplete joints complete with verification below; C6 panel lifecycle/scrolling and C8 source picking also complete; C7 complete with its manual checks explicitly deferred; C9 complete with the additional panel check explicitly skipped; C10–C14 and broader interactive retests pending. |
+| 5. Project lifecycle and delivery | Build/run the application and Simulate Scene. The application includes direct-API extras; scene simulation contains authored objects. Verify run/pause/stop, return to Editor, close/reopen/reorder tabs through View, rebuild a visible edit and replay. Close/switch a project during an active build and verify cancellation; terminal interrupt reaches the subprocess. Launch installed-SDK artifacts outside their source directories. | User-reported failures: relocation, repeat builds, missing CMake recovery, generation diagnostics, and incomplete-joint generation. Startup error 21 reproduced in rohr-project-1. C1 diagnostics, C2 relocation/repeat builds, C3 missing CMake recovery, C4 partial-spawn startup, and C5 incomplete joints complete with verification below; C6 panel lifecycle/scrolling and C8 source picking also complete; C7 complete with its manual checks explicitly deferred; C9 complete with the additional panel check explicitly skipped; C10 directional response complete; C11–C14 and broader interactive retests pending. |
 
 Preparation evidence (2026-10-21): full Linux build and **111/111 CTest tests
 pass**, including the installed-SDK comparisons and scene/build lifecycle
@@ -826,6 +828,61 @@ check remains unverified; the earlier review PASS is retained. C9 closes with
 this recorded verification exception.
 C10–C14 remain untouched; C7's deferred manual checks remain unverified.
 
+**C10 complete — directional collision response:** Masks now decide each side's
+contact response independently. Only responding, simulated bodies contribute
+inverse mass/inertia to correction and normal/friction impulses. Nonresponders'
+motion remains part of relative velocity, and both materials retain the existing
+combination rules. This applies to rigid bodies, particles, soft nodes, and
+enabled beam boundaries. Beam endpoint cutouts only suppress equivalent initial
+node contacts; full geometric overlap is retained independently of masks.
+
+The C API uses `responds_to`, `collision_response_set/all_set/none_set`,
+`collision_response_to_check`, and `collision_response_between_check` (with
+equivalent `rohr_` wrappers). Old names are removed. Mask queries do not report
+actual contact. Editor controls, command/history paths, CLI `responds-to`, JSON,
+runtime snapshots, and generated code use the new names. Project format 12 and
+runtime format 10 reject older files before replacing state, with a
+migration-required diagnostic retained through runtime object loading. C11's
+general migration is not implemented. Shipped car hubs have an explicit category
+and room exclusion; Pong walls exclude paddles in both directions. These targeted
+fixture updates preserve their prior allowed/excluded relationships.
+
+Five acceptance cases:
+
+1. `collision_response` checks all four mask combinations across rigid, particle,
+   and node pairs with both allocation orders, inverse query normals, and
+   unchanged nonresponders. Particle/node pairs also assert expected velocities.
+2. Beam cases check both sides independently, weighted endpoint response,
+   friction, and overlap without contact. `soft_body` and `beam_contacts` retain
+   seam/cutout, sensor, material, and endpoint-order regressions.
+3. Moving/rotating nonresponders, off-center angular response, Static/Kinematic
+   restrictions, restitution and zero combined friction are verified against
+   explicit expected values and the corresponding kinematic reference case.
+4. A third body's independent response leaves the original pair unchanged;
+   response-mask changes end contact while geometric overlap stays active.
+5. Editor controls/CLI/history, project import and generated/installed-SDK
+   catalogs, runtime persistence, and rejection of prior project/snapshot
+   versions pass. The authored-car regression compares all 36 directed profile
+   pairs against the previous mutual-filter behavior.
+
+Verification: 121/121 Linux tests pass (`/tmp/c10_final_tests.log`), including
+scene subprocess integration outside the sandbox; the initial sandbox run
+could not create loopback listeners. After the final example refinements,
+`collision_response`, `example_soft_body_angles`, and `authored_car` pass.
+Seven focused ASan/UBSan checks pass with leak detection
+(`/tmp/c10_sanitizer_tests.log`, `/tmp/c10_car_sanitizer_tests.log`). Nine affected
+examples independently build against the installed SDK and launch from `/tmp`;
+interactive examples exit cleanly after interrupt, and game-state exits normally.
+Evidence: `/tmp/c10_examples.log`, `/tmp/c10_examples_remaining.log`,
+`/tmp/c10_examples_final.log`, and `/tmp/c10_car_sdk_final.log` (the first harness
+used the target name instead of PlayerController's output name; the continuation
+corrects it). Windows engine/editor/CLI, response/persistence tests, car/Pong
+examples, and the car regression cross-build without compiler warnings.
+Final platform logs: `/tmp/c10_windows_final_build.log`,
+`/tmp/c10_windows_examples_build.log`, `/tmp/c10_car_windows_build.log`.
+Native Windows execution was not performed. C11–C14 remain unstarted; prior
+C7/C9 manual-review exceptions remain unchanged.
+
 ## Frozen fixture plan
 
 These are comparison cases for this inventory, not tests implemented in goal 1.
@@ -939,7 +996,7 @@ mirror reusable definitions; those caches are not separate stored settings.
 | [CameraDescription](../include/graphics.h) | `CameraDescription.position`, `CameraDescription.orientation`, `CameraDescription.dimensions`, `CameraDescription.zoom`, `CameraDescription.enabled` | [F34](#f34) |
 | [CameraDescription](../include/graphics.h) | `CameraDescription.pause_with_engine` | [F36](#f36) |
 | [CameraDescription](../include/graphics.h) | `CameraDescription.render_callback`, `CameraDescription.render_context` | [F37](#f37) |
-| [CollisionFilterDescription](../include/physics.h) | `CollisionFilterDescription.category`, `CollisionFilterDescription.collides_with` | [F09](#f09) |
+| [CollisionFilterDescription](../include/physics.h) | `CollisionFilterDescription.category`, `CollisionFilterDescription.responds_to` | [F09](#f09) |
 | [Color](../include/math2d.h) | `Color.red`, `Color.green`, `Color.blue`, `Color.alpha` | [X01](#x01) |
 | [EntityDescription](../include/entity_components.h) | `EntityDescription.name`, `EntityDescription.owner` | [F01](#f01) |
 | [EntityLifetimeDescription](../include/entity_components.h) | `EntityLifetimeDescription.expiry_time`, `EntityLifetimeDescription.expiry_tick`, `EntityLifetimeDescription.time_enabled`, `EntityLifetimeDescription.tick_enabled` | [F03](#f03) |
@@ -1136,7 +1193,7 @@ mirror reusable definitions; those caches are not separate stored settings.
 | [EditorRigidBody](../tools/editor/src/editor_project.h) | `EditorRigidBody.parent`, `EditorRigidBody.position`, `EditorRigidBody.rotation`, `EditorRigidBody.initial_velocity`, `EditorRigidBody.initial_acceleration`, `EditorRigidBody.initial_angular_velocity` | [F06](#f06) |
 | [EditorRigidBody](../tools/editor/src/editor_project.h) | `EditorRigidBody.mass_value`, `EditorRigidBody.center_of_mass_explicit`, `EditorRigidBody.center_of_mass_offset` | [F07](#f07) |
 | [EditorRigidBody](../tools/editor/src/editor_project.h) | `EditorRigidBody.friction`, `EditorRigidBody.restitution` | [F08](#f08) |
-| [EditorRigidBody](../tools/editor/src/editor_project.h) | `EditorRigidBody.static_body`, `EditorRigidBody.gravity_enabled`, `EditorRigidBody.collision_enabled`, `EditorRigidBody.collision_category`, `EditorRigidBody.collision_with` | [F09](#f09) |
+| [EditorRigidBody](../tools/editor/src/editor_project.h) | `EditorRigidBody.static_body`, `EditorRigidBody.gravity_enabled`, `EditorRigidBody.collision_enabled`, `EditorRigidBody.collision_category`, `EditorRigidBody.collision_response` | [F09](#f09) |
 | [EditorRigidBody](../tools/editor/src/editor_project.h) | `EditorRigidBody.rotation_locked` | [F10](#f10) |
 | [EditorRigidBody](../tools/editor/src/editor_project.h) | `EditorRigidBody.particle`, `EditorRigidBody.standalone_particle`, `EditorRigidBody.particle_auto_fit`, `EditorRigidBody.particle_radius`, `EditorRigidBody.particle_rigid_vertices`, `EditorRigidBody.particle_origin`, `EditorRigidBody.particle_ring_color`, `EditorRigidBody.particle_fill_color` | [F12](#f12) |
 | [EditorRigidBody](../tools/editor/src/editor_project.h) | `EditorRigidBody.border_color`, `EditorRigidBody.surface_color`, `EditorRigidBody.app_hidden` | [F28](#f28) |
@@ -1154,7 +1211,7 @@ mirror reusable definitions; those caches are not separate stored settings.
 | [EditorSoftArea](../tools/editor/src/editor_project.h) | `EditorSoftArea.id`, `EditorSoftArea.name`, `EditorSoftArea.next_hole_id` | [X07](#x07) |
 | [EditorSoftAreaLoop](../tools/editor/src/editor_project.h) | `EditorSoftAreaLoop.nodes`, `EditorSoftAreaLoop.node_count` | [F19](#f19) |
 | [EditorSoftBeam](../tools/editor/src/editor_project.h) | `EditorSoftBeam.node_a`, `EditorSoftBeam.node_b`, `EditorSoftBeam.friction`, `EditorSoftBeam.restitution`, `EditorSoftBeam.stiffness`, `EditorSoftBeam.damping`, `EditorSoftBeam.color`, `EditorSoftBeam.color_overridden` | [F16](#f16) |
-| [EditorSoftBeam](../tools/editor/src/editor_project.h) | `EditorSoftBeam.collision_enabled`, `EditorSoftBeam.collision_thickness`, `EditorSoftBeam.collision_category`, `EditorSoftBeam.collision_with` | [F18](#f18) |
+| [EditorSoftBeam](../tools/editor/src/editor_project.h) | `EditorSoftBeam.collision_enabled`, `EditorSoftBeam.collision_thickness`, `EditorSoftBeam.collision_category`, `EditorSoftBeam.collision_response` | [F18](#f18) |
 | [EditorSoftBeam](../tools/editor/src/editor_project.h) | `EditorSoftBeam.app_hidden` | [F28](#f28) |
 | [EditorSoftBeam](../tools/editor/src/editor_project.h) | `EditorSoftBeam.visible` | [F29](#f29) |
 | [EditorSoftBeam](../tools/editor/src/editor_project.h) | `EditorSoftBeam.graphics_layer`, `EditorSoftBeam.graphics_layer_inherited` | [F38](#f38) |
@@ -1168,7 +1225,7 @@ mirror reusable definitions; those caches are not separate stored settings.
 | [EditorSoftHierarchyItem](../tools/editor/src/editor_project.h) | `EditorSoftHierarchyItem.kind`, `EditorSoftHierarchyItem.id` | [X07](#x07) |
 | [EditorSoftHole](../tools/editor/src/editor_project.h) | `EditorSoftHole.loop` | [F19](#f19) |
 | [EditorSoftHole](../tools/editor/src/editor_project.h) | `EditorSoftHole.id`, `EditorSoftHole.name` | [X07](#x07) |
-| [EditorSoftNode](../tools/editor/src/editor_project.h) | `EditorSoftNode.position`, `EditorSoftNode.initial_velocity`, `EditorSoftNode.initial_acceleration`, `EditorSoftNode.initial_motion_inherited`, `EditorSoftNode.node_mass`, `EditorSoftNode.radius`, `EditorSoftNode.friction`, `EditorSoftNode.restitution`, `EditorSoftNode.gravity_enabled`, `EditorSoftNode.collision_enabled`, `EditorSoftNode.collision_category`, `EditorSoftNode.collision_with`, `EditorSoftNode.color`, `EditorSoftNode.color_overridden` | [F14](#f14) |
+| [EditorSoftNode](../tools/editor/src/editor_project.h) | `EditorSoftNode.position`, `EditorSoftNode.initial_velocity`, `EditorSoftNode.initial_acceleration`, `EditorSoftNode.initial_motion_inherited`, `EditorSoftNode.node_mass`, `EditorSoftNode.radius`, `EditorSoftNode.friction`, `EditorSoftNode.restitution`, `EditorSoftNode.gravity_enabled`, `EditorSoftNode.collision_enabled`, `EditorSoftNode.collision_category`, `EditorSoftNode.collision_response`, `EditorSoftNode.color`, `EditorSoftNode.color_overridden` | [F14](#f14) |
 | [EditorSoftNode](../tools/editor/src/editor_project.h) | `EditorSoftNode.app_hidden` | [F28](#f28) |
 | [EditorSoftNode](../tools/editor/src/editor_project.h) | `EditorSoftNode.visible` | [F29](#f29) |
 | [EditorSoftNode](../tools/editor/src/editor_project.h) | `EditorSoftNode.graphics_layer`, `EditorSoftNode.graphics_layer_inherited` | [F38](#f38) |
@@ -1597,8 +1654,8 @@ checked against that inventory, including duplicate/missing entries and totals.
 
 [F09](#f09) (13):
 
-- `physics_collision_between_check`, `physics_collision_category_set`, `physics_collision_filter_description_default_get`, `physics_collision_filter_description_get`.
-- `physics_collision_filter_description_set`, `physics_collision_with_all_set`, `physics_collision_with_none_set`, `physics_collision_with_set`.
+- `physics_collision_response_between_check`, `physics_collision_response_to_check`, `physics_collision_category_set`, `physics_collision_filter_description_default_get`, `physics_collision_filter_description_get`.
+- `physics_collision_filter_description_set`, `physics_collision_response_all_set`, `physics_collision_response_none_set`, `physics_collision_response_set`.
 - `physics_dynamic_set`, `physics_gravity_check`, `physics_gravity_disable`, `physics_gravity_enable`.
 - `physics_static_set`.
 
@@ -1780,8 +1837,8 @@ checked against that inventory, including duplicate/missing entries and totals.
 
 [F09](#f09) (13):
 
-- `rohr_physics_collision_between_check`, `rohr_physics_collision_category_set`, `rohr_physics_collision_filter_description_default_get`, `rohr_physics_collision_filter_description_get`.
-- `rohr_physics_collision_filter_description_set`, `rohr_physics_collision_with_all_set`, `rohr_physics_collision_with_none_set`, `rohr_physics_collision_with_set`.
+- `rohr_physics_collision_response_between_check`, `rohr_physics_collision_response_to_check`, `rohr_physics_collision_category_set`, `rohr_physics_collision_filter_description_default_get`, `rohr_physics_collision_filter_description_get`.
+- `rohr_physics_collision_filter_description_set`, `rohr_physics_collision_response_all_set`, `rohr_physics_collision_response_none_set`, `rohr_physics_collision_response_set`.
 - `rohr_physics_dynamic_set`, `rohr_physics_gravity_check`, `rohr_physics_gravity_disable`, `rohr_physics_gravity_enable`.
 - `rohr_physics_static_set`.
 

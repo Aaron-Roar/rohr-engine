@@ -157,7 +157,7 @@ static bool descriptions(void) {
     CHECK(point(rohr_camera_get(id).result.value.position, frozen.position));
     OK(rohr_entity_delete(entity.result.value));
     /* Loading an explicitly unattached saved view can replace a stale attachment. */
-    const char *state = "{\"version\":9,\"entities\":[],\"camera\":{\"transform\":{\"position\":{\"x\":8,\"y\":9},\"orientation\":25}}}";
+    const char *state = "{\"version\":10,\"entities\":[],\"camera\":{\"transform\":{\"position\":{\"x\":8,\"y\":9},\"orientation\":25}}}";
     CHECK(SDL_SaveFile("camera_description_state.json", state, strlen(state)));
     OK(rohr_game_state_file_load("camera_description_state.json"));
     CHECK(remove("camera_description_state.json") == 0);

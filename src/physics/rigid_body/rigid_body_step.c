@@ -181,13 +181,21 @@ OverlapInfo system_entity_overlap_get(Entity entity_1, Entity entity_2) {
     return physics_sat_overlap_get(shape1, shape2);
 }
 
+/* Masks affect only this pair's effective mass, never the stored motion mode. */
+static bool system_contact_response_check(EntityIndex first, EntityIndex second) {
+    return physics_collision_response_to_check(physics_operation_entity_get(first),
+        physics_operation_entity_get(second));
+}
+
 void system_separate_entities_tuned(
     Entity entity_1,
     Entity entity_2,
     OverlapInfo collision, Report *report
 ) {
-    bool dynamic_1 = physics_entity_simulated_get(entity_1);
-    bool dynamic_2 = physics_entity_simulated_get(entity_2);
+    bool dynamic_1 = physics_entity_simulated_get(entity_1) &&
+        system_contact_response_check(entity_1, entity_2);
+    bool dynamic_2 = physics_entity_simulated_get(entity_2) &&
+        system_contact_response_check(entity_2, entity_1);
 
     float inv_mass_1 =
         dynamic_1 && entity_index_components_check(entity_1, ROHR_MASS) &&
@@ -566,9 +574,11 @@ ContactInfo system_resolve_collision(
 ) {
     bool first_particle = entity_index_components_check(first, ROHR_PARTICLE);
     bool second_particle = entity_index_components_check(second, ROHR_PARTICLE);
-    float inverse_mass_first = physics_entity_simulated_get(first)
+    float inverse_mass_first = physics_entity_simulated_get(first) &&
+        system_contact_response_check(first, second)
         ? 1.0f / mass[first] : 0.0f;
-    float inverse_mass_second = physics_entity_simulated_get(second)
+    float inverse_mass_second = physics_entity_simulated_get(second) &&
+        system_contact_response_check(second, first)
         ? 1.0f / mass[second] : 0.0f;
     float inverse_inertia_first = 0.0f;
     float inverse_inertia_second = 0.0f;
@@ -642,9 +652,11 @@ static ContactInfo system_resolve_collision_manifold(
         .depth = manifold->depth
     };
     {
-        float inverse_mass_first = physics_entity_simulated_get(first)
+        float inverse_mass_first = physics_entity_simulated_get(first) &&
+        system_contact_response_check(first, second)
             ? 1.0f / mass[first] : 0.0f;
-        float inverse_mass_second = physics_entity_simulated_get(second)
+        float inverse_mass_second = physics_entity_simulated_get(second) &&
+        system_contact_response_check(second, first)
             ? 1.0f / mass[second] : 0.0f;
         float inverse_inertia_first = 0.0f;
         float inverse_inertia_second = 0.0f;
@@ -707,7 +719,6 @@ static bool system_broadphase_pair_apply(Entity target, void *context) {
             !entity_index_get(target, &target_index) ||
             !entity_index_alive_check(target_index)) return true;
     physics_report_counter_add(query->report, ROHR_REPORT_CANDIDATE_COUNT, 1);
-    if(!physics_collision_between_check(query->source, target)) return true;
     physics_report_counter_add(query->report, ROHR_REPORT_NARROWPHASE_TEST_COUNT, 1);
     started = SDL_GetPerformanceCounter();
     overlap = system_entity_overlap_get(query->source_index, target_index);
@@ -716,7 +727,8 @@ static bool system_broadphase_pair_apply(Entity target, void *context) {
     if(!overlap.detected) return true;
     physics_report_counter_add(query->report, ROHR_REPORT_OVERLAP_COUNT, 1);
     responds = entity_index_components_check(query->source_index, ROHR_COLLISION) &&
-        entity_index_components_check(target_index, ROHR_COLLISION);
+        entity_index_components_check(target_index, ROHR_COLLISION) &&
+        physics_collision_response_between_check(query->source, target);
     bool appended = contact_constraint_list_append(&physics_step_contact_constraints,
         (SystemContactConstraint){
         .type = SYSTEM_CONTACT_CONSTRAINT_RIGID_PAIR,

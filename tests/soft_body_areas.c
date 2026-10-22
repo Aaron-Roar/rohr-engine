@@ -20,7 +20,7 @@ static bool runtime_check(void) {
         EntityResult node = rohr_physics_soft_body_node_add((SoftBodyNodeDescription){
             .restitution = 0.25f, .collision_enabled = true,
             .collision_filter = {.category = ROHR_COLLISION_CATEGORY_SOFT_BODY_NODE,
-                .collides_with = ROHR_COLLISION_CATEGORY_ALL & ~ROHR_COLLISION_CATEGORY_SOFT_BODY_NODE},
+                .responds_to = ROHR_COLLISION_CATEGORY_ALL & ~ROHR_COLLISION_CATEGORY_SOFT_BODY_NODE},
             .owner = body.result.value,
             .position = points[i],
             .mass = 1,
@@ -59,7 +59,7 @@ static bool runtime_check(void) {
     EntityResult foreign = rohr_physics_soft_body_node_add((SoftBodyNodeDescription){
         .restitution = 0.25f, .collision_enabled = true,
         .collision_filter = {.category = ROHR_COLLISION_CATEGORY_SOFT_BODY_NODE,
-            .collides_with = ROHR_COLLISION_CATEGORY_ALL & ~ROHR_COLLISION_CATEGORY_SOFT_BODY_NODE},
+            .responds_to = ROHR_COLLISION_CATEGORY_ALL & ~ROHR_COLLISION_CATEGORY_SOFT_BODY_NODE},
         .owner = other.result.value,
         .position = (Position){0,50},
         .mass = 1,
@@ -149,7 +149,7 @@ static bool limits_and_transform_check(void) {
         EntityResult node = rohr_physics_soft_body_node_local_add((SoftBodyNodeDescription){
             .restitution = 0.25f, .collision_enabled = true,
             .collision_filter = {.category = ROHR_COLLISION_CATEGORY_SOFT_BODY_NODE,
-                .collides_with = ROHR_COLLISION_CATEGORY_ALL & ~ROHR_COLLISION_CATEGORY_SOFT_BODY_NODE},
+                .responds_to = ROHR_COLLISION_CATEGORY_ALL & ~ROHR_COLLISION_CATEGORY_SOFT_BODY_NODE},
             .owner = body.result.value,
             .position = local,
             .mass = 1,
@@ -170,7 +170,7 @@ static bool limits_and_transform_check(void) {
         .restitution = 0.25f,
         .collision = {.thickness = ROHR_SOFT_BODY_BEAM_COLLISION_THICKNESS_MIN,
             .filter = {.category = ROHR_COLLISION_CATEGORY_SOFT_BODY_NODE,
-                .collides_with = ROHR_COLLISION_CATEGORY_ALL & ~ROHR_COLLISION_CATEGORY_SOFT_BODY_NODE}},
+                .responds_to = ROHR_COLLISION_CATEGORY_ALL & ~ROHR_COLLISION_CATEGORY_SOFT_BODY_NODE}},
         .owner = body.result.value,
         .node_a = loop.nodes[0],
         .node_b = loop.nodes[1],
@@ -200,7 +200,7 @@ static bool holes_check(void) {
         EntityResult node=rohr_physics_soft_body_node_add((SoftBodyNodeDescription){
             .restitution = 0.25f, .collision_enabled = true,
             .collision_filter = {.category = ROHR_COLLISION_CATEGORY_SOFT_BODY_NODE,
-                .collides_with = ROHR_COLLISION_CATEGORY_ALL & ~ROHR_COLLISION_CATEGORY_SOFT_BODY_NODE},
+                .responds_to = ROHR_COLLISION_CATEGORY_ALL & ~ROHR_COLLISION_CATEGORY_SOFT_BODY_NODE},
             .owner = body.result.value,
             .position = points[i],
             .mass = 1,
@@ -297,7 +297,7 @@ static bool rendering_check(void) {
         EntityResult n = rohr_physics_soft_body_node_add((SoftBodyNodeDescription){
             .restitution = 0.25f, .collision_enabled = true,
             .collision_filter = {.category = ROHR_COLLISION_CATEGORY_SOFT_BODY_NODE,
-                .collides_with = ROHR_COLLISION_CATEGORY_ALL & ~ROHR_COLLISION_CATEGORY_SOFT_BODY_NODE},
+                .responds_to = ROHR_COLLISION_CATEGORY_ALL & ~ROHR_COLLISION_CATEGORY_SOFT_BODY_NODE},
             .owner = body.result.value,
             .position = p[i],
             .mass = 1,
@@ -343,7 +343,7 @@ static bool rendering_check(void) {
         EntityResult n=rohr_physics_soft_body_node_add((SoftBodyNodeDescription){
             .restitution = 0.25f, .collision_enabled = true,
             .collision_filter = {.category = ROHR_COLLISION_CATEGORY_SOFT_BODY_NODE,
-                .collides_with = ROHR_COLLISION_CATEGORY_ALL & ~ROHR_COLLISION_CATEGORY_SOFT_BODY_NODE},
+                .responds_to = ROHR_COLLISION_CATEGORY_ALL & ~ROHR_COLLISION_CATEGORY_SOFT_BODY_NODE},
             .owner = body.result.value,
             .position = hole_points[i],
             .mass = 1,

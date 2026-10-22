@@ -148,7 +148,7 @@ static void construction_capture(const ConstructionScene *scene,ConstructionSnap
         EXACT(rohr_entity_components_check(e,ROHR_STATIC)); EXACT(rohr_entity_components_check(e,ROHR_DYNAMIC));
         EXACT(rohr_entity_components_check(e,ROHR_COLLISION));
         CollisionFilterDescriptionResult f=rohr_physics_collision_filter_description_get(e); REQUIRE(f);
-        EXACT(f.result.value.category); EXACT(f.result.value.collides_with);
+        EXACT(f.result.value.category); EXACT(f.result.value.responds_to);
     }
     if(motion) return;
     Entity body=scene->e[C_BODY];
@@ -173,7 +173,7 @@ static void construction_capture(const ConstructionScene *scene,ConstructionSnap
         SoftBodyBeamDescription b=rohr_physics_soft_body_beam_description_get(scene->e[C_BEAM+i]).result.value;
         REF(b.owner); REF(b.node_a); REF(b.node_b); V(b.rest_length); V(b.stiffness); V(b.damping);
         V(b.friction); V(b.restitution); EXACT(b.collision.enabled); V(b.collision.thickness);
-        EXACT(b.collision.filter.category); EXACT(b.collision.filter.collides_with);
+        EXACT(b.collision.filter.category); EXACT(b.collision.filter.responds_to);
         EXACT(b.draw_color.red); EXACT(b.draw_color.green); EXACT(b.draw_color.blue); EXACT(b.draw_color_overridden);
     }
     SoftBodyAreaDescription area=rohr_physics_soft_body_area_description_get(scene->e[C_AREA]).result.value;

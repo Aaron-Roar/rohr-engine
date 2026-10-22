@@ -29,6 +29,7 @@ typedef struct SystemSoftBoundaryQuery {
     OverlapInfo overlap;
     Position contact_position;
     float t;
+    bool responds;
     bool solving;
     bool solved;
     /* Fixed impact geometry and velocity target for this substep's solve.

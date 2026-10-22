@@ -31,7 +31,7 @@ static bool runtime_check(void) {
     const char *saved = "com_state_saved.json";
     const char *authored = "com_state_template.json";
     const char *invalid = "com_state_invalid.json";
-    const char *initial = "{\"version\":9,\"entities\":["
+    const char *initial = "{\"version\":10,\"entities\":["
         "{\"name\":\"explicit_body\",\"components\":{\"mass\":12,"
         "\"position\":{\"x\":10,\"y\":20},\"orientation\":-450,\"angular_velocity\":810,"
         "\"hit_box\":[{\"x\":2,\"y\":3},{\"x\":6,\"y\":3},{\"x\":6,\"y\":5},{\"x\":2,\"y\":5}],"
@@ -52,14 +52,14 @@ static bool runtime_check(void) {
     OK(rohr_physics_center_of_mass_local_position_set(body, (Position){8,9}));
     Entity empty_body = named_entity("empty_body");
     OK(rohr_physics_collision_category_set(empty_body, UINT64_C(32)));
-    OK(rohr_physics_collision_with_set(empty_body, UINT64_C(64)));
+    OK(rohr_physics_collision_response_set(empty_body, UINT64_C(64)));
     CHECK(!rohr_entity_components_check(empty_body, ROHR_HIT_BOX));
     OK(rohr_physics_particle_origin_set(named_entity("automatic_body"), (Position){0}));
     ParticleDescription config = rohr_physics_particle_description_default_get();
     config.local_origin = (Position){4,2};
     config.radius = 2;
     config.collision_enabled = false;
-    config.collision_filter = (CollisionFilterDescription){.category=UINT64_C(8), .collides_with=UINT64_C(16)};
+    config.collision_filter = (CollisionFilterDescription){.category=UINT64_C(8), .responds_to=UINT64_C(16)};
     EntityResult particle = rohr_physics_particle_add(config);
     OK(particle);
     OK(rohr_entity_name_set(particle.result.value, "pure_particle"));
@@ -79,7 +79,7 @@ static bool runtime_check(void) {
     uint32_t count = entity_alive_count_get();
     for(size_t i=0; i<sizeof(bad)/sizeof(bad[0]); i+=1) {
         char json[1024];
-        snprintf(json, sizeof(json), "{\"version\":9,\"entities\":[{\"name\":\"failed_body\","
+        snprintf(json, sizeof(json), "{\"version\":10,\"entities\":[{\"name\":\"failed_body\","
             "\"components\":{\"center_of_mass\":%s}}]}", bad[i]);
         CHECK(write_file(invalid, json));
         CHECK(rohr_error_check(rohr_game_state_file_load(invalid)));
@@ -109,11 +109,11 @@ static bool runtime_check(void) {
         (Position){-4,8}));
     CHECK(rohr_error_check(rohr_physics_moment_of_inertia_get(named_entity("empty_body"))));
     CHECK(rohr_physics_collision_filter_description_get(named_entity("empty_body")).result.value.category == UINT64_C(32));
-    CHECK(rohr_physics_collision_filter_description_get(named_entity("empty_body")).result.value.collides_with == UINT64_C(64));
+    CHECK(rohr_physics_collision_filter_description_get(named_entity("empty_body")).result.value.responds_to == UINT64_C(64));
     body = named_entity("pure_particle");
     CHECK(!rohr_entity_components_check(body, ROHR_COLLISION));
     CHECK(rohr_physics_collision_filter_description_get(body).result.value.category == UINT64_C(8));
-    CHECK(rohr_physics_collision_filter_description_get(body).result.value.collides_with == UINT64_C(16));
+    CHECK(rohr_physics_collision_filter_description_get(body).result.value.responds_to == UINT64_C(16));
     CHECK(rohr_physics_center_of_mass_automatic_check(body).result.value);
     CHECK(rohr_error_check(rohr_physics_center_of_mass_local_position_set(body, (Position){1,2})));
     CHECK(point_equal(rohr_physics_particle_origin_get(body).result.value, (Position){5,3}));
@@ -235,9 +235,11 @@ static bool project_check(void) {
     CHECK(yyjson_mut_write_file("com_project_bad.json", copy, 0, NULL, NULL));
     CHECK(!editor_result_check(editor_project_load(&loaded, "com_project_bad.json")));
     CHECK(!loaded.objects[0].rigid_bodies[0].center_of_mass_explicit);
-    yyjson_mut_obj_put(root, yyjson_mut_str(copy, "format_version"), yyjson_mut_uint(copy, 3));
+    yyjson_mut_obj_put(root, yyjson_mut_str(copy, "format_version"), yyjson_mut_uint(copy, 11));
     CHECK(yyjson_mut_write_file("com_project_bad.json", copy, 0, NULL, NULL));
-    CHECK(editor_result_check(editor_project_load(&loaded, "com_project_bad.json")));
+    EditorResult legacy = editor_project_load(&loaded, "com_project_bad.json");
+    CHECK(editor_result_check(legacy));
+    CHECK(strstr(legacy.result.error.message, "migration required") != NULL);
     CHECK(loaded.objects[0].rigid_bodies[0].rotation == -450);
     yyjson_mut_doc_free(copy); yyjson_doc_free(document);
     EditorDocument owned;

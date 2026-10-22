@@ -61,7 +61,7 @@ static const CliHelpDomain cli_help_domains[] = {
         "particle-origin-x <number>, particle-origin-y <number>, "
         "particle-auto-fit <true|false>, outline-color <hex>, surface-color <hex>, "
         "particle-ring-color <hex>, particle-fill-color <hex>, visibility <true|false>, "
-        "category <mask> <true|false>, collide-with <mask> <true|false>",
+        "category <mask> <true|false>, responds-to <mask> <true|false>",
         "--object car --body chassis --property mass 5", 1},
     {"--hitbox", "hitbox", "visibility <true|false>, "
         "auto-shape <shape> <triangle-kind> <width> <height> <radius> <apex-offset>",

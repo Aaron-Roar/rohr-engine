@@ -39,7 +39,7 @@ int main(void) {
             rohr_error_check(rohr_physics_restitution_set(body, 0.0f)) ||
             rohr_error_check(rohr_physics_collision_category_set(
                 body, body_category)) ||
-            rohr_error_check(rohr_physics_collision_with_set(
+            rohr_error_check(rohr_physics_collision_response_set(
                 body, sensor_category))) goto fail;
 
     if(rohr_error_check(rohr_physics_position_set(sensor, (Position){0.0f, 0.0f})) ||
@@ -48,7 +48,7 @@ int main(void) {
             rohr_error_check(rohr_physics_static_set(sensor)) ||
             rohr_error_check(rohr_physics_collision_category_set(
                 sensor, sensor_category)) ||
-            rohr_error_check(rohr_physics_collision_with_set(
+            rohr_error_check(rohr_physics_collision_response_set(
                 sensor, body_category))) goto fail;
     if(rohr_entity_components_check(sensor, ROHR_COLLISION)) goto fail;
 

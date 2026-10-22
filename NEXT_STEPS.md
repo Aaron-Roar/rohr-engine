@@ -309,7 +309,7 @@ contracts, and generated examples when a goal changes supported behavior.
    force, torque, joint, anchor, and camera panels. Eight affected tests and
    both builds pass after that correction. The user explicitly skipped the
    additional panel confirmation; it remains unverified as a recorded exception.
-10. [ ] **C10 — Directional collision response.** Rename Collides With to
+10. [x] **C10 — Directional collision response.** Rename Collides With to
     Responds To across applicable API, editor, CLI, JSON, generation, and docs.
     For each overlapping pair, independently decide which body responds: both
     gives normal response; one gives one-sided response; neither gives no
@@ -322,6 +322,26 @@ contracts, and generated examples when a goal changes supported behavior.
     arguments, moving nonresponders, and a third body with a different response
     relationship. Existing data must not be silently reinterpreted while C11's
     migration is unavailable.
+    Agreed C10 boundary: project format 12 and runtime-state format 10 reject
+    older files with a migration-required diagnostic, leaving files untouched.
+    Use `.responds_to`, `collision_response_set/all_set/none_set`, directional
+    `collision_response_to_check`, and either-direction
+    `collision_response_between_check`; remove the old C names. Mask queries
+    do not test actual overlap/contact or motion eligibility. Verify five cases:
+    (1) all four mask combinations and reversed pair order across rigid bodies,
+    particles and nodes; (2) beam response, endpoints and sensor overlap;
+    (3) moving/rotating nonresponders, materials and Static/Kinematic restrictions;
+    (4) an independent third-body relationship and contact/overlap transitions;
+    (5) editor/CLI/JSON/generated/runtime parity and atomic legacy rejection.
+    Complete: all five cases verified. All 121 Linux tests passed, followed by
+    three focused tests after preserving the shipped car/Pong exclusions.
+    Seven focused ASan/UBSan checks passed with leak detection. Nine affected
+    examples independently built against the installed SDK and launched from
+    outside their source directories. Windows engine/editor/CLI, response and
+    persistence tests, car/Pong examples and the car regression cross-built
+    without compiler warnings; native Windows execution was not performed.
+    Old formats remain rejected; C11 migration is not implemented. See the
+    corrective issue mapping for evidence and compatibility details.
 11. [ ] **C11 — Behavior-preserving mask migration.** Convert existing mutual
     filters into the new directional system by adding/splitting categories and
     rebuilding response masks as needed. Preserve every previously allowed or

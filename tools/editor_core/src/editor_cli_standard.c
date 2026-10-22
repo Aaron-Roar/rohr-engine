@@ -1669,7 +1669,7 @@ EditorResult editor_command_cli_standard_parse(const EditorProject *project,
          strcmp(property, "camera") == 0 ? "camera" :
          strcmp(property, "coordinates") == 0 ? "coordinates" :
          strcmp(property, "navigation") == 0 ? "set" :
-         strcmp(property, "category") == 0 || strcmp(property, "collide-with") == 0 ?
+         strcmp(property, "category") == 0 || strcmp(property, "responds-to") == 0 ?
             "filter" :
          strcmp(property, "anchor-a") == 0 || strcmp(property, "anchor-b") == 0 ||
          strcmp(property, "rigid-body") == 0 || strcmp(property, "node-a") == 0 ||

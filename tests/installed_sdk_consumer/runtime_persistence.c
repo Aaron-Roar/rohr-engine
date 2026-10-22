@@ -16,7 +16,7 @@ int main(void) {
     Entity a=take(rohr_physics_soft_body_node_add((SoftBodyNodeDescription){
         .restitution = 0.25f, .collision_enabled = true,
         .collision_filter = {.category = ROHR_COLLISION_CATEGORY_SOFT_BODY_NODE,
-            .collides_with = ROHR_COLLISION_CATEGORY_ALL & ~ROHR_COLLISION_CATEGORY_SOFT_BODY_NODE},
+            .responds_to = ROHR_COLLISION_CATEGORY_ALL & ~ROHR_COLLISION_CATEGORY_SOFT_BODY_NODE},
         .owner = body,
         .position = (Position){0,0},
         .mass = 1,
@@ -25,7 +25,7 @@ int main(void) {
     Entity b=take(rohr_physics_soft_body_node_add((SoftBodyNodeDescription){
         .restitution = 0.25f, .collision_enabled = true,
         .collision_filter = {.category = ROHR_COLLISION_CATEGORY_SOFT_BODY_NODE,
-            .collides_with = ROHR_COLLISION_CATEGORY_ALL & ~ROHR_COLLISION_CATEGORY_SOFT_BODY_NODE},
+            .responds_to = ROHR_COLLISION_CATEGORY_ALL & ~ROHR_COLLISION_CATEGORY_SOFT_BODY_NODE},
         .owner = body,
         .position = (Position){10,0},
         .mass = 2,
@@ -34,7 +34,7 @@ int main(void) {
     Entity c=take(rohr_physics_soft_body_node_add((SoftBodyNodeDescription){
         .restitution = 0.25f, .collision_enabled = true,
         .collision_filter = {.category = ROHR_COLLISION_CATEGORY_SOFT_BODY_NODE,
-            .collides_with = ROHR_COLLISION_CATEGORY_ALL & ~ROHR_COLLISION_CATEGORY_SOFT_BODY_NODE},
+            .responds_to = ROHR_COLLISION_CATEGORY_ALL & ~ROHR_COLLISION_CATEGORY_SOFT_BODY_NODE},
         .owner = body,
         .position = (Position){0,10},
         .mass = 3,
@@ -44,7 +44,7 @@ int main(void) {
         .restitution = 0.25f,
         .collision = {.thickness = ROHR_SOFT_BODY_BEAM_COLLISION_THICKNESS_MIN,
             .filter = {.category = ROHR_COLLISION_CATEGORY_SOFT_BODY_NODE,
-                .collides_with = ROHR_COLLISION_CATEGORY_ALL & ~ROHR_COLLISION_CATEGORY_SOFT_BODY_NODE}},
+                .responds_to = ROHR_COLLISION_CATEGORY_ALL & ~ROHR_COLLISION_CATEGORY_SOFT_BODY_NODE}},
         .owner = body,
         .node_a = a,
         .node_b = b,

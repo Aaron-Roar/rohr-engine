@@ -1811,7 +1811,7 @@ EditorRigidBody editor_project_rigid_body_default_get(void) {
         .border_color = UINT32_C(0xe6ebf4ff),
         .surface_color = UINT32_C(0x66758c80),
         .collision_category = UINT64_C(1),
-        .collision_with = UINT64_C(1),
+        .responds_to = UINT64_C(1),
         .particle_auto_fit = true,
         .particle_radius = 30.0f,
         .particle_rigid_vertices = ROHR_PARTICLE_RIGID_VERTICES_DEFAULT,
@@ -2826,7 +2826,7 @@ EditorSoftNode *editor_project_soft_node_add(EditorProject *project, EditorSoftB
         .gravity_enabled = false,
         .collision_enabled = true,
         .collision_category = UINT64_C(1),
-        .collision_with = UINT64_C(1),
+        .responds_to = UINT64_C(1),
         .color = UINT32_C(0xffaa46ff),
         .visible = true
     };
@@ -2973,7 +2973,7 @@ EditorSoftBeam *editor_project_soft_beam_add(EditorProject *project, EditorSoftB
         .collision_enabled = false,
         .collision_thickness = ROHR_SOFT_BODY_BEAM_COLLISION_THICKNESS_MIN,
         .collision_category = ROHR_COLLISION_CATEGORY_DEFAULT,
-        .collision_with = ROHR_COLLISION_CATEGORY_DEFAULT,
+        .responds_to = ROHR_COLLISION_CATEGORY_DEFAULT,
         .color = UINT32_C(0xebf0f5ff),
         .visible = true
     };

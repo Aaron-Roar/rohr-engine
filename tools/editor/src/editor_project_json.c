@@ -371,7 +371,7 @@ static yyjson_mut_val *editor_json_body_write(yyjson_mut_doc *document,
         body->particle_fill_color);
     yyjson_mut_obj_add_uint(document, value, "collision_category",
         body->collision_category);
-    yyjson_mut_obj_add_uint(document, value, "collision_with", body->collision_with);
+    yyjson_mut_obj_add_uint(document, value, "responds_to", body->responds_to);
     yyjson_mut_obj_add_bool(document, value, "visible", body->visible);
     yyjson_mut_obj_add_bool(document, value, "visible_in_app", !body->app_hidden);
     editor_entity_settings_json_write(document, value, body->entity_settings);
@@ -532,7 +532,7 @@ static yyjson_mut_val *editor_json_soft_body_write(yyjson_mut_doc *document,
         yyjson_mut_obj_add_bool(document, item, "static_body", node->static_body);
         yyjson_mut_obj_add_bool(document, item, "collision_enabled", node->collision_enabled);
         yyjson_mut_obj_add_uint(document, item, "collision_category", node->collision_category);
-        yyjson_mut_obj_add_uint(document, item, "collision_with", node->collision_with);
+        yyjson_mut_obj_add_uint(document, item, "responds_to", node->responds_to);
         yyjson_mut_obj_add_bool(document, item, "visible", node->visible);
     yyjson_mut_obj_add_bool(document, item, "visible_in_app", !node->app_hidden);
     editor_entity_settings_json_write(document, item, node->entity_settings);
@@ -563,8 +563,8 @@ static yyjson_mut_val *editor_json_soft_body_write(yyjson_mut_doc *document,
             beam->collision_thickness);
         yyjson_mut_obj_add_uint(document, item, "collision_category",
             beam->collision_category);
-        yyjson_mut_obj_add_uint(document, item, "collision_with",
-            beam->collision_with);
+        yyjson_mut_obj_add_uint(document, item, "responds_to",
+            beam->responds_to);
         yyjson_mut_obj_add_bool(document, item, "visible", beam->visible);
     yyjson_mut_obj_add_bool(document, item, "visible_in_app", !beam->app_hidden);
     editor_entity_settings_json_write(document, item, beam->entity_settings);
@@ -1252,7 +1252,7 @@ static bool editor_json_body_read(yyjson_val *value, EditorRigidBody *body,
     yyjson_val *hitboxes = yyjson_obj_get(value, "hitboxes");
     yyjson_val *collision_enabled = yyjson_obj_get(value, "collision_enabled");
     yyjson_val *collision_category = yyjson_obj_get(value, "collision_category");
-    yyjson_val *collision_with = yyjson_obj_get(value, "collision_with");
+    yyjson_val *responds_to = yyjson_obj_get(value, "responds_to");
     yyjson_val *particle = yyjson_obj_get(value, "particle");
     yyjson_val *standalone_particle = yyjson_obj_get(value, "standalone_particle");
     yyjson_val *particle_auto_fit = yyjson_obj_get(value, "particle_auto_fit");
@@ -1295,7 +1295,7 @@ static bool editor_json_body_read(yyjson_val *value, EditorRigidBody *body,
     if(collision_enabled != NULL && (!editor_json_bool(value, "collision_enabled",
                 &body->collision_enabled) ||
             !editor_json_uint64(value, "collision_category", &body->collision_category) ||
-            !editor_json_uint64(value, "collision_with", &body->collision_with))) return false;
+            !editor_json_uint64(value, "responds_to", &body->responds_to))) return false;
     if(particle != NULL && !editor_json_bool(value, "particle", &body->particle)) return false;
     if(standalone_particle != NULL && !editor_json_bool(value,
             "standalone_particle", &body->standalone_particle)) return false;
@@ -1335,7 +1335,7 @@ static bool editor_json_body_read(yyjson_val *value, EditorRigidBody *body,
     if(body->standalone_particle && !body->particle) return false;
     if(!body->collision_enabled && !body->standalone_particle) body->particle = false;
     if(collision_enabled == NULL &&
-            (collision_category != NULL || collision_with != NULL)) return false;
+            (collision_category != NULL || responds_to != NULL)) return false;
     editor_project_property_name_format(body->name, sizeof(body->name), body->name);
     count = (uint32_t)yyjson_arr_size(hitboxes);
     if(!EDITOR_ARRAY_RESERVE(body->hitboxes, body->hitbox_capacity, count))
@@ -1548,7 +1548,7 @@ static bool editor_json_soft_body_read(yyjson_val *value, EditorSoftBody *body,
             .restitution = 0.25f,
             .collision_enabled = true,
             .collision_category = UINT64_C(1),
-            .collision_with = UINT64_C(1),
+            .responds_to = UINT64_C(1),
             .color = body->node_color
         };
         if(!yyjson_is_obj(item) || !editor_json_uint(item, "id", &node->id) || node->id == 0 ||
@@ -1585,7 +1585,7 @@ static bool editor_json_soft_body_read(yyjson_val *value, EditorSoftBody *body,
         if(collision_enabled != NULL &&
                 (!editor_json_bool(item, "collision_enabled", &node->collision_enabled) ||
                 !editor_json_uint64(item, "collision_category", &node->collision_category) ||
-                !editor_json_uint64(item, "collision_with", &node->collision_with))) return false;
+                !editor_json_uint64(item, "responds_to", &node->responds_to))) return false;
         editor_project_property_name_format(node->name, sizeof(node->name), node->name);
         if(project->next_soft_node_id <= node->id) project->next_soft_node_id = node->id + 1;
     }
@@ -1607,8 +1607,8 @@ static bool editor_json_soft_body_read(yyjson_val *value, EditorSoftBody *body,
                     &beam->collision_thickness) ||
                 !editor_json_uint64(item, "collision_category",
                     &beam->collision_category) ||
-                !editor_json_uint64(item, "collision_with",
-                    &beam->collision_with) ||
+                !editor_json_uint64(item, "responds_to",
+                    &beam->responds_to) ||
                 !editor_json_bool(item, "visible", &beam->visible) ||
             (!editor_json_app_visibility_read(item, &beam->app_hidden) || !editor_entity_settings_json_read(item, &beam->entity_settings))) return false;
         if((yyjson_obj_get(item, "friction") != NULL &&
@@ -1970,7 +1970,7 @@ static bool editor_json_references_valid(EditorProject *project) {
         for(size_t j = 0; j < object->rigid_body_count; j += 1) {
             EditorRigidBody *body = &object->rigid_bodies[j];
             if((body->collision_category & ~valid_masks) != 0 ||
-                    (body->collision_with & ~valid_masks) != 0) return false;
+                    (body->responds_to & ~valid_masks) != 0) return false;
         }
         for(size_t j = 0; j < object->anchor_count; j += 1) {
             EditorAnchor *anchor = &object->anchors[j];
@@ -1999,13 +1999,13 @@ static bool editor_json_references_valid(EditorProject *project) {
             for(size_t k = 0; k < body->node_count; k += 1) {
                 EditorSoftNode *node = &body->nodes[k];
                 if((node->collision_category & ~valid_masks) != 0 ||
-                        (node->collision_with & ~valid_masks) != 0) return false;
+                        (node->responds_to & ~valid_masks) != 0) return false;
             }
             for(size_t k = 0; k < body->beam_count; k += 1) {
                 bool found_a = body->beams[k].node_a == 0;
                 bool found_b = body->beams[k].node_b == 0;
                 if((body->beams[k].collision_category & ~valid_masks) != 0 ||
-                        (body->beams[k].collision_with & ~valid_masks) != 0)
+                        (body->beams[k].responds_to & ~valid_masks) != 0)
                     return false;
                 for(size_t n = 0; n < body->node_count; n += 1) {
                     found_a = found_a || body->nodes[n].id == body->beams[k].node_a;
@@ -2181,7 +2181,9 @@ EditorResult editor_project_load(EditorProject *project, const char *path) {
     }
     if(version != EDITOR_PROJECT_FORMAT_VERSION) {
         result = editor_result_error(EDITOR_ERROR_SCHEMA_VERSION,
-            "Project editor state '%s' uses format_version %u; this editor requires %u",
+            version < EDITOR_PROJECT_FORMAT_VERSION
+                ? "Project editor state '%s' uses format_version %u; collision response migration required before loading as version %u (C11 migration is not available yet)"
+                : "Project editor state '%s' uses format_version %u; this editor requires %u",
             path, version, EDITOR_PROJECT_FORMAT_VERSION);
         goto done;
     }

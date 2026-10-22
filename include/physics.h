@@ -141,8 +141,8 @@ typedef uint64_t RohrCollisionCategoryMask;
 typedef struct CollisionFilterDescription {
     /** Categories represented by this collider. */
     RohrCollisionCategoryMask category;
-    /** Categories this collider permits collision checks against. */
-    RohrCollisionCategoryMask collides_with;
+    /** Categories this collider responds to; overlap detection ignores this mask. */
+    RohrCollisionCategoryMask responds_to;
 } CollisionFilterDescription;
 
 /** Result type for functions returning collision filter configuration. */
@@ -516,7 +516,7 @@ typedef struct SoftBodyNode {
     /** Mirrored for source compatibility; standard collision filters are authoritative. */
     RohrCollisionCategoryMask category;
     /** Mirrored for source compatibility; standard collision filters are authoritative. */
-    RohrCollisionCategoryMask collides_with;
+    RohrCollisionCategoryMask responds_to;
     Color draw_color;
     bool draw_color_overridden;
 } SoftBodyNode;
@@ -544,7 +544,7 @@ typedef struct SoftBodyBeam {
     Restitution restitution;
     bool collision_enabled;
     RohrCollisionCategoryMask category;
-    RohrCollisionCategoryMask collides_with;
+    RohrCollisionCategoryMask responds_to;
     Color draw_color;
     bool draw_color_overridden;
 } SoftBodyBeam;
@@ -987,14 +987,16 @@ EngineResult physics_collision_filter_description_set(Entity entity, CollisionFi
 CollisionFilterDescriptionResult physics_collision_filter_description_get(Entity entity);
 /** Set the categories represented by an entity. */
 EngineResult physics_collision_category_set(Entity entity, RohrCollisionCategoryMask category);
-/** Set the category whitelist an entity can collide with. */
-EngineResult physics_collision_with_set(Entity entity, RohrCollisionCategoryMask categories);
-/** Allow an entity to collide with every category. */
-EngineResult physics_collision_with_all_set(Entity entity);
-/** Prevent an entity from colliding with every category. */
-EngineResult physics_collision_with_none_set(Entity entity);
-/** Return whether two entities mutually permit collision checks. */
-bool physics_collision_between_check(Entity entity_1, Entity entity_2);
+/** Set the categories this entity responds to. */
+EngineResult physics_collision_response_set(Entity entity, RohrCollisionCategoryMask categories);
+/** Make an entity respond to every category. */
+EngineResult physics_collision_response_all_set(Entity entity);
+/** Disable this entity's response to all categories; other entities may still respond to it. */
+EngineResult physics_collision_response_none_set(Entity entity);
+/** Check whether the first mask responds to the second category; ignores geometry and motion. */
+bool physics_collision_response_to_check(Entity entity, Entity target);
+/** Check whether either directional mask permits response; does not test contact. */
+bool physics_collision_response_between_check(Entity entity_1, Entity entity_2);
 /** Set an entity's orientation in clockwise degrees. */
 EngineResult physics_orientation_set(Entity entity, Orientation angle);
 /** Clockwise-positive radians alternative; other parameters retain their units. */

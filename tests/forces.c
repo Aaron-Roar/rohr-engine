@@ -219,7 +219,7 @@ static bool beam_sources_check(const ForceApi *api, unsigned substeps) {
         EntityResult a=rohr_physics_soft_body_node_add((SoftBodyNodeDescription){
             .restitution = 0.25f, .collision_enabled = true,
             .collision_filter = {.category = ROHR_COLLISION_CATEGORY_SOFT_BODY_NODE,
-                .collides_with = ROHR_COLLISION_CATEGORY_ALL & ~ROHR_COLLISION_CATEGORY_SOFT_BODY_NODE},
+                .responds_to = ROHR_COLLISION_CATEGORY_ALL & ~ROHR_COLLISION_CATEGORY_SOFT_BODY_NODE},
             .owner = owner.result.value,
             .position = (Position){0,0},
             .mass = 2,
@@ -228,7 +228,7 @@ static bool beam_sources_check(const ForceApi *api, unsigned substeps) {
         EntityResult b=rohr_physics_soft_body_node_add((SoftBodyNodeDescription){
             .restitution = 0.25f, .collision_enabled = true,
             .collision_filter = {.category = ROHR_COLLISION_CATEGORY_SOFT_BODY_NODE,
-                .collides_with = ROHR_COLLISION_CATEGORY_ALL & ~ROHR_COLLISION_CATEGORY_SOFT_BODY_NODE},
+                .responds_to = ROHR_COLLISION_CATEGORY_ALL & ~ROHR_COLLISION_CATEGORY_SOFT_BODY_NODE},
             .owner = owner.result.value,
             .position = (Position){10,0},
             .mass = 4,
@@ -241,7 +241,7 @@ static bool beam_sources_check(const ForceApi *api, unsigned substeps) {
             .restitution = 0.25f,
             .collision = {.thickness = ROHR_SOFT_BODY_BEAM_COLLISION_THICKNESS_MIN,
                 .filter = {.category = ROHR_COLLISION_CATEGORY_SOFT_BODY_NODE,
-                    .collides_with = ROHR_COLLISION_CATEGORY_ALL & ~ROHR_COLLISION_CATEGORY_SOFT_BODY_NODE}},
+                    .responds_to = ROHR_COLLISION_CATEGORY_ALL & ~ROHR_COLLISION_CATEGORY_SOFT_BODY_NODE}},
             .owner = owner.result.value,
             .node_a = a.result.value,
             .node_b = b.result.value,
@@ -285,7 +285,7 @@ static bool beam_sources_check(const ForceApi *api, unsigned substeps) {
     EntityResult a=rohr_physics_soft_body_node_add((SoftBodyNodeDescription){
         .restitution = 0.25f, .collision_enabled = true,
         .collision_filter = {.category = ROHR_COLLISION_CATEGORY_SOFT_BODY_NODE,
-            .collides_with = ROHR_COLLISION_CATEGORY_ALL & ~ROHR_COLLISION_CATEGORY_SOFT_BODY_NODE},
+            .responds_to = ROHR_COLLISION_CATEGORY_ALL & ~ROHR_COLLISION_CATEGORY_SOFT_BODY_NODE},
         .owner = owner.result.value,
         .position = (Position){0,0},
         .mass = 2,
@@ -294,7 +294,7 @@ static bool beam_sources_check(const ForceApi *api, unsigned substeps) {
     EntityResult b=rohr_physics_soft_body_node_add((SoftBodyNodeDescription){
         .restitution = 0.25f, .collision_enabled = true,
         .collision_filter = {.category = ROHR_COLLISION_CATEGORY_SOFT_BODY_NODE,
-            .collides_with = ROHR_COLLISION_CATEGORY_ALL & ~ROHR_COLLISION_CATEGORY_SOFT_BODY_NODE},
+            .responds_to = ROHR_COLLISION_CATEGORY_ALL & ~ROHR_COLLISION_CATEGORY_SOFT_BODY_NODE},
         .owner = owner.result.value,
         .position = (Position){10,0},
         .mass = 4,
@@ -307,7 +307,7 @@ static bool beam_sources_check(const ForceApi *api, unsigned substeps) {
         .restitution = 0.25f,
         .collision = {.thickness = ROHR_SOFT_BODY_BEAM_COLLISION_THICKNESS_MIN,
             .filter = {.category = ROHR_COLLISION_CATEGORY_SOFT_BODY_NODE,
-                .collides_with = ROHR_COLLISION_CATEGORY_ALL & ~ROHR_COLLISION_CATEGORY_SOFT_BODY_NODE}},
+                .responds_to = ROHR_COLLISION_CATEGORY_ALL & ~ROHR_COLLISION_CATEGORY_SOFT_BODY_NODE}},
         .owner = owner.result.value,
         .node_a = a.result.value,
         .node_b = b.result.value,
@@ -331,7 +331,7 @@ static bool soft_sources_check(const ForceApi *api, unsigned substeps) {
     EntityResult a=rohr_physics_soft_body_node_add((SoftBodyNodeDescription){
         .restitution = 0.25f, .collision_enabled = true,
         .collision_filter = {.category = ROHR_COLLISION_CATEGORY_SOFT_BODY_NODE,
-            .collides_with = ROHR_COLLISION_CATEGORY_ALL & ~ROHR_COLLISION_CATEGORY_SOFT_BODY_NODE},
+            .responds_to = ROHR_COLLISION_CATEGORY_ALL & ~ROHR_COLLISION_CATEGORY_SOFT_BODY_NODE},
         .owner = owner.result.value,
         .position = (Position){0,0},
         .mass = 2,
@@ -340,7 +340,7 @@ static bool soft_sources_check(const ForceApi *api, unsigned substeps) {
     EntityResult b=rohr_physics_soft_body_node_add((SoftBodyNodeDescription){
         .restitution = 0.25f, .collision_enabled = true,
         .collision_filter = {.category = ROHR_COLLISION_CATEGORY_SOFT_BODY_NODE,
-            .collides_with = ROHR_COLLISION_CATEGORY_ALL & ~ROHR_COLLISION_CATEGORY_SOFT_BODY_NODE},
+            .responds_to = ROHR_COLLISION_CATEGORY_ALL & ~ROHR_COLLISION_CATEGORY_SOFT_BODY_NODE},
         .owner = owner.result.value,
         .position = (Position){10,0},
         .mass = 4,

@@ -31,8 +31,8 @@ app visibility is available in Torque Properties, JSON, and CLI:
 `--torque-id <id> --property visible_in_app set false`. Forces support the same
 property. Both default visible when the optional property is omitted.
 
-Project format 11 stores `visible_in_app` independently of editor visibility,
-along with torque eyes and marker offsets. Only format 11 is accepted; older and
+Project format 12 stores `visible_in_app` independently of editor visibility,
+along with torque eyes and marker offsets. Only format 12 is accepted; older and
 future formats return a schema error without replacing the current project.
 Both visibility settings survive copying and undo/redo; generation and loaded
 runtime objects use only app visibility.
@@ -582,9 +582,11 @@ Rigid bodies expose mass, friction, restitution, gravity, motion type, rotation
 locking, colors, and collision filtering. Collision filtering has two sets:
 
 - **Collision Category** describes what the body is.
-- **Collides With** describes categories it accepts.
+- **Responds To** describes categories that affect this body's contact response.
 
-A pair responds only when both directional filters accept one another.
+Each direction is independent: both enabled gives ordinary response; only one
+enabled moves that side alone; neither gives overlap without physical response.
+Static and kinematic restrictions still apply. Both materials contribute.
 
 Rigid bodies, particles, soft nodes, and soft beams share collision controls.
 Multi-selection shows these controls when every selected item supports them,
@@ -598,12 +600,15 @@ category from either list also assigns it to the selection in the same undo step
 
 ## Center of mass authoring and persistence
 
-Project data uses format version 11; other versions are rejected without
+Project data uses format version 12; other versions are rejected without
 replacing the current project. Beam-derived area data is no longer supported.
+Format 12 uses directional Responds To masks. Older collision formats require
+C11's forthcoming migration; changing the version number alone does not preserve
+their collision behavior. See [collision response](physics.md#polygon-collision).
 All authored rotations use clockwise degrees, with zero heading up and no
 automatic wrapping. Angular velocity uses degrees/second. Rotation dragging
 preserves the grab offset and multiple turns in one undoable edit. CLI and
-generated C use the same units. Runtime state and templates use version 9;
+generated C use the same units. Runtime state and templates use version 10;
 unsupported project/state versions are rejected without replacing valid loaded data.
 The workspace manifest version is unchanged. Rigid-body records store
 `center_of_mass` as `{"mode": "automatic"}` or
@@ -723,7 +728,7 @@ restitution, gravity, particle collision filters, and color overrides. Beams
 provide stiffness, damping, endpoints, color overrides, and independent
 thick-segment collision settings. A newly authored beam copies its initial
 settings from its endpoint nodes: collision is enabled only when both nodes
-enable collision, its category and collide-with masks are the unions of the
+enable collision, its category and responds-to masks are the unions of the
 node masks, and its thickness is the smaller endpoint diameter. These values do
 not continue to inherit. Later node-radius changes only cap an oversized beam
 or disable it when no thickness is valid; growing a node does not grow or

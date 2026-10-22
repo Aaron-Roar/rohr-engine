@@ -1,5 +1,5 @@
 {
-    "format_version": 11,
+    "format_version": 12,
     "physics_settings": {
         "engine_time_per_tick": 0.008333333333333333,
         "timestep_override": true,
@@ -119,7 +119,7 @@
                     "particle_ring_color": 1251009279,
                     "particle_fill_color": 1251009088,
                     "collision_category": 1,
-                    "collision_with": 1,
+                    "responds_to": 1,
                     "visible": true,
                     "border_color": 4294967295,
                     "surface_color": 1199554559,
@@ -219,7 +219,7 @@
                     "particle_ring_color": 1251009279,
                     "particle_fill_color": 1251009088,
                     "collision_category": 1,
-                    "collision_with": 1,
+                    "responds_to": 1,
                     "visible": true,
                     "border_color": 4294967295,
                     "surface_color": 3533649919,

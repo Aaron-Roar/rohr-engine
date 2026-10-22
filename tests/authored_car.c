@@ -46,7 +46,7 @@ static void contact_case(unsigned kind,bool two) {
             Entity node=take(rohr_physics_soft_body_node_add((SoftBodyNodeDescription){
                 .restitution = 0.25f, .collision_enabled = true,
                 .collision_filter = {.category = ROHR_COLLISION_CATEGORY_SOFT_BODY_NODE,
-                    .collides_with = ROHR_COLLISION_CATEGORY_ALL & ~ROHR_COLLISION_CATEGORY_SOFT_BODY_NODE},
+                    .responds_to = ROHR_COLLISION_CATEGORY_ALL & ~ROHR_COLLISION_CATEGORY_SOFT_BODY_NODE},
                 .owner=soft,.position=p,.radius=0.6f,.mass=1}));
             OK(rohr_physics_static_set(node));
         } else box(p,(Vec2D){3,1},true,kind==2?car.source_instance:ENTITY_NONE);
@@ -75,6 +75,26 @@ static void contact_case(unsigned kind,bool two) {
 static void catalog_parity(void) {
     OK(rohr_engine_start());
     Car generated={0};OK(car_create(&generated,(Position){0}));
+    /* The bundled fixture retains its old allowed/excluded pairs explicitly.
+     * Hubs formerly shared the chassis category but accepted only particles. */
+    Entity floor=wall_create((Position){0,-1000},(Vec2D){100,1});
+    assert(floor != ENTITY_INVALID);
+    ParticleDescription particle_config=rohr_physics_particle_description_default_get();
+    particle_config.collision_filter=(CollisionFilterDescription){32,UINT64_MAX};
+    Entity particle=take(rohr_physics_particle_add(particle_config));
+    Entity profiles[]={generated.chassis,generated.rear_hub,generated.rear_disk,
+        generated.rear_node_1,floor,particle};
+    const CollisionFilterDescription old[]={
+        {16,50},{16,32},{8,38},{4,42},{2,UINT64_MAX},{32,UINT64_MAX}};
+    for(size_t i=0;i<6;++i) for(size_t j=0;j<6;++j) {
+        bool accepted=(old[i].responds_to & old[j].category) &&
+            (old[j].responds_to & old[i].category);
+        bool actual=rohr_physics_collision_response_to_check(profiles[i],profiles[j]);
+        if(actual!=accepted) fprintf(stderr,"car response profile %zu -> %zu: expected %d, got %d\n",
+            i,j,accepted,actual);
+        assert(actual==accepted);
+    }
+    OK(rohr_entity_delete(floor)); OK(rohr_entity_delete(particle));
     ObjectDescriptionResult loaded=rohr_object_load(CAR_SOURCE_DIRECTORY "/objects/project.rohr.json");OK(loaded);
     Entity runtime=take(rohr_entity_object_by_name_add(loaded.result.value,"Car"));
     Entity other=take(rohr_entity_object_add_with_options(objects.car,ROHR_ENTITY_OBJECT_ALL));

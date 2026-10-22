@@ -204,7 +204,7 @@ static void value_write(FILE *f, const Catalog *c, const ObjectDescription *d) {
     U(static_body); U(gravity_enabled); U(collision_enabled); U(rotation_locked); U(visible);
     U(center_of_mass_explicit); V(center_of_mass); V(particle_origin); U(particle_vertices);
     fprintf(f, ",.collision_filter={UINT64_C(%llu),UINT64_C(%llu)}",
-        (unsigned long long)d->collision_filter.category, (unsigned long long)d->collision_filter.collides_with);
+        (unsigned long long)d->collision_filter.category, (unsigned long long)d->collision_filter.responds_to);
     U(geometry_count); U(active_geometry); U(hitbox_binding_count);
     if(d->geometry_count) fprintf(f, ",.geometry=object_geometry_%llu", id);
     if(d->hitbox_binding_count) fprintf(f, ",.hitbox_bindings=object_bindings_%llu", id);

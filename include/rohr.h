@@ -1272,20 +1272,22 @@ void rohr_physics_hitbox_animation_bindings_update(void);
 
 /** Return the default collision filtering configuration. */
 CollisionFilterDescription rohr_physics_collision_filter_description_default_get(void);
-/** Replace an entity's collision category and whitelist, with or without geometry. */
+/** Replace an entity's collision category and response mask, with or without geometry. */
 EngineResult rohr_physics_collision_filter_description_set(Entity entity, CollisionFilterDescription config);
 /** Return an entity's collision filtering configuration. */
 CollisionFilterDescriptionResult rohr_physics_collision_filter_description_get(Entity entity);
 /** Set the collision categories represented by an entity. */
 EngineResult rohr_physics_collision_category_set(Entity entity, RohrCollisionCategoryMask category);
-/** Set the collision category whitelist for an entity. */
-EngineResult rohr_physics_collision_with_set(Entity entity, RohrCollisionCategoryMask categories);
-/** Allow an entity to collide with every category. */
-EngineResult rohr_physics_collision_with_all_set(Entity entity);
-/** Prevent an entity from colliding with every category. */
-EngineResult rohr_physics_collision_with_none_set(Entity entity);
-/** Return whether two entities mutually permit collision checks. */
-bool rohr_physics_collision_between_check(Entity entity_1, Entity entity_2);
+/** Set the categories this entity responds to. */
+EngineResult rohr_physics_collision_response_set(Entity entity, RohrCollisionCategoryMask categories);
+/** Make an entity respond to every category. */
+EngineResult rohr_physics_collision_response_all_set(Entity entity);
+/** Disable this entity's response to all categories; other entities may still respond to it. */
+EngineResult rohr_physics_collision_response_none_set(Entity entity);
+/** Check whether the first mask responds to the second category; ignores geometry and motion. */
+bool rohr_physics_collision_response_to_check(Entity entity, Entity target);
+/** Check whether either directional mask permits response; does not test contact. */
+bool rohr_physics_collision_response_between_check(Entity entity_1, Entity entity_2);
 
 /**
  * @brief Sets an entity orientation component value.

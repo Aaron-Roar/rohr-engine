@@ -303,7 +303,7 @@ typedef struct EditorRelationshipSetCommand {
 
 typedef enum EditorCollisionFilterKind {
     EDITOR_COLLISION_FILTER_CATEGORY,
-    EDITOR_COLLISION_FILTER_COLLIDE_WITH
+    EDITOR_COLLISION_FILTER_RESPONDS_TO
 } EditorCollisionFilterKind;
 
 typedef struct EditorCollisionFilterSetCommand {

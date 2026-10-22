@@ -997,6 +997,13 @@ if(ROHR_BUILD_TESTS)
     set_target_properties(collision_sensor_test PROPERTIES RUNTIME_OUTPUT_DIRECTORY ${ROHR_BUILD_OUTPUT_DIRECTORY}/tests)
     add_test(NAME collision_sensor COMMAND collision_sensor_test)
 
+    add_executable(collision_response_test tests/collision_response.c)
+    target_include_directories(collision_response_test PRIVATE src)
+    target_link_libraries(collision_response_test PRIVATE rohr_engine)
+    set_target_properties(collision_response_test PROPERTIES
+        RUNTIME_OUTPUT_DIRECTORY ${ROHR_BUILD_OUTPUT_DIRECTORY}/tests)
+    add_test(NAME collision_response COMMAND collision_response_test)
+
     add_executable(particle_collision_mode_test tests/particle_collision_mode.c)
     target_link_libraries(particle_collision_mode_test PRIVATE rohr_engine)
     set_target_properties(particle_collision_mode_test PROPERTIES
@@ -1299,6 +1306,7 @@ if(ROHR_BUILD_TESTS)
         soft_body
         auto_shape
         collision_sensor
+        collision_response
         particle_collision_mode
         hitbox_animation_binding
         entity_pair_set
@@ -1363,6 +1371,7 @@ if(ROHR_BUILD_TESTS)
         node_loop_geometry_test
         auto_shape_test
         collision_sensor_test
+        collision_response_test
         particle_collision_mode_test
         hitbox_animation_binding_test
         entity_pair_set_test

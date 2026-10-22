@@ -519,10 +519,11 @@ CollisionFilterDescription rohr_physics_collision_filter_description_default_get
 EngineResult rohr_physics_collision_filter_description_set(Entity entity, CollisionFilterDescription config) { return physics_collision_filter_description_set(entity, config); }
 CollisionFilterDescriptionResult rohr_physics_collision_filter_description_get(Entity entity) { return physics_collision_filter_description_get(entity); }
 EngineResult rohr_physics_collision_category_set(Entity entity, RohrCollisionCategoryMask category) { return physics_collision_category_set(entity, category); }
-EngineResult rohr_physics_collision_with_set(Entity entity, RohrCollisionCategoryMask categories) { return physics_collision_with_set(entity, categories); }
-EngineResult rohr_physics_collision_with_all_set(Entity entity) { return physics_collision_with_all_set(entity); }
-EngineResult rohr_physics_collision_with_none_set(Entity entity) { return physics_collision_with_none_set(entity); }
-bool rohr_physics_collision_between_check(Entity entity_1, Entity entity_2) { return physics_collision_between_check(entity_1, entity_2); }
+EngineResult rohr_physics_collision_response_set(Entity entity, RohrCollisionCategoryMask categories) { return physics_collision_response_set(entity, categories); }
+EngineResult rohr_physics_collision_response_all_set(Entity entity) { return physics_collision_response_all_set(entity); }
+EngineResult rohr_physics_collision_response_none_set(Entity entity) { return physics_collision_response_none_set(entity); }
+bool rohr_physics_collision_response_to_check(Entity entity, Entity target) { return physics_collision_response_to_check(entity, target); }
+bool rohr_physics_collision_response_between_check(Entity entity_1, Entity entity_2) { return physics_collision_response_between_check(entity_1, entity_2); }
 EngineResult rohr_physics_orientation_set(Entity entity, Orientation angle) { return physics_orientation_set(entity, angle); }
 EngineResult rohr_physics_angular_velocity_set(Entity entity, AngularVelocity v) { return physics_angular_velocity_set(entity, v); }
 AngularVelocityResult rohr_physics_angular_velocity_get(Entity entity) { return physics_angular_velocity_get(entity); }

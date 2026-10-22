@@ -117,7 +117,7 @@ EngineResult state_topology_load(Entity entity, yyjson_val *components,
         CollisionFilterDescriptionResult filter = physics_collision_filter_description_get(entity);
         REQUIRE(!error_check(filter));
         value.category = filter.result.value.category;
-        value.collides_with = filter.result.value.collides_with;
+        value.responds_to = filter.result.value.responds_to;
         STORE(SoftBodyNodePool_store_at(&soft_body_nodes_pool, index, value));
         entity_mask[index] |= ROHR_SOFT_BODY_NODE | ROHR_PARTICLE;
         Entity owner = entity_owner_get(entity).result.value;
@@ -142,7 +142,7 @@ EngineResult state_topology_load(Entity entity, yyjson_val *components,
             value.collision_thickness >= 0 &&
             value.friction >= 0 && value.restitution >= 0 && value.restitution <= 1 &&
             boolean(beam, "collision_enabled", &value.collision_enabled) &&
-            uint64(beam, "category", &value.category) && uint64(beam, "collides_with", &value.collides_with) &&
+            uint64(beam, "category", &value.category) && uint64(beam, "responds_to", &value.responds_to) &&
             color_read(beam, &value.draw_color, &value.draw_color_overridden));
         REQUIRE(!value.collision_enabled || value.collision_thickness >= ROHR_SOFT_BODY_BEAM_COLLISION_THICKNESS_MIN);
         STORE(SoftBodyBeamPool_store_at(&soft_body_beams_pool, index, value));
@@ -329,7 +329,7 @@ bool state_topology_write(yyjson_mut_doc *doc, yyjson_mut_val *components, Entit
 #undef BEAM_WRITE
         WRITE(yyjson_mut_obj_add_bool(doc, v, "collision_enabled", value->collision_enabled) &&
             yyjson_mut_obj_add_uint(doc, v, "category", value->category) &&
-            yyjson_mut_obj_add_uint(doc, v, "collides_with", value->collides_with) &&
+            yyjson_mut_obj_add_uint(doc, v, "responds_to", value->responds_to) &&
             color_write(doc, v, value->draw_color, value->draw_color_overridden) &&
             yyjson_mut_obj_add_val(doc, components, "soft_body_beam", v));
     }

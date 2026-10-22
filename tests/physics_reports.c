@@ -316,7 +316,7 @@ static void allocation_failures(void) {
     EntityResult left = rohr_physics_soft_body_node_add((SoftBodyNodeDescription){
         .restitution = 0.25f, .collision_enabled = true,
         .collision_filter = {.category = ROHR_COLLISION_CATEGORY_SOFT_BODY_NODE,
-            .collides_with = ROHR_COLLISION_CATEGORY_ALL & ~ROHR_COLLISION_CATEGORY_SOFT_BODY_NODE},
+            .responds_to = ROHR_COLLISION_CATEGORY_ALL & ~ROHR_COLLISION_CATEGORY_SOFT_BODY_NODE},
         .owner = soft.result.value,
         .position = (Position){-10, 0},
         .mass = 1,
@@ -325,7 +325,7 @@ static void allocation_failures(void) {
     EntityResult right = rohr_physics_soft_body_node_add((SoftBodyNodeDescription){
         .restitution = 0.25f, .collision_enabled = true,
         .collision_filter = {.category = ROHR_COLLISION_CATEGORY_SOFT_BODY_NODE,
-            .collides_with = ROHR_COLLISION_CATEGORY_ALL & ~ROHR_COLLISION_CATEGORY_SOFT_BODY_NODE},
+            .responds_to = ROHR_COLLISION_CATEGORY_ALL & ~ROHR_COLLISION_CATEGORY_SOFT_BODY_NODE},
         .owner = soft.result.value,
         .position = (Position){10, 0},
         .mass = 1,
@@ -337,7 +337,7 @@ static void allocation_failures(void) {
         .restitution = 0.25f,
         .collision = {.enabled = true, .thickness = 2,
             .filter = {.category = ROHR_COLLISION_CATEGORY_SOFT_BODY_NODE,
-                .collides_with = ROHR_COLLISION_CATEGORY_ALL & ~ROHR_COLLISION_CATEGORY_SOFT_BODY_NODE}},
+                .responds_to = ROHR_COLLISION_CATEGORY_ALL & ~ROHR_COLLISION_CATEGORY_SOFT_BODY_NODE}},
         .owner = soft.result.value,
         .node_a = left.result.value,
         .node_b = right.result.value,

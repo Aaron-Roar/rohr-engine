@@ -325,11 +325,16 @@ int main(void) {
         goto fail;
     }
     ball = ball_result.result.value;
-    if(rohr_error_check(rohr_physics_collision_category_set(
+    /* Walls accept the ball, while paddles remain excluded in both directions. */
+    if(rohr_error_check(rohr_physics_collision_response_set(wall_bottom,
+                pong_collision_category_ball | ROHR_COLLISION_CATEGORY_DEFAULT)) ||
+            rohr_error_check(rohr_physics_collision_response_set(wall_top,
+                pong_collision_category_ball | ROHR_COLLISION_CATEGORY_DEFAULT)) ||
+            rohr_error_check(rohr_physics_collision_category_set(
                 paddle_left,
                 pong_collision_category_paddle
             )) ||
-            rohr_error_check(rohr_physics_collision_with_set(
+            rohr_error_check(rohr_physics_collision_response_set(
                 paddle_left,
                 pong_collision_category_ball
             )) ||
@@ -337,7 +342,7 @@ int main(void) {
                 paddle_right,
                 pong_collision_category_paddle
             )) ||
-            rohr_error_check(rohr_physics_collision_with_set(
+            rohr_error_check(rohr_physics_collision_response_set(
                 paddle_right,
                 pong_collision_category_ball
             )) ||
@@ -345,7 +350,7 @@ int main(void) {
                 ball,
                 pong_collision_category_ball
             )) ||
-            rohr_error_check(rohr_physics_collision_with_set(
+            rohr_error_check(rohr_physics_collision_response_set(
                 ball,
                 pong_collision_category_paddle | ROHR_COLLISION_CATEGORY_DEFAULT
             ))) {

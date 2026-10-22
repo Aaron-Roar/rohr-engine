@@ -23,7 +23,7 @@ static bool beam_order_scene_create(
     left = rohr_physics_soft_body_node_add((SoftBodyNodeDescription){
         .restitution = 0.25f, .collision_enabled = true,
         .collision_filter = {.category = ROHR_COLLISION_CATEGORY_SOFT_BODY_NODE,
-            .collides_with = ROHR_COLLISION_CATEGORY_ALL & ~ROHR_COLLISION_CATEGORY_SOFT_BODY_NODE},
+            .responds_to = ROHR_COLLISION_CATEGORY_ALL & ~ROHR_COLLISION_CATEGORY_SOFT_BODY_NODE},
         .owner = body.result.value,
         .position = (Position){x - 5.0f, 200.0f},
         .mass = 1.0f,
@@ -32,7 +32,7 @@ static bool beam_order_scene_create(
     right = rohr_physics_soft_body_node_add((SoftBodyNodeDescription){
         .restitution = 0.25f, .collision_enabled = true,
         .collision_filter = {.category = ROHR_COLLISION_CATEGORY_SOFT_BODY_NODE,
-            .collides_with = ROHR_COLLISION_CATEGORY_ALL & ~ROHR_COLLISION_CATEGORY_SOFT_BODY_NODE},
+            .responds_to = ROHR_COLLISION_CATEGORY_ALL & ~ROHR_COLLISION_CATEGORY_SOFT_BODY_NODE},
         .owner = body.result.value,
         .position = (Position){x + 5.0f, 200.0f},
         .mass = 1.0f,
@@ -47,7 +47,7 @@ static bool beam_order_scene_create(
         .restitution = 0.25f,
         .collision = {.enabled = true, .thickness = 2,
             .filter = {.category = ROHR_COLLISION_CATEGORY_SOFT_BODY_NODE,
-                .collides_with = ROHR_COLLISION_CATEGORY_ALL & ~ROHR_COLLISION_CATEGORY_SOFT_BODY_NODE}},
+                .responds_to = ROHR_COLLISION_CATEGORY_ALL & ~ROHR_COLLISION_CATEGORY_SOFT_BODY_NODE}},
         .owner = body.result.value,
         .node_a = reversed ? right.result.value : left.result.value,
         .node_b = reversed ? left.result.value : right.result.value,
@@ -100,7 +100,7 @@ int main(void) {
     node_a = rohr_physics_soft_body_node_add((SoftBodyNodeDescription){
         .restitution = 0.25f, .collision_enabled = true,
         .collision_filter = {.category = ROHR_COLLISION_CATEGORY_SOFT_BODY_NODE,
-            .collides_with = ROHR_COLLISION_CATEGORY_ALL & ~ROHR_COLLISION_CATEGORY_SOFT_BODY_NODE},
+            .responds_to = ROHR_COLLISION_CATEGORY_ALL & ~ROHR_COLLISION_CATEGORY_SOFT_BODY_NODE},
         .owner = body.result.value,
         .position = (Position){-10.0f, 0.0f},
         .mass = 1.0f,
@@ -109,7 +109,7 @@ int main(void) {
     node_b = rohr_physics_soft_body_node_add((SoftBodyNodeDescription){
         .restitution = 0.25f, .collision_enabled = true,
         .collision_filter = {.category = ROHR_COLLISION_CATEGORY_SOFT_BODY_NODE,
-            .collides_with = ROHR_COLLISION_CATEGORY_ALL & ~ROHR_COLLISION_CATEGORY_SOFT_BODY_NODE},
+            .responds_to = ROHR_COLLISION_CATEGORY_ALL & ~ROHR_COLLISION_CATEGORY_SOFT_BODY_NODE},
         .owner = body.result.value,
         .position = (Position){10.0f, 0.0f},
         .mass = 1.0f,
@@ -118,7 +118,7 @@ int main(void) {
     node_c = rohr_physics_soft_body_node_add((SoftBodyNodeDescription){
         .restitution = 0.25f, .collision_enabled = true,
         .collision_filter = {.category = ROHR_COLLISION_CATEGORY_SOFT_BODY_NODE,
-            .collides_with = ROHR_COLLISION_CATEGORY_ALL & ~ROHR_COLLISION_CATEGORY_SOFT_BODY_NODE},
+            .responds_to = ROHR_COLLISION_CATEGORY_ALL & ~ROHR_COLLISION_CATEGORY_SOFT_BODY_NODE},
         .owner = body.result.value,
         .position = (Position){0.0f, 15.0f},
         .mass = 1.0f,
@@ -155,14 +155,14 @@ int main(void) {
                     ROHR_SOFT_BODY_NODE | ROHR_PARTICLE | ROHR_HIT_BOX | ROHR_COLLISION) ||
                 filter.result.value.category !=
                     ROHR_COLLISION_CATEGORY_SOFT_BODY_NODE ||
-                (filter.result.value.collides_with &
+                (filter.result.value.responds_to &
                     ROHR_COLLISION_CATEGORY_SOFT_BODY_NODE) != 0) FAIL();
     }
     beam = rohr_physics_soft_body_beam_add((SoftBodyBeamDescription){
         .restitution = 0.25f,
         .collision = {.thickness = ROHR_SOFT_BODY_BEAM_COLLISION_THICKNESS_MIN,
             .filter = {.category = ROHR_COLLISION_CATEGORY_SOFT_BODY_NODE,
-                .collides_with = ROHR_COLLISION_CATEGORY_ALL & ~ROHR_COLLISION_CATEGORY_SOFT_BODY_NODE}},
+                .responds_to = ROHR_COLLISION_CATEGORY_ALL & ~ROHR_COLLISION_CATEGORY_SOFT_BODY_NODE}},
         .owner = body.result.value,
         .node_a = node_a.result.value,
         .node_b = node_b.result.value,
@@ -184,7 +184,7 @@ int main(void) {
         if(rohr_physics_soft_body_beam_get(beam.result.value).result.value.collision_thickness != 100) FAIL();
         if(!rohr_error_check(rohr_physics_soft_body_beam_collision_thickness_set(beam.result.value, .001f))) FAIL();
         if(rohr_error_check(rohr_physics_soft_body_beam_collision_description_set(beam.result.value,
-                (SoftBodyBeamCollisionDescription){.enabled = true, .thickness = 3, .filter = {.category = 8, .collides_with = 16}}))) FAIL();
+                (SoftBodyBeamCollisionDescription){.enabled = true, .thickness = 3, .filter = {.category = 8, .responds_to = 16}}))) FAIL();
     }
     {
         Color node_color = {10, 20, 30, 255};
@@ -267,7 +267,7 @@ int main(void) {
         collision_node = rohr_physics_soft_body_node_add((SoftBodyNodeDescription){
             .restitution = 0.25f, .collision_enabled = true,
             .collision_filter = {.category = ROHR_COLLISION_CATEGORY_SOFT_BODY_NODE,
-                .collides_with = ROHR_COLLISION_CATEGORY_ALL & ~ROHR_COLLISION_CATEGORY_SOFT_BODY_NODE},
+                .responds_to = ROHR_COLLISION_CATEGORY_ALL & ~ROHR_COLLISION_CATEGORY_SOFT_BODY_NODE},
             .owner = collision_body.result.value,
             .position = (Position){11.0f, 0.0f},
             .mass = 1.0f,
@@ -310,7 +310,7 @@ int main(void) {
         boundary_a = rohr_physics_soft_body_node_add((SoftBodyNodeDescription){
             .restitution = 0.25f, .collision_enabled = true,
             .collision_filter = {.category = ROHR_COLLISION_CATEGORY_SOFT_BODY_NODE,
-                .collides_with = ROHR_COLLISION_CATEGORY_ALL & ~ROHR_COLLISION_CATEGORY_SOFT_BODY_NODE},
+                .responds_to = ROHR_COLLISION_CATEGORY_ALL & ~ROHR_COLLISION_CATEGORY_SOFT_BODY_NODE},
             .owner = boundary_body.result.value,
             .position = (Position){-10.0f, 0.0f},
             .mass = 1.0f,
@@ -319,7 +319,7 @@ int main(void) {
         boundary_b = rohr_physics_soft_body_node_add((SoftBodyNodeDescription){
             .restitution = 0.25f, .collision_enabled = true,
             .collision_filter = {.category = ROHR_COLLISION_CATEGORY_SOFT_BODY_NODE,
-                .collides_with = ROHR_COLLISION_CATEGORY_ALL & ~ROHR_COLLISION_CATEGORY_SOFT_BODY_NODE},
+                .responds_to = ROHR_COLLISION_CATEGORY_ALL & ~ROHR_COLLISION_CATEGORY_SOFT_BODY_NODE},
             .owner = boundary_body.result.value,
             .position = (Position){10.0f, 0.0f},
             .mass = 1.0f,
@@ -328,7 +328,7 @@ int main(void) {
         boundary_c = rohr_physics_soft_body_node_add((SoftBodyNodeDescription){
             .restitution = 0.25f, .collision_enabled = true,
             .collision_filter = {.category = ROHR_COLLISION_CATEGORY_SOFT_BODY_NODE,
-                .collides_with = ROHR_COLLISION_CATEGORY_ALL & ~ROHR_COLLISION_CATEGORY_SOFT_BODY_NODE},
+                .responds_to = ROHR_COLLISION_CATEGORY_ALL & ~ROHR_COLLISION_CATEGORY_SOFT_BODY_NODE},
             .owner = boundary_body.result.value,
             .position = (Position){0.0f, 10.0f},
             .mass = 1.0f,
@@ -351,7 +351,7 @@ int main(void) {
             .restitution = 0.25f,
             .collision = {.enabled = true, .thickness = 2,
                 .filter = {.category = ROHR_COLLISION_CATEGORY_SOFT_BODY_NODE,
-                    .collides_with = ROHR_COLLISION_CATEGORY_ALL & ~ROHR_COLLISION_CATEGORY_SOFT_BODY_NODE}},
+                    .responds_to = ROHR_COLLISION_CATEGORY_ALL & ~ROHR_COLLISION_CATEGORY_SOFT_BODY_NODE}},
             .owner = boundary_body.result.value,
             .node_a = boundary_a.result.value,
             .node_b = boundary_b.result.value,
@@ -381,7 +381,9 @@ int main(void) {
                 object_position.result.value.y != -1.25f ||
                 rohr_error_check(rohr_physics_soft_body_beam_collision_enable(
                     boundary_beam.result.value)) ||
-                rohr_error_check(rohr_physics_soft_body_beam_collision_filter_description_set(boundary_beam.result.value, (CollisionFilterDescription){.category = UINT64_C(2), .collides_with = UINT64_C(2)})))
+                rohr_error_check(rohr_physics_collision_response_set(
+                    object.result.value, ROHR_COLLISION_CATEGORY_DEFAULT)) ||
+                rohr_error_check(rohr_physics_soft_body_beam_collision_filter_description_set(boundary_beam.result.value, (CollisionFilterDescription){.category = UINT64_C(2), .responds_to = UINT64_C(2)})))
             FAIL();
         rohr_system_physics_update(0.0);
         object_position = rohr_physics_position_get(object.result.value);
@@ -392,7 +394,7 @@ int main(void) {
                 rohr_error_check(rohr_physics_collision_filter_description_set(
                     object.result.value, (CollisionFilterDescription){
                         .category = UINT64_C(2),
-                        .collides_with = UINT64_C(2)
+                        .responds_to = UINT64_C(2)
                     }))) FAIL();
         rohr_system_physics_update(0.0);
         object_index = rohr_entity_index_get(object.result.value);
@@ -419,7 +421,7 @@ int main(void) {
         seam_a = rohr_physics_soft_body_node_add((SoftBodyNodeDescription){
             .restitution = 0.25f, .collision_enabled = true,
             .collision_filter = {.category = ROHR_COLLISION_CATEGORY_SOFT_BODY_NODE,
-                .collides_with = ROHR_COLLISION_CATEGORY_ALL & ~ROHR_COLLISION_CATEGORY_SOFT_BODY_NODE},
+                .responds_to = ROHR_COLLISION_CATEGORY_ALL & ~ROHR_COLLISION_CATEGORY_SOFT_BODY_NODE},
             .owner = seam_body.result.value,
             .position = (Position){95.0f, 100.0f},
             .mass = 1.0f,
@@ -428,7 +430,7 @@ int main(void) {
         seam_b = rohr_physics_soft_body_node_add((SoftBodyNodeDescription){
             .restitution = 0.25f, .collision_enabled = true,
             .collision_filter = {.category = ROHR_COLLISION_CATEGORY_SOFT_BODY_NODE,
-                .collides_with = ROHR_COLLISION_CATEGORY_ALL & ~ROHR_COLLISION_CATEGORY_SOFT_BODY_NODE},
+                .responds_to = ROHR_COLLISION_CATEGORY_ALL & ~ROHR_COLLISION_CATEGORY_SOFT_BODY_NODE},
             .owner = seam_body.result.value,
             .position = (Position){105.0f, 100.0f},
             .mass = 1.0f,
@@ -439,7 +441,7 @@ int main(void) {
             .restitution = 0.25f,
             .collision = {.enabled = true, .thickness = 4,
                 .filter = {.category = ROHR_COLLISION_CATEGORY_SOFT_BODY_NODE,
-                    .collides_with = ROHR_COLLISION_CATEGORY_ALL & ~ROHR_COLLISION_CATEGORY_SOFT_BODY_NODE}},
+                    .responds_to = ROHR_COLLISION_CATEGORY_ALL & ~ROHR_COLLISION_CATEGORY_SOFT_BODY_NODE}},
             .owner = seam_body.result.value,
             .node_a = seam_a.result.value,
             .node_b = seam_b.result.value,
@@ -461,7 +463,7 @@ int main(void) {
         if(!rohr_physics_contact_check(seam_a.result.value, target.result.value) ||
                 rohr_physics_contact_check(
                     seam_beam.result.value, target.result.value) ||
-                rohr_error_check(rohr_physics_soft_body_node_collision_filter_description_set(seam_a.result.value, (CollisionFilterDescription){.category = ROHR_COLLISION_CATEGORY_NONE, .collides_with = ROHR_COLLISION_CATEGORY_NONE})) ||
+                rohr_error_check(rohr_physics_soft_body_node_collision_filter_description_set(seam_a.result.value, (CollisionFilterDescription){.category = ROHR_COLLISION_CATEGORY_NONE, .responds_to = ROHR_COLLISION_CATEGORY_NONE})) ||
                 rohr_error_check(rohr_physics_position_set(
                     seam_a.result.value, (Position){95.0f, 100.0f})) ||
                 rohr_error_check(rohr_physics_position_set(
@@ -492,7 +494,7 @@ int main(void) {
         local_node = rohr_physics_soft_body_node_local_add((SoftBodyNodeDescription){
             .restitution = 0.25f, .collision_enabled = true,
             .collision_filter = {.category = ROHR_COLLISION_CATEGORY_SOFT_BODY_NODE,
-                .collides_with = ROHR_COLLISION_CATEGORY_ALL & ~ROHR_COLLISION_CATEGORY_SOFT_BODY_NODE},
+                .responds_to = ROHR_COLLISION_CATEGORY_ALL & ~ROHR_COLLISION_CATEGORY_SOFT_BODY_NODE},
             .owner = local_body.result.value,
             .position = (Position){5.0f, 0.0f},
             .mass = 1.0f,
@@ -525,7 +527,7 @@ int main(void) {
         defaults_a = rohr_physics_soft_body_node_add((SoftBodyNodeDescription){
             .restitution = 0.25f, .collision_enabled = true,
             .collision_filter = {.category = ROHR_COLLISION_CATEGORY_SOFT_BODY_NODE,
-                .collides_with = ROHR_COLLISION_CATEGORY_ALL & ~ROHR_COLLISION_CATEGORY_SOFT_BODY_NODE},
+                .responds_to = ROHR_COLLISION_CATEGORY_ALL & ~ROHR_COLLISION_CATEGORY_SOFT_BODY_NODE},
             .owner = defaults_body.result.value,
             .position = (Position){0.0f, 0.0f},
             .mass = 1.0f,
@@ -534,29 +536,29 @@ int main(void) {
         defaults_b = rohr_physics_soft_body_node_add((SoftBodyNodeDescription){
             .restitution = 0.25f, .collision_enabled = true,
             .collision_filter = {.category = ROHR_COLLISION_CATEGORY_SOFT_BODY_NODE,
-                .collides_with = ROHR_COLLISION_CATEGORY_ALL & ~ROHR_COLLISION_CATEGORY_SOFT_BODY_NODE},
+                .responds_to = ROHR_COLLISION_CATEGORY_ALL & ~ROHR_COLLISION_CATEGORY_SOFT_BODY_NODE},
             .owner = defaults_body.result.value,
             .position = (Position){5.0f, 0.0f},
             .mass = 1.0f,
             .radius = 1.0f
         });
         if(rohr_error_check(defaults_a) || rohr_error_check(defaults_b) ||
-                rohr_error_check(rohr_physics_soft_body_node_collision_filter_description_set(defaults_a.result.value, (CollisionFilterDescription){.category = UINT64_C(2), .collides_with = UINT64_C(8)})) ||
-                rohr_error_check(rohr_physics_soft_body_node_collision_filter_description_set(defaults_b.result.value, (CollisionFilterDescription){.category = UINT64_C(4), .collides_with = UINT64_C(16)})))
+                rohr_error_check(rohr_physics_soft_body_node_collision_filter_description_set(defaults_a.result.value, (CollisionFilterDescription){.category = UINT64_C(2), .responds_to = UINT64_C(8)})) ||
+                rohr_error_check(rohr_physics_soft_body_node_collision_filter_description_set(defaults_b.result.value, (CollisionFilterDescription){.category = UINT64_C(4), .responds_to = UINT64_C(16)})))
             FAIL();
         defaults_beam = rohr_physics_soft_body_beam_add((SoftBodyBeamDescription){
             .owner = defaults_body.result.value, .node_a = defaults_a.result.value, .node_b = defaults_b.result.value});
         if(rohr_error_check(defaults_beam)) FAIL();
         defaults = rohr_physics_soft_body_beam_get(defaults_beam.result.value);
         if(rohr_error_check(defaults) || defaults.result.value.collision_enabled ||
-                defaults.result.value.collision_thickness != 0 || defaults.result.value.category != 0 || defaults.result.value.collides_with != 0) FAIL();
+                defaults.result.value.collision_thickness != 0 || defaults.result.value.category != 0 || defaults.result.value.responds_to != 0) FAIL();
         if(rohr_error_check(rohr_physics_soft_body_beam_collision_description_set(defaults_beam.result.value,
-                (SoftBodyBeamCollisionDescription){.enabled = true, .thickness = 3, .filter = {.category = 2, .collides_with = 8}})) ||
+                (SoftBodyBeamCollisionDescription){.enabled = true, .thickness = 3, .filter = {.category = 2, .responds_to = 8}})) ||
                 rohr_error_check(rohr_physics_particle_radius_set(defaults_a.result.value, .001f)) ||
                 rohr_error_check(rohr_physics_soft_body_node_collision_filter_description_set(defaults_b.result.value, (CollisionFilterDescription){0}))) FAIL();
         defaults = rohr_physics_soft_body_beam_get(defaults_beam.result.value);
         if(rohr_error_check(defaults) || !defaults.result.value.collision_enabled || defaults.result.value.collision_thickness != 3 ||
-                defaults.result.value.category != 2 || defaults.result.value.collides_with != 8) FAIL();
+                defaults.result.value.category != 2 || defaults.result.value.responds_to != 8) FAIL();
     }
     {
         Entity forward_beam = ENTITY_INVALID;

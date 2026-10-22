@@ -242,15 +242,50 @@ rohr_physics_hitbox_animation_binding_set(entity, animation_id, frame_id,
 Several frames may map to one hitbox. One frame maps to at most one hitbox for
 an entity. Removing a hitbox removes bindings that target it.
 
-The broadphase stores active collider bounds in a dynamic AABB tree. Candidate
-pairs pass mutual collision filters before narrow-phase work. Each collider has:
+The broadphase stores active collider bounds in a dynamic AABB tree. Narrow
+phase records geometric overlaps independently of response masks. Each collider
+has a category mask describing what it is and a `responds_to` mask describing
+which categories it responds to.
 
-- a category mask describing what it is; and
-- a `collides_with` mask describing what it accepts.
+For each overlapping pair, the solver evaluates the masks independently:
 
-Both directions must accept the other category. `ROHR_COLLISION` determines
-whether a detected overlap enters physical response; a filtered sensor may
-report overlap without contact response.
+| A responds to B | B responds to A | Physical response |
+|---|---|---|
+| Yes | Yes | Both participate with their usual effective mass/inertia. |
+| Yes | No | Only A receives contact correction and impulses. |
+| No | Yes | Only B receives contact correction and impulses. |
+| No | No | Overlap remains queryable; no contact response. |
+
+A nonresponding side has zero inverse mass/inertia **for this contact only**.
+Its velocity still contributes to relative motion, and both bodies' materials
+still determine friction and restitution. Static, kinematic, held, and
+nonrotating restrictions continue to apply. A dynamic body can respond to one
+category and act as a moving obstacle to another. Joints, beams, and other
+constraints can still transmit motion indirectly; masks govern contact response.
+`ROHR_COLLISION` must be enabled on both bodies for physical response. Hitboxes
+without it remain geometric sensors. Enabled beam boundaries similarly retain
+overlap without response; disabled beams have no collision geometry.
+
+Use `.responds_to` in `CollisionFilterDescription`, or the focused
+`rohr_physics_collision_response_set`, `_all_set`, and `_none_set` functions.
+`rohr_physics_collision_response_to_check(a, b)` checks A's mask against B's
+category; `rohr_physics_collision_response_between_check(a, b)` checks whether
+either direction permits response. Neither checks geometry, enabled state, or
+motion type. Contact/overlap queries describe the physics update's interactions;
+a one-sided contact is queryable in both argument orders, with reversed normals.
+
+The old `collides_with`, `collision_with_*`, and `collision_between_check` C
+names are removed so callers must review the semantic change explicitly. In
+particular, response-none does not prevent another body from responding. To
+exclude a pair, configure neither side to respond, or use nonoverlapping category
+assignments and response masks. Turning collision off remains a sensor operation.
+Editor/CLI controls are named **Responds To** / `responds-to`; editor JSON and
+runtime descriptions use `responds_to`.
+
+Project format 12 and game-state format 10 identify these semantics. Older
+formats fail with a migration-required diagnostic without modifying files or
+replacing loaded state. Do not just bump their version or rename their masks:
+C11 will supply behavior-preserving category/mask migration.
 
 Narrow phase uses SAT on relevant convex-piece pairs. Similar contacts are
 merged while distinct external surface normals are retained. Each retained
@@ -366,7 +401,9 @@ Focused enable/disable/thickness setters remain available.
 
 The collision primitive is a centroid-to-centroid rectangle. For each target,
 the solver removes the portion inside an endpoint node only when that node's
-filter allows it to handle the target. This avoids duplicate node/beam response
+directional responses match the beam's responses for that target. These cutouts
+apply only during contact solving; geometric overlap uses the whole beam. This
+avoids duplicate node/beam response
 without preventing a differently filtered beam from reaching the endpoint.
 Beam contacts belong to the beam's stable entity handle, and endpoint ordering
 does not change material response. Areas provide

@@ -1732,7 +1732,7 @@ property_invalid:
             uint64_t bit;
             if(object == NULL) return editor_command_not_found("object", set->object);
             if(set->filter != EDITOR_COLLISION_FILTER_CATEGORY &&
-                    set->filter != EDITOR_COLLISION_FILTER_COLLIDE_WITH)
+                    set->filter != EDITOR_COLLISION_FILTER_RESPONDS_TO)
                 return editor_command_error(editor_result_error(
                     EDITOR_ERROR_INVALID_ARGUMENT,
                     "unknown collision filter kind").result.error);
@@ -1744,13 +1744,13 @@ property_invalid:
                 EditorRigidBody *body = editor_project_rigid_body_get(object, set->item);
                 if(body == NULL) return editor_command_not_found("rigid body", set->item);
                 filter = set->filter == EDITOR_COLLISION_FILTER_CATEGORY ?
-                    &body->collision_category : &body->collision_with;
+                    &body->collision_category : &body->responds_to;
             } else if(set->kind == EDITOR_ITEM_SOFT_NODE) {
                 EditorSoftBody *body = editor_command_soft_body_get(object, set->parent);
                 EditorSoftNode *node = editor_command_soft_node_get(body, set->item);
                 if(node == NULL) return editor_command_not_found("soft node", set->item);
                 filter = set->filter == EDITOR_COLLISION_FILTER_CATEGORY ?
-                    &node->collision_category : &node->collision_with;
+                    &node->collision_category : &node->responds_to;
             } else if(set->kind == EDITOR_ITEM_SOFT_BEAM) {
                 EditorSoftBody *body = editor_command_soft_body_get(
                     object, set->parent);
@@ -1759,7 +1759,7 @@ property_invalid:
                 if(beam == NULL)
                     return editor_command_not_found("soft beam", set->item);
                 filter = set->filter == EDITOR_COLLISION_FILTER_CATEGORY ?
-                    &beam->collision_category : &beam->collision_with;
+                    &beam->collision_category : &beam->responds_to;
             } else {
                 return editor_command_error(editor_result_error(
                     EDITOR_ERROR_INVALID_ARGUMENT,
@@ -3348,8 +3348,8 @@ EditorResult editor_command_cli_parse(int count, char **arguments,
         enabled_index = filter_index + 2;
         if(strcmp(arguments[filter_index], "category") == 0)
             set->filter = EDITOR_COLLISION_FILTER_CATEGORY;
-        else if(strcmp(arguments[filter_index], "collide-with") == 0)
-            set->filter = EDITOR_COLLISION_FILTER_COLLIDE_WITH;
+        else if(strcmp(arguments[filter_index], "responds-to") == 0)
+            set->filter = EDITOR_COLLISION_FILTER_RESPONDS_TO;
         else goto collision_filter_invalid;
         if(arguments[mask_index][0] == '\0' ||
                 !editor_command_bool_parse(arguments[enabled_index], &set->enabled))
@@ -4693,13 +4693,13 @@ EditorResult editor_command_cli_write(const EditorCommand *command,
             const EditorCollisionFilterSetCommand *set =
                 &command->data.collision_filter_set;
             const char *filter = set->filter == EDITOR_COLLISION_FILTER_CATEGORY ?
-                "category" : "collide-with";
+                "category" : "responds-to";
             const char *enabled = set->enabled ? "true" : "false";
             if((set->kind != EDITOR_ITEM_RIGID_BODY &&
                         set->kind != EDITOR_ITEM_SOFT_NODE &&
                         set->kind != EDITOR_ITEM_SOFT_BEAM) ||
                     (set->filter != EDITOR_COLLISION_FILTER_CATEGORY &&
-                        set->filter != EDITOR_COLLISION_FILTER_COLLIDE_WITH) ||
+                        set->filter != EDITOR_COLLISION_FILTER_RESPONDS_TO) ||
                     !editor_command_text_append(output, output_capacity, &used, "filter ") ||
                     !editor_command_shell_text_append(output, output_capacity, &used,
                         document_path)) goto capacity_error;

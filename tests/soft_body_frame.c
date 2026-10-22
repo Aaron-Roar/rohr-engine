@@ -27,7 +27,7 @@ static Entity node(Entity b, Position p, float m) {
     EntityResult r=rohr_physics_soft_body_node_add((SoftBodyNodeDescription){
         .restitution = 0.25f, .collision_enabled = true,
         .collision_filter = {.category = ROHR_COLLISION_CATEGORY_SOFT_BODY_NODE,
-            .collides_with = ROHR_COLLISION_CATEGORY_ALL & ~ROHR_COLLISION_CATEGORY_SOFT_BODY_NODE},
+            .responds_to = ROHR_COLLISION_CATEGORY_ALL & ~ROHR_COLLISION_CATEGORY_SOFT_BODY_NODE},
         .owner=b,.position=p,.mass=m,.radius=.1f}); OK(r);
     OK(rohr_physics_collision_filter_description_set(r.result.value,((CollisionFilterDescription){0}))); return r.result.value;
 }
@@ -93,7 +93,7 @@ static void topology_check(void) {
         .restitution = 0.25f,
         .collision = {.thickness = ROHR_SOFT_BODY_BEAM_COLLISION_THICKNESS_MIN,
             .filter = {.category = ROHR_COLLISION_CATEGORY_SOFT_BODY_NODE,
-                .collides_with = ROHR_COLLISION_CATEGORY_ALL & ~ROHR_COLLISION_CATEGORY_SOFT_BODY_NODE}},
+                .responds_to = ROHR_COLLISION_CATEGORY_ALL & ~ROHR_COLLISION_CATEGORY_SOFT_BODY_NODE}},
         .owner=a,.node_a=nodes[0],.node_b=added}); OK(beam);
     OK(rohr_physics_position_set(added,((Position){110,102}))); tracked(); point(position(a),(Position){3,4});
     OK(rohr_entity_delete(beam.result.value));

@@ -293,7 +293,7 @@ SoftBodyNodeDescription physics_soft_body_node_description_default_get(void) {
     return (SoftBodyNodeDescription){.mass = 1, .radius = 1, .restitution = 0.25f,
         .collision_enabled = true, .collision_filter = {
             .category = ROHR_COLLISION_CATEGORY_SOFT_BODY_NODE,
-            .collides_with = ROHR_COLLISION_CATEGORY_ALL & ~ROHR_COLLISION_CATEGORY_SOFT_BODY_NODE}};
+            .responds_to = ROHR_COLLISION_CATEGORY_ALL & ~ROHR_COLLISION_CATEGORY_SOFT_BODY_NODE}};
 }
 
 SoftBodyNodeDescriptionResult physics_soft_body_node_description_get(Entity entity) {
@@ -348,7 +348,7 @@ EngineResult physics_soft_body_node_description_set(Entity entity, SoftBodyNodeD
     (void)CollisionFilterDescriptionPool_store_at(&collision_filters_pool, index, description.collision_filter);
     soft_body_nodes[index].radius = description.radius;
     soft_body_nodes[index].category = description.collision_filter.category;
-    soft_body_nodes[index].collides_with = description.collision_filter.collides_with;
+    soft_body_nodes[index].responds_to = description.collision_filter.responds_to;
     soft_body_nodes[index].draw_color = description.draw_color;
     soft_body_nodes[index].draw_color_overridden = description.draw_color_overridden;
     entity_mask[index] &= ~(ROHR_STATIC | ROHR_DYNAMIC | ROHR_GRAVITY | ROHR_COLLISION);
@@ -456,7 +456,7 @@ EngineResult physics_soft_body_node_collision_filter_description_set(Entity node
     if(error_check(result)) return result;
     EntityIndex index; (void)entity_index_get(node, &index);
     soft_body_nodes[index].category = description.category;
-    soft_body_nodes[index].collides_with = description.collides_with;
+    soft_body_nodes[index].responds_to = description.responds_to;
     return result;
 }
 
@@ -522,7 +522,7 @@ SoftBodyNodeAnchorPinResult physics_soft_body_node_to_anchor_pin_add(SoftBodyNod
 SoftBodyBeamCollisionDescription physics_soft_body_beam_collision_description_default_get(void) {
     return (SoftBodyBeamCollisionDescription){.thickness = ROHR_SOFT_BODY_BEAM_COLLISION_THICKNESS_MIN,
         .filter = {.category = ROHR_COLLISION_CATEGORY_SOFT_BODY_NODE,
-            .collides_with = ROHR_COLLISION_CATEGORY_ALL & ~ROHR_COLLISION_CATEGORY_SOFT_BODY_NODE}};
+            .responds_to = ROHR_COLLISION_CATEGORY_ALL & ~ROHR_COLLISION_CATEGORY_SOFT_BODY_NODE}};
 }
 
 SoftBodyBeamDescription physics_soft_body_beam_description_default_get(void) {
@@ -555,7 +555,7 @@ SoftBodyBeamDescriptionResult physics_soft_body_beam_description_get(Entity enti
         .rest_length = beam.rest_length, .rest_length_explicit = true, .stiffness = beam.stiffness,
         .damping = beam.damping, .friction = beam.friction, .restitution = beam.restitution,
         .collision = {.enabled = beam.collision_enabled, .thickness = beam.collision_thickness,
-            .filter = {.category = beam.category, .collides_with = beam.collides_with}},
+            .filter = {.category = beam.category, .responds_to = beam.responds_to}},
         .draw_color = beam.draw_color, .draw_color_overridden = beam.draw_color_overridden}));
 }
 
@@ -588,7 +588,7 @@ EngineResult physics_soft_body_beam_description_set(Entity entity, SoftBodyBeamD
         .node_a = description.node_a, .node_b = description.node_b,
         .rest_length = length, .stiffness = description.stiffness, .damping = description.damping,
         .collision_thickness = description.collision.thickness, .collision_enabled = description.collision.enabled,
-        .category = description.collision.filter.category, .collides_with = description.collision.filter.collides_with,
+        .category = description.collision.filter.category, .responds_to = description.collision.filter.responds_to,
         .friction = description.friction, .restitution = description.restitution,
         .draw_color = description.draw_color, .draw_color_overridden = description.draw_color_overridden};
     return error_result_value(true);
@@ -637,7 +637,7 @@ EngineResult physics_soft_body_beam_collision_description_set(Entity beam, SoftB
     soft_body_beams[index].collision_enabled = description.enabled;
     soft_body_beams[index].collision_thickness = description.thickness;
     soft_body_beams[index].category = description.filter.category;
-    soft_body_beams[index].collides_with = description.filter.collides_with;
+    soft_body_beams[index].responds_to = description.filter.responds_to;
     return error_result_value(true);
 }
 
@@ -673,7 +673,7 @@ EngineResult physics_soft_body_beam_collision_filter_description_set(Entity beam
     if(error_check(value)) return error_result_error(value.result.error);
     EntityIndex index; (void)entity_index_get(beam, &index);
     soft_body_beams[index].category = description.category;
-    soft_body_beams[index].collides_with = description.collides_with;
+    soft_body_beams[index].responds_to = description.responds_to;
     return error_result_value(true);
 }
 

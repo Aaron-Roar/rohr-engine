@@ -51,7 +51,7 @@ static void naming(void) {
     Entity node=take(physics_soft_body_node_add((SoftBodyNodeDescription){
         .restitution = 0.25f, .collision_enabled = true,
         .collision_filter = {.category = ROHR_COLLISION_CATEGORY_SOFT_BODY_NODE,
-            .collides_with = ROHR_COLLISION_CATEGORY_ALL & ~ROHR_COLLISION_CATEGORY_SOFT_BODY_NODE},
+            .responds_to = ROHR_COLLISION_CATEGORY_ALL & ~ROHR_COLLISION_CATEGORY_SOFT_BODY_NODE},
         .owner = body,
         .position = (Position){0},
         .mass = 1,
@@ -62,7 +62,7 @@ static void naming(void) {
     Entity node2=take(rohr_physics_soft_body_node_add((SoftBodyNodeDescription){
         .restitution = 0.25f, .collision_enabled = true,
         .collision_filter = {.category = ROHR_COLLISION_CATEGORY_SOFT_BODY_NODE,
-            .collides_with = ROHR_COLLISION_CATEGORY_ALL & ~ROHR_COLLISION_CATEGORY_SOFT_BODY_NODE},
+            .responds_to = ROHR_COLLISION_CATEGORY_ALL & ~ROHR_COLLISION_CATEGORY_SOFT_BODY_NODE},
         .owner = body,
         .position = (Position){2,0},
         .mass = 1,
@@ -73,7 +73,7 @@ static void naming(void) {
         .restitution = 0.25f,
         .collision = {.thickness = ROHR_SOFT_BODY_BEAM_COLLISION_THICKNESS_MIN,
             .filter = {.category = ROHR_COLLISION_CATEGORY_SOFT_BODY_NODE,
-                .collides_with = ROHR_COLLISION_CATEGORY_ALL & ~ROHR_COLLISION_CATEGORY_SOFT_BODY_NODE}},
+                .responds_to = ROHR_COLLISION_CATEGORY_ALL & ~ROHR_COLLISION_CATEGORY_SOFT_BODY_NODE}},
         .owner = body,
         .node_a = node,
         .node_b = node2,
@@ -85,7 +85,7 @@ static void naming(void) {
     Entity first=take(physics_soft_body_node_add((SoftBodyNodeDescription){
         .restitution = 0.25f, .collision_enabled = true,
         .collision_filter = {.category = ROHR_COLLISION_CATEGORY_SOFT_BODY_NODE,
-            .collides_with = ROHR_COLLISION_CATEGORY_ALL & ~ROHR_COLLISION_CATEGORY_SOFT_BODY_NODE},
+            .responds_to = ROHR_COLLISION_CATEGORY_ALL & ~ROHR_COLLISION_CATEGORY_SOFT_BODY_NODE},
         .owner = body,
         .position = (Position){0},
         .mass = 1,
@@ -97,7 +97,7 @@ static void naming(void) {
     n=entity_name_get(take(physics_soft_body_node_add((SoftBodyNodeDescription){
         .restitution = 0.25f, .collision_enabled = true,
         .collision_filter = {.category = ROHR_COLLISION_CATEGORY_SOFT_BODY_NODE,
-            .collides_with = ROHR_COLLISION_CATEGORY_ALL & ~ROHR_COLLISION_CATEGORY_SOFT_BODY_NODE},
+            .responds_to = ROHR_COLLISION_CATEGORY_ALL & ~ROHR_COLLISION_CATEGORY_SOFT_BODY_NODE},
         .owner = other,
         .position = (Position){0},
         .mass = 1,
@@ -121,7 +121,7 @@ static void fixture(void) {
     for(int i=0;i<8;++i) nodes[i]=take(physics_soft_body_node_add((SoftBodyNodeDescription){
         .restitution = 0.25f, .collision_enabled = true,
         .collision_filter = {.category = ROHR_COLLISION_CATEGORY_SOFT_BODY_NODE,
-            .collides_with = ROHR_COLLISION_CATEGORY_ALL & ~ROHR_COLLISION_CATEGORY_SOFT_BODY_NODE},
+            .responds_to = ROHR_COLLISION_CATEGORY_ALL & ~ROHR_COLLISION_CATEGORY_SOFT_BODY_NODE},
         .owner = body,
         .position = node_positions[i],
         .mass = i+1,
@@ -131,7 +131,7 @@ static void fixture(void) {
         .restitution = 0.25f,
         .collision = {.thickness = ROHR_SOFT_BODY_BEAM_COLLISION_THICKNESS_MIN,
             .filter = {.category = ROHR_COLLISION_CATEGORY_SOFT_BODY_NODE,
-                .collides_with = ROHR_COLLISION_CATEGORY_ALL & ~ROHR_COLLISION_CATEGORY_SOFT_BODY_NODE}},
+                .responds_to = ROHR_COLLISION_CATEGORY_ALL & ~ROHR_COLLISION_CATEGORY_SOFT_BODY_NODE}},
         .owner = body,
         .node_a = nodes[0],
         .node_b = nodes[1],
@@ -243,9 +243,11 @@ static void malformed(void) {
     OK(physics_position_set(retained,(Position){7,9}));
     char *snapshot=read_text("runtime_original.json");
     const char *bad[]={
-        "{\"version\":9,\"entities\":[{\"name\":\"retained\",\"components\":{}}]}",
-        "{\"version\":9,\"entities\":[{\"name\":\"a\",\"count\":2,\"components\":{}},{\"name\":\"a_1\",\"components\":{}}]}",
-        "{\"version\":9,\"entities\":[{\"name\":\"new\",\"components\":{\"position\":{\"x\":1e100,\"y\":0}}}]}",
+        "{\"version\":9,\"entities\":[]}",
+        "{\"version\":9,\"runtime_snapshot\":true,\"entities\":[]}",
+        "{\"version\":10,\"entities\":[{\"name\":\"retained\",\"components\":{}}]}",
+        "{\"version\":10,\"entities\":[{\"name\":\"a\",\"count\":2,\"components\":{}},{\"name\":\"a_1\",\"components\":{}}]}",
+        "{\"version\":10,\"entities\":[{\"name\":\"new\",\"components\":{\"position\":{\"x\":1e100,\"y\":0}}}]}",
         "{\"version\":5,\"entities\":[]}",
         "{\"version\":7,\"entities\":[]}"};
     for(size_t i=0;i<sizeof(bad)/sizeof(bad[0]);++i) {
@@ -312,13 +314,13 @@ static void multiple_documents(void) {
     /* A clash in a later document must prevent creation from an earlier one. */
     const char *duplicates[]={"runtime_part_a.json","runtime_part_a.json"};
     BAD(game_state_files_load(duplicates,2)); assert(entity_alive_count_get()==0);
-    write_text("runtime_exact_names.json","{\"version\":9,\"entities\":["
+    write_text("runtime_exact_names.json","{\"version\":10,\"entities\":["
         "{\"name\":\"entity_2\",\"components\":{}},{\"name\":\"entity_1\",\"components\":{}}]}");
     OK(game_state_file_load("runtime_exact_names.json")); named("entity_1"); named("entity_2"); restart();
 }
 
 static void lifetime(void) {
-    write_text("runtime_lifetime.json","{\"version\":9,\"entities\":["
+    write_text("runtime_lifetime.json","{\"version\":10,\"entities\":["
         "{\"name\":\"due\",\"components\":{\"lifetime\":{\"time\":0,\"tick\":0,\"time_enabled\":false,\"tick_enabled\":true}}},"
         "{\"name\":\"disabled\",\"components\":{\"lifetime\":{\"time\":0,\"tick\":0,\"time_enabled\":false,\"tick_enabled\":false}}},"
         "{\"name\":\"later\",\"components\":{\"lifetime\":{\"time\":12.5,\"tick\":42,\"time_enabled\":true,\"tick_enabled\":true}}}]}");
@@ -357,7 +359,7 @@ static void capacity(void) {
         nodes[i]=take(physics_soft_body_node_add((SoftBodyNodeDescription){
             .restitution = 0.25f, .collision_enabled = true,
             .collision_filter = {.category = ROHR_COLLISION_CATEGORY_SOFT_BODY_NODE,
-                .collides_with = ROHR_COLLISION_CATEGORY_ALL & ~ROHR_COLLISION_CATEGORY_SOFT_BODY_NODE},
+                .responds_to = ROHR_COLLISION_CATEGORY_ALL & ~ROHR_COLLISION_CATEGORY_SOFT_BODY_NODE},
             .owner = body,
             .position = (Position){(float)(i%8)*10,(float)(i/8)*10},
             .mass = 1,
@@ -368,7 +370,7 @@ static void capacity(void) {
             .restitution = 0.25f,
             .collision = {.thickness = ROHR_SOFT_BODY_BEAM_COLLISION_THICKNESS_MIN,
                 .filter = {.category = ROHR_COLLISION_CATEGORY_SOFT_BODY_NODE,
-                    .collides_with = ROHR_COLLISION_CATEGORY_ALL & ~ROHR_COLLISION_CATEGORY_SOFT_BODY_NODE}},
+                    .responds_to = ROHR_COLLISION_CATEGORY_ALL & ~ROHR_COLLISION_CATEGORY_SOFT_BODY_NODE}},
             .owner = body,
             .node_a = nodes[i%64],
             .node_b = nodes[(i+1)%64],
@@ -395,7 +397,7 @@ static void capacity(void) {
     Entity replacement=take(physics_soft_body_node_add((SoftBodyNodeDescription){
         .restitution = 0.25f, .collision_enabled = true,
         .collision_filter = {.category = ROHR_COLLISION_CATEGORY_SOFT_BODY_NODE,
-            .collides_with = ROHR_COLLISION_CATEGORY_ALL & ~ROHR_COLLISION_CATEGORY_SOFT_BODY_NODE},
+            .responds_to = ROHR_COLLISION_CATEGORY_ALL & ~ROHR_COLLISION_CATEGORY_SOFT_BODY_NODE},
         .owner = owner,
         .position = (Position){0,0},
         .mass = 2,
@@ -405,7 +407,7 @@ static void capacity(void) {
         .restitution = 0.25f,
         .collision = {.thickness = ROHR_SOFT_BODY_BEAM_COLLISION_THICKNESS_MIN,
             .filter = {.category = ROHR_COLLISION_CATEGORY_SOFT_BODY_NODE,
-                .collides_with = ROHR_COLLISION_CATEGORY_ALL & ~ROHR_COLLISION_CATEGORY_SOFT_BODY_NODE}},
+                .responds_to = ROHR_COLLISION_CATEGORY_ALL & ~ROHR_COLLISION_CATEGORY_SOFT_BODY_NODE}},
         .owner = owner,
         .node_a = replacement,
         .node_b = value.nodes[0],
@@ -456,30 +458,35 @@ static void layer_transactions(void) {
     Entity sentinel=take(entity_add()); OK(entity_name_set(sentinel,"sentinel"));
     GraphicsLayerIdResult existing=graphics_layer_create((LayerDescription){.name="shared",.value=7}); OK(existing);
     OK(graphics_layer_entity_id_set(sentinel,existing.result.value));
-    write_text("runtime_layers_a.json","{\"version\":9,\"graphics_layers\":["
+    write_text("runtime_layers_a.json","{\"version\":10,\"graphics_layers\":["
         "{\"name\":\"new\",\"value\":-3},{\"name\":\"shared\",\"value\":7}],\"entities\":["
         "{\"name\":\"bound\",\"components\":{\"graphics_layer\":\"shared\",\"sprite_layer\":0}},"
         "{\"name\":\"unbound\",\"components\":{}}]}");
     const char *bad[]={
-        "{\"version\":8,\"entities\":[]}", "{\"version\":10,\"entities\":[]}",
-        "{\"version\":9,\"graphics_layers\":{},\"entities\":[]}",
-        "{\"version\":9,\"graphics_layers\":[{\"name\":\"shared\",\"value\":8}],\"entities\":[]}",
-        "{\"version\":9,\"graphics_layers\":[{\"name\":\"new\",\"value\":2}],\"entities\":[]}",
-        "{\"version\":9,\"graphics_layers\":[{\"name\":\"overflow\",\"value\":18446744073709551615}],\"entities\":[]}",
-        "{\"version\":9,\"entities\":[{\"name\":\"bad\",\"components\":{\"animation_layer\":\"missing\"}}]}",
-        "{\"version\":9,\"entities\":[{\"name\":\"bad\",\"components\":{\"graphics_layer\":18446744073709551615}}]}",
-        "{\"version\":9,\"entities\":[{\"name\":\"bad\",\"components\":{\"angular_velocity_maximum\":-1}}]}",
-        "{\"version\":9,\"entities\":[{\"name\":\"bad\",\"components\":{\"angular_velocity_maximum\":1e100}}]}"
+        "{\"version\":9,\"entities\":[]}",
+        "{\"version\":9,\"runtime_snapshot\":true,\"entities\":[]}",
+        "{\"version\":8,\"entities\":[]}", "{\"version\":11,\"entities\":[]}",
+        "{\"version\":10,\"graphics_layers\":{},\"entities\":[]}",
+        "{\"version\":10,\"graphics_layers\":[{\"name\":\"shared\",\"value\":8}],\"entities\":[]}",
+        "{\"version\":10,\"graphics_layers\":[{\"name\":\"new\",\"value\":2}],\"entities\":[]}",
+        "{\"version\":10,\"graphics_layers\":[{\"name\":\"overflow\",\"value\":18446744073709551615}],\"entities\":[]}",
+        "{\"version\":10,\"entities\":[{\"name\":\"bad\",\"components\":{\"animation_layer\":\"missing\"}}]}",
+        "{\"version\":10,\"entities\":[{\"name\":\"bad\",\"components\":{\"graphics_layer\":18446744073709551615}}]}",
+        "{\"version\":10,\"entities\":[{\"name\":\"bad\",\"components\":{\"angular_velocity_maximum\":-1}}]}",
+        "{\"version\":10,\"entities\":[{\"name\":\"bad\",\"components\":{\"angular_velocity_maximum\":1e100}}]}"
     };
     const char *paths[]={"runtime_layers_a.json","runtime_layers_b.json"};
     for(size_t i=0;i<sizeof(bad)/sizeof(bad[0]);++i) {
-        write_text(paths[1],bad[i]); BAD(game_state_files_load(paths,2));
+        write_text(paths[1],bad[i]);
+        EngineResult loaded = game_state_files_load(paths,2); BAD(loaded);
+        if(i < 2) assert(strstr(error_result_message_get(loaded.kind, loaded.result.error),
+            "migration required") != NULL);
         assert(entity_alive_count_get()==1 && named("sentinel")==sentinel);
         assert(graphics_layer_entity_id_get(sentinel).result.value==existing.result.value);
         assert(graphics_layer_name_get("shared").result.value==7);
         BAD(graphics_layer_name_id_get("new")); BAD(graphics_layer_name_id_get("overflow"));
     }
-    write_text(paths[1],"{\"version\":9,\"graphics_layers\":[{\"name\":\"shared\",\"value\":7}],\"entities\":[]}");
+    write_text(paths[1],"{\"version\":10,\"graphics_layers\":[{\"name\":\"shared\",\"value\":7}],\"entities\":[]}");
     OK(game_state_files_load(paths,2));
     assert(graphics_layer_entity_id_get(named("bound")).result.value==existing.result.value);
     BAD(graphics_layer_entity_get(named("unbound")));

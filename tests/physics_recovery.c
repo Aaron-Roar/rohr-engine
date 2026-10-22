@@ -257,7 +257,7 @@ static void soft_body_local_failure(void) {
         created = rohr_physics_soft_body_node_add((SoftBodyNodeDescription){
             .restitution = 0.25f, .collision_enabled = true,
             .collision_filter = {.category = ROHR_COLLISION_CATEGORY_SOFT_BODY_NODE,
-                .collides_with = ROHR_COLLISION_CATEGORY_ALL & ~ROHR_COLLISION_CATEGORY_SOFT_BODY_NODE},
+                .responds_to = ROHR_COLLISION_CATEGORY_ALL & ~ROHR_COLLISION_CATEGORY_SOFT_BODY_NODE},
             .owner = soft,
             .position = (Position){n * 10.0f, 0},
             .mass = 1,
@@ -269,7 +269,7 @@ static void soft_body_local_failure(void) {
         .restitution = 0.25f,
         .collision = {.enabled = true, .thickness = 2,
             .filter = {.category = ROHR_COLLISION_CATEGORY_SOFT_BODY_NODE,
-                .collides_with = ROHR_COLLISION_CATEGORY_ALL & ~ROHR_COLLISION_CATEGORY_SOFT_BODY_NODE}},
+                .responds_to = ROHR_COLLISION_CATEGORY_ALL & ~ROHR_COLLISION_CATEGORY_SOFT_BODY_NODE}},
         .owner = soft,
         .node_a = nodes[0],
         .node_b = nodes[1],
@@ -280,7 +280,7 @@ static void soft_body_local_failure(void) {
         .restitution = 0.25f,
         .collision = {.enabled = true, .thickness = 2,
             .filter = {.category = ROHR_COLLISION_CATEGORY_SOFT_BODY_NODE,
-                .collides_with = ROHR_COLLISION_CATEGORY_ALL & ~ROHR_COLLISION_CATEGORY_SOFT_BODY_NODE}},
+                .responds_to = ROHR_COLLISION_CATEGORY_ALL & ~ROHR_COLLISION_CATEGORY_SOFT_BODY_NODE}},
         .owner = soft,
         .node_a = nodes[1],
         .node_b = nodes[2],
@@ -397,7 +397,7 @@ static void paired_contact_rejection(void) {
     EntityResult n1 = rohr_physics_soft_body_node_add((SoftBodyNodeDescription){
         .restitution = 0.25f, .collision_enabled = true,
         .collision_filter = {.category = ROHR_COLLISION_CATEGORY_SOFT_BODY_NODE,
-            .collides_with = ROHR_COLLISION_CATEGORY_ALL & ~ROHR_COLLISION_CATEGORY_SOFT_BODY_NODE},
+            .responds_to = ROHR_COLLISION_CATEGORY_ALL & ~ROHR_COLLISION_CATEGORY_SOFT_BODY_NODE},
         .owner = soft.result.value,
         .position = (Position){-10, 0},
         .mass = 1,
@@ -406,7 +406,7 @@ static void paired_contact_rejection(void) {
     EntityResult n2 = rohr_physics_soft_body_node_add((SoftBodyNodeDescription){
         .restitution = 0.25f, .collision_enabled = true,
         .collision_filter = {.category = ROHR_COLLISION_CATEGORY_SOFT_BODY_NODE,
-            .collides_with = ROHR_COLLISION_CATEGORY_ALL & ~ROHR_COLLISION_CATEGORY_SOFT_BODY_NODE},
+            .responds_to = ROHR_COLLISION_CATEGORY_ALL & ~ROHR_COLLISION_CATEGORY_SOFT_BODY_NODE},
         .owner = soft.result.value,
         .position = (Position){10, 0},
         .mass = 1,
@@ -416,7 +416,7 @@ static void paired_contact_rejection(void) {
         .restitution = 0.25f,
         .collision = {.enabled = true, .thickness = 2,
             .filter = {.category = ROHR_COLLISION_CATEGORY_SOFT_BODY_NODE,
-                .collides_with = ROHR_COLLISION_CATEGORY_ALL & ~ROHR_COLLISION_CATEGORY_SOFT_BODY_NODE}},
+                .responds_to = ROHR_COLLISION_CATEGORY_ALL & ~ROHR_COLLISION_CATEGORY_SOFT_BODY_NODE}},
         .owner = soft.result.value,
         .node_a = n1.result.value,
         .node_b = n2.result.value,
@@ -536,20 +536,20 @@ static void configuration_descriptions(void) {
 
     CollisionFilterDescription defaults = rohr_physics_collision_filter_description_default_get();
     CollisionFilterDescriptionResult filter = rohr_physics_collision_filter_description_get(driven); OK(filter);
-    assert(filter.result.value.category == defaults.category && filter.result.value.collides_with == defaults.collides_with);
+    assert(filter.result.value.category == defaults.category && filter.result.value.responds_to == defaults.responds_to);
     assert(!entity_components_check(driven, ROHR_COLLISION_FILTER));
     OK(rohr_physics_collision_filter_description_set(driven, (CollisionFilterDescription){0}));
     filter = physics_collision_filter_description_get(driven); OK(filter);
-    assert(filter.result.value.category == 0 && filter.result.value.collides_with == 0);
-    assert(!physics_collision_between_check(driven, owner));
-    CollisionFilterDescription selected = {.category = UINT64_C(1) << 63, .collides_with = UINT64_C(1) << 62};
+    assert(filter.result.value.category == 0 && filter.result.value.responds_to == 0);
+    assert(!physics_collision_response_between_check(driven, owner));
+    CollisionFilterDescription selected = {.category = UINT64_C(1) << 63, .responds_to = UINT64_C(1) << 62};
     OK(physics_collision_filter_description_set(driven, selected));
     filter = physics_collision_filter_description_get(driven); OK(filter);
-    assert(filter.result.value.category == selected.category && filter.result.value.collides_with == selected.collides_with);
+    assert(filter.result.value.category == selected.category && filter.result.value.responds_to == selected.responds_to);
     OK(physics_collision_filter_description_set(driven, filter.result.value));
     OK(physics_collision_category_set(driven, 4));
-    assert(physics_collision_filter_description_get(driven).result.value.collides_with == selected.collides_with);
-    OK(physics_collision_with_set(driven, 8));
+    assert(physics_collision_filter_description_get(driven).result.value.responds_to == selected.responds_to);
+    OK(physics_collision_response_set(driven, 8));
     assert(physics_collision_filter_description_get(driven).result.value.category == 4);
     BAD(physics_collision_filter_description_get(driver));
     BAD(physics_collision_filter_description_set(driver, defaults));

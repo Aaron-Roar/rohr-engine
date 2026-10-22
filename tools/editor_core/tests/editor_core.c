@@ -954,7 +954,7 @@ static int item_commands_test(void) {
                 particle->hitbox_count != 1 ||
                 particle->hitboxes[0].vertex_count != 16 ||
                 particle->collision_category != UINT64_C(1) ||
-                particle->collision_with != UINT64_C(1)) return 1;
+                particle->responds_to != UINT64_C(1)) return 1;
     }
     rigid_body = editor_project_rigid_body_get(object, rigid_body_id);
     if(rigid_body == NULL) return 1;
@@ -1276,7 +1276,7 @@ static int collision_filter_commands_test(void) {
     char *add_arguments[] = {"rohr-cli", "collision-mask", "add",
         "project.rohr.json", "Player Body"};
     char *node_arguments[] = {"rohr-cli", "soft-node", "filter",
-        "project.rohr.json", "1", "1", "1", "collide-with", "player_body",
+        "project.rohr.json", "1", "1", "1", "responds-to", "player_body",
         "true"};
     char *beam_arguments[] = {"rohr-cli", "soft-beam", "filter",
         "project.rohr.json", "1", "1", "1", "category", "player_body",
@@ -1296,7 +1296,7 @@ static int collision_filter_commands_test(void) {
             other_node == NULL || beam == NULL) return 1;
     if(beam->collision_enabled || beam->collision_thickness != ROHR_SOFT_BODY_BEAM_COLLISION_THICKNESS_MIN ||
             beam->collision_category != UINT64_C(1) ||
-            beam->collision_with != UINT64_C(1)) return 1;
+            beam->responds_to != UINT64_C(1)) return 1;
     other_node->collision_enabled = false;
     disabled_beam = editor_project_soft_beam_add(
         &project, soft_body, node->id, other_node->id);
@@ -1304,7 +1304,7 @@ static int collision_filter_commands_test(void) {
     if(disabled_beam == NULL || disabled_beam->collision_enabled ||
             disabled_beam->collision_thickness != ROHR_SOFT_BODY_BEAM_COLLISION_THICKNESS_MIN ||
             disabled_beam->collision_category != UINT64_C(1) ||
-            disabled_beam->collision_with != UINT64_C(1)) return 1;
+            disabled_beam->responds_to != UINT64_C(1)) return 1;
     command = (EditorCommand){.type = EDITOR_COMMAND_COLLISION_MASK_ADD};
     snprintf(command.data.collision_mask_add.name,
         sizeof(command.data.collision_mask_add.name), "%s", "Player Body");
@@ -1329,11 +1329,11 @@ static int collision_filter_commands_test(void) {
     command = (EditorCommand){.type = EDITOR_COMMAND_COLLISION_FILTER_SET,
         .data.collision_filter_set = {.kind = EDITOR_ITEM_SOFT_NODE,
             .object = object->id, .parent = soft_body->id, .item = node->id,
-            .filter = EDITOR_COLLISION_FILTER_COLLIDE_WITH,
+            .filter = EDITOR_COLLISION_FILTER_RESPONDS_TO,
             .mask = "player_body", .enabled = true}};
     if(editor_command_execute(&project, &command).kind != ERROR_RESULT_VALUE ||
-            (node->collision_with & (UINT64_C(1) << 1)) == 0 ||
-            beam->collision_with != UINT64_C(1)) return 1;
+            (node->responds_to & (UINT64_C(1) << 1)) == 0 ||
+            beam->responds_to != UINT64_C(1)) return 1;
     command = (EditorCommand){.type = EDITOR_COMMAND_COLLISION_FILTER_SET,
         .data.collision_filter_set = {.kind = EDITOR_ITEM_SOFT_BEAM,
             .object = object->id, .parent = soft_body->id, .item = beam->id,
@@ -1349,7 +1349,7 @@ static int collision_filter_commands_test(void) {
                 &parsed)) || parsed.type != EDITOR_COMMAND_COLLISION_FILTER_SET ||
             parsed.data.collision_filter_set.kind != EDITOR_ITEM_SOFT_NODE ||
             parsed.data.collision_filter_set.filter !=
-                EDITOR_COLLISION_FILTER_COLLIDE_WITH ||
+                EDITOR_COLLISION_FILTER_RESPONDS_TO ||
             !parsed.data.collision_filter_set.enabled ||
             editor_result_check(editor_command_cli_parse(10, beam_arguments,
                 &path, &parsed)) ||

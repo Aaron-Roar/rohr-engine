@@ -708,15 +708,16 @@ below. Numeric constants, typedefs, struct fields, extern storage, and callback
 type declarations are not callable API entries; configuration types are covered
 in the family table and exemptions above.
 
-The current inventory contains **1604** classified declaration/macro entries.
-The two additions after the milestone-4 inventory freeze are the direct and
-public-wrapper joint placement operations; the frozen baseline remains 1,602.
+The current inventory contains **1606** classified declaration/macro entries.
+The additions after the milestone-4 inventory freeze are the direct and
+public-wrapper joint placement operations and directional response queries;
+the frozen baseline remains 1,602.
 
 | Classification | Meaning | Owning goal | Entries |
 | --- | --- | --- | --- |
 | C: Compliant | Existing description interface | — | 342 |
 | EV: Intentionally exempt | Focused/basic-value mutation or lookup | — | 275 |
-| EQ: Intentionally exempt | Query, validation, snapshot, or result access | — | 400 |
+| EQ: Intentionally exempt | Query, validation, snapshot, or result access | — | 402 |
 | EO: Intentionally exempt | Operation, lifecycle, execution, or drawing | — | 458 |
 | EM: Intentionally exempt | Pure math or utility calculation | — | 77 |
 | ES: Intentionally exempt | Internal storage, reporting, or macro machinery | — | 48 |
@@ -1101,7 +1102,7 @@ Source: [object.h](../include/object.h).
 </details>
 
 <details>
-<summary>physics.h: 232 entries</summary>
+<summary>physics.h: 233 entries</summary>
 
 Source: [physics.h](../include/physics.h).
 
@@ -1130,7 +1131,7 @@ Source: [physics.h](../include/physics.h).
 - `physics_angular_acceleration_radians_set`, `physics_angular_acceleration_set`, `physics_angular_velocity_maximum_radians_set`.
 - `physics_angular_velocity_maximum_set`, `physics_angular_velocity_radians_set`, `physics_angular_velocity_set`.
 - `physics_center_of_mass_automatic_set`, `physics_center_of_mass_local_position_set`, `physics_collision_category_set`.
-- `physics_collision_with_all_set`, `physics_collision_with_none_set`, `physics_collision_with_set`.
+- `physics_collision_response_all_set`, `physics_collision_response_none_set`, `physics_collision_response_set`.
 - `physics_dt_per_tick_set`, `physics_dynamic_set`, `physics_force_location_set`.
 - `physics_force_magnitude_set`, `physics_force_orientation_set`, `physics_force_target_set`.
 - `physics_friction_set`, `physics_gravity_set`, `physics_hitbox_active_id_set`.
@@ -1149,7 +1150,7 @@ Source: [physics.h](../include/physics.h).
 
 - `physics_angular_velocity_get`, `physics_angular_velocity_maximum_get`, `physics_angular_velocity_maximum_radians_get`.
 - `physics_angular_velocity_radians_get`, `physics_center_of_mass_automatic_check`, `physics_center_of_mass_local_position_get`.
-- `physics_center_of_mass_world_position_get`, `physics_collision_between_check`, `physics_contact_check`.
+- `physics_center_of_mass_world_position_get`, `physics_collision_response_between_check`, `physics_collision_response_to_check`, `physics_contact_check`.
 - `physics_contact_count_get`, `physics_contact_entered_check`, `physics_contact_exited_check`.
 - `physics_contact_get`, `physics_contact_stayed_check`, `physics_contact_total_impulse_get`.
 - `physics_contacts_get`, `physics_dt_per_tick_get`, `physics_entity_held_get`.
@@ -1220,7 +1221,7 @@ Source: [report.h](../include/report.h).
 </details>
 
 <details>
-<summary>rohr.h: 790 entries</summary>
+<summary>rohr.h: 791 entries</summary>
 
 Source: [rohr.h](../include/rohr.h).
 
@@ -1317,7 +1318,7 @@ Source: [rohr.h](../include/rohr.h).
 - `rohr_physics_angular_acceleration_radians_set`, `rohr_physics_angular_acceleration_set`, `rohr_physics_angular_velocity_maximum_radians_set`.
 - `rohr_physics_angular_velocity_maximum_set`, `rohr_physics_angular_velocity_radians_set`, `rohr_physics_angular_velocity_set`.
 - `rohr_physics_center_of_mass_automatic_set`, `rohr_physics_center_of_mass_local_position_set`, `rohr_physics_collision_category_set`.
-- `rohr_physics_collision_with_all_set`, `rohr_physics_collision_with_none_set`, `rohr_physics_collision_with_set`.
+- `rohr_physics_collision_response_all_set`, `rohr_physics_collision_response_none_set`, `rohr_physics_collision_response_set`.
 - `rohr_physics_dt_per_tick_set`, `rohr_physics_dynamic_set`, `rohr_physics_force_location_set`.
 - `rohr_physics_force_magnitude_set`, `rohr_physics_force_orientation_set`, `rohr_physics_force_target_set`.
 - `rohr_physics_friction_set`, `rohr_physics_gravity_set`, `rohr_physics_hitbox_active_id_set`.
@@ -1377,7 +1378,7 @@ Source: [rohr.h](../include/rohr.h).
 - `rohr_input_mouse_relative_mode_check`, `rohr_input_mouse_wheel_get`, `rohr_input_text_state_get`.
 - `rohr_physics_angular_velocity_get`, `rohr_physics_angular_velocity_maximum_get`, `rohr_physics_angular_velocity_maximum_radians_get`.
 - `rohr_physics_angular_velocity_radians_get`, `rohr_physics_center_of_mass_automatic_check`, `rohr_physics_center_of_mass_local_position_get`.
-- `rohr_physics_center_of_mass_world_position_get`, `rohr_physics_collision_between_check`, `rohr_physics_contact_check`.
+- `rohr_physics_center_of_mass_world_position_get`, `rohr_physics_collision_response_between_check`, `rohr_physics_collision_response_to_check`, `rohr_physics_contact_check`.
 - `rohr_physics_contact_count_get`, `rohr_physics_contact_entered_check`, `rohr_physics_contact_exited_check`.
 - `rohr_physics_contact_get`, `rohr_physics_contact_stayed_check`, `rohr_physics_contact_total_impulse_get`.
 - `rohr_physics_contacts_get`, `rohr_physics_dt_per_tick_get`, `rohr_physics_entity_held_get`.
@@ -1694,7 +1695,7 @@ and never autoplay. Gameplay passes a recipe to the existing audio APIs.
 Names must be valid non-keyword generated identifiers, unique within sound or
 music definitions. Generation preserves developer-owned `main.c`.
 
-Project format 11 stores these settings. Only format 11 is accepted; older and
+Project format 12 stores these settings. Only format 12 is accepted; older and
 future versions fail without replacing the current project. Optional fields keep
 their documented defaults. Saved joint rest values remain explicit. Configured objects use the canonical catalog spawning path even from
 legacy generated `<object>_create` convenience functions; the latter's position

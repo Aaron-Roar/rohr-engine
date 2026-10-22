@@ -1,6 +1,6 @@
 # JSON game state
 
-Game state uses yyjson and schema version `9`. A state may be split across
+Game state uses yyjson and schema version `10`. A state may be split across
 multiple files. `game_state_load_files()` registers every entity name before
 loading component values, so a relationship may refer to an entity in any file
 in the same call.
@@ -19,7 +19,7 @@ project with a visible rotation demonstration, see the
 
 ```json
 {
-  "version": 9,
+  "version": 10,
   "entities": [
     {
       "name": "player",
@@ -277,7 +277,7 @@ Supported value keys are:
 - `hit_box`: an array of 3 to 50 `{ "x", "y" }` vertices
 - `center_of_mass`: automatic or explicit configuration described above
 - `particle_geometry`: `{ "standalone", "origin": {"x", "y"}, "radius" }`
-- `collision_filter`: `{ "category", "collides_with" }` unsigned 64-bit masks
+- `collision_filter`: `{ "category", "responds_to" }` unsigned 64-bit masks
 - `target` and `parent`: entity-name strings
 - `lifetime`: `{ "time", "tick", "time_enabled", "tick_enabled" }` (remaining durations)
 - `angle_lock`: `{ "min", "max" }`
@@ -464,7 +464,7 @@ catalog and generated project paths.
 
 Entity ownership is authoritative for lifetime and soft-body membership. The redundant `owner` fields in `soft_body_node`, `soft_body_beam`,
 and `soft_body_area` are removed and rejected on load. Exact-version validation
-remains in effect; only version 9 is accepted. Older documents must be regenerated; no migration
+remains in effect; only version 10 is accepted. Older documents require collision-response migration (planned in C11); no migration
 is performed.
 
 `object` is an ordered array of `{ "entity": "runtime name", "name":
@@ -539,7 +539,7 @@ offset from that frame without transforming nodes or adding serialized fields.
 `soft_body_node` stores positive `radius`, `draw_color`, and
 `draw_color_overridden`; ordinary components preserve world position, mass,
 motion, constraints and collision settings. `soft_body_beam` stores `node_a`, `node_b`, `rest_length`, `stiffness`, `damping`, `collision_thickness`,
-`collision_enabled`, `category`, `collides_with`, `friction`, `restitution`, and
+`collision_enabled`, `category`, `responds_to`, `friction`, `restitution`, and
 drawing overrides. `soft_body_area` stores an ordered `outer` node-name
 array, ordered `holes` arrays, `visible`, and drawing overrides. Derived fill
 caches are rebuilt; temporarily undrawable deformations do not invalidate

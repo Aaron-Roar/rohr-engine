@@ -47,7 +47,7 @@ static bool area_scene_create(AreaScene *scene, unsigned kind) {
         EntityResult node = rohr_physics_soft_body_node_add((SoftBodyNodeDescription){
             .restitution = 0.25f, .collision_enabled = true,
             .collision_filter = {.category = ROHR_COLLISION_CATEGORY_SOFT_BODY_NODE,
-                .collides_with = ROHR_COLLISION_CATEGORY_ALL & ~ROHR_COLLISION_CATEGORY_SOFT_BODY_NODE},
+                .responds_to = ROHR_COLLISION_CATEGORY_ALL & ~ROHR_COLLISION_CATEGORY_SOFT_BODY_NODE},
             .owner = scene->body,
             .position = scene->reference[i],
             .mass = 1,
@@ -92,7 +92,7 @@ static bool area_scene_create(AreaScene *scene, unsigned kind) {
                 .restitution = 0.25f,
                 .collision = {.thickness = ROHR_SOFT_BODY_BEAM_COLLISION_THICKNESS_MIN,
                     .filter = {.category = ROHR_COLLISION_CATEGORY_SOFT_BODY_NODE,
-                        .collides_with = ROHR_COLLISION_CATEGORY_ALL & ~ROHR_COLLISION_CATEGORY_SOFT_BODY_NODE}},
+                        .responds_to = ROHR_COLLISION_CATEGORY_ALL & ~ROHR_COLLISION_CATEGORY_SOFT_BODY_NODE}},
                 .owner = scene->body,
                 .node_a = scene->nodes[i],
                 .node_b = scene->nodes[next],

@@ -12,7 +12,7 @@
 /** Current JSON game-state schema version. */
 /* Version 9 preserves named layer bindings and optional angular speed limits.
  * Only the current version is accepted. */
-#define GAME_STATE_VERSION 9
+#define GAME_STATE_VERSION 10
 
 /** Maximum source documents retained for compact template saving. */
 #define GAME_STATE_MAX_TEMPLATE_DOCUMENTS 64

@@ -13,7 +13,7 @@ static inline EngineResult generated_body_create(Entity *output, Position positi
     bool gravity_enabled, bool collision_enabled, bool particle,
     Position particle_origin, float particle_radius,
     RohrCollisionCategoryMask collision_category,
-    RohrCollisionCategoryMask collision_with) {
+    RohrCollisionCategoryMask responds_to) {
     EntityResult added = rohr_entity_add();
     EngineResult result;
     if(rohr_error_check(added)) return rohr_error_result_error(added.result.error);
@@ -25,8 +25,8 @@ static inline EngineResult generated_body_create(Entity *output, Position positi
         GENERATED_APPLY(rohr_physics_hitbox_set(*output, hitbox));
     GENERATED_APPLY(rohr_physics_collision_category_set(*output,
         collision_enabled ? collision_category : ROHR_COLLISION_CATEGORY_NONE));
-    GENERATED_APPLY(rohr_physics_collision_with_set(*output,
-        collision_enabled ? collision_with : ROHR_COLLISION_CATEGORY_NONE));
+    GENERATED_APPLY(rohr_physics_collision_response_set(*output,
+        collision_enabled ? responds_to : ROHR_COLLISION_CATEGORY_NONE));
     if(collision_enabled) {
         GENERATED_APPLY(rohr_entity_components_add(*output, ROHR_COLLISION));
         if(particle) {

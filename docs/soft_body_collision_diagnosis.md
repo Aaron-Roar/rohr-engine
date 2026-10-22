@@ -45,7 +45,7 @@ The saved project and generated C agree on a 1/60-second tick (stored as
 `0.01666666753590107`), one substep, eight solver iterations, and gravity
 `(0, -9.8)`. Nodes have mass 10 and radius 10. All six beams have stiffness 1,
 damping 0, thickness 2, and enabled collision. Node, beam, and triangle filters
-use category 1 / collides-with 1. The triangle has mass 69, gravity enabled,
+use category 1 / responds-to 1. The triangle has mass 69, gravity enabled,
 zero initial velocity, and explicit local COM `(5.43377686, 17.2075500)`.
 
 The generated triangle origin is `(-26.9645386, -108.438736)`, with these local

@@ -199,7 +199,7 @@ spring around its midpoint; endpoint offsets move marker centers and coil ends,
 without changing anchors. Generated and loaded descriptions share the same
 geometry and styling, which also survives runtime snapshots.
 
-Editor document version 11 includes top-level force and torque items in each
+Editor document version 12 includes top-level force and torque items in each
 object. Loading a document exposes them as `OBJECT_FORCE` and `OBJECT_TORQUE`
 descriptions with `.force` and `.torque` values. `ObjectForceDescription` and
 `ObjectTorqueDescription` use `ObjectSourceMode`: persistent (zero/default) or
@@ -249,7 +249,7 @@ with an offset or rotating a copied object. Use origin references for a point
 that follows an instance transform, or COM references for a world-axis offset
 from an instance's current COM.
 
-Only editor document version 11 is accepted. Bundled documents use version
-11, with `forces`/`torques` arrays and `next_force_id`/`next_torque_id` counters.
-Runtime game-state format uses version 9 and keeps its existing generic
+Only editor document version 12 is accepted. Bundled documents use version
+12, with `forces`/`torques` arrays and `next_force_id`/`next_torque_id` counters.
+Runtime game-state format uses version 10 and keeps its existing generic
 ownership, target restoration, and temporary-source lifetime rules.

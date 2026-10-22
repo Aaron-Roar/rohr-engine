@@ -1911,7 +1911,7 @@ CollisionFilterDescription rohr_physics_collision_filter_description_default_get
 EngineResult rohr_physics_collision_filter_description_set(Entity entity, CollisionFilterDescription config);
 ```
 
- Replace an entity's collision category and whitelist, with or without geometry.
+ Replace an entity's collision category and response mask, with or without geometry.
 
 ### `rohr_physics_collision_filter_description_get`
 
@@ -1929,37 +1929,45 @@ EngineResult rohr_physics_collision_category_set(Entity entity, RohrCollisionCat
 
  Set the collision categories represented by an entity.
 
-### `rohr_physics_collision_with_set`
+### `rohr_physics_collision_response_set`
 
 ```c
-EngineResult rohr_physics_collision_with_set(Entity entity, RohrCollisionCategoryMask categories);
+EngineResult rohr_physics_collision_response_set(Entity entity, RohrCollisionCategoryMask categories);
 ```
 
- Set the collision category whitelist for an entity.
+ Set the categories this entity responds to.
 
-### `rohr_physics_collision_with_all_set`
+### `rohr_physics_collision_response_all_set`
 
 ```c
-EngineResult rohr_physics_collision_with_all_set(Entity entity);
+EngineResult rohr_physics_collision_response_all_set(Entity entity);
 ```
 
- Allow an entity to collide with every category.
+ Make an entity respond to every category.
 
-### `rohr_physics_collision_with_none_set`
+### `rohr_physics_collision_response_none_set`
 
 ```c
-EngineResult rohr_physics_collision_with_none_set(Entity entity);
+EngineResult rohr_physics_collision_response_none_set(Entity entity);
 ```
 
- Prevent an entity from colliding with every category.
+ Disable this entity's response to all categories; other entities may still respond to it.
 
-### `rohr_physics_collision_between_check`
+### `rohr_physics_collision_response_to_check`
 
 ```c
-bool rohr_physics_collision_between_check(Entity entity_1, Entity entity_2);
+bool rohr_physics_collision_response_to_check(Entity entity, Entity target);
 ```
 
- Return whether two entities mutually permit collision checks.
+ Check whether the first mask responds to the second category; ignores geometry and motion.
+
+### `rohr_physics_collision_response_between_check`
+
+```c
+bool rohr_physics_collision_response_between_check(Entity entity_1, Entity entity_2);
+```
+
+ Check whether either directional mask permits response; does not test contact.
 
 ### `rohr_physics_orientation_set`
 
@@ -2357,6 +2365,14 @@ JointDescriptionResult rohr_physics_joint_description_get(Entity entity);
  Return the current owner and resolved rest values with explicit flags true.
 
 Get-modify-set preserves the resting pose even after the bodies have moved.
+
+### `rohr_physics_joint_place`
+
+```c
+EngineResult rohr_physics_joint_place(Entity entity);
+```
+
+ Explicit, transactional placement; see physics_joint_place.
 
 ### `rohr_physics_soft_body_description_default_get`
 
@@ -5807,7 +5823,11 @@ ScreenDescription rohr_screen_description_default_get(void);
 
  Defaults use the active camera and window dimensions. Zero dimensions normalize;
 
-negative dimensions and unavailable cameras fail without mutation.
+negative dimensions fail without mutation. Camera IDs are borrowed: missing
+
+cameras show a construction placeholder and warn during viewport composition.
+
+Destroying a camera preserves screens; reassign their camera explicitly.
 
 ### `rohr_ui_input_set`
 

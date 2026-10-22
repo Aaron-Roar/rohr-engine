@@ -45,10 +45,10 @@ static Entity body_create(Position position, Vec2D dimensions,
         Mass body_mass, RohrCollisionCategoryMask category, bool dynamic) {
     EntityResult result = rohr_entity_add();
     Entity entity;
-    RohrCollisionCategoryMask collision_with = ROHR_COLLISION_CATEGORY_ALL;
+    RohrCollisionCategoryMask responds_to = ROHR_COLLISION_CATEGORY_ALL;
 
     if(category == pin_category || category == weld_category)
-        collision_with &= ~category;
+        responds_to &= ~category;
 
     if(rohr_error_check(result)) return ENTITY_INVALID;
     entity = result.result.value;
@@ -61,9 +61,9 @@ static Entity body_create(Position position, Vec2D dimensions,
             !result_ok(rohr_physics_restitution_set(entity, 0.95f)) ||
             !result_ok(rohr_physics_friction_set(entity, 0.10f)) ||
             !result_ok(rohr_physics_collision_category_set(entity, category)) ||
-            !result_ok(rohr_physics_collision_with_set(
+            !result_ok(rohr_physics_collision_response_set(
                 entity,
-                dynamic ? collision_with : ROHR_COLLISION_CATEGORY_ALL
+                dynamic ? responds_to : ROHR_COLLISION_CATEGORY_ALL
             ))) return ENTITY_INVALID;
     if(dynamic) {
         if(!result_ok(rohr_physics_mass_set(entity, body_mass)) ||

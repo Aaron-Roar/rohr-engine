@@ -922,7 +922,7 @@ int main(void) {
                 generated_beam->collision_enabled = false;
                 generated_beam->collision_thickness = 4.0f;
                 generated_beam->collision_category = UINT64_C(1);
-                generated_beam->collision_with = UINT64_C(1);
+                generated_beam->responds_to = UINT64_C(1);
                 generated_beam->graphics_layer_inherited = false;
                 generated_beam->graphics_layer.value = 42;
             }
@@ -1142,7 +1142,7 @@ int main(void) {
     if(project.collision_mask_count != 1 ||
             strcmp(project.collision_masks[0].name, "default") != 0 ||
             !chassis->collision_enabled || chassis->collision_category != UINT64_C(1) ||
-            chassis->collision_with != UINT64_C(1)) return 1;
+            chassis->responds_to != UINT64_C(1)) return 1;
     {
         size_t mask_index = SIZE_MAX;
         if(!editor_project_collision_mask_add(&project, "Enemy", &mask_index) ||
@@ -1267,7 +1267,7 @@ int main(void) {
     node_b = editor_project_soft_node_add(&project, soft_body, (Position){20.0f, 0.0f});
     if(soft_body == NULL || node_a == NULL || node_b == NULL) return 1;
     node_b->collision_category = UINT64_C(1) | (UINT64_C(1) << 1);
-    node_b->collision_with = UINT64_C(1);
+    node_b->responds_to = UINT64_C(1);
     node_b->radius = 7.25f;
     node_b->friction = 0.7f;
     node_b->restitution = 0.35f;
@@ -1304,7 +1304,7 @@ int main(void) {
         beam->collision_enabled = false;
         beam->collision_thickness = 3.5f;
         beam->collision_category = UINT64_C(2);
-        beam->collision_with = UINT64_C(3);
+        beam->responds_to = UINT64_C(3);
         beam->graphics_layer_inherited = false;
         beam->graphics_layer.value = 72;
     }
@@ -1416,7 +1416,7 @@ int main(void) {
                 fabsf(loaded_object->soft_body_items[0].rotation + 450.0f) > 0.001f ||
                 loaded_object->soft_body_items[0].nodes[0].collision_category !=
                     (UINT64_C(1) | (UINT64_C(1) << 1)) ||
-                loaded_object->soft_body_items[0].nodes[0].collision_with != UINT64_C(1) ||
+                loaded_object->soft_body_items[0].nodes[0].responds_to != UINT64_C(1) ||
                 fabsf(loaded_object->soft_body_items[0].nodes[0].radius - 7.25f) >
                     0.001f ||
                 fabsf(loaded_object->soft_body_items[0].nodes[0].friction - 0.7f) >
@@ -1432,7 +1432,7 @@ int main(void) {
                     collision_thickness - 3.5f) > 0.001f ||
                 loaded_object->soft_body_items[0].beams[0].collision_category !=
                     UINT64_C(2) ||
-                loaded_object->soft_body_items[0].beams[0].collision_with !=
+                loaded_object->soft_body_items[0].beams[0].responds_to !=
                     UINT64_C(3) ||
                 loaded_object->soft_body_items[0].beams[0].graphics_layer_inherited ||
                 loaded_object->soft_body_items[0].beams[0].graphics_layer.value != 72 ||
@@ -1446,7 +1446,7 @@ int main(void) {
                 loaded.next_soft_beam_id != project.next_soft_beam_id ||
                 loaded.collision_mask_count != 2 ||
                 strcmp(loaded.collision_masks[1].name, "enemy") != 0 ||
-                loaded_object->rigid_bodies[0].collision_with != UINT64_C(1) ||
+                loaded_object->rigid_bodies[0].responds_to != UINT64_C(1) ||
                 loaded_object->rigid_bodies[0].collision_category !=
                     (UINT64_C(1) | (UINT64_C(1) << 1)) ||
                 !loaded_object->rigid_bodies[0].particle ||

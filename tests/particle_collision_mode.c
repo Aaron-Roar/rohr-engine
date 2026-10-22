@@ -31,7 +31,7 @@ static bool particle_config_test(void) {
             defaults.gravity_enabled ||
             defaults.collision_filter.category !=
                 ROHR_COLLISION_CATEGORY_DEFAULT ||
-            defaults.collision_filter.collides_with !=
+            defaults.collision_filter.responds_to !=
                 ROHR_COLLISION_CATEGORY_ALL) return false;
     first_config.position = (Position){12.0f, -8.0f};
     first_config.velocity = (Velocity){3.0f, 4.0f};
@@ -47,7 +47,7 @@ static bool particle_config_test(void) {
     second_config.static_body = true;
     second_config.collision_enabled = false;
     second_config.collision_filter = (CollisionFilterDescription){
-        .category = UINT64_C(4), .collides_with = UINT64_C(2)};
+        .category = UINT64_C(4), .responds_to = UINT64_C(2)};
     second_result = rohr_physics_particle_add(second_config);
     if(rohr_error_check(second_result)) {
         (void)rohr_entity_delete(first_result.result.value);
@@ -86,7 +86,7 @@ static bool particle_config_test(void) {
             rohr_entity_components_check(second_result.result.value,
                 ROHR_GRAVITY) ||
             second_filter.result.value.category != UINT64_C(4) ||
-            second_filter.result.value.collides_with != UINT64_C(2)) {
+            second_filter.result.value.responds_to != UINT64_C(2)) {
         (void)rohr_entity_delete(first_result.result.value);
         (void)rohr_entity_delete(second_result.result.value);
         return false;

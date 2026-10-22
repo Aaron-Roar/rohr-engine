@@ -84,7 +84,7 @@ static bool body_read(ImportContext *c, ObjectDescription *root, const EditorObj
     d->radius = s->particle ? s->particle_radius : 0; d->particle_origin = s->particle_origin;
     d->particle_vertices = s->particle_rigid_vertices; d->visible = !s->app_hidden;
     d->center_of_mass_explicit = s->center_of_mass_explicit; d->center_of_mass = s->center_of_mass_offset;
-    d->collision_filter = (CollisionFilterDescription){s->collision_category, s->collision_with};
+    d->collision_filter = (CollisionFilterDescription){s->collision_category, s->responds_to};
     d->color = graphics_color_hex_create(s->standalone_particle ? s->particle_fill_color : s->surface_color);
     d->border_color = graphics_color_hex_create(s->standalone_particle ? s->particle_ring_color : s->border_color);
     d->layer = layer(c->project, s->graphics_layer);
@@ -177,7 +177,7 @@ static bool soft_read(ImportContext *c, ObjectDescription *root, const EditorObj
         v->friction = n->friction; v->restitution = n->restitution;
         v->static_body = n->static_body;
         v->gravity_enabled = n->gravity_enabled; v->collision_enabled = n->collision_enabled;
-        v->collision_filter = (CollisionFilterDescription){n->collision_category, n->collision_with};
+        v->collision_filter = (CollisionFilterDescription){n->collision_category, n->responds_to};
         v->visible = !n->app_hidden; v->color = graphics_color_hex_create(n->color_overridden ? n->color : s->node_color);
         v->color_overridden = true;
         v->layer = n->graphics_layer_inherited ? d->layer : layer(c->project, n->graphics_layer);
@@ -193,7 +193,7 @@ static bool soft_read(ImportContext *c, ObjectDescription *root, const EditorObj
         v->stiffness = b->stiffness; v->damping = b->damping;
         v->friction = b->friction; v->restitution = b->restitution; v->thickness = b->collision_thickness;
         v->collision_enabled = b->collision_enabled;
-        v->collision_filter = (CollisionFilterDescription){b->collision_category, b->collision_with};
+        v->collision_filter = (CollisionFilterDescription){b->collision_category, b->responds_to};
         v->visible = !b->app_hidden; v->color_overridden = true;
         v->color = graphics_color_hex_create(b->color_overridden ? b->color : s->beam_color);
         v->layer = b->graphics_layer_inherited ? d->layer : layer(c->project, b->graphics_layer);
@@ -416,8 +416,10 @@ fail:
 ObjectDescriptionResult object_description_file_read(const char *path) {
     EditorProject project = {0};
     EditorResult loaded = editor_project_load(&project, path);
-    if(editor_result_check(loaded))
+    if(editor_result_check(loaded)) {
+        error_detail_set(ERROR_ENGINE_STATE_INVALID, loaded.result.error.message);
         return ERROR_RESULT_MAKE_ERROR(ObjectDescriptionResult, ERROR_ENGINE_STATE_INVALID);
+    }
     ObjectDescriptionResult result = object_description_project_read(&project, path);
     editor_project_destroy(&project);
     return result;

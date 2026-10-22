@@ -34,6 +34,7 @@ static const Color node_color;
 static const Color ramp_color;
 static const Color particle_color;
 static const RohrCollisionCategoryMask room_category;
+static const RohrCollisionCategoryMask hub_category;
 static const RohrCollisionCategoryMask particle_category;
 static const float physics_tick_time;
 static const Acceleration gravity;
@@ -74,7 +75,7 @@ static Entity wall_create(Position position, Vec2D dimensions) {
             !result_ok(rohr_physics_friction_set(wall, rigid_friction)) ||
             !result_ok(rohr_physics_restitution_set(wall, collision_restitution)) ||
             !result_ok(rohr_physics_collision_category_set(wall, room_category)) ||
-            !result_ok(rohr_physics_collision_with_all_set(wall))) return ENTITY_INVALID;
+            !result_ok(rohr_physics_collision_response_set(wall, ROHR_COLLISION_CATEGORY_ALL & ~hub_category))) return ENTITY_INVALID;
     return wall;
 }
 
@@ -103,7 +104,7 @@ static Entity static_triangle_create(Position a, Position b, Position c) {
             !result_ok(rohr_physics_friction_set(entity, rigid_friction)) ||
             !result_ok(rohr_physics_restitution_set(entity, collision_restitution)) ||
             !result_ok(rohr_physics_collision_category_set(entity, room_category)) ||
-            !result_ok(rohr_physics_collision_with_all_set(entity))) return ENTITY_INVALID;
+            !result_ok(rohr_physics_collision_response_set(entity, ROHR_COLLISION_CATEGORY_ALL & ~hub_category))) return ENTITY_INVALID;
     return entity;
 }
 
@@ -147,6 +148,8 @@ static const Color node_color = {255, 170, 70, 255};
 static const Color ramp_color = {145, 120, 85, 255};
 static const Color particle_color = {45, 120, 230, 255};
 static const RohrCollisionCategoryMask room_category = UINT64_C(1) << 1;
+/* Hubs only contact pit particles; keep room/chassis exclusions explicit. */
+static const RohrCollisionCategoryMask hub_category = UINT64_C(1) << 6;
 static const RohrCollisionCategoryMask particle_category = UINT64_C(1) << 5;
 static const float physics_tick_time = 1.0f / 240.0f;
 static const Acceleration gravity = {0.0f, -175.0f};
@@ -284,7 +287,7 @@ int main(void) {
     particle_config.friction = rigid_friction;
     particle_config.restitution = collision_restitution;
     particle_config.collision_filter.category = particle_category;
-    particle_config.collision_filter.collides_with =
+    particle_config.collision_filter.responds_to =
         ROHR_COLLISION_CATEGORY_ALL;
     rohr_graphics_aabb_tree_debug_set(broadphase_debug);
     rohr_graphics_contacts_debug_set(broadphase_debug);

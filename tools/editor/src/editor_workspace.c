@@ -723,7 +723,7 @@ static void editor_workspace_particle_config_write(FILE *source,
         "    .friction = %#.9gf,\n"
         "    .restitution = %#.9gf,\n"
         "    .collision_filter = {.category = UINT64_C(%llu), "
-            ".collides_with = UINT64_C(%llu)},\n"
+            ".responds_to = UINT64_C(%llu)},\n"
         "    .static_body = %s,\n"
         "    .gravity_enabled = %s,\n"
         "    .collision_enabled = %s\n"
@@ -735,7 +735,7 @@ static void editor_workspace_particle_config_write(FILE *source,
         radius, body->particle_rigid_vertices, body->mass_value,
         body->friction, body->restitution,
         (unsigned long long)body->collision_category,
-        (unsigned long long)body->collision_with,
+        (unsigned long long)body->responds_to,
         body->static_body ? "true" : "false",
         body->gravity_enabled ? "true" : "false",
         body->collision_enabled ? "true" : "false");
@@ -940,7 +940,7 @@ static bool editor_workspace_generated_objects_write(const EditorWorkspace *work
         "    bool gravity_enabled, bool collision_enabled, bool particle,\n"
         "    Position particle_origin, float particle_radius,\n"
         "    RohrCollisionCategoryMask collision_category,\n"
-        "    RohrCollisionCategoryMask collision_with) {\n"
+        "    RohrCollisionCategoryMask responds_to) {\n"
         "    EntityResult added = rohr_entity_add();\n"
         "    EngineResult result;\n"
         "    if(rohr_error_check(added)) return rohr_error_result_error(added.result.error);\n"
@@ -953,8 +953,8 @@ static bool editor_workspace_generated_objects_write(const EditorWorkspace *work
         "        GENERATED_APPLY(rohr_physics_hitbox_set(*output, hitbox));\n"
         "    GENERATED_APPLY(rohr_physics_collision_category_set(*output,\n"
         "        collision_enabled ? collision_category : ROHR_COLLISION_CATEGORY_NONE));\n"
-        "    GENERATED_APPLY(rohr_physics_collision_with_set(*output,\n"
-        "        collision_enabled ? collision_with : ROHR_COLLISION_CATEGORY_NONE));\n"
+        "    GENERATED_APPLY(rohr_physics_collision_response_set(*output,\n"
+        "        collision_enabled ? responds_to : ROHR_COLLISION_CATEGORY_NONE));\n"
         "    if(collision_enabled) {\n"
         "        GENERATED_APPLY(rohr_entity_components_add(*output, ROHR_COLLISION));\n"
         "        if(particle) {\n"
@@ -1195,7 +1195,7 @@ static bool editor_workspace_generated_objects_write(const EditorWorkspace *work
                 body->particle_origin.x, body->particle_origin.y,
                 particle_radius,
                 (unsigned long long)body->collision_category,
-                (unsigned long long)body->collision_with);
+                (unsigned long long)body->responds_to);
             if(body->center_of_mass_explicit)
                 fprintf(source,
                     "    result = rohr_physics_center_of_mass_local_position_set(object->%s, "
@@ -1465,7 +1465,7 @@ static bool editor_workspace_generated_objects_write(const EditorWorkspace *work
                 Acceleration acceleration = node->initial_motion_inherited ?
                     body->initial_acceleration : node->initial_acceleration;
                 fprintf(source,
-                    "    { EntityResult created = rohr_physics_soft_body_node_add((SoftBodyNodeDescription){.restitution = 0.25f, .collision_enabled = true, .collision_filter = {.category = ROHR_COLLISION_CATEGORY_SOFT_BODY_NODE, .collides_with = ROHR_COLLISION_CATEGORY_ALL & ~ROHR_COLLISION_CATEGORY_SOFT_BODY_NODE}, "
+                    "    { EntityResult created = rohr_physics_soft_body_node_add((SoftBodyNodeDescription){.restitution = 0.25f, .collision_enabled = true, .collision_filter = {.category = ROHR_COLLISION_CATEGORY_SOFT_BODY_NODE, .responds_to = ROHR_COLLISION_CATEGORY_ALL & ~ROHR_COLLISION_CATEGORY_SOFT_BODY_NODE}, "
                     ".owner = object->%s, .position = {position.x + %#.9gf, "
                     "position.y + %#.9gf}, .mass = %#.9gf, .radius = %#.9gf});\n"
                     "      if(rohr_error_check(created)) { result = rohr_error_result_error("
@@ -1496,13 +1496,13 @@ static bool editor_workspace_generated_objects_write(const EditorWorkspace *work
                     node->name, node->friction, node->name, node->restitution);
                 fprintf(source,
                     "    result = rohr_physics_soft_body_node_collision_filter_description_set("
-                    "object->%s, (CollisionFilterDescription){.category = UINT64_C(%llu), .collides_with = UINT64_C(%llu)});\n"
+                    "object->%s, (CollisionFilterDescription){.category = UINT64_C(%llu), .responds_to = UINT64_C(%llu)});\n"
                     "    if(rohr_error_check(result)) goto fail;\n",
                     node->name,
                     (unsigned long long)(node->collision_enabled ?
                         node->collision_category : ROHR_COLLISION_CATEGORY_NONE),
                     (unsigned long long)(node->collision_enabled ?
-                        node->collision_with : ROHR_COLLISION_CATEGORY_NONE));
+                        node->responds_to : ROHR_COLLISION_CATEGORY_NONE));
                 if(node->static_body) fprintf(source,
                     "    result = rohr_physics_static_set(object->%s);\n"
                     "    if(rohr_error_check(result)) goto fail;\n", node->name);
@@ -1515,7 +1515,7 @@ static bool editor_workspace_generated_objects_write(const EditorWorkspace *work
                     body, beam->node_b);
                 if(node_a == NULL || node_b == NULL) continue;
                 fprintf(source,
-                    "    { EntityResult created = rohr_physics_soft_body_beam_add((SoftBodyBeamDescription){.restitution = 0.25f, .collision = {.thickness = ROHR_SOFT_BODY_BEAM_COLLISION_THICKNESS_MIN, .filter = {.category = ROHR_COLLISION_CATEGORY_SOFT_BODY_NODE, .collides_with = ROHR_COLLISION_CATEGORY_ALL & ~ROHR_COLLISION_CATEGORY_SOFT_BODY_NODE}}, "
+                    "    { EntityResult created = rohr_physics_soft_body_beam_add((SoftBodyBeamDescription){.restitution = 0.25f, .collision = {.thickness = ROHR_SOFT_BODY_BEAM_COLLISION_THICKNESS_MIN, .filter = {.category = ROHR_COLLISION_CATEGORY_SOFT_BODY_NODE, .responds_to = ROHR_COLLISION_CATEGORY_ALL & ~ROHR_COLLISION_CATEGORY_SOFT_BODY_NODE}}, "
                     ".owner = object->%s, .node_a = object->%s, "
                     ".node_b = object->%s, .stiffness = %#.9gf, .damping = %#.9gf, .rest_length_explicit = %s, .rest_length = %#.9gf});\n"
                     "      if(rohr_error_check(created)) { result = rohr_error_result_error("
@@ -1534,13 +1534,13 @@ static bool editor_workspace_generated_objects_write(const EditorWorkspace *work
                     "    result = rohr_physics_soft_body_beam_collision_description_set("
                     "object->%s, (SoftBodyBeamCollisionDescription){"
                     ".enabled = %s, .thickness = %#.9gf, .filter = {"
-                    ".category = UINT64_C(%llu), .collides_with = UINT64_C(%llu)}});\n"
+                    ".category = UINT64_C(%llu), .responds_to = UINT64_C(%llu)}});\n"
                     "    if(rohr_error_check(result)) goto fail;\n",
                     beam->name,
                     beam->collision_enabled ? "true" : "false",
                     beam->collision_thickness,
                     (unsigned long long)beam->collision_category,
-                    (unsigned long long)beam->collision_with);
+                    (unsigned long long)beam->responds_to);
                 if(beam->color_overridden) {
                     fprintf(source,
                         "    result = rohr_graphics_soft_body_beam_color_set(object->%s, "

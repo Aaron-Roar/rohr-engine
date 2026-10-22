@@ -22,7 +22,7 @@ static void author(EditorProject *p) {
     body->initial_velocity=(Velocity){1,2}; body->initial_acceleration=(Acceleration){.2f,.3f};
     body->initial_angular_velocity=12; body->gravity_enabled=false;
     body->friction=.4f; body->restitution=.2f; body->collision_enabled=true;
-    body->collision_category=4; body->collision_with=8;
+    body->collision_category=4; body->responds_to=8;
     body->center_of_mass_explicit=true; body->center_of_mass_offset=(Position){1,-.5f};
     body->entity_settings=(ObjectEntitySettings){.angular_acceleration=2,
         .angular_velocity_maximum_enabled=true,.angular_velocity_maximum=50,
@@ -37,7 +37,7 @@ static void author(EditorProject *p) {
     particle->particle_origin=(Position){1,0}; particle->initial_velocity=(Velocity){-1,0};
     particle->mass_value=2; particle->friction=.3f; particle->restitution=.6f;
     particle->gravity_enabled=false; particle->collision_enabled=true;
-    particle->collision_category=8; particle->collision_with=4;
+    particle->collision_category=8; particle->responds_to=4;
     EditorSoftBody *soft=editor_project_soft_body_add(p,o); assert(soft);
     snprintf(soft->name,sizeof(soft->name),"soft");
     soft->position=(Position){80,20}; soft->rotation=30;
@@ -50,7 +50,7 @@ static void author(EditorProject *p) {
         n->node_mass=(float)i+1; n->radius=.5f; n->initial_motion_inherited=false;
         n->initial_velocity=(Velocity){.2f,.1f}; n->static_body=i==0;
         n->friction=.25f; n->restitution=.1f; n->gravity_enabled=false;
-        n->collision_enabled=true; n->collision_category=32; n->collision_with=0;
+        n->collision_enabled=true; n->collision_category=32; n->responds_to=0;
         n->color=0x0a141eff; n->color_overridden=true;
     }
     EditorSoftBeamId beam_id=0;
@@ -60,7 +60,7 @@ static void author(EditorProject *p) {
         snprintf(b->name,sizeof(b->name),"beam%d",i);
         b->stiffness=40; b->damping=2; b->rest_length=20; b->rest_length_explicit=i==0;
         b->friction=.2f; b->restitution=.3f; b->collision_enabled=i==1;
-        b->collision_thickness=.2f; b->collision_category=64; b->collision_with=0;
+        b->collision_thickness=.2f; b->collision_category=64; b->responds_to=0;
         b->color=0x28323cff; b->color_overridden=true;
     }
     EditorSoftArea *area=editor_soft_area_add(soft); assert(area);

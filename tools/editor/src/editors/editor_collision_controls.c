@@ -16,7 +16,7 @@ static bool target_get(EditorProject *project, EditorSelectionRef ref,
     if(object == NULL) return false;
 #define TARGET(value, item_kind) do { \
     *kind = item_kind; *enabled = (value)->collision_enabled; \
-    *category = (value)->collision_category; *with = (value)->collision_with; return true; \
+    *category = (value)->collision_category; *with = (value)->responds_to; return true; \
 } while(0)
     if(ref.kind == EDITOR_SELECTION_RIGID_BODY || ref.kind == EDITOR_SELECTION_PARTICLE) {
         EditorRigidBody *body = editor_project_rigid_body_get(object, ref.item);
@@ -54,7 +54,7 @@ EditorResult editor_collision_edit(EditorProject *project, EditorHistory *histor
         const char *mask, bool enabled, bool create) {
     EditorCollisionValues values;
     if(!editor_collision_values_get(project, selections, count, &values) ||
-            filter < -1 || filter > EDITOR_COLLISION_FILTER_COLLIDE_WITH ||
+            filter < -1 || filter > EDITOR_COLLISION_FILTER_RESPONDS_TO ||
             (filter >= 0 && mask == NULL) || (create && filter < 0))
         return editor_result_error(EDITOR_ERROR_INVALID_ARGUMENT, "Selection does not support this collision edit");
     bool transaction = history != NULL;
@@ -117,7 +117,7 @@ bool editor_collision_controls_create(EditorCollisionControls *controls, FontAss
     *controls = (EditorCollisionControls){.font = font};
     if(!editor_mode_text_create(font, "Collision", &controls->toggle) ||
             !editor_mode_text_create(font, "Collision Category", &controls->headers[0]) ||
-            !editor_mode_text_create(font, "Collides With", &controls->headers[1]) ||
+            !editor_mode_text_create(font, "Responds To", &controls->headers[1]) ||
             !editor_mode_text_create(font, "Add", &controls->add) ||
             !editor_mode_text_create(font, "", &controls->fields[0]) ||
             !editor_mode_text_create(font, "", &controls->fields[1]) ||

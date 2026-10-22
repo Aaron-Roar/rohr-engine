@@ -23,7 +23,7 @@ static bool turn_check(float direction) {
 
     EntityResult fly = rohr_entity_by_name_get("large_fly"); OK(fly);
     EntityIndex fi = rohr_entity_index_get(fly.result.value).result.value;
-    OK(rohr_physics_collision_with_set(fly.result.value, ROHR_COLLISION_CATEGORY_NONE));
+    OK(rohr_physics_collision_response_set(fly.result.value, ROHR_COLLISION_CATEGORY_NONE));
     OK(rohr_physics_angular_velocity_set(fly.result.value, 0));
     MomentOfInertiaResult inertia = rohr_physics_moment_of_inertia_get(fly.result.value);
     OK(inertia);

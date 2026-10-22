@@ -1394,11 +1394,11 @@ static EngineResult state_components_load(
     value = yyjson_obj_get(components, "collision_filter");
     if(value != NULL) {
         yyjson_val *category = yyjson_obj_get(value, "category");
-        yyjson_val *with = yyjson_obj_get(value, "collides_with");
+        yyjson_val *with = yyjson_obj_get(value, "responds_to");
         if(!yyjson_is_obj(value) || !yyjson_is_uint(category) || !yyjson_is_uint(with))
             return error_result_error(ERROR_ENGINE_STATE_INVALID);
         result = physics_collision_filter_description_set(entity, (CollisionFilterDescription){
-            .category = yyjson_get_uint(category), .collides_with = yyjson_get_uint(with)});
+            .category = yyjson_get_uint(category), .responds_to = yyjson_get_uint(with)});
         if(error_check(result)) return result;
     }
     value = yyjson_obj_get(components, "particle_geometry");
@@ -1885,6 +1885,11 @@ EngineResult game_state_files_load(const char *const *paths, size_t path_count) 
         documents[document_index].animations = assets == NULL
             ? NULL
             : yyjson_obj_get(assets, "animations");
+        if(yyjson_is_uint(version) && yyjson_get_uint(version) < GAME_STATE_VERSION) {
+            result = error_result_error_detail(ERROR_ENGINE_STATE_INVALID,
+                "collision response migration required for older game-state formats; C11 migration is not available yet");
+            goto cleanup;
+        }
         if(!yyjson_is_obj(root) || !yyjson_is_uint(version)
                 || yyjson_get_uint(version) != GAME_STATE_VERSION
                 || !yyjson_is_arr(documents[document_index].entities)
@@ -2639,7 +2644,7 @@ EngineResult game_state_file_save(const char *path) {
         if(collision_filters_pool.used[index]) {
             yyjson_mut_val *filter = yyjson_mut_obj(document);
             yyjson_mut_obj_add_uint(document, filter, "category", collision_filters[index].category);
-            yyjson_mut_obj_add_uint(document, filter, "collides_with", collision_filters[index].collides_with);
+            yyjson_mut_obj_add_uint(document, filter, "responds_to", collision_filters[index].responds_to);
             yyjson_mut_obj_add_val(document, components, "collision_filter", filter);
         }
         yyjson_mut_val *com = yyjson_mut_obj(document);

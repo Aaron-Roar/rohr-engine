@@ -33,7 +33,7 @@
 #define EDITOR_COLLISION_MASK_MAX 64
 /* Version 11 adds authored configuration and reference parity.
  * Versions 8–10 remain readable with the documented defaults. */
-#define EDITOR_PROJECT_FORMAT_VERSION 11
+#define EDITOR_PROJECT_FORMAT_VERSION 12
 #define EDITOR_NAVIGATION_MODE_MAX 33
 #define EDITOR_NAVIGATION_SELECTION_MAX 30
 
@@ -198,7 +198,7 @@ typedef struct EditorRigidBody {
     uint32_t border_color;
     uint32_t surface_color;
     RohrCollisionCategoryMask collision_category;
-    RohrCollisionCategoryMask collision_with;
+    RohrCollisionCategoryMask responds_to;
     EditorHitbox *hitboxes;
     size_t hitbox_count;
     size_t hitbox_capacity;
@@ -283,7 +283,7 @@ typedef struct EditorSoftNode {
     bool gravity_enabled;
     bool collision_enabled;
     RohrCollisionCategoryMask collision_category;
-    RohrCollisionCategoryMask collision_with;
+    RohrCollisionCategoryMask responds_to;
     bool visible;
     uint32_t color;
     bool color_overridden;
@@ -309,7 +309,7 @@ typedef struct EditorSoftBeam {
     bool collision_enabled;
     float collision_thickness;
     RohrCollisionCategoryMask collision_category;
-    RohrCollisionCategoryMask collision_with;
+    RohrCollisionCategoryMask responds_to;
     bool visible;
     uint32_t color;
     bool color_overridden;

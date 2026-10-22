@@ -213,23 +213,25 @@ int main(void) {
     filter = rohr_physics_collision_filter_description_get(first.result.value);
     if(filter.kind == ERROR_RESULT_ERROR ||
             filter.result.value.category != ROHR_COLLISION_CATEGORY_DEFAULT ||
-            filter.result.value.collides_with != ROHR_COLLISION_CATEGORY_ALL ||
-            !rohr_physics_collision_between_check(first.result.value, second.result.value)) {
+            filter.result.value.responds_to != ROHR_COLLISION_CATEGORY_ALL ||
+            !rohr_physics_collision_response_between_check(first.result.value, second.result.value)) {
         rohr_engine_stop();
         return 1;
     }
     if(rohr_error_check(rohr_physics_collision_category_set(first.result.value, player)) ||
             rohr_error_check(rohr_physics_collision_category_set(second.result.value, enemy)) ||
-            rohr_error_check(rohr_physics_collision_with_set(first.result.value, enemy)) ||
-            rohr_error_check(rohr_physics_collision_with_none_set(second.result.value)) ||
-            rohr_physics_collision_between_check(first.result.value, second.result.value)) {
+            rohr_error_check(rohr_physics_collision_response_set(first.result.value, enemy)) ||
+            rohr_error_check(rohr_physics_collision_response_none_set(second.result.value)) ||
+            !rohr_physics_collision_response_between_check(first.result.value, second.result.value) ||
+            !rohr_physics_collision_response_to_check(first.result.value, second.result.value) ||
+            rohr_physics_collision_response_to_check(second.result.value, first.result.value)) {
         rohr_engine_stop();
         return 1;
     }
-    if(rohr_error_check(rohr_physics_collision_with_set(second.result.value, player)) ||
-            !rohr_physics_collision_between_check(first.result.value, second.result.value) ||
-            rohr_error_check(rohr_physics_collision_with_all_set(first.result.value)) ||
-            !rohr_physics_collision_between_check(first.result.value, second.result.value)) {
+    if(rohr_error_check(rohr_physics_collision_response_set(second.result.value, player)) ||
+            !rohr_physics_collision_response_between_check(first.result.value, second.result.value) ||
+            rohr_error_check(rohr_physics_collision_response_all_set(first.result.value)) ||
+            !rohr_physics_collision_response_between_check(first.result.value, second.result.value)) {
         rohr_engine_stop();
         return 1;
     }
