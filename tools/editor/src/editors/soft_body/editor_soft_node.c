@@ -154,7 +154,8 @@ bool editor_soft_node_editor_draw(EditorSoftNodeEditor *editor,
     bool transform_open, initial_motion_open, physics_open, material_open, collision_open,
         appearance_open;
     float collision_y, appearance_y;
-    float transform_row_y[3] = {0}, physics_row_y[4] = {0};
+    float layer_y = 0;
+    float transform_row_y[2] = {0}, physics_row_y[4] = {0};
     float initial_motion_row_y[5] = {0};
     float material_row_y[2] = {0};
     float section_y = 118.0f;
@@ -199,21 +200,17 @@ bool editor_soft_node_editor_draw(EditorSoftNodeEditor *editor,
         }
     }
     {
-        float layer_height = node->graphics_layer.layer == 0 ||
-            (context->layer_control != NULL &&
-                (context->layer_control->adding ||
-                    context->layer_control->edited_layer != 0)) ? 86.0f : 48.0f;
+        float layer_height = editor_mode_layer_control_height_get(context->layer_control,
+            node->graphics_layer, &node->graphics_layer_inherited);
         const EditorModeAccordionLayoutGroup transform_groups[] = {
-            {.row_count = 2, .row_height = 26.0f, .row_gap = 6.0f},
-            {.row_count = 1, .row_height = layer_height,
-                .gap_before = 6.0f}};
+            {.row_count = 2, .row_height = 26.0f, .row_gap = 6.0f}};
         const float physics_rows[] = {26.0f, 26.0f, 28.0f, 28.0f};
         const float initial_motion_rows[] = {
             28.0f, 26.0f, 26.0f, 26.0f, 26.0f};
         size_t initial_motion_row_count =
             node->initial_motion_inherited ? 1 : 5;
         const float material_rows[] = {26.0f, 26.0f};
-        const float appearance_rows[] = {26.0f};
+        const float appearance_rows[] = {26.0f, layer_height};
         EditorModeAccordionLayoutGroup collision_groups[] = {
             {.row_count = 1, .row_height = editor_collision_controls_height_get(
                 &editor->collision, context->project, true)}};
@@ -224,7 +221,7 @@ bool editor_soft_node_editor_draw(EditorSoftNodeEditor *editor,
         EditorModeAccordionLayoutResult transform =
             editor_mode_accordion_layout_nested_section(&accordion,
                 &editor->transform_section,
-                "editor.soft_node.section.transform", transform_groups, 2);
+                "editor.soft_node.section.transform", transform_groups, 1);
         EditorModeAccordionLayoutResult physics =
             editor_mode_accordion_layout_section(&accordion,
                 &editor->initial_motion_section,
@@ -250,8 +247,8 @@ bool editor_soft_node_editor_draw(EditorSoftNodeEditor *editor,
         EditorModeAccordionLayoutResult appearance =
             editor_mode_accordion_layout_section(&accordion,
                 &editor->appearance_section,
-                "editor.soft_node.section.appearance", appearance_rows, 1,
-                0.0f);
+                "editor.soft_node.section.appearance", appearance_rows, 2,
+                6.0f);
         transform_open = transform.expanded;
         physics_open = physics.expanded;
         material_open = material.expanded;
@@ -260,11 +257,10 @@ bool editor_soft_node_editor_draw(EditorSoftNodeEditor *editor,
         appearance_open = appearance.expanded;
         appearance_y = appearance.content_y;
         transform_row_y[0] = editor_mode_accordion_layout_group_row_y(
-            &transform, transform_groups, 2, 0, 0);
+            &transform, transform_groups, 1, 0, 0);
         transform_row_y[1] = editor_mode_accordion_layout_group_row_y(
-            &transform, transform_groups, 2, 0, 1);
-        transform_row_y[2] = editor_mode_accordion_layout_group_row_y(
-            &transform, transform_groups, 2, 1, 0);
+            &transform, transform_groups, 1, 0, 1);
+        layer_y = appearance.content_y + 32.0f;
         for(size_t row = 0; row < 4; row += 1)
             physics_row_y[row] = editor_mode_accordion_layout_row_y(
                 &physics, physics_rows, row, 6.0f);
@@ -292,11 +288,7 @@ bool editor_soft_node_editor_draw(EditorSoftNodeEditor *editor,
             .data.soft_node_position = {object->id, body->id, node->id, position}};
         (void)editor_command_execute(context->project, &command);
     }
-    if(context->layer_control != NULL)
-        layer_active = editor_mode_layer_control_draw(context->layer_control,
-            "editor.soft_node", context->project, &node->graphics_layer,
-            &node->graphics_layer_inherited, context->x, transform_row_y[2],
-            context->width);
+
     }
     if(initial_motion_open) {
         bool inherited = node->initial_motion_inherited;
@@ -411,6 +403,11 @@ bool editor_soft_node_editor_draw(EditorSoftNodeEditor *editor,
         field_active |= collision.active;
     }
     if(appearance_open) {
+    if(context->layer_control != NULL)
+        layer_active = editor_mode_layer_control_draw(context->layer_control,
+            "editor.soft_node", context->project, &node->graphics_layer,
+            &node->graphics_layer_inherited, context->x, layer_y,
+            context->width);
         bool inherit = !node->color_overridden;
         float field_width = fmaxf(34.0f, context->width - 196.0f);
         if(inherit) node->color = body->node_color;

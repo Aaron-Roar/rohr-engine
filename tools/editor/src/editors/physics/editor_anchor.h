@@ -34,6 +34,7 @@ typedef struct EditorAnchorEditor {
     char body_cache[EDITOR_RIGID_BODY_MAX][EDITOR_OBJECT_NAME_MAX];
     char node_cache[EDITOR_SOFT_BODY_MAX * EDITOR_SOFT_NODE_MAX][EDITOR_OBJECT_NAME_MAX];
     EditorModeAccordionSection transform_section;
+    EditorModeAccordionSection appearance_section;
     EditorModeAccordionSection attachment_section;
 } EditorAnchorEditor;
 

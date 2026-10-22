@@ -87,7 +87,8 @@ typedef enum EditorCommandType {
     EDITOR_COMMAND_AUDIO_ADD,
     EDITOR_COMMAND_AUDIO_SET,
     EDITOR_COMMAND_AUDIO_REMOVE,
-    EDITOR_COMMAND_JOINT_PLACE
+    EDITOR_COMMAND_JOINT_PLACE,
+    EDITOR_COMMAND_LAYER_SET
 } EditorCommandType;
 
 typedef enum EditorItemKind {
@@ -448,6 +449,13 @@ typedef struct EditorCommand {
             bool visible;
         } app_visibility;
         struct {
+            EditorItemKind kind;
+            EditorObjectId object;
+            uint32_t parent, item;
+            EditorGraphicsLayerBinding binding;
+            bool inherited;
+        } layer_set;
+        struct {
             EditorVisibilityKind kind;
             EditorObjectId object;
             uint32_t parent;
@@ -596,6 +604,9 @@ EditorResult editor_source_cli_write(const EditorProject *project, const EditorC
 char *editor_source_query_json(const EditorProject *project, const EditorSourceCommand *command);
 
 /* Returns the independently stored app-hidden flag, or NULL for nonvisual items. */
+EditorGraphicsLayerBinding *editor_command_layer_get(EditorProject *project,
+    EditorItemKind kind, EditorObjectId object, uint32_t parent, uint32_t item,
+    bool **inherited);
 ObjectVisuals *editor_command_visuals_get(EditorProject *project, EditorItemKind kind,
     EditorObjectId object, uint32_t item);
 bool editor_visual_property_check(EditorPropertyKind property);

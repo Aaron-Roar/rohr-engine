@@ -166,6 +166,8 @@ UIButtonStyle editor_mode_delete_style_get(void);
 bool editor_mode_layer_control_create(EditorModeLayerControl *control,
     FontAsset *font);
 void editor_mode_layer_control_destroy(EditorModeLayerControl *control);
+float editor_mode_layer_control_height_get(const EditorModeLayerControl *control,
+    EditorGraphicsLayerBinding binding, const bool *inherited);
 bool editor_mode_layer_control_draw(EditorModeLayerControl *control,
     const char *id_prefix, EditorProject *project,
     EditorGraphicsLayerBinding *binding, bool *inherited,

@@ -23,7 +23,9 @@ bool editor_sprite_editor_create(EditorSpriteEditor *editor, FontAsset *font) {
     CREATE("", x_field); CREATE("", y_field); CREATE("", rotation_field);
     CREATE("", width_field); CREATE("", height_field);
 #undef CREATE
-    if(!editor_mode_accordion_section_create(&editor->transform_section, font,
+    if(!editor_mode_accordion_section_create(&editor->appearance_section, font,
+            "Appearance", false) ||
+            !editor_mode_accordion_section_create(&editor->transform_section, font,
             "Transform", true) ||
             !editor_mode_accordion_section_create(&editor->attachment_section, font,
                 "Attachment", false) ||
@@ -48,6 +50,7 @@ void editor_sprite_editor_destroy(EditorSpriteEditor *editor) {
     DESTROY(width_field); DESTROY(height_field);
 #undef DESTROY
     editor_mode_accordion_section_destroy(&editor->transform_section);
+    editor_mode_accordion_section_destroy(&editor->appearance_section);
     editor_mode_accordion_section_destroy(&editor->attachment_section);
     editor_mode_accordion_section_destroy(&editor->asset_section);
     for(size_t i = 0; i < 64; i += 1)
@@ -118,19 +121,24 @@ bool editor_sprite_editor_draw(EditorSpriteEditor *editor,
             (attached == NULL || !attached->particle);
     }
     y = 118.0f;
-    float layer_height = sprite->graphics_layer.layer == 0 ||
-        (context->layer_control != NULL &&
-            (context->layer_control->adding ||
-                context->layer_control->edited_layer != 0)) ? 86.0f : 48.0f;
+    float layer_height = editor_mode_layer_control_height_get(context->layer_control,
+            sprite->graphics_layer, NULL);
     const float transform_rows[] = {
-        28.0f, 28.0f, 28.0f, 28.0f, layer_height, 28.0f, 28.0f};
+        28.0f, 28.0f, 28.0f, 28.0f, 28.0f, 28.0f};
     const float single_row[] = {28.0f};
     EditorModeAccordionLayoutCursor accordion =
         editor_mode_accordion_layout_cursor_get(context->x, context->width, y);
     EditorModeAccordionLayoutResult transform =
         editor_mode_accordion_layout_section(&accordion,
             &editor->transform_section, "editor.sprite.section.transform",
-            transform_rows, 7, 10.0f);
+            transform_rows, 6, 10.0f);
+    EditorModeAccordionLayoutResult appearance = editor_mode_accordion_layout_section(
+        &accordion, &editor->appearance_section, "editor.sprite.section.appearance",
+        &layer_height, 1, 0);
+    if(appearance.expanded)
+        layer_active = editor_mode_layer_control_draw(context->layer_control,
+            "editor.sprite", context->project, &sprite->graphics_layer, NULL,
+            context->x, appearance.content_y, context->width);
     EditorModeAccordionLayoutResult attachment =
         editor_mode_accordion_layout_section(&accordion,
             &editor->attachment_section, "editor.sprite.section.attachment",
@@ -159,11 +167,7 @@ bool editor_sprite_editor_draw(EditorSpriteEditor *editor,
             &editor->follow_label, (UIRect){context->x + 10.0f, y,
                 context->width - 20.0f, 28.0f}, &follow);
         y += 38.0f;
-        if(context->layer_control != NULL)
-            layer_active = editor_mode_layer_control_draw(context->layer_control,
-                "editor.sprite", context->project, &sprite->graphics_layer, NULL,
-                context->x, y, context->width);
-        y += layer_height;
+
         SPRITE_FIELD(editor->width_label, editor->width_field,
             "editor.sprite.width", width, width_result);
         SPRITE_FIELD(editor->height_label, editor->height_field,

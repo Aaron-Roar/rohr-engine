@@ -24,7 +24,9 @@ bool editor_camera_editor_create(EditorCameraEditor *editor, FontAsset *font) {
     CREATE("", width_field); CREATE("", height_field);
     CREATE("", zoom_field);
 #undef CREATE
-    if(!editor_mode_accordion_section_create(&editor->transform_section, font,
+    if(!editor_mode_accordion_section_create(&editor->appearance_section, font,
+            "Appearance", false) ||
+            !editor_mode_accordion_section_create(&editor->transform_section, font,
             "Transform", true) ||
             !editor_mode_accordion_section_create(&editor->view_section, font,
                 "View", false) ||
@@ -51,6 +53,7 @@ void editor_camera_editor_destroy(EditorCameraEditor *editor) {
     DESTROY(zoom_field);
 #undef DESTROY
     editor_mode_accordion_section_destroy(&editor->transform_section);
+    editor_mode_accordion_section_destroy(&editor->appearance_section);
     editor_mode_accordion_section_destroy(&editor->view_section);
     editor_mode_accordion_section_destroy(&editor->attachment_section);
     for(size_t i = 0; i < EDITOR_CAMERA_MAX; i += 1)
@@ -124,6 +127,16 @@ bool editor_camera_editor_draw(EditorCameraEditor *editor,
         editor_mode_accordion_layout_section(&accordion,
             &editor->view_section, "editor.camera.section.view",
             view_rows, 2, 10.0f);
+    float layer_height = editor_mode_layer_control_height_get(context->layer_control,
+        camera->graphics_layer, NULL);
+    EditorModeAccordionLayoutResult appearance = editor_mode_accordion_layout_section(
+        &accordion, &editor->appearance_section, "editor.camera.section.appearance",
+        &layer_height, 1, 0);
+    bool layer_active = false;
+    if(appearance.expanded)
+        layer_active = editor_mode_layer_control_draw(context->layer_control,
+            "editor.camera", context->project, &camera->graphics_layer, NULL,
+            context->x, appearance.content_y, context->width);
     EditorModeAccordionLayoutResult attachment_section =
         editor_mode_accordion_layout_section(&accordion,
             &editor->attachment_section, "editor.camera.section.attachment",
@@ -260,7 +273,7 @@ bool editor_camera_editor_draw(EditorCameraEditor *editor,
         .data.app_visibility = {EDITOR_ITEM_CAMERA, object->id, 0,
             camera->id, visible}}; (void)editor_command_execute(context->project,
         &command); }
-    return name_result.active || x_result.active || y_result.active ||
+    return layer_active || name_result.active || x_result.active || y_result.active ||
         angle_result.active || width_result.active || height_result.active ||
         zoom_result.active;
 }

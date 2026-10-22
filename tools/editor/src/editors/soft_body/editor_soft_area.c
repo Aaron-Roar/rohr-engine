@@ -141,8 +141,8 @@ bool editor_soft_area_editor_draw(EditorSoftAreaEditor *editor, const EditorMode
         }
         y += 36;
         EditorModeAccordionLayoutCursor cursor = editor_mode_accordion_layout_cursor_get(context->x, context->width, y);
-        float rows[] = {28, context->layer_control != NULL &&
-            (context->layer_control->adding || context->layer_control->edited_layer != 0) ? 86 : 48};
+        float rows[] = {28, editor_mode_layer_control_height_get(context->layer_control,
+            area->graphics_layer, &area->graphics_layer_inherited)};
         EditorModeAccordionLayoutResult appearance = editor_mode_accordion_layout_section(&cursor,
             &editor->appearance_section, "editor.soft_area.appearance", rows, 2, 6);
         if(appearance.expanded) {

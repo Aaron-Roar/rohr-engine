@@ -29,7 +29,9 @@ bool editor_animated_sprite_editor_create(EditorAnimatedSpriteEditor *editor,
     CREATE("", scale_y_field); CREATE("", ticks_field); CREATE("", time_field);
     CREATE("", starting_field);
 #undef CREATE
-    if(!editor_mode_accordion_section_create(&editor->transform_section, font,
+    if(!editor_mode_accordion_section_create(&editor->appearance_section, font,
+            "Appearance", false) ||
+            !editor_mode_accordion_section_create(&editor->transform_section, font,
             "Transform", true) ||
             !editor_mode_accordion_section_create(&editor->attachment_section, font,
                 "Attachment", false) ||
@@ -58,6 +60,7 @@ void editor_animated_sprite_editor_destroy(EditorAnimatedSpriteEditor *editor) {
     DESTROY(ticks_field); DESTROY(time_field); DESTROY(starting_field);
 #undef DESTROY
     editor_mode_accordion_section_destroy(&editor->transform_section);
+    editor_mode_accordion_section_destroy(&editor->appearance_section);
     editor_mode_accordion_section_destroy(&editor->attachment_section);
     editor_mode_accordion_section_destroy(&editor->playback_section);
     editor_mode_accordion_section_destroy(&editor->frames_section);
@@ -103,7 +106,7 @@ bool editor_animated_sprite_editor_draw(EditorAnimatedSpriteEditor *editor,
     bool follow_changed = false, playing_changed = false, layer_active = false;
     bool transform_open, attachment_open, playback_open, frames_open;
     float attachment_y;
-    float transform_row_y[7] = {0}, playback_row_y[5] = {0};
+    float transform_row_y[6] = {0}, playback_row_y[5] = {0};
     float add_frame_y = 0.0f, frame_list_y = 0.0f, frame_row_stride = 0.0f;
     float section_y = 80.0f;
     if(editor == NULL || context == NULL || context->project == NULL ||
@@ -132,12 +135,10 @@ bool editor_animated_sprite_editor_draw(EditorAnimatedSpriteEditor *editor,
             context->width - 20.0f, 28.0f}, &visible);
     section_y = 118.0f;
     {
-        float layer_height = sprite->graphics_layer.layer == 0 ||
-            (context->layer_control != NULL &&
-                (context->layer_control->adding ||
-                    context->layer_control->edited_layer != 0)) ? 86.0f : 48.0f;
+        float layer_height = editor_mode_layer_control_height_get(context->layer_control,
+            sprite->graphics_layer, NULL);
         const float transform_rows[] = {
-            28.0f, 28.0f, 28.0f, 28.0f, layer_height, 28.0f, 28.0f};
+            28.0f, 28.0f, 28.0f, 28.0f, 28.0f, 28.0f};
         const float attachment_rows[] = {28.0f};
         const float playback_rows[] = {
             28.0f, 28.0f, 28.0f, 28.0f, 28.0f};
@@ -152,7 +153,14 @@ bool editor_animated_sprite_editor_draw(EditorAnimatedSpriteEditor *editor,
             editor_mode_accordion_layout_section(&accordion,
                 &editor->transform_section,
                 "editor.animated_sprite.section.transform",
-                transform_rows, 7, 10.0f);
+                transform_rows, 6, 10.0f);
+        EditorModeAccordionLayoutResult appearance = editor_mode_accordion_layout_section(
+            &accordion, &editor->appearance_section, "editor.animated_sprite.section.appearance",
+            &layer_height, 1, 0);
+        if(appearance.expanded)
+            layer_active = editor_mode_layer_control_draw(context->layer_control,
+                "editor.animated_sprite", context->project, &sprite->graphics_layer, NULL,
+                context->x, appearance.content_y, context->width);
         EditorModeAccordionLayoutResult attachment =
             editor_mode_accordion_layout_section(&accordion,
                 &editor->attachment_section,
@@ -173,7 +181,7 @@ bool editor_animated_sprite_editor_draw(EditorAnimatedSpriteEditor *editor,
         attachment_y = attachment.content_y;
         playback_open = playback.expanded;
         frames_open = frames.expanded;
-        for(size_t row = 0; row < 7; row += 1)
+        for(size_t row = 0; row < 6; row += 1)
             transform_row_y[row] = editor_mode_accordion_layout_row_y(
                 &transform, transform_rows, row, 10.0f);
         for(size_t row = 0; row < 5; row += 1)
@@ -235,18 +243,14 @@ bool editor_animated_sprite_editor_draw(EditorAnimatedSpriteEditor *editor,
         follow_changed = editor_mode_checkbox_left("editor.animated_sprite.follow",
             &editor->follow_label, (UIRect){context->x + 10.0f,
                 transform_row_y[3], context->width - 20.0f, 28.0f}, &follow);
-        if(context->layer_control != NULL)
-            layer_active = editor_mode_layer_control_draw(context->layer_control,
-                "editor.animated_sprite", context->project,
-                &sprite->graphics_layer, NULL, context->x,
-                transform_row_y[4], context->width);
+
         sx_result = float_field("editor.animated_sprite.scale_x",
             &editor->scale_x_label, &editor->scale_x_field, &scale_x,
-            context->x, transform_row_y[5],
+            context->x, transform_row_y[4],
             context->width, 90.0f);
         sy_result = float_field("editor.animated_sprite.scale_y",
             &editor->scale_y_label, &editor->scale_y_field, &scale_y,
-            context->x, transform_row_y[6],
+            context->x, transform_row_y[5],
             context->width, 90.0f);
     }
     if(playback_open) {

@@ -1429,6 +1429,27 @@ bool editor_project_graphics_layer_remove(EditorProject *project,
             }
     for(size_t object = 0; object < project->object_count; object += 1) {
         EditorObject *value = &project->objects[object];
+        for(size_t i = 0; i < value->anchor_count; i += 1)
+            if(value->anchors[i].graphics_layer.layer == id) {
+                value->anchors[i].graphics_layer.layer = 0;
+                value->anchors[i].graphics_layer.value = removed_value;
+            }
+        for(size_t i = 0; i < value->camera_count; i += 1)
+            if(value->cameras[i].graphics_layer.layer == id) {
+                value->cameras[i].graphics_layer.layer = 0;
+                value->cameras[i].graphics_layer.value = removed_value;
+            }
+        for(size_t i = 0; i < value->force_count; i += 1)
+            if(value->force_items[i].graphics_layer.layer == id) {
+                value->force_items[i].graphics_layer.layer = 0;
+                value->force_items[i].graphics_layer.value = removed_value;
+            }
+        for(size_t i = 0; i < value->torque_count; i += 1)
+            if(value->torque_items[i].graphics_layer.layer == id) {
+                value->torque_items[i].graphics_layer.layer = 0;
+                value->torque_items[i].graphics_layer.value = removed_value;
+            }
+
         for(size_t i = 0; i < value->rigid_body_count; i += 1)
             if(value->rigid_bodies[i].graphics_layer.layer == id) {
                 value->rigid_bodies[i].graphics_layer.layer = 0;

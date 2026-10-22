@@ -207,22 +207,21 @@ bool editor_particle_editor_draw(EditorParticleEditor *editor,
         }
     }
     bool field_active = name_result.active;
-    float layer_height = context->layer_control == NULL ? 0.0f :
-        body->graphics_layer.layer == 0 || context->layer_control->adding ||
-        context->layer_control->edited_layer != 0 ? 86.0f : 48.0f;
-    const float transform_rows[] = {26, 26, layer_height};
+    float layer_height = editor_mode_layer_control_height_get(context->layer_control,
+        body->graphics_layer, NULL);
+    const float transform_rows[] = {26, 26};
     const float motion_rows[] = {26, 26, 26, 26};
     const float physics_rows[] = {28, 26, 28, EDITOR_COM_ROW_COUNT * EDITOR_COM_ROW_HEIGHT};
     const float material_rows[] = {26, 26};
     const float collision_rows[] = {editor_collision_controls_height_get(
         &editor->collision, context->project, true)};
     const float parenting_rows[] = {28};
-    const float appearance_rows[] = {26, 26};
+    const float appearance_rows[] = {26, 26, layer_height};
     const float geometry_rows[] = {26, 26, 26, 26};
     EditorModeAccordionLayoutCursor cursor = editor_mode_accordion_layout_cursor_get(x, width, 118);
     EditorModeAccordionLayoutResult transform_layout = editor_mode_accordion_layout_section(
         &cursor, &editor->transform_section, "editor.particle.section.transform",
-        transform_rows, context->layer_control == NULL ? 2 : 3, 6.0f);
+        transform_rows, 2, 6.0f);
     EditorModeAccordionLayoutResult initial_motion_layout = editor_mode_accordion_layout_section(
         &cursor, &editor->initial_motion_section, "editor.particle.section.initial_motion",
         motion_rows, 4, 6.0f);
@@ -240,7 +239,7 @@ bool editor_particle_editor_draw(EditorParticleEditor *editor,
         parenting_rows, 1, 6.0f);
     EditorModeAccordionLayoutResult appearance_layout = editor_mode_accordion_layout_section(
         &cursor, &editor->appearance_section, "editor.particle.section.appearance",
-        appearance_rows, 2, 6.0f);
+        appearance_rows, 3, 6.0f);
     EditorModeAccordionLayoutResult geometry_layout = editor_mode_accordion_layout_section(
         &cursor, &editor->geometry_section, "editor.particle.section.geometry",
         geometry_rows, 4, 6.0f);
@@ -257,10 +256,7 @@ bool editor_particle_editor_draw(EditorParticleEditor *editor,
             return true;
         }
         field_active |= xr.active || yr.active;
-        if(context->layer_control != NULL)
-            field_active |= editor_mode_layer_control_draw(context->layer_control,
-                "editor.particle", context->project, &body->graphics_layer, NULL,
-                x, transform_layout.content_y + 64, width);
+
     }
     bool initial_motion_open = initial_motion_layout.expanded;
     float initial_motion_row_y[4];
@@ -396,6 +392,10 @@ bool editor_particle_editor_draw(EditorParticleEditor *editor,
         }
     }
     if(appearance_layout.expanded) {
+        if(context->layer_control != NULL)
+            field_active |= editor_mode_layer_control_draw(context->layer_control,
+                "editor.particle", context->project, &body->graphics_layer, NULL,
+                x, appearance_layout.content_y + 64, width);
         TextAsset *labels[] = {&editor->ring_color_label, &editor->fill_color_label};
         uint32_t *colors[] = {&body->particle_ring_color, &body->particle_fill_color};
         const char *ids[] = {"editor.particle.ring_color", "editor.particle.fill_color"};

@@ -22,7 +22,7 @@ typedef struct EditorSoftBeamEditor {
     char beam_cache[EDITOR_SOFT_BEAM_MAX][EDITOR_OBJECT_NAME_MAX];
     char node_cache[EDITOR_SOFT_NODE_MAX][EDITOR_OBJECT_NAME_MAX];
     EditorCollisionControls collision;
-    EditorModeAccordionSection material_section;
+    EditorModeAccordionSection material_section, appearance_section;
     TextAsset friction_label, restitution_label, friction_field, restitution_field;
 } EditorSoftBeamEditor;
 

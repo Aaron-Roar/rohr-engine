@@ -230,6 +230,7 @@ typedef enum EditorAnchorAttachmentKind {
 typedef struct EditorAnchor {
     EditorAnchorId id;
     char name[EDITOR_OBJECT_NAME_MAX];
+    EditorGraphicsLayerBinding graphics_layer;
     Position position;
     float rotation;
     EditorRigidBodyId rigid_body;
@@ -449,6 +450,7 @@ typedef enum EditorCameraAttachmentKind {
 typedef struct EditorCamera {
     EditorCameraId id;
     char name[EDITOR_OBJECT_NAME_MAX];
+    EditorGraphicsLayerBinding graphics_layer;
     Position position;
     Orientation rotation;
     Scale dimensions;
@@ -470,6 +472,7 @@ typedef struct EditorCamera {
 typedef struct EditorForce {
     uint32_t id;
     char name[EDITOR_OBJECT_NAME_MAX];
+    EditorGraphicsLayerBinding graphics_layer;
     ObjectForceDescription description;
     bool visible;
     bool app_hidden;
@@ -479,6 +482,7 @@ typedef struct EditorForce {
 typedef struct EditorTorque {
     uint32_t id;
     char name[EDITOR_OBJECT_NAME_MAX];
+    EditorGraphicsLayerBinding graphics_layer;
     ObjectTorqueDescription description;
     bool visible;
     Position marker_offset;

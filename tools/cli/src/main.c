@@ -49,6 +49,8 @@ static const CliHelpDomain cli_help_domains[] = {
         "--object car --force thrust --property magnitude 10", 1},
     {"--torque", "torque", "description <JSON>, mode <persistent|initial>, magnitude <number>, target <JSON>, marker_offset <{\"x\":number,\"y\":number}>, visible <bool>, visible_in_app <bool>; operations add, get, list, rename, duplicate, remove",
         "--object car --torque drive --property magnitude 10", 1},
+    {"--camera", "camera guide", "layer <signed integer>, layer-id <id>",
+        "--object car --camera view --property layer 10", 1},
     {"--object", "object", "position <x> <y>, visibility <true|false>",
         "--object car --property position 10 20", 0},
     {"--body", "rigid body",
@@ -169,7 +171,7 @@ static void cli_help_print(int count, char **arguments) {
             "  --object, --body, --hitbox, --joint, --anchor, --soft-body,\n"
             "  --node, --beam, --area, --hole, --vertex, --line, --sprite,\n"
             "  --animated-sprite, --frame-index, --controller, --action,\n"
-            "  --binding, --binding-index, --force, --torque\n"
+            "  --binding, --binding-index, --force, --torque, --camera\n"
             "  Every named selector also accepts its -id form.");
         return;
     }
@@ -194,6 +196,16 @@ static void cli_help_print(int count, char **arguments) {
     else if(!strcmp(domain->selector, "--force") || !strcmp(domain->selector, "--torque"))
         puts("Operations at this depth:\n  add [name], get, list, set <JSON>, rename <name>, duplicate [name], delete");
     else puts("Operations at this depth:\n  rename <new-name>, delete");
+    const char *layer_selectors[] = {"--body", "--anchor", "--camera", "--joint",
+        "--force", "--torque", "--sprite", "--animated-sprite", "--soft-body", "--node", "--beam", "--area"};
+    for(size_t i = 0; i < sizeof(layer_selectors)/sizeof(*layer_selectors); ++i)
+        if(!strcmp(domain->selector, layer_selectors[i])) {
+            puts("Appearance layer properties:\n  layer <signed integer>, layer-id <named layer id>");
+            if(!strcmp(domain->selector, "--node") || !strcmp(domain->selector, "--beam") ||
+                    !strcmp(domain->selector, "--area"))
+                puts("  layer inherit, layer-inherit <true|false>");
+            break;
+        }
     if(!strcmp(domain->selector, "--force") || !strcmp(domain->selector, "--torque") ||
             !strcmp(domain->selector, "--joint")) {
         puts("Visual properties:\n"

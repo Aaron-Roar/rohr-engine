@@ -58,6 +58,8 @@ EditorCommandResult editor_source_command_execute(EditorProject *p, const Editor
         (c->torque?o->torque_items[i].app_hidden:o->force_items[i].app_hidden);
     ObjectVisuals visuals=c->operation==EDITOR_SOURCE_DUPLICATE?
         (c->torque?o->torque_items[i].visuals:o->force_items[i].visuals):(ObjectVisuals){0};
+    EditorGraphicsLayerBinding graphics_layer=c->operation==EDITOR_SOURCE_DUPLICATE?
+        (c->torque?o->torque_items[i].graphics_layer:o->force_items[i].graphics_layer):(EditorGraphicsLayerBinding){0};
     uint32_t id=c->id;
     if(c->torque) {
         bool visible=c->operation==EDITOR_SOURCE_DUPLICATE?o->torque_items[i].visible:true;
@@ -65,14 +67,14 @@ EditorCommandResult editor_source_command_execute(EditorProject *p, const Editor
         ObjectTorqueDescription value=c->operation==EDITOR_SOURCE_DUPLICATE?o->torque_items[i].description:(ObjectTorqueDescription){0};
         EditorTorque *t=c->operation==EDITOR_SOURCE_RENAME?&o->torque_items[i]:editor_project_torque_add(p,o);
         if(!t) return failure("Source capacity or allocation failed");
-        if(c->operation!=EDITOR_SOURCE_RENAME) { t->description=value; t->visible=visible; t->marker_offset=marker; t->app_hidden=app_hidden; t->visuals=visuals; }
+        if(c->operation!=EDITOR_SOURCE_RENAME) { t->description=value; t->visible=visible; t->marker_offset=marker; t->app_hidden=app_hidden; t->visuals=visuals; t->graphics_layer=graphics_layer; }
         strcpy(t->name,name); id=t->id;
     } else {
         bool visible=c->operation==EDITOR_SOURCE_DUPLICATE?o->force_items[i].visible:true;
         ObjectForceDescription value=c->operation==EDITOR_SOURCE_DUPLICATE?o->force_items[i].description:(ObjectForceDescription){0};
         EditorForce *f=c->operation==EDITOR_SOURCE_RENAME?&o->force_items[i]:editor_project_force_add(p,o);
         if(!f) return failure("Source capacity or allocation failed");
-        if(c->operation!=EDITOR_SOURCE_RENAME) { f->description=value; f->visible=visible; f->app_hidden=app_hidden; f->visuals=visuals; }
+        if(c->operation!=EDITOR_SOURCE_RENAME) { f->description=value; f->visible=visible; f->app_hidden=app_hidden; f->visuals=visuals; f->graphics_layer=graphics_layer; }
         strcpy(f->name,name); id=f->id;
     }
     EditorCommandResult result={.kind=ERROR_RESULT_VALUE,.created={.valid=true,
@@ -215,6 +217,7 @@ char *editor_source_query_json(const EditorProject *p,const EditorSourceCommand 
         uint32_t id=c->torque?o->torque_items[i].id:o->force_items[i].id;
         if(c->operation!=EDITOR_SOURCE_LIST && c->id!=id) continue;
         yyjson_mut_val *v=c->torque?editor_torque_json_write(d,o->torque_items[i].description):editor_force_json_write(d,o->force_items[i].description);
+        if(v) editor_json_graphics_layer_binding_write(d,v,c->torque?o->torque_items[i].graphics_layer:o->force_items[i].graphics_layer);
         if(v) ok=ok && yyjson_mut_obj_add_val(d,v,"visuals",object_visuals_json_write(d,c->torque?o->torque_items[i].visuals:o->force_items[i].visuals));
         if(v) ok=ok && yyjson_mut_obj_add_bool(d,v,"visible_in_app",
             !(c->torque?o->torque_items[i].app_hidden:o->force_items[i].app_hidden));

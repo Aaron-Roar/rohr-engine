@@ -104,8 +104,10 @@ static ConstructionScene construction_direct(Position offset) {
         }
         s.e[C_FORCE+location*4+angle]=construction_take(rohr_physics_force_add((ForceDescription){
             .owner=root,.target=body,.magnitude=.25f,.location=at,.orientation=direction}));
+        REQUIRE(rohr_graphics_layer_entity_set(s.e[C_FORCE+location*4+angle], 100+location*4+angle));
     }
     s.e[C_TORQUE]=construction_take(rohr_physics_torque_add((TorqueDescription){.owner=root,.target=body,.magnitude=-.5f}));
+    REQUIRE(rohr_graphics_layer_entity_set(s.e[C_TORQUE], -55));
     s.e[C_INITIAL]=construction_take(rohr_physics_torque_add((TorqueDescription){.owner=root}));
     REQUIRE(rohr_entity_lifetime_description_set(s.e[C_INITIAL],(EntityLifetimeDescription){
         .tick_enabled=true,.expiry_tick=rohr_engine_tick_get()+1}));
@@ -189,6 +191,7 @@ static void construction_capture(const ConstructionScene *scene,ConstructionSnap
     }
     for(int i=0;i<16;++i) {
         ForceDescription f=rohr_physics_force_description_get(scene->e[C_FORCE+i]).result.value;
+        EXACT(rohr_graphics_layer_entity_get(scene->e[C_FORCE+i]).result.value);
         REF(f.owner); REF(f.target); V(f.magnitude); construction_location(scene,out,f.location);
         V(f.orientation.offset); EXACT(f.orientation.reference.kind);
         if(f.orientation.reference.kind==ROHR_FORCE_BODY_ORIENTATION || f.orientation.reference.kind==ROHR_FORCE_BEAM_ORIENTATION)
@@ -200,6 +203,7 @@ static void construction_capture(const ConstructionScene *scene,ConstructionSnap
     }
     TorqueDescription t=rohr_physics_torque_description_get(scene->e[C_TORQUE]).result.value;
     REF(t.owner); REF(t.target); V(t.magnitude);
+    EXACT(rohr_graphics_layer_entity_get(scene->e[C_TORQUE]).result.value);
     lifetime=rohr_entity_lifetime_description_get(scene->e[C_INITIAL]).result.value;
     EXACT(lifetime.tick_enabled); EXACT(lifetime.expiry_tick-rohr_engine_tick_get());
 }

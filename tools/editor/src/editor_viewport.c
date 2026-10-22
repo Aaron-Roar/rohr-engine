@@ -26,6 +26,9 @@ float editor_viewport_top = EDITOR_MENU_HEIGHT;
 #define EDITOR_RIGID_BODY_LINE_PICK_RADIUS 6.0f
 /* Reserve room for the existing kind order within each authored layer. */
 #define EDITOR_SCENE_LAYER_STRIDE 64
+/* Two independent ordering bands: app visuals, then authoring annotations. */
+#define EDITOR_ANNOTATION_LAYER 64
+#define EDITOR_ANNOTATION_PICK_BASE (INT64_C(1) << 40)
 /* Editor control dimensions are screen pixels; convert only at world-space use. */
 #define EDITOR_ORIGIN_PICK_RADIUS 10.0f
 #define EDITOR_ROTATION_PICK_RADIUS 12.0f
@@ -100,13 +103,14 @@ static bool editor_scene_layers_create(const EditorProject *project) {
     for(size_t i = 0; i < project->object_count; i += 1) {
         const EditorObject *object = &project->objects[i];
         count += object->rigid_body_count + object->joint_count +
-            object->sprite_count + object->animated_sprite_count + object->soft_body_count;
+            object->sprite_count + object->animated_sprite_count + object->soft_body_count +
+            object->anchor_count + object->camera_count + object->force_count + object->torque_count;
         for(size_t j = 0; j < object->soft_body_count; j += 1) {
             const EditorSoftBody *body = &object->soft_body_items[j];
             count += body->node_count + body->beam_count + body->area_count;
         }
     }
-    if(count >= INT_MAX / EDITOR_SCENE_LAYER_STRIDE || count > SIZE_MAX / sizeof(int)) return false;
+    if(count >= INT_MAX / (2 * EDITOR_SCENE_LAYER_STRIDE) || count > SIZE_MAX / sizeof(int)) return false;
     editor_scene_layers = malloc(count * sizeof(*editor_scene_layers));
     if(editor_scene_layers == NULL) return false;
     editor_layer_project = project;
@@ -120,6 +124,10 @@ static bool editor_scene_layers_create(const EditorProject *project) {
         const EditorObject *object = &project->objects[i];
         ADD_LAYERS(object->rigid_bodies, object->rigid_body_count);
         ADD_LAYERS(object->joint_items, object->joint_count);
+        ADD_LAYERS(object->anchors, object->anchor_count);
+        ADD_LAYERS(object->cameras, object->camera_count);
+        ADD_LAYERS(object->force_items, object->force_count);
+        ADD_LAYERS(object->torque_items, object->torque_count);
         ADD_LAYERS(object->sprites, object->sprite_count);
         ADD_LAYERS(object->animated_sprite_items, object->animated_sprite_count);
         ADD_LAYERS(object->soft_body_items, object->soft_body_count);
@@ -137,7 +145,7 @@ static bool editor_scene_layers_create(const EditorProject *project) {
         if(unique == 0 || editor_scene_layers[i] != editor_scene_layers[unique - 1])
             editor_scene_layers[unique++] = editor_scene_layers[i];
     editor_scene_layer_count = unique;
-    editor_scene_layer_span = (int)((unique + 1) * EDITOR_SCENE_LAYER_STRIDE);
+    editor_scene_layer_span = (int)(2 * (unique + 1) * EDITOR_SCENE_LAYER_STRIDE);
     for(size_t i = 0; i < project->layout_viewport_count; i += 1) {
         size_t items = project->layout_viewports[i].camera_item_count +
             project->layout_viewports[i].ui_item_count;
@@ -166,7 +174,9 @@ static void editor_view_scene_layer_set(EditorGraphicsLayerBinding binding, int 
         if(editor_scene_layers[mid] < value) lo = mid + 1;
         else hi = mid;
     }
-    editor_view_content_layer_set((int)((lo + 1) * EDITOR_SCENE_LAYER_STRIDE) + kind);
+    int category = (kind & EDITOR_ANNOTATION_LAYER) ? editor_scene_layer_span / 2 : 0;
+    editor_view_content_layer_set(category + (int)((lo + 1) * EDITOR_SCENE_LAYER_STRIDE) +
+        (kind & ~EDITOR_ANNOTATION_LAYER));
 }
 
 typedef struct EditorPreviewTexture {
@@ -295,6 +305,14 @@ static bool editor_sprite_point_contains(Position center, Scale size,
 
     return fabsf(local.x) <= fabsf(size.x) * 0.5f &&
         fabsf(local.y) <= fabsf(size.y) * 0.5f;
+}
+
+static bool editor_sprite_outline_hit_check(Position center, Scale size,
+        Orientation rotation, Position point) {
+    if(!editor_sprite_point_contains(center, size, rotation, point)) return false;
+    Vec2D local = math_vector_rotate((Vec2D){point.x-center.x, point.y-center.y}, -rotation);
+    return fabsf(size.x)*.5f - fabsf(local.x) <= 1.0f/editor_view_scale ||
+        fabsf(size.y)*.5f - fabsf(local.y) <= 1.0f/editor_view_scale;
 }
 
 static Orientation editor_sprite_world_rotation_get(const EditorObject *object,
@@ -900,7 +918,7 @@ static int editor_joint_pick_layer_get(const EditorObject *object,const EditorJo
     if(!editor_joint_marker_get(object,joint,&geometry)) return 0;
     Position screen=editor_view_world_to_screen(pointer);
     if(editor_joint_symbol_visit(joint->kind,geometry.endpoint_a,geometry.endpoint_b,
-            fmaxf(0.1f,joint->visual_size),(Color){0},&screen)) return EDITOR_GRAPHICS_LAYER_JOINT;
+            fmaxf(0.1f,joint->visual_size),(Color){0},&screen)) return EDITOR_ANNOTATION_LAYER | EDITOR_GRAPHICS_LAYER_JOINT;
     if(!object->app_hidden && !joint->app_hidden && editor_marker_hit_check(&geometry,pointer))
         return EDITOR_GRAPHICS_LAYER_JOINT-1;
     return 0;
@@ -912,11 +930,11 @@ static int editor_force_pick_layer_get(const EditorObject *object,const EditorFo
     Position shaft_end=editor_rotation_control_position_get(center,angle+180,EDITOR_SOURCE_MARKER_HEAD_WIDTH/editor_view_scale);
     Position p=editor_view_world_to_screen(pointer);
     if(editor_stroke_hit_check(p,editor_view_world_to_screen(tail),editor_view_world_to_screen(shaft_end),
-            EDITOR_FORCE_STROKE_WIDTH)) return EDITOR_GRAPHICS_LAYER_JOINT;
+            EDITOR_FORCE_STROKE_WIDTH)) return EDITOR_ANNOTATION_LAYER | EDITOR_GRAPHICS_LAYER_JOINT;
     Position head[2][4]; editor_source_arrow_head_quads_get(center,angle,editor_view_scale,head);
     EditorMarkerPick pick={.pointer=p};
     for(size_t i=0;i<2;++i) editor_marker_polygon_pick(head[i],4,(Color){255,255,255,255},&pick);
-    if(pick.hit) return EDITOR_GRAPHICS_LAYER_JOINT;
+    if(pick.hit) return EDITOR_ANNOTATION_LAYER | EDITOR_GRAPHICS_LAYER_JOINT;
     MarkerGeometry geometry;
     if(!object->app_hidden && !force->app_hidden && editor_force_marker_get(object,force,&geometry) &&
             editor_marker_hit_check(&geometry,pointer)) return EDITOR_GRAPHICS_LAYER_JOINT-1;
@@ -940,7 +958,7 @@ static bool editor_torque_annotation_hit_check(const EditorObject *object,const 
     return pick.hit;
 }
 static int editor_torque_pick_layer_get(const EditorObject *object,const EditorTorque *torque,Position pointer) {
-    if(editor_torque_annotation_hit_check(object,torque,pointer)) return EDITOR_GRAPHICS_LAYER_JOINT;
+    if(editor_torque_annotation_hit_check(object,torque,pointer)) return EDITOR_ANNOTATION_LAYER | EDITOR_GRAPHICS_LAYER_JOINT;
     MarkerGeometry geometry;
     if(!object->app_hidden && !torque->app_hidden && editor_torque_marker_get(object,torque,&geometry) &&
             editor_marker_hit_check(&geometry,pointer)) return EDITOR_GRAPHICS_LAYER_JOINT-1;
@@ -2303,7 +2321,9 @@ static void editor_soft_areas_draw(const EditorObject *object, const EditorSoftB
         bool selected = state != NULL && state->selected_soft_body == body->id &&
             state->selected_soft_area == area->id &&
             (state->selection == EDITOR_SELECTION_SOFT_AREA || state->selection == EDITOR_SELECTION_SOFT_HOLE);
-        if(!fill.complete || selected) {
+        if(state && !editor_view_camera_preview && (!fill.complete || selected)) {
+            editor_view_scene_layer_set(area->graphics_layer_inherited ?
+                body->graphics_layer : area->graphics_layer, EDITOR_ANNOTATION_LAYER | EDITOR_GRAPHICS_LAYER_SOFT_BODY);
             /* Draft loops have no fill. Amber boundaries and crossed markers
              * distinguish incomplete definitions from runtime geometry. */
             Color color = selected ? (Color){255,215,70,255} : (Color){255,160,60,255};
@@ -3775,9 +3795,8 @@ void editor_viewport_transform_cancel(EditorViewportState *state) {
     state->group_rotating = false;
 }
 
-static bool editor_hitbox_pick_check(const EditorObject *object,
+static bool editor_hitbox_edge_pick_check(const EditorObject *object,
         const EditorRigidBody *body, const EditorHitbox *box, Position pointer) {
-    if(editor_hitbox_point_contains(object, body, box, pointer)) return true;
     float scale_squared = editor_view_scale * editor_view_scale;
     for(size_t i = 0; i < box->vertex_count; i += 1) {
         Position a = editor_hitbox_vertex_world_get(object, body, box, i);
@@ -3790,6 +3809,12 @@ static bool editor_hitbox_pick_check(const EditorObject *object,
                         EDITOR_RIGID_BODY_LINE_PICK_RADIUS / scale_squared) return true;
     }
     return false;
+}
+
+static bool editor_hitbox_pick_check(const EditorObject *object,
+        const EditorRigidBody *body, const EditorHitbox *box, Position pointer) {
+    return editor_hitbox_point_contains(object, body, box, pointer) ||
+        editor_hitbox_edge_pick_check(object, body, box, pointer);
 }
 
 static EditorSelectionRef editor_pick_owner_get(EditorSelectionRef ref);
@@ -3822,12 +3847,18 @@ static int editor_reference_index_get(const EditorProject *project,
     return -1;
 }
 
+static bool editor_viewport_path_selected(const EditorViewportState *state,
+    EditorHierarchySelection kind, EditorObjectId object, uint32_t parent,
+    uint32_t container, uint32_t item);
+
 static void editor_pick_candidate_set(const EditorProject *project,
         EditorGraphicsLayerBinding binding, int kind, EditorSelectionRef hit,
         EditorSelectionRef *selection, int64_t *layer,
         const EditorSelectionRef *references, size_t reference_count) {
     if(references != NULL && editor_reference_index_get(project, hit, references, reference_count) < 0) return;
-    int64_t key = (int64_t)editor_layer_value_get(project, binding) * EDITOR_SCENE_LAYER_STRIDE + kind;
+    int64_t key = (int64_t)editor_layer_value_get(project, binding) * EDITOR_SCENE_LAYER_STRIDE +
+        (kind & ~EDITOR_ANNOTATION_LAYER) +
+        ((kind & EDITOR_ANNOTATION_LAYER) ? EDITOR_ANNOTATION_PICK_BASE : 0);
     if(key > *layer) {
         *layer = key;
         *selection = hit;
@@ -3845,11 +3876,11 @@ static bool editor_object_front_selection_get(const EditorProject *project, Edit
     EditorGraphicsLayerBinding binding = {0};
     for(size_t i = object->camera_count; i > 0; i -= 1) {
         EditorCamera *camera = &object->cameras[i - 1];
-        binding = (EditorGraphicsLayerBinding){0};
+        binding = camera->graphics_layer;
         if(!editor_camera_hit_check(object,camera,state,pointer)) continue;
         EditorSelectionRef hit = (EditorSelectionRef){EDITOR_SELECTION_CAMERA,
             object->id, 0, 0, camera->id};
-        editor_pick_candidate_set(project, binding, kind, hit, selection, layer, references, reference_count);
+        editor_pick_candidate_set(project, binding, kind | EDITOR_ANNOTATION_LAYER, hit, selection, layer, references, reference_count);
     }
     for(size_t i = object->animated_sprite_count; i > 0; i -= 1) {
         EditorAnimatedSprite *sprite = &object->animated_sprite_items[i - 1];
@@ -3867,7 +3898,17 @@ static bool editor_object_front_selection_get(const EditorProject *project, Edit
                     editor_animation_frame_size_get(frame).y * sprite->scale.y}, rotation, pointer)) continue;
         EditorSelectionRef hit = (EditorSelectionRef){EDITOR_SELECTION_ANIMATED_SPRITE,
             object->id, 0, 0, sprite->id};
-        editor_pick_candidate_set(project, binding, kind, hit, selection, layer, references, reference_count);
+        bool highlighted = (state->selection == EDITOR_SELECTION_ANIMATED_SPRITE ||
+                state->selection == EDITOR_SELECTION_ANIMATION_FRAME) &&
+                state->selected_animated_sprite == sprite->id;
+        highlighted |= editor_viewport_path_selected(state, EDITOR_SELECTION_ANIMATED_SPRITE,
+            object->id, 0, 0, sprite->id) || editor_viewport_path_selected(state,
+            EDITOR_SELECTION_OBJECT, object->id, 0, 0, object->id);
+        bool outline = highlighted && editor_sprite_outline_hit_check(center,
+            (Scale){editor_animation_frame_size_get(frame).x * sprite->scale.x,
+                editor_animation_frame_size_get(frame).y * sprite->scale.y}, rotation, pointer);
+        editor_pick_candidate_set(project, binding, kind | (outline ? EDITOR_ANNOTATION_LAYER : 0),
+            hit, selection, layer, references, reference_count);
     }
     kind = EDITOR_GRAPHICS_LAYER_SPRITE;
     for(size_t i = object->sprite_count; i > 0; i -= 1) {
@@ -3878,7 +3919,13 @@ static bool editor_object_front_selection_get(const EditorProject *project, Edit
                 editor_sprite_world_rotation_get(object, sprite), pointer)) continue;
         EditorSelectionRef hit = (EditorSelectionRef){EDITOR_SELECTION_SPRITE,
             object->id, 0, 0, sprite->id};
-        editor_pick_candidate_set(project, binding, kind, hit, selection, layer, references, reference_count);
+        bool highlighted = (state->selection == EDITOR_SELECTION_SPRITE && state->selected_sprite == sprite->id) ||
+            editor_viewport_path_selected(state, EDITOR_SELECTION_SPRITE, object->id, 0, 0, sprite->id) ||
+            editor_viewport_path_selected(state, EDITOR_SELECTION_OBJECT, object->id, 0, 0, object->id);
+        bool outline = highlighted && editor_sprite_outline_hit_check(editor_sprite_world_get(object, sprite),
+            sprite->size, editor_sprite_world_rotation_get(object, sprite), pointer);
+        editor_pick_candidate_set(project, binding, kind | (outline ? EDITOR_ANNOTATION_LAYER : 0),
+            hit, selection, layer, references, reference_count);
     }
 
     for(size_t i=object->force_count;i>0;--i) {
@@ -3886,7 +3933,7 @@ static bool editor_object_front_selection_get(const EditorProject *project, Edit
         int force_layer=editor_force_pick_layer_get(object,force,pointer);
         if(force_layer) {
             EditorSelectionRef hit={EDITOR_SELECTION_FORCE,object->id,0,0,force->id};
-            editor_pick_candidate_set(project,(EditorGraphicsLayerBinding){0},force_layer,hit,selection,layer,references,reference_count);
+            editor_pick_candidate_set(project,force->graphics_layer,force_layer,hit,selection,layer,references,reference_count);
         }
     }
     for(size_t i=object->torque_count;i>0;--i) {
@@ -3894,13 +3941,13 @@ static bool editor_object_front_selection_get(const EditorProject *project, Edit
         int torque_layer=editor_torque_pick_layer_get(object,torque,pointer);
         if(torque_layer) {
             EditorSelectionRef hit={EDITOR_SELECTION_TORQUE,object->id,0,0,torque->id};
-            editor_pick_candidate_set(project,(EditorGraphicsLayerBinding){0},torque_layer,hit,selection,layer,references,reference_count);
+            editor_pick_candidate_set(project,torque->graphics_layer,torque_layer,hit,selection,layer,references,reference_count);
         }
     }
-    kind = EDITOR_GRAPHICS_LAYER_JOINT;
+    kind = EDITOR_ANNOTATION_LAYER | EDITOR_GRAPHICS_LAYER_JOINT;
     for(size_t i = object->anchor_count; i > 0; i -= 1) {
         EditorAnchor *anchor = &object->anchors[i - 1];
-        binding = (EditorGraphicsLayerBinding){0};
+        binding = anchor->graphics_layer;
         if(editor_anchor_hit_check(object,anchor,pointer)) {
             EditorSelectionRef hit = (EditorSelectionRef){EDITOR_SELECTION_ANCHOR,
                 object->id, 0, 0, anchor->id};
@@ -3917,7 +3964,7 @@ static bool editor_object_front_selection_get(const EditorProject *project, Edit
             object->id, 0, 0, joint->id};
         editor_pick_candidate_set(project, binding, joint_layer, hit, selection, layer, references, reference_count);
     }
-    kind = EDITOR_GRAPHICS_LAYER_SOFT_BODY;
+    kind = EDITOR_ANNOTATION_LAYER | EDITOR_GRAPHICS_LAYER_SOFT_BODY;
     for(size_t i = object->soft_body_count; i > 0; i -= 1) {
         EditorSoftBody *body = &object->soft_body_items[i - 1];
         if(!body->visible) continue;
@@ -3952,7 +3999,7 @@ static bool editor_object_front_selection_get(const EditorProject *project, Edit
             binding = area->graphics_layer_inherited ? body->graphics_layer : area->graphics_layer;
             EditorSelectionRef hit = (EditorSelectionRef){EDITOR_SELECTION_SOFT_AREA,
                 object->id, body->id, 0, area->id};
-            editor_pick_candidate_set(project, binding, kind, hit, selection, layer, references, reference_count);
+            editor_pick_candidate_set(project, binding, EDITOR_GRAPHICS_LAYER_SOFT_BODY, hit, selection, layer, references, reference_count);
         }
     }
     kind = EDITOR_GRAPHICS_LAYER_RIGID_BODY;
@@ -3960,7 +4007,8 @@ static bool editor_object_front_selection_get(const EditorProject *project, Edit
     for(int pass = 0; pass < 3; pass += 1) {
         /* In project view every object's fills are queued before any object's
          * polygons, even when hierarchy order would otherwise break a tie. */
-        kind = EDITOR_GRAPHICS_LAYER_RIGID_BODY - (pass == 2 ? 1 : 0);
+        kind = (pass == 0 ? EDITOR_ANNOTATION_LAYER : 0) |
+            (EDITOR_GRAPHICS_LAYER_RIGID_BODY - (pass == 2 ? 1 : 0));
         for(size_t i = object->rigid_body_count; i > 0; i -= 1) {
             EditorRigidBody *body = &object->rigid_bodies[i - 1];
             binding = body->graphics_layer;
@@ -3985,7 +4033,9 @@ static bool editor_object_front_selection_get(const EditorProject *project, Edit
                         object, body, box, pointer)) continue;
                 EditorSelectionRef hit = (EditorSelectionRef){EDITOR_SELECTION_HITBOX,
                     object->id, body->id, 0, box->id};
-                editor_pick_candidate_set(project, binding, kind, hit, selection, layer, references, reference_count);
+                int hit_kind = kind | (editor_hitbox_edge_pick_check(object, body, box, pointer) ?
+                    EDITOR_ANNOTATION_LAYER : 0);
+                editor_pick_candidate_set(project, binding, hit_kind, hit, selection, layer, references, reference_count);
             }
         }
     }
@@ -6484,9 +6534,9 @@ static void editor_camera_attachment_icon_draw(Position center) {
 
 static void editor_viewport_cameras_draw(const EditorObject *object,
         const EditorViewportState *state, bool object_highlighted) {
-    editor_view_scene_layer_set((EditorGraphicsLayerBinding){0}, EDITOR_GRAPHICS_LAYER_ANIMATION);
     for(size_t c = 0; c < object->camera_count; c += 1) {
         const EditorCamera *camera = &object->cameras[c];
+        editor_view_scene_layer_set(camera->graphics_layer, EDITOR_ANNOTATION_LAYER | EDITOR_GRAPHICS_LAYER_ANIMATION);
         Orientation rotation;
         Position center, corners[4];
         bool selected;
@@ -6522,6 +6572,7 @@ static void editor_viewport_cameras_draw(const EditorObject *object,
         if(camera->attachment_kind != EDITOR_CAMERA_ATTACHMENT_NONE)
             editor_camera_attachment_icon_draw(center);
         if(selected) {
+            editor_view_content_layer_set(editor_scene_layer_span - 1);
             Position handle = editor_sprite_rotation_handle_get(center, rotation);
             editor_line_draw(center, handle, color);
             editor_circle_draw(handle, EDITOR_ROTATION_HANDLE_RADIUS / editor_view_scale, color);
@@ -6561,13 +6612,15 @@ static void editor_viewport_sprites_draw(const EditorObject *object,
                 state->selected_sprite == sprite->id) ||
             editor_viewport_path_selected(state, EDITOR_SELECTION_SPRITE,
                 object->id, 0, 0, sprite->id);
-        if(selected) editor_sprite_outline_draw(world, sprite->size, rotation,
+        if(selected && !editor_view_camera_preview) editor_view_scene_layer_set(sprite->graphics_layer, EDITOR_ANNOTATION_LAYER | EDITOR_GRAPHICS_LAYER_SPRITE);
+        if(selected && !editor_view_camera_preview) editor_sprite_outline_draw(world, sprite->size, rotation,
             (Color){255, 215, 70, 255});
         if((state->mode == EDITOR_VIEWPORT_SPRITE &&
                 state->selected_sprite == sprite->id) ||
                 (state->selected_item_count > 1 &&
                     editor_viewport_path_selected(state, EDITOR_SELECTION_SPRITE,
                         object->id, 0, 0, sprite->id))) {
+            editor_view_content_layer_set(editor_scene_layer_span - 1);
             Position handle = editor_sprite_rotation_handle_get(world, rotation);
             editor_line_draw(world, handle, (Color){255, 215, 70, 255});
             editor_circle_draw(handle, EDITOR_ROTATION_HANDLE_RADIUS / editor_view_scale,
@@ -6610,7 +6663,8 @@ static void editor_viewport_sprites_draw(const EditorObject *object,
                 state->selected_animated_sprite == animation->id) ||
             editor_viewport_path_selected(state, EDITOR_SELECTION_ANIMATED_SPRITE,
                 object->id, 0, 0, animation->id);
-        if(selected) editor_sprite_outline_draw(world, size, rotation,
+        if(selected && !editor_view_camera_preview) editor_view_scene_layer_set(animation->graphics_layer, EDITOR_ANNOTATION_LAYER | EDITOR_GRAPHICS_LAYER_ANIMATION);
+        if(selected && !editor_view_camera_preview) editor_sprite_outline_draw(world, size, rotation,
             (Color){255, 215, 70, 255});
         if(((state->mode == EDITOR_VIEWPORT_ANIMATED_SPRITE ||
                 state->mode == EDITOR_VIEWPORT_ANIMATION_FRAME) &&
@@ -6621,6 +6675,7 @@ static void editor_viewport_sprites_draw(const EditorObject *object,
             Orientation origin_rotation;
             Position origin = editor_animated_sprite_world_get(object, animation,
                 &origin_rotation);
+            editor_view_content_layer_set(editor_scene_layer_span - 1);
             editor_origin_draw(origin, origin_rotation);
             if(state->mode != EDITOR_VIEWPORT_ANIMATION_FRAME) {
                 world = origin;
@@ -6628,6 +6683,7 @@ static void editor_viewport_sprites_draw(const EditorObject *object,
             } else {
                 world = editor_animation_frame_world_get(object, animation, frame, &rotation);
             }
+            editor_view_content_layer_set(editor_scene_layer_span - 1);
             Position handle = editor_sprite_rotation_handle_get(world, rotation);
             editor_line_draw(world, handle, (Color){255, 215, 70, 255});
             editor_circle_draw(handle, EDITOR_ROTATION_HANDLE_RADIUS / editor_view_scale,
@@ -6652,9 +6708,9 @@ static void editor_marker_previews_draw(const EditorObject *o) {
         editor_view_scene_layer_set(j->graphics_layer,EDITOR_GRAPHICS_LAYER_JOINT-1);
         (void)graphics_marker_geometry_draw(&g,editor_marker_polygon_draw,NULL);
     }
-    editor_view_scene_layer_set((EditorGraphicsLayerBinding){0},EDITOR_GRAPHICS_LAYER_JOINT-1);
     for(size_t i=0;i<o->torque_count;++i) {
         const EditorTorque *t=&o->torque_items[i];
+        editor_view_scene_layer_set(t->graphics_layer, EDITOR_GRAPHICS_LAYER_JOINT-1);
         if(!t->visible || t->app_hidden || t->description.target.kind==OBJECT_SOURCE_NONE) continue;
         MarkerGeometry g={.kind=OBJECT_TORQUE,.visuals=t->visuals,.magnitude=t->description.magnitude};
         ObjectForceLocation location={.kind=t->description.target.kind==OBJECT_SOURCE_BEAM?ROHR_FORCE_BEAM_POSITION:ROHR_FORCE_COM_POSITION,
@@ -6664,6 +6720,7 @@ static void editor_marker_previews_draw(const EditorObject *o) {
     }
     for(size_t i=0;i<o->force_count;++i) {
         const EditorForce *f=&o->force_items[i];
+        editor_view_scene_layer_set(f->graphics_layer, EDITOR_GRAPHICS_LAYER_JOINT-1);
         if(!f->visible || f->app_hidden) continue;
         MarkerGeometry g;
         if(!editor_force_marker_get(o,f,&g)) continue;
@@ -6796,7 +6853,7 @@ static void editor_viewport_object_draw(const EditorObject *object,
     editor_view_content_layer_set(EDITOR_GRAPHICS_LAYER_RIGID_BODY);
     for(size_t body_index = 0; body_index < object->rigid_body_count; body_index += 1) {
         const EditorRigidBody *body = &object->rigid_bodies[body_index];
-        editor_view_scene_layer_set(body->graphics_layer, EDITOR_GRAPHICS_LAYER_RIGID_BODY);
+        editor_view_scene_layer_set(body->graphics_layer, EDITOR_ANNOTATION_LAYER | EDITOR_GRAPHICS_LAYER_RIGID_BODY);
         if(!body->visible) continue;
         for(size_t box_index = 0; box_index < body->hitbox_count; box_index += 1) {
             const EditorHitbox *hitbox = &body->hitboxes[box_index];
@@ -6811,8 +6868,10 @@ static void editor_viewport_object_draw(const EditorObject *object,
                         object->id, body->id, 0, hitbox->id) ?
                 (Color){255, 215, 70, 255} : graphics_color_hex_create(body->border_color);
             if(!hitbox->visible) continue;
+            editor_view_scene_layer_set(body->graphics_layer, EDITOR_GRAPHICS_LAYER_RIGID_BODY);
             editor_hitbox_filled_draw(object, body, hitbox,
                 graphics_color_hex_create(body->surface_color));
+            editor_view_scene_layer_set(body->graphics_layer, EDITOR_ANNOTATION_LAYER | EDITOR_GRAPHICS_LAYER_RIGID_BODY);
             for(uint32_t i = 0; i < hitbox->vertex_count; i += 1) {
                 Position start = editor_hitbox_vertex_world_get(object, body, hitbox, i);
                 Position end = editor_hitbox_vertex_world_get(
@@ -6849,7 +6908,7 @@ static void editor_viewport_object_draw(const EditorObject *object,
 
     for(size_t body_index = 0; body_index < object->rigid_body_count; body_index += 1) {
         const EditorRigidBody *body = &object->rigid_bodies[body_index];
-        editor_view_scene_layer_set(body->graphics_layer, EDITOR_GRAPHICS_LAYER_RIGID_BODY);
+        editor_view_scene_layer_set(body->graphics_layer, EDITOR_ANNOTATION_LAYER | EDITOR_GRAPHICS_LAYER_RIGID_BODY);
         Position center;
         Color ring;
         if(!body->visible || !body->particle || body->particle_radius <= 0.0f) continue;
@@ -6886,7 +6945,7 @@ static void editor_viewport_object_draw(const EditorObject *object,
                     state->selection == EDITOR_SELECTION_RIGID_BODY)) {
             Position center = {object->position.x + selected->position.x,
                 object->position.y + selected->position.y};
-            editor_view_scene_layer_set(selected->graphics_layer, EDITOR_GRAPHICS_LAYER_RIGID_BODY);
+            editor_view_content_layer_set(editor_scene_layer_span - 1);
             editor_body_origin_draw(object, selected);
             if(state->selection == EDITOR_SELECTION_ORIGIN &&
                     state->selected_origin_kind == EDITOR_ORIGIN_RIGID_BODY)
@@ -6927,7 +6986,7 @@ static void editor_viewport_object_draw(const EditorObject *object,
                         ref.kind != EDITOR_SELECTION_PARTICLE)) continue;
             body = editor_project_rigid_body_get((EditorObject *)object, ref.item);
             if(body == NULL || !body->visible) continue;
-            editor_view_scene_layer_set(body->graphics_layer, EDITOR_GRAPHICS_LAYER_RIGID_BODY);
+            editor_view_content_layer_set(editor_scene_layer_span - 1);
             center = (Position){object->position.x + body->position.x,
                 object->position.y + body->position.y};
             handle = editor_body_rotation_handle_get(object, body);
@@ -6950,7 +7009,7 @@ static void editor_viewport_object_draw(const EditorObject *object,
         for(size_t beam_index = 0; beam_index < body->beam_count; beam_index += 1) {
             const EditorSoftBeam *beam = &body->beams[beam_index];
             editor_view_scene_layer_set(beam->graphics_layer_inherited ?
-                body->graphics_layer : beam->graphics_layer, EDITOR_GRAPHICS_LAYER_SOFT_BODY);
+                body->graphics_layer : beam->graphics_layer, EDITOR_ANNOTATION_LAYER | EDITOR_GRAPHICS_LAYER_SOFT_BODY);
             const EditorSoftNode *a = NULL;
             const EditorSoftNode *b = NULL;
             if(!beam->visible) continue;
@@ -6976,7 +7035,7 @@ static void editor_viewport_object_draw(const EditorObject *object,
         for(size_t i = 0; i < body->node_count; i += 1) {
             const EditorSoftNode *node = &body->nodes[i];
             editor_view_scene_layer_set(node->graphics_layer_inherited ?
-                body->graphics_layer : node->graphics_layer, EDITOR_GRAPHICS_LAYER_SOFT_BODY);
+                body->graphics_layer : node->graphics_layer, EDITOR_ANNOTATION_LAYER | EDITOR_GRAPHICS_LAYER_SOFT_BODY);
             if(!node->visible) continue;
             editor_quad_draw(editor_soft_node_world_get(object, body, node),
                 8.0f, 8.0f, 0.0f,
@@ -7012,7 +7071,7 @@ static void editor_viewport_object_draw(const EditorObject *object,
             center = (Position){object->position.x + body->position.x,
                 object->position.y + body->position.y};
             handle = editor_soft_body_rotation_handle_get(object, body);
-            editor_view_scene_layer_set(body->graphics_layer, EDITOR_GRAPHICS_LAYER_SOFT_BODY);
+            editor_view_content_layer_set(editor_scene_layer_span - 1);
             editor_circle_draw(center, 5.0f / editor_view_scale, (Color){245, 245, 250, 255});
             editor_quad_draw(center, 3.0f, 3.0f, 0.0f,
                 (Color){245, 245, 250, 255});
@@ -7030,7 +7089,7 @@ static void editor_viewport_object_draw(const EditorObject *object,
     editor_view_content_layer_set(EDITOR_GRAPHICS_LAYER_JOINT);
     for(size_t joint_index = 0; joint_index < object->joint_count; joint_index += 1) {
         const EditorJoint *joint = &object->joint_items[joint_index];
-        editor_view_scene_layer_set(joint->graphics_layer, EDITOR_GRAPHICS_LAYER_JOINT);
+        editor_view_scene_layer_set(joint->graphics_layer, EDITOR_ANNOTATION_LAYER | EDITOR_GRAPHICS_LAYER_JOINT);
         const EditorAnchor *a = NULL;
         const EditorAnchor *b = NULL;
         if(!joint->visible) continue;
@@ -7049,7 +7108,7 @@ static void editor_viewport_object_draw(const EditorObject *object,
     }
     for(size_t i = 0; i < object->anchor_count; i += 1) {
         const EditorAnchor *anchor = &object->anchors[i];
-        editor_view_scene_layer_set((EditorGraphicsLayerBinding){0}, EDITOR_GRAPHICS_LAYER_JOINT);
+        editor_view_scene_layer_set(anchor->graphics_layer, EDITOR_ANNOTATION_LAYER | EDITOR_GRAPHICS_LAYER_JOINT);
         if(!anchor->visible) continue;
         editor_quad_draw(editor_anchor_world_get(object, anchor),
             9.0f, 9.0f, editor_anchor_visual_rotation_get(object,anchor),
@@ -7066,7 +7125,7 @@ static void editor_viewport_object_draw(const EditorObject *object,
         bool selected=(state->selection==EDITOR_SELECTION_TORQUE && state->selected_torque==t->id) ||
             editor_viewport_path_selected(state,EDITOR_SELECTION_TORQUE,object->id,0,0,t->id);
         Color color=selected?(Color){255,215,70,255}:t->description.magnitude==0?(Color){130,140,150,255}:(Color){80,210,245,255};
-        editor_view_scene_layer_set((EditorGraphicsLayerBinding){0},EDITOR_GRAPHICS_LAYER_JOINT);
+        editor_view_scene_layer_set(t->graphics_layer, EDITOR_ANNOTATION_LAYER | EDITOR_GRAPHICS_LAYER_JOINT);
         for(size_t stroke=0;stroke<EDITOR_TORQUE_MARKER_STROKE_COUNT-2;++stroke)
             editor_line_width_draw(strokes[stroke][0],strokes[stroke][1],EDITOR_TORQUE_STROKE_WIDTH,color);
         Position head[2][4]; editor_source_arrow_head_quads_get(strokes[32][0],0,editor_view_scale,head);
@@ -7078,7 +7137,7 @@ static void editor_viewport_object_draw(const EditorObject *object,
         bool selected=(state->selection==EDITOR_SELECTION_FORCE && state->selected_force==force->id) ||
             editor_viewport_path_selected(state,EDITOR_SELECTION_FORCE,object->id,0,0,force->id);
         Color color=selected?(Color){255,215,70,255}:force->description.magnitude==0?(Color){130,140,150,255}:(Color){80,210,245,255};
-        editor_view_scene_layer_set((EditorGraphicsLayerBinding){0},EDITOR_GRAPHICS_LAYER_JOINT);
+        editor_view_scene_layer_set(force->graphics_layer, EDITOR_ANNOTATION_LAYER | EDITOR_GRAPHICS_LAYER_JOINT);
         Position center=editor_rotation_control_position_get(tip,angle+180,EDITOR_SOURCE_MARKER_HEAD_WIDTH/editor_view_scale);
         Position shaft_end=editor_rotation_control_position_get(center,angle+180,EDITOR_SOURCE_MARKER_HEAD_WIDTH/editor_view_scale);
         editor_line_width_draw(tail,shaft_end,EDITOR_FORCE_STROKE_WIDTH,color);
@@ -7086,6 +7145,7 @@ static void editor_viewport_object_draw(const EditorObject *object,
         for(size_t side=0;side<2;++side) editor_marker_polygon_draw(head[side],4,color,NULL);
         editor_circle_width_draw(tail,EDITOR_FORCE_ORIGIN_RADIUS/editor_view_scale,EDITOR_FORCE_STROKE_WIDTH,color);
         if(selected && state->mode==EDITOR_VIEWPORT_FORCE && state->selected_item_count<2) {
+            editor_view_content_layer_set(editor_scene_layer_span - 1);
             Position strokes[EDITOR_ROTATION_ARC_STROKE_COUNT][2];
             editor_rotation_control_arcs_get(tail,angle,
                 EDITOR_FORCE_ROTATION_ARM_LENGTH/editor_view_scale,

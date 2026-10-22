@@ -296,30 +296,6 @@ static bool editor_json_input_binding_read(yyjson_val *value,
     return rohr_input_binding_valid_check(type, binding);
 }
 
-static void editor_json_graphics_layer_binding_write(yyjson_mut_doc *document,
-        yyjson_mut_val *value, EditorGraphicsLayerBinding binding) {
-    yyjson_mut_obj_add_sint(document, value, "graphics_layer_value", binding.value);
-    yyjson_mut_obj_add_uint(document, value, "graphics_layer", binding.layer);
-}
-
-static bool editor_json_graphics_layer_binding_read(yyjson_val *value,
-        EditorGraphicsLayerBinding *binding) {
-    yyjson_val *direct;
-    yyjson_val *layer;
-    if(value == NULL || binding == NULL) return false;
-    direct = yyjson_obj_get(value, "graphics_layer_value");
-    layer = yyjson_obj_get(value, "graphics_layer");
-    if((direct != NULL && (!yyjson_is_int(direct) ||
-                yyjson_get_sint(direct) < INT_MIN ||
-                yyjson_get_sint(direct) > INT_MAX)) ||
-            (layer != NULL && (!yyjson_is_uint(layer) ||
-                yyjson_get_uint(layer) > UINT32_MAX))) return false;
-    binding->value = direct == NULL ? 0 : (int)yyjson_get_sint(direct);
-    binding->layer = layer == NULL ? 0 :
-        (EditorGraphicsLayerId)yyjson_get_uint(layer);
-    return true;
-}
-
 static yyjson_mut_val *editor_json_hitbox_write(yyjson_mut_doc *document,
     const EditorHitbox *hitbox) {
     yyjson_mut_val *value = yyjson_mut_obj(document);
@@ -425,6 +401,7 @@ static yyjson_mut_val *editor_json_anchor_write(yyjson_mut_doc *document,
     const EditorAnchor *anchor) {
     yyjson_mut_val *value = yyjson_mut_obj(document);
     editor_entity_settings_json_write(document, value, anchor->entity_settings);
+    editor_json_graphics_layer_binding_write(document, value, anchor->graphics_layer);
     yyjson_mut_obj_add_uint(document, value, "id", anchor->id);
     yyjson_mut_obj_add_strcpy(document, value, "name", anchor->name);
     yyjson_mut_obj_add_val(document, value, "position",
@@ -1095,6 +1072,7 @@ bool editor_project_save(const EditorProject *project, const char *path) {
             yyjson_mut_obj_add_bool(document, item, "visible", camera->visible);
     yyjson_mut_obj_add_bool(document, item, "visible_in_app", !camera->app_hidden);
     editor_entity_settings_json_write(document, item, camera->entity_settings);
+    editor_json_graphics_layer_binding_write(document, item, camera->graphics_layer);
             yyjson_mut_arr_add_val(camera_values, item);
         }
         for(size_t j = 0; j < object->hierarchy_count; j += 1) {
@@ -1409,7 +1387,7 @@ static bool editor_json_body_read(yyjson_val *value, EditorRigidBody *body,
 static bool editor_json_anchor_read(yyjson_val *value, EditorAnchor *anchor,
     EditorProject *project) {
     yyjson_val *attachment_kind = yyjson_obj_get(value, "attachment_kind");
-    if(!editor_entity_settings_json_read(value, &anchor->entity_settings) || !yyjson_is_obj(value) || !editor_json_uint(value, "id", &anchor->id) ||
+    if(!editor_json_graphics_layer_binding_read(value, &anchor->graphics_layer) || !editor_entity_settings_json_read(value, &anchor->entity_settings) || !yyjson_is_obj(value) || !editor_json_uint(value, "id", &anchor->id) ||
             anchor->id == 0 || !editor_json_name(value, anchor->name) ||
             !editor_json_position_read(yyjson_obj_get(value, "position"), &anchor->position) ||
             !editor_json_real(value, "rotation", &anchor->rotation) ||
@@ -1926,6 +1904,27 @@ static bool editor_json_references_valid(EditorProject *project) {
     for(size_t i = 0; i < project->object_count; i += 1) {
         EditorObject *object = &project->objects[i];
         if(!editor_project_entity_settings_check(object)) return false;
+        for(size_t j = 0; j < object->anchor_count; j += 1)
+            if(object->anchors[j].graphics_layer.layer != 0 &&
+                    editor_project_graphics_layer_get(project,
+                        object->anchors[j].graphics_layer.layer) == NULL)
+                return false;
+        for(size_t j = 0; j < object->camera_count; j += 1)
+            if(object->cameras[j].graphics_layer.layer != 0 &&
+                    editor_project_graphics_layer_get(project,
+                        object->cameras[j].graphics_layer.layer) == NULL)
+                return false;
+        for(size_t j = 0; j < object->force_count; j += 1)
+            if(object->force_items[j].graphics_layer.layer != 0 &&
+                    editor_project_graphics_layer_get(project,
+                        object->force_items[j].graphics_layer.layer) == NULL)
+                return false;
+        for(size_t j = 0; j < object->torque_count; j += 1)
+            if(object->torque_items[j].graphics_layer.layer != 0 &&
+                    editor_project_graphics_layer_get(project,
+                        object->torque_items[j].graphics_layer.layer) == NULL)
+                return false;
+
         for(size_t j = 0; j < object->rigid_body_count; j += 1)
             if(object->rigid_bodies[j].graphics_layer.layer != 0 &&
                     editor_project_graphics_layer_get(project,
@@ -2694,6 +2693,7 @@ EditorResult editor_project_load(EditorProject *project, const char *path) {
             if(!yyjson_is_obj(item) ||
                     !editor_json_uint(item, "id", &camera->id) || camera->id == 0 ||
                     !editor_json_name(item, camera->name) ||
+                    !editor_json_graphics_layer_binding_read(item, &camera->graphics_layer) ||
                     !editor_json_position_read(yyjson_obj_get(item, "position"),
                         &camera->position) ||
                     !editor_json_real(item, "rotation", &camera->rotation) ||

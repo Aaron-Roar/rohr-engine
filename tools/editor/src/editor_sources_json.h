@@ -14,4 +14,8 @@ bool editor_sources_json_read(yyjson_val *json, EditorObject *object, EditorProj
 void editor_entity_settings_json_write(yyjson_mut_doc *doc, yyjson_mut_val *json,
     ObjectEntitySettings value);
 bool editor_entity_settings_json_read(yyjson_val *json, ObjectEntitySettings *value);
+void editor_json_graphics_layer_binding_write(yyjson_mut_doc *document,
+    yyjson_mut_val *value, EditorGraphicsLayerBinding binding);
+bool editor_json_graphics_layer_binding_read(yyjson_val *value,
+    EditorGraphicsLayerBinding *binding);
 #endif

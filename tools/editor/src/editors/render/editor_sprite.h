@@ -22,6 +22,7 @@ typedef struct EditorSpriteEditor {
     char name_cache[64][EDITOR_OBJECT_NAME_MAX];
     char body_cache[EDITOR_RIGID_BODY_MAX][EDITOR_OBJECT_NAME_MAX];
     EditorModeAccordionSection transform_section;
+    EditorModeAccordionSection appearance_section;
     EditorModeAccordionSection attachment_section;
     EditorModeAccordionSection asset_section;
 } EditorSpriteEditor;

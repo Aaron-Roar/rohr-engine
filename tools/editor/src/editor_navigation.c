@@ -1680,6 +1680,7 @@ bool editor_navigation_forces_paste(EditorProject *project, EditorViewportState 
         if(result.kind==ERROR_RESULT_ERROR) goto fail;
         ids[i]=result.created.item;
         editor_project_force_get(object,ids[i])->visuals=clipboard->items[i].visuals;
+        editor_project_force_get(object,ids[i])->graphics_layer=clipboard->items[i].graphics_layer;
         command.data.source.id=ids[i]; command.data.source.operation=EDITOR_SOURCE_SET;
         command.data.source.force=editor_pasted_force_get(object,clipboard->items[i].description,clipboard->objects[i]==object->id);
         if(editor_command_execute(project,&command).kind==ERROR_RESULT_ERROR) goto fail;
@@ -1733,6 +1734,7 @@ bool editor_navigation_torques_paste(EditorProject *project, EditorViewportState
         if(result.kind==ERROR_RESULT_ERROR) goto fail;
         ids[i]=result.created.item;
         editor_project_torque_get(object,ids[i])->visuals=clipboard->items[i].visuals;
+        editor_project_torque_get(object,ids[i])->graphics_layer=clipboard->items[i].graphics_layer;
         EditorCommand marker={.type=EDITOR_COMMAND_SOURCE,.data.source={.object=object->id,.id=ids[i],
             .torque=true,.operation=EDITOR_SOURCE_MARKER_SET,.marker_offset=clipboard->items[i].marker_offset}};
         if(editor_command_execute(project,&marker).kind==ERROR_RESULT_ERROR) goto fail;

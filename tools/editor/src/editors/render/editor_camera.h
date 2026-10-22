@@ -21,6 +21,7 @@ typedef struct EditorCameraEditor {
     char name_cache[EDITOR_CAMERA_MAX][EDITOR_OBJECT_NAME_MAX];
     char target_cache[256][EDITOR_OBJECT_NAME_MAX];
     EditorModeAccordionSection transform_section;
+    EditorModeAccordionSection appearance_section;
     EditorModeAccordionSection view_section;
     EditorModeAccordionSection attachment_section;
 } EditorCameraEditor;

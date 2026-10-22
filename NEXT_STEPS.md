@@ -292,12 +292,23 @@ contracts, and generated examples when a goal changes supported behavior.
    examples, five focused ASan/UBSan tests with leak detection, and Windows
    editor/force/torque test cross-builds passed without compiler warnings. Native
    Windows execution was not performed; see the issue mapping for evidence.
-9. [ ] **C9 — Appearance and visual layers.** Move render-layer controls from
+9. [x] **C9 — Appearance and visual layers.** Move render-layer controls from
    Transform to Appearance and provide missing layer controls for editor
    visuals, including anchors. Distinguish editor-only annotations from
    application visuals; do not make anchors render in applications implicitly.
-   Keep drawing and picking order consistent, with persistence and undo/redo.
-   Resolve any missing editor-layer versus app-layer distinction before coding.
+   Use one shared numeric/named layer per item. Editor annotations always draw
+   above application visuals; layers sort within each category. Rename source
+   and joint Visuals accordions to Appearance. Anchors and camera guides remain
+   editor-only. Preserve soft-child inheritance, existing values, and zero
+   defaults for old documents. Verify five cases: panel placement/scrolling;
+   overlap drawing/picking/context targets; editor/app separation; persistence,
+   copy and history; and CLI/loading/generated application/scene parity.
+   Complete: verified by 120 Linux tests, five focused ASan/UBSan tests,
+   Linux examples, and the Windows editor cross-build. User review PASS for
+   the five cases; a final wiring audit connected the layer control to the
+   force, torque, joint, anchor, and camera panels. Eight affected tests and
+   both builds pass after that correction. The user explicitly skipped the
+   additional panel confirmation; it remains unverified as a recorded exception.
 10. [ ] **C10 — Directional collision response.** Rename Collides With to
     Responds To across applicable API, editor, CLI, JSON, generation, and docs.
     For each overlapping pair, independently decide which body responds: both

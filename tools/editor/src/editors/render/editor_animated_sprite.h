@@ -28,6 +28,7 @@ typedef struct EditorAnimatedSpriteEditor {
     char body_cache[EDITOR_RIGID_BODY_MAX][EDITOR_OBJECT_NAME_MAX];
     char frame_cache[64][EDITOR_OBJECT_NAME_MAX];
     EditorModeAccordionSection transform_section;
+    EditorModeAccordionSection appearance_section;
     EditorModeAccordionSection attachment_section;
     EditorModeAccordionSection playback_section;
     EditorModeAccordionSection frames_section;

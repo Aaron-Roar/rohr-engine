@@ -102,6 +102,37 @@ The tools column is one scroll region. Its content height determines the final
 delete-row position. Modal dropdowns and the file browser temporarily capture
 navigation so arrow keys cannot move unrelated column controls.
 
+## Appearance and layers
+
+Every drawable item uses one numeric or named layer binding. Render Layer lives
+in Appearance, alongside styling; force, torque and joint styling uses the same
+section name. Spring and endpoint A/B styling remain separate subsections.
+Soft nodes, beams and areas can inherit their soft body's binding. Hitbox vertex
+and edge handles follow their body's binding.
+
+Authoring annotations draw above application visuals. Inside each category,
+shared layer values and stable type/item order determine drawing and picking.
+Active manipulation controls remain above scene content. Anchors and camera
+frames/icons are editor-only guides; their layers do not add runtime rendering
+or change screen composition. Force, torque and joint app visuals retain the
+same authored layer through loading and generated object constructors.
+
+Layer bindings and named-layer edits participate in UI undo/redo. Removing a
+named layer converts every reference to its resolved numeric value; undo restores
+the registry and bindings together. Missing JSON bindings default to zero.
+
+CLI examples (use `--project` with the authoring document):
+
+```sh
+rohr-cli --project objects/project.rohr.json --object car --anchor axle --property layer 12
+rohr-cli --project objects/project.rohr.json --object car --force thrust --property layer-id 2
+rohr-cli --project objects/project.rohr.json --object car --soft-body wheel --node rim --property layer inherit
+```
+
+`layer` sets a signed integer and disables inheritance; `layer-id` selects an
+existing named layer. Nodes, beams and areas also accept `layer-inherit true`
+or `false`. Layer edits never alter physics.
+
 ## Persistence and generation
 
 Saving follows this path:

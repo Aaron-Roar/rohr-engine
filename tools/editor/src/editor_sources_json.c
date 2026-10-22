@@ -8,6 +8,33 @@
 #include <math.h>
 #include <string.h>
 #include <float.h>
+#include <limits.h>
+
+void editor_json_graphics_layer_binding_write(yyjson_mut_doc *document,
+        yyjson_mut_val *value, EditorGraphicsLayerBinding binding) {
+    yyjson_mut_obj_add_sint(document, value, "graphics_layer_value", binding.value);
+    yyjson_mut_obj_add_uint(document, value, "graphics_layer", binding.layer);
+}
+
+bool editor_json_graphics_layer_binding_read(yyjson_val *value,
+        EditorGraphicsLayerBinding *binding) {
+    yyjson_val *direct;
+    yyjson_val *layer;
+    if(value == NULL || binding == NULL) return false;
+    direct = yyjson_obj_get(value, "graphics_layer_value");
+    layer = yyjson_obj_get(value, "graphics_layer");
+    if((direct != NULL && (!yyjson_is_int(direct) ||
+                yyjson_get_sint(direct) < INT_MIN ||
+                yyjson_get_sint(direct) > INT_MAX)) ||
+            (layer != NULL && (!yyjson_is_uint(layer) ||
+                yyjson_get_uint(layer) > UINT32_MAX))) return false;
+    binding->value = direct == NULL ? 0 : (int)yyjson_get_sint(direct);
+    binding->layer = layer == NULL ? 0 :
+        (EditorGraphicsLayerId)yyjson_get_uint(layer);
+    return true;
+}
+
+
 
 static const char *reference_names[] = {"none", "body", "particle", "soft_body", "node", "beam"};
 static const char *location_names[] = {"world", "com", "origin", "beam"};
@@ -112,6 +139,7 @@ bool editor_sources_json_write(yyjson_mut_doc *d, yyjson_mut_val *v, const Edito
         size_t count=torque?o->torque_count:o->force_count;
         for(size_t i=0;i<count;++i) {
             yyjson_mut_val *source=torque?editor_torque_json_write(d,o->torque_items[i].description):editor_force_json_write(d,o->force_items[i].description);
+            editor_json_graphics_layer_binding_write(d, source, torque ? o->torque_items[i].graphics_layer : o->force_items[i].graphics_layer);
             editor_entity_settings_json_write(d, source, torque ? o->torque_items[i].entity_settings : o->force_items[i].entity_settings);
             if(source && !yyjson_mut_obj_add_bool(d,source,"visible",torque?o->torque_items[i].visible:o->force_items[i].visible)) return false;
             if(torque && source && (!yyjson_mut_obj_add_real(d,source,"marker_offset_x",o->torque_items[i].marker_offset.x) ||
@@ -136,6 +164,7 @@ bool editor_sources_json_read(yyjson_val *v, EditorObject *o, EditorProject *p) 
         else { if(!EDITOR_ARRAY_RESERVE(o->force_items,o->force_capacity,count)) return false; o->force_count=count; if(count) memset(o->force_items,0,count*sizeof(*o->force_items)); }
         for(size_t i=0;i<count;++i) {
             yyjson_val *source=yyjson_arr_get(arr,i);
+            if(!editor_json_graphics_layer_binding_read(source, torque ? &o->torque_items[i].graphics_layer : &o->force_items[i].graphics_layer)) return false;
             if(!editor_entity_settings_json_read(source, torque ? &o->torque_items[i].entity_settings : &o->force_items[i].entity_settings)) return false; uint64_t id;
             yyjson_val *name=yyjson_obj_get(source,"name");
             if(!uint_value(source,"id",&id) || !id || id>=UINT32_MAX || !yyjson_is_str(name) || !yyjson_get_len(name) ||

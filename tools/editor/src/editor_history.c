@@ -49,7 +49,20 @@ struct EditorHistorySpriteChange {
     EditorSpriteId next_id;
 };
 
+typedef struct EditorHistoryLayerBinding {
+    EditorItemKind kind;
+    EditorObjectId object;
+    uint32_t parent, item;
+    EditorGraphicsLayerBinding binding;
+    bool inherited;
+} EditorHistoryLayerBinding;
+
 struct EditorHistoryUiChange {
+    EditorGraphicsLayer *graphics_layers;
+    size_t graphics_layer_count;
+    EditorGraphicsLayerId next_graphics_layer_id;
+    EditorHistoryLayerBinding *layer_bindings;
+    size_t layer_binding_count;
     bool application_window_enabled;
     WindowPresentationDescription application_window;
     EditorAudioDefinition *audio;
@@ -153,7 +166,63 @@ static void editor_history_ui_destroy(EditorHistoryUiChange *change) {
     free(change->definitions);
     free(change->fonts);
     free(change->audio);
+    free(change->graphics_layers);
+    free(change->layer_bindings);
     free(change);
+}
+
+static bool editor_history_layers_capture(EditorHistoryUiChange *change,
+        const EditorProject *project) {
+    change->graphics_layer_count = project->graphics_layer_count;
+    change->next_graphics_layer_id = project->next_graphics_layer_id;
+    if(change->graphics_layer_count) {
+        change->graphics_layers = malloc(change->graphics_layer_count * sizeof(*change->graphics_layers));
+        if(!change->graphics_layers) return false;
+        memcpy(change->graphics_layers, project->graphics_layers,
+            change->graphics_layer_count * sizeof(*change->graphics_layers));
+    }
+    size_t count = 0;
+    for(size_t o = 0; o < project->object_count; ++o) {
+        const EditorObject *object = &project->objects[o];
+        count += object->rigid_body_count + object->anchor_count + object->joint_count +
+            object->camera_count + object->force_count + object->torque_count +
+            object->sprite_count + object->animated_sprite_count + object->soft_body_count;
+        for(size_t b = 0; b < object->soft_body_count; ++b) {
+            const EditorSoftBody *body = &object->soft_body_items[b];
+            count += body->node_count + body->beam_count + body->area_count;
+        }
+    }
+    if(!count) return true;
+    change->layer_bindings = calloc(count, sizeof(*change->layer_bindings));
+    if(!change->layer_bindings) return false;
+#define CAPTURE(items, count, type, parent_id, inherit) do { \
+    for(size_t i = 0; i < (count); ++i) { \
+        EditorHistoryLayerBinding *entry = &change->layer_bindings[change->layer_binding_count++]; \
+        entry->kind = (type); entry->object = object->id; entry->parent = (parent_id); \
+        entry->item = (items)[i].id; entry->binding = (items)[i].graphics_layer; \
+        entry->inherited = (inherit); \
+    } \
+} while(0)
+    for(size_t o = 0; o < project->object_count; ++o) {
+        const EditorObject *object = &project->objects[o];
+        CAPTURE(object->rigid_bodies, object->rigid_body_count, EDITOR_ITEM_RIGID_BODY, 0, false);
+        CAPTURE(object->anchors, object->anchor_count, EDITOR_ITEM_ANCHOR, 0, false);
+        CAPTURE(object->cameras, object->camera_count, EDITOR_ITEM_CAMERA, 0, false);
+        CAPTURE(object->force_items, object->force_count, EDITOR_ITEM_FORCE, 0, false);
+        CAPTURE(object->torque_items, object->torque_count, EDITOR_ITEM_TORQUE, 0, false);
+        CAPTURE(object->joint_items, object->joint_count, EDITOR_ITEM_JOINT, 0, false);
+        CAPTURE(object->soft_body_items, object->soft_body_count, EDITOR_ITEM_SOFT_BODY, 0, false);
+        CAPTURE(object->sprites, object->sprite_count, EDITOR_ITEM_SPRITE, 0, false);
+        CAPTURE(object->animated_sprite_items, object->animated_sprite_count, EDITOR_ITEM_ANIMATED_SPRITE, 0, false);
+        for(size_t b = 0; b < object->soft_body_count; ++b) {
+            const EditorSoftBody *body = &object->soft_body_items[b];
+            CAPTURE(body->nodes, body->node_count, EDITOR_ITEM_SOFT_NODE, body->id, body->nodes[i].graphics_layer_inherited);
+            CAPTURE(body->beams, body->beam_count, EDITOR_ITEM_SOFT_BEAM, body->id, body->beams[i].graphics_layer_inherited);
+            CAPTURE(body->areas, body->area_count, EDITOR_ITEM_SOFT_AREA, body->id, body->areas[i].graphics_layer_inherited);
+        }
+    }
+#undef CAPTURE
+    return true;
 }
 
 static EditorHistoryUiChange *editor_history_ui_capture(
@@ -162,6 +231,7 @@ static EditorHistoryUiChange *editor_history_ui_capture(
     if(project == NULL) return NULL;
     change = calloc(1, sizeof(*change));
     if(change == NULL) return NULL;
+    if(!editor_history_layers_capture(change, project)) goto fail;
     change->application_window_enabled = project->application_window_enabled;
     change->application_window = project->application_window;
     change->audio_count = project->audio_definition_count;
@@ -230,6 +300,9 @@ fail:
 static bool editor_history_ui_equal(const EditorHistoryUiChange *first,
         const EditorHistoryUiChange *second) {
     if(first == NULL || second == NULL ||
+            first->graphics_layer_count != second->graphics_layer_count ||
+            first->next_graphics_layer_id != second->next_graphics_layer_id ||
+            first->layer_binding_count != second->layer_binding_count ||
             first->application_window_enabled != second->application_window_enabled ||
             memcmp(&first->application_window, &second->application_window, sizeof(first->application_window)) ||
             first->audio_count != second->audio_count || first->next_audio_id != second->next_audio_id ||
@@ -242,6 +315,14 @@ static bool editor_history_ui_equal(const EditorHistoryUiChange *first,
             first->next_ui_item_id != second->next_ui_item_id ||
             first->next_definition_id != second->next_definition_id ||
             first->next_font_id != second->next_font_id) return false;
+    if(first->graphics_layer_count && memcmp(first->graphics_layers, second->graphics_layers,
+            first->graphics_layer_count * sizeof(*first->graphics_layers))) return false;
+    for(size_t i = 0; i < first->layer_binding_count; ++i) {
+        const EditorHistoryLayerBinding *a = &first->layer_bindings[i], *b = &second->layer_bindings[i];
+        if(a->kind != b->kind || a->object != b->object || a->parent != b->parent ||
+                a->item != b->item || a->binding.layer != b->binding.layer ||
+                a->binding.value != b->binding.value || a->inherited != b->inherited) return false;
+    }
     if(first->audio_count && memcmp(first->audio, second->audio,
             first->audio_count * sizeof(*first->audio))) return false;
     if(first->definition_count > 0 && memcmp(first->definitions,
@@ -796,6 +877,20 @@ static void editor_history_action_apply(EditorProject *project,
             audio = malloc(change->audio_count * sizeof(*audio));
             if(!audio) goto ui_fail;
             memcpy(audio, change->audio, change->audio_count * sizeof(*audio));
+        }
+        if(!EDITOR_ARRAY_RESERVE(project->graphics_layers, project->graphics_layer_capacity,
+                change->graphics_layer_count)) goto ui_fail;
+        if(change->graphics_layer_count) memcpy(project->graphics_layers, change->graphics_layers,
+            change->graphics_layer_count * sizeof(*project->graphics_layers));
+        project->graphics_layer_count = change->graphics_layer_count;
+        project->next_graphics_layer_id = change->next_graphics_layer_id;
+        for(size_t i = 0; i < change->layer_binding_count; ++i) {
+            const EditorHistoryLayerBinding *entry = &change->layer_bindings[i];
+            bool *inherited;
+            EditorGraphicsLayerBinding *binding = editor_command_layer_get(project,
+                entry->kind, entry->object, entry->parent, entry->item, &inherited);
+            if(binding) *binding = entry->binding;
+            if(inherited) *inherited = entry->inherited;
         }
         free(project->audio_definitions);
         project->audio_definitions = audio;
@@ -1391,6 +1486,16 @@ static bool editor_history_inverse_get(EditorProject *project,
                     return true;
                 }
             return false;
+        }
+        case EDITOR_COMMAND_LAYER_SET: {
+            bool *inherited;
+            EditorGraphicsLayerBinding *binding = editor_command_layer_get(project,
+                command->data.layer_set.kind, command->data.layer_set.object,
+                command->data.layer_set.parent, command->data.layer_set.item, &inherited);
+            if(!binding) return false;
+            inverse->data.layer_set.binding = *binding;
+            inverse->data.layer_set.inherited = inherited && *inherited;
+            return true;
         }
         case EDITOR_COMMAND_APP_VISIBILITY: {
             bool *hidden = editor_command_app_hidden_get(project,

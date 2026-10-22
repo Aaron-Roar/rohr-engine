@@ -11,6 +11,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <math.h>
+#include <limits.h>
 #define OK(x) assert((x).kind == ERROR_RESULT_VALUE)
 
 #ifdef ROHR_TEST_ALLOCATION_WRAP
@@ -142,8 +143,97 @@ static void runtime_source_tests(const ObjectDescription *root) {
 #endif
     OK(object_destroy(copied.result.value));
 }
+static void layer_authoring_tests(void) {
+    EditorProject p; editor_project_init(&p);
+    EditorObject *o = editor_project_object_add(&p, (Position){0}); assert(o);
+    EditorAnchor *anchor = editor_project_anchor_add(&p, o, (Position){0}, 0); assert(anchor);
+    EditorCamera *camera = editor_project_camera_add(&p, o); assert(camera);
+    EditorForce *force = editor_project_force_add(&p, o); assert(force);
+    EditorTorque *torque = editor_project_torque_add(&p, o); assert(torque);
+    const EditorItemKind kinds[] = {EDITOR_ITEM_ANCHOR, EDITOR_ITEM_CAMERA, EDITOR_ITEM_FORCE, EDITOR_ITEM_TORQUE};
+    const uint32_t ids[] = {anchor->id, camera->id, force->id, torque->id};
+    const char *selectors[] = {"--anchor-id", "--camera-id", "--force-id", "--torque-id"};
+    EditorGraphicsLayer *named = editor_project_graphics_layer_add(&p, "guides", 91); assert(named);
+    uint32_t named_id = named->id;
+    EditorHistory h; assert(editor_history_init(&h, &p));
+    for(size_t i = 0; i < 4; ++i) {
+        EditorGraphicsLayerBinding *binding = editor_command_layer_get(&p, kinds[i], o->id, 0, ids[i], NULL);
+        assert(binding && !binding->value && !binding->layer);
+        char object_id[24], item_id[24];
+        snprintf(object_id, sizeof(object_id), "%u", o->id);
+        snprintf(item_id, sizeof(item_id), "%u", ids[i]);
+        char *args[] = {"rohr-cli", "--project", "layers.json", "--object-id", object_id,
+            (char *)selectors[i], item_id, "--property", "layer", "set", "-2147483648"};
+        EditorCommand command = parse(&p, 11, args);
+        OK(execute(&p, &h, command)); assert(binding->value == INT_MIN);
+        assert(editor_history_undo(&h) && binding->value == 0);
+        assert(editor_history_redo(&h) && binding->value == INT_MIN);
+        args[10] = "2147483648";
+        const char *path = NULL;
+        assert(editor_result_check(editor_command_cli_standard_parse(&p, 11, args, &path, &command)));
+        command = (EditorCommand){.type = EDITOR_COMMAND_LAYER_SET,
+            .data.layer_set = {kinds[i], o->id, 0, ids[i], {INT_MAX, named_id}, false}};
+        OK(execute(&p, &h, command));
+        char line[1024]; OK(editor_command_cli_standard_write(&p, &command, NULL, "layers.json", line, sizeof(line)));
+        assert(strstr(line, selectors[i]) && strstr(line, "layer-binding set 2147483647"));
+        char named_text[24]; snprintf(named_text, sizeof(named_text), "%u", named_id);
+        char *roundtrip[] = {"rohr-cli", "--project", "layers.json", "--object-id", object_id,
+            (char *)selectors[i], item_id, "--property", "layer-binding", "set", "2147483647", named_text, "false"};
+        EditorCommand parsed = parse(&p, 13, roundtrip);
+        assert(parsed.type == command.type && parsed.data.layer_set.binding.layer == named_id &&
+            parsed.data.layer_set.binding.value == INT_MAX);
+    }
+    /* Direct panel edits and named-layer deletion share one undo chain. */
+    assert(editor_history_ui_change_begin(&h));
+    assert(editor_project_graphics_layer_remove(&p, named_id));
+    assert(editor_history_ui_change_finish(&h));
+    for(size_t i = 0; i < 4; ++i) {
+        EditorGraphicsLayerBinding *binding = editor_command_layer_get(&p, kinds[i], o->id, 0, ids[i], NULL);
+        assert(binding->value == 91 && !binding->layer);
+    }
+    assert(editor_history_undo(&h));
+    assert(editor_project_graphics_layer_get(&p, named_id));
+    for(size_t i = 0; i < 4; ++i)
+        assert(editor_command_layer_get(&p, kinds[i], o->id, 0, ids[i], NULL)->layer == named_id);
+    assert(editor_history_redo(&h));
+    assert(editor_history_ui_change_begin(&h));
+    anchor->graphics_layer.value = 33;
+    assert(editor_history_ui_change_finish(&h));
+    assert(editor_history_undo(&h) && anchor->graphics_layer.value == 91);
+    assert(editor_history_redo(&h) && anchor->graphics_layer.value == 33);
+    assert(editor_project_save(&p, "layers.json"));
+    EditorProject loaded; editor_project_init(&loaded); OK(editor_project_load(&loaded, "layers.json"));
+    for(size_t i = 0; i < 4; ++i)
+        assert(editor_command_layer_get(&loaded, kinds[i], o->id, 0, ids[i], NULL)->value == (i ? 91 : 33));
+    editor_project_destroy(&loaded);
+    /* Old documents default to zero; invalid named references are rejected. */
+    yyjson_doc *doc = yyjson_read_file("layers.json", 0, NULL, NULL); assert(doc);
+    yyjson_mut_doc *mut = yyjson_doc_mut_copy(doc, NULL); assert(mut); yyjson_doc_free(doc);
+    yyjson_mut_val *object = yyjson_mut_arr_get(yyjson_mut_obj_get(yyjson_mut_doc_get_root(mut), "objects"), 0);
+    const char *arrays[] = {"anchors", "cameras", "forces", "torques"};
+    for(size_t i = 0; i < 4; ++i) {
+        yyjson_mut_val *item = yyjson_mut_arr_get(yyjson_mut_obj_get(object, arrays[i]), 0); assert(item);
+        yyjson_mut_obj_remove_key(item, "graphics_layer_value");
+        yyjson_mut_obj_remove_key(item, "graphics_layer");
+    }
+    assert(yyjson_mut_write_file("layers.json", mut, 0, NULL, NULL));
+    editor_project_init(&loaded); OK(editor_project_load(&loaded, "layers.json"));
+    for(size_t i = 0; i < 4; ++i) {
+        EditorGraphicsLayerBinding *binding = editor_command_layer_get(&loaded, kinds[i], o->id, 0, ids[i], NULL);
+        assert(binding && !binding->layer && !binding->value);
+    }
+    editor_project_destroy(&loaded);
+    yyjson_mut_val *item = yyjson_mut_arr_get(yyjson_mut_obj_get(object, "anchors"), 0);
+    yyjson_mut_obj_add_uint(mut, item, "graphics_layer", UINT32_MAX);
+    assert(yyjson_mut_write_file("layers.json", mut, 0, NULL, NULL));
+    editor_project_init(&loaded); assert(editor_result_check(editor_project_load(&loaded, "layers.json")));
+    editor_project_destroy(&loaded); yyjson_mut_doc_free(mut);
+    assert(remove("layers.json") == 0);
+    editor_history_destroy(&h); editor_project_destroy(&p);
+}
+
 int main(void) {
-    OK(engine_start()); assert(ENTITY_NONE==ENTITY_INVALID); source_failure_tests();
+    OK(engine_start()); assert(ENTITY_NONE==ENTITY_INVALID); source_failure_tests(); layer_authoring_tests();
     EditorProject p;editor_project_init(&p);
     EditorObject *o=editor_project_object_add(&p,(Position){0});assert(o);
     uint32_t object=o->id;
@@ -195,8 +285,11 @@ int main(void) {
     EditorCommand cli=parse(&p,11,args);OK(execute(&p,&h,cli));assert(o->force_items[0].description.magnitude==-8);
     char line[4096];OK(editor_command_cli_standard_write(&p,&cli,NULL,"sources.json",line,sizeof(line)));assert(strstr(line,"--force-id") && strstr(line,"-8"));
     cli.data.source.operation=EDITOR_SOURCE_GET;char *query=editor_source_query_json(&p,&cli.data.source);assert(query && strstr(query,"push"));free(query);
+    o->force_items[0].graphics_layer.value = 42;
+    o->torque_items[0].graphics_layer.value = -17;
     cli.data.source.operation=EDITOR_SOURCE_DUPLICATE;strcpy(cli.data.source.name,"push_copy");OK(execute(&p,&h,cli));
     assert(o->force_count==2 && o->force_items[1].id!=force_id && o->force_items[1].description.target.id==node_id);
+    assert(o->force_items[1].graphics_layer.value == 42);
     assert(editor_project_save(&p,"sources.json"));
     malformed_document("sources.json",&p);
     EditorProject loaded;editor_project_init(&loaded);OK(editor_project_load(&loaded,"sources.json"));
@@ -208,6 +301,8 @@ int main(void) {
     const ObjectDescription *root=asset.result.value->children[0];
     runtime_source_tests(root);
     ObjectDescriptionResult f=object_description_name_get(root,"push");OK(f);
+    assert(f.result.value->layer == 42);
+    assert(object_description_name_get(root,"torque_1").result.value->layer == -17);
     assert(f.result.value->kind==OBJECT_FORCE && f.result.value->force.target.id!=0);
     ObjectDescriptionResult copy=object_copy(root);OK(copy);
     ObjectDescriptionResult copied_force=object_description_name_get(copy.result.value,"push");OK(copied_force);
@@ -217,6 +312,7 @@ int main(void) {
     assert(error_check(object_force_description_set(f.result.value,changed)));
     size_t entities=entity_alive_count_get();EntityResult spawned=entity_object_add(copy.result.value);OK(spawned);
     EntityResult source=entity_object_member_by_name_get(spawned.result.value,"push");OK(source);
+    assert(graphics_layer_entity_get(source.result.value).result.value == 42);
     ForceDescriptionResult runtime=physics_force_description_get(source.result.value);OK(runtime);
     assert(runtime.result.value.owner==spawned.result.value && runtime.result.value.magnitude==22);
     OK(entity_delete(spawned.result.value));assert(entity_alive_count_get()==entities);

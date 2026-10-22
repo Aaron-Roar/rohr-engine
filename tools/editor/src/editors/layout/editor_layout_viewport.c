@@ -124,6 +124,8 @@ bool editor_layout_viewport_editor_create(EditorLayoutViewportEditor *editor,
                 "Appearance", false) ||
             !editor_mode_accordion_section_create(&editor->source_section, font,
                 "Source", true) ||
+            !editor_mode_accordion_section_create(&editor->screen_appearance_section, font,
+                "Appearance", false) ||
             !editor_mode_accordion_section_create(&editor->placement_section, font,
                 "Placement", false) ||
             !editor_mode_accordion_section_create(&editor->interaction_section, font,
@@ -199,6 +201,7 @@ void editor_layout_viewport_editor_destroy(EditorLayoutViewportEditor *editor) {
 #undef DESTROY
     editor_mode_accordion_section_destroy(&editor->transform_section);
     editor_mode_accordion_section_destroy(&editor->appearance_section);
+    editor_mode_accordion_section_destroy(&editor->screen_appearance_section);
     editor_mode_accordion_section_destroy(&editor->source_section);
     editor_mode_accordion_section_destroy(&editor->placement_section);
     editor_mode_accordion_section_destroy(&editor->interaction_section);
@@ -642,7 +645,7 @@ bool editor_layout_camera_editor_draw(EditorLayoutViewportEditor *editor,
                 context->layer_control->edited_layer != 0)) ? 86.0f : 48.0f;
     const float source_rows[] = {28.0f, 28.0f, 28.0f, 28.0f};
     const float placement_rows[] = {
-        28.0f, 28.0f, 28.0f, 28.0f, 28.0f, layer_height};
+        28.0f, 28.0f, 28.0f, 28.0f, 28.0f};
     const float interaction_rows[] = {28.0f, 28.0f};
     const float content_rows[] = {
         28.0f, 28.0f, 28.0f, 28.0f, 28.0f};
@@ -657,7 +660,10 @@ bool editor_layout_camera_editor_draw(EditorLayoutViewportEditor *editor,
     EditorModeAccordionLayoutResult placement_section =
         editor_mode_accordion_layout_section(&accordion,
             &editor->placement_section,
-            "editor.layout.screen.section.placement", placement_rows, 6, 10.0f);
+            "editor.layout.screen.section.placement", placement_rows, 5, 10.0f);
+    EditorModeAccordionLayoutResult appearance_section = editor_mode_accordion_layout_section(
+        &accordion, &editor->screen_appearance_section, "editor.layout.screen.section.appearance",
+        &layer_height, 1, 0);
     EditorModeAccordionLayoutResult interaction_section =
         editor_mode_accordion_layout_section(&accordion,
             &editor->interaction_section,
@@ -742,6 +748,9 @@ bool editor_layout_camera_editor_draw(EditorLayoutViewportEditor *editor,
             item->placement.orientation = rotation_degrees;
         }
         y += 38.0f;
+    }
+    if(appearance_section.expanded) {
+        y = appearance_section.content_y;
         EditorGraphicsLayerBinding layer_binding = {
             .value = item->placement.layer, .layer = item->graphics_layer};
         layer_active = context->layer_control != NULL &&
@@ -852,10 +861,10 @@ static bool layout_ui_common_draw(EditorLayoutViewportEditor *editor,
         (context->layer_control != NULL &&
             (context->layer_control->adding ||
                 context->layer_control->edited_layer != 0)) ? 86.0f : 48.0f;
-    const float transform_rows[] = {28.0f, 28.0f, 28.0f, layer_height};
+    const float transform_rows[] = {28.0f, 28.0f, 28.0f};
     float interaction_rows[] = {28.0f, 28.0f};
     size_t interaction_count = item->drag_mode == VIEWPORT_ITEM_DRAG_NONE ? 1 : 2;
-    float appearance_rows[11];
+    float appearance_rows[12];
     size_t appearance_count = 1;
     appearance_rows[0] = 28.0f;
     if(item->border_enabled) {
@@ -866,10 +875,13 @@ static bool layout_ui_common_draw(EditorLayoutViewportEditor *editor,
         for(size_t i = 1; i < appearance_count; i += 1)
             appearance_rows[i] = 28.0f;
     }
+    memmove(appearance_rows + 1, appearance_rows, appearance_count * sizeof(*appearance_rows));
+    appearance_rows[0] = layer_height;
+    appearance_count++;
     EditorModeAccordionLayoutResult transform =
         editor_mode_accordion_layout_section(&accordion,
             &editor->ui_transform_section, "editor.layout.ui.section.transform",
-            transform_rows, 4, 10.0f);
+            transform_rows, 3, 10.0f);
     EditorModeAccordionLayoutResult interaction =
         editor_mode_accordion_layout_section(&accordion,
             &editor->ui_interaction_section,
@@ -895,15 +907,7 @@ static bool layout_ui_common_draw(EditorLayoutViewportEditor *editor,
         &editor->rotation_field, "editor.layout.ui.rotation", context->x, *y,
         context->width, rotation);
     *y += 38.0f;
-    EditorGraphicsLayerBinding layer_binding = {
-        .value = item->layer, .layer = item->graphics_layer};
-    layer_active = context->layer_control != NULL &&
-        editor_mode_layer_control_draw(context->layer_control,
-            "editor.layout.ui", context->project, &layer_binding, NULL,
-            context->x, *y, context->width);
-    item->layer = layer_binding.value;
-    item->graphics_layer = layer_binding.layer;
-    *y += layer_height;
+
     }
     if(interaction.expanded) {
     *y = interaction.content_y;
@@ -931,6 +935,16 @@ static bool layout_ui_common_draw(EditorLayoutViewportEditor *editor,
     }
     if(appearance.expanded) {
     *y = appearance.content_y;
+    EditorGraphicsLayerBinding layer_binding = {
+        .value = item->layer, .layer = item->graphics_layer};
+    layer_active = context->layer_control != NULL &&
+        editor_mode_layer_control_draw(context->layer_control,
+            "editor.layout.ui", context->project, &layer_binding, NULL,
+            context->x, *y, context->width);
+    item->layer = layer_binding.value;
+    item->graphics_layer = layer_binding.layer;
+    *y += layer_height;
+    *y += 10;
     bool border_enabled = item->border_enabled;
     if(editor_mode_checkbox_left("editor.layout.ui.border", &editor->border_label,
             (UIRect){context->x + 10.0f, *y, context->width - 20.0f, 28.0f},
@@ -1238,7 +1252,7 @@ bool editor_ui_slider_editor_draw(EditorLayoutViewportEditor *editor,
     EditorModeAccordionLayoutCursor accordion =
         editor_mode_accordion_layout_cursor_get(context->x, context->width, y);
     const float content_rows[] = {28.0f, 28.0f, 28.0f, 28.0f, 28.0f};
-    float appearance_rows[18];
+    float appearance_rows[19];
     size_t slider_appearance_count = slider->thumb_shape ==
         VIEWPORT_UI_SLIDER_THUMB_CIRCLE ? 10 : 11;
     size_t border_appearance_count = item->border_enabled ?
@@ -1246,6 +1260,11 @@ bool editor_ui_slider_editor_draw(EditorLayoutViewportEditor *editor,
     size_t appearance_count = slider_appearance_count + border_appearance_count;
     for(size_t row = 0; row < appearance_count; row += 1)
         appearance_rows[row] = 28.0f;
+    float layer_height = editor_mode_layer_control_height_get(context->layer_control,
+        (EditorGraphicsLayerBinding){item->layer, item->graphics_layer}, NULL);
+    memmove(appearance_rows + 1, appearance_rows, appearance_count * sizeof(*appearance_rows));
+    appearance_rows[0] = layer_height;
+    appearance_count++;
     EditorModeAccordionLayoutResult content =
         editor_mode_accordion_layout_section(&accordion,
             &editor->ui_content_section, "editor.ui_slider.section.content",
@@ -1280,6 +1299,13 @@ bool editor_ui_slider_editor_draw(EditorLayoutViewportEditor *editor,
     }
     if(appearance.expanded) {
         y = appearance.content_y;
+        EditorGraphicsLayerBinding layer_binding = {item->layer, item->graphics_layer};
+        active |= editor_mode_layer_control_draw(context->layer_control,
+            "editor.layout.ui", context->project, &layer_binding, NULL,
+            context->x, y, context->width);
+        item->layer = layer_binding.value;
+        item->graphics_layer = layer_binding.layer;
+        y += layer_height + 10;
         border_active = layout_slider_border_appearance_draw(
             editor, context, item, &y);
         length = layout_number(&editor->length_label, &editor->length_field,

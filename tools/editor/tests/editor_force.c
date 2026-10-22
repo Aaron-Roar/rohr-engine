@@ -415,10 +415,11 @@ int main(void) {
     editor_project_force_get(o,id)->app_hidden=true;
     editor_project_force_get(o,id)->visuals.main=(ObjectVisualStyle){.specified=true,
         .fill_color=0x12345678,.scale={-2,3},.offset={4,5},.rotation=30};
+    editor_project_force_get(o,id)->graphics_layer.value = -23;
     EditorForceClipboard clipboard={0}; assert(editor_navigation_forces_copy(&p,&s,&clipboard));
     assert(editor_navigation_forces_paste(&p,&s,&history,&clipboard)); assert(o->force_count==2);
     EditorForce *copy=editor_project_force_get(o,s.selected_force); assert(copy && copy->id!=id && copy->description.target.id==body.id);
-    assert(copy->app_hidden);
+    assert(copy->app_hidden && copy->graphics_layer.value == -23);
     assert(copy->visuals.main.fill_color==0x12345678 && copy->visuals.main.scale.x==-2);
     copy->description.magnitude=123; near(editor_project_force_get(o,id)->description.magnitude,-2);
     editor_project_object_hierarchy_sync(o);

@@ -3203,6 +3203,7 @@ int main(int argc, char **argv) {
                 .additive_selection = hierarchy_additive_selection};
             field_editing = editor_joint_editor_draw(&joint_editor,
                 &(EditorModeContext){.history = &history, .project = &project,
+                    .layer_control = &layer_control,
                     .color_open=editor_mode_color_picker_open,.color_context=&color_context,
                     .viewport = &viewport_state, .x = EDITOR_VIEWPORT_WIDTH,
                     .width = EDITOR_TOOLS_WIDTH,
@@ -3216,12 +3217,14 @@ int main(int argc, char **argv) {
         } else if(viewport_state.mode == EDITOR_VIEWPORT_FORCE) {
             EditorModeColorContext color_context = {.picker=&color_picker,.project=&project};
             field_editing=editor_force_editor_draw(&force_editor,&(EditorModeContext){
+                .layer_control=&layer_control,
                 .history=&history,.project=&project,.viewport=&viewport_state,
                 .x=EDITOR_VIEWPORT_WIDTH,.width=EDITOR_TOOLS_WIDTH,.delete_footer=true,
                 .color_open=editor_mode_color_picker_open,.color_context=&color_context});
         } else if(viewport_state.mode == EDITOR_VIEWPORT_TORQUE) {
             EditorModeColorContext color_context = {.picker=&color_picker,.project=&project};
             field_editing=editor_torque_editor_draw(&torque_editor,&(EditorModeContext){
+                .layer_control=&layer_control,
                 .history=&history,.project=&project,.viewport=&viewport_state,
                 .x=EDITOR_VIEWPORT_WIDTH,.width=EDITOR_TOOLS_WIDTH,.delete_footer=true,
                 .color_open=editor_mode_color_picker_open,.color_context=&color_context});
@@ -3230,6 +3233,7 @@ int main(int argc, char **argv) {
                 .project = &project, .viewport = &viewport_state};
             field_editing = editor_anchor_editor_draw(&anchor_editor,
                 &(EditorModeContext){.history = &history, .project = &project,
+                    .layer_control = &layer_control,
                     .viewport = &viewport_state, .x = EDITOR_VIEWPORT_WIDTH,
                     .width = EDITOR_TOOLS_WIDTH,
                     .delete_y_get = editor_mode_delete_y_get,
@@ -3343,6 +3347,7 @@ int main(int argc, char **argv) {
         } else if(viewport_state.mode == EDITOR_VIEWPORT_CAMERA_ENTITY) {
             field_editing = editor_camera_editor_draw(&camera_editor,
                 &(EditorModeContext){.history = &history, .project = &project,
+                    .layer_control = &layer_control,
                     .viewport = &viewport_state, .x = EDITOR_VIEWPORT_WIDTH,
                     .width = EDITOR_TOOLS_WIDTH});
         } else if(viewport_state.mode == EDITOR_VIEWPORT_ANIMATED_SPRITE) {

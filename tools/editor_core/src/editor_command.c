@@ -672,6 +672,20 @@ static EditorCommandResult editor_command_execute_internal(EditorProject *projec
             project->physics_solver_iterations = command->data.
                 project_physics_settings_set.physics_solver_iterations;
             return (EditorCommandResult){.kind = ERROR_RESULT_VALUE};
+        case EDITOR_COMMAND_LAYER_SET: {
+            bool *inherited;
+            EditorGraphicsLayerBinding *binding = editor_command_layer_get(project,
+                command->data.layer_set.kind, command->data.layer_set.object,
+                command->data.layer_set.parent, command->data.layer_set.item, &inherited);
+            if(!binding) return editor_command_not_found("layer target", command->data.layer_set.item);
+            if((command->data.layer_set.binding.layer && !editor_project_graphics_layer_get(
+                    project, command->data.layer_set.binding.layer)) ||
+                    (command->data.layer_set.inherited && !inherited))
+                return editor_command_not_found("graphics layer", command->data.layer_set.binding.layer);
+            *binding = command->data.layer_set.binding;
+            if(inherited) *inherited = command->data.layer_set.inherited;
+            return (EditorCommandResult){.kind = ERROR_RESULT_VALUE};
+        }
         case EDITOR_COMMAND_APP_VISIBILITY: {
             bool *hidden = editor_command_app_hidden_get(project,
                 command->data.app_visibility.kind, command->data.app_visibility.object,
@@ -2360,6 +2374,58 @@ bool editor_visual_property_parse(const char *name,EditorPropertyKind *p,EditorP
     }
     return false;
 }
+EditorGraphicsLayerBinding *editor_command_layer_get(EditorProject *project,
+        EditorItemKind kind, EditorObjectId object_id, uint32_t parent,
+        uint32_t item, bool **inherited) {
+    if(inherited) *inherited = NULL;
+    if(!project) return NULL;
+    EditorObject *object = editor_object_query_get(project, object_id);
+    if(!object) return NULL;
+#define LAYER_ITEM(items, count) do { \
+    for(size_t i = 0; i < (count); ++i) \
+        if((items)[i].id == item) return &(items)[i].graphics_layer; \
+} while(0)
+    switch(kind) {
+        case EDITOR_ITEM_RIGID_BODY: LAYER_ITEM(object->rigid_bodies, object->rigid_body_count); break;
+        case EDITOR_ITEM_ANCHOR: LAYER_ITEM(object->anchors, object->anchor_count); break;
+        case EDITOR_ITEM_CAMERA: LAYER_ITEM(object->cameras, object->camera_count); break;
+        case EDITOR_ITEM_FORCE: LAYER_ITEM(object->force_items, object->force_count); break;
+        case EDITOR_ITEM_TORQUE: LAYER_ITEM(object->torque_items, object->torque_count); break;
+        case EDITOR_ITEM_JOINT: LAYER_ITEM(object->joint_items, object->joint_count); break;
+        case EDITOR_ITEM_SOFT_BODY: LAYER_ITEM(object->soft_body_items, object->soft_body_count); break;
+        case EDITOR_ITEM_SPRITE: LAYER_ITEM(object->sprites, object->sprite_count); break;
+        case EDITOR_ITEM_ANIMATED_SPRITE: LAYER_ITEM(object->animated_sprite_items, object->animated_sprite_count); break;
+        case EDITOR_ITEM_SOFT_NODE:
+        case EDITOR_ITEM_SOFT_BEAM:
+        case EDITOR_ITEM_SOFT_AREA: {
+            EditorSoftBody *body = editor_soft_body_get(object, parent);
+            if(!body) break;
+            if(kind == EDITOR_ITEM_SOFT_NODE)
+                for(size_t i = 0; i < body->node_count; ++i)
+                    if(body->nodes[i].id == item) {
+                        if(inherited) *inherited = &body->nodes[i].graphics_layer_inherited;
+                        return &body->nodes[i].graphics_layer;
+                    }
+            if(kind == EDITOR_ITEM_SOFT_BEAM)
+                for(size_t i = 0; i < body->beam_count; ++i)
+                    if(body->beams[i].id == item) {
+                        if(inherited) *inherited = &body->beams[i].graphics_layer_inherited;
+                        return &body->beams[i].graphics_layer;
+                    }
+            if(kind == EDITOR_ITEM_SOFT_AREA)
+                for(size_t i = 0; i < body->area_count; ++i)
+                    if(body->areas[i].id == item) {
+                        if(inherited) *inherited = &body->areas[i].graphics_layer_inherited;
+                        return &body->areas[i].graphics_layer;
+                    }
+            break;
+        }
+        default: break;
+    }
+#undef LAYER_ITEM
+    return NULL;
+}
+
 ObjectVisuals *editor_command_visuals_get(EditorProject *p,EditorItemKind kind,EditorObjectId object,uint32_t item) {
     EditorObject *o=editor_object_query_get(p,object);
     if(!o) return NULL;
@@ -3884,6 +3950,8 @@ EditorResult editor_command_cli_write(const EditorCommand *command,
         return editor_result_error(EDITOR_ERROR_INVALID_ARGUMENT,
             "command serialization requires a command, path, and output buffer");
     output[0] = '\0';
+    if(command->type == EDITOR_COMMAND_LAYER_SET)
+        return editor_command_cli_standard_write(NULL, command, NULL, document_path, output, output_capacity);
     if(command->type >= EDITOR_COMMAND_SPRITE_ADD &&
             command->type <= EDITOR_COMMAND_SPRITE_SIZE_SET) {
         if(!editor_command_text_append(output, output_capacity, &used,

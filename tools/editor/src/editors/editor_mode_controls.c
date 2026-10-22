@@ -8,6 +8,7 @@
 #include "entity/object_visuals.h"
 
 #include <math.h>
+#include <limits.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -898,6 +899,13 @@ UIButtonStyle editor_mode_delete_style_get(void) {
     return style;
 }
 
+static int editor_mode_layer_value_get(float value) {
+    if(!isfinite(value)) return 0;
+    if((double)value >= INT_MAX) return INT_MAX;
+    if((double)value <= INT_MIN) return INT_MIN;
+    return (int)value;
+}
+
 bool editor_mode_layer_control_create(EditorModeLayerControl *control,
         FontAsset *font) {
     if(control == NULL || font == NULL) return false;
@@ -934,6 +942,14 @@ void editor_mode_layer_control_destroy(EditorModeLayerControl *control) {
     for(size_t i = 0; i < MAX_GRAPHICS_LAYERS; i += 1)
         rohr_graphics_text_destroy(&control->names[i]);
     *control = (EditorModeLayerControl){0};
+}
+
+float editor_mode_layer_control_height_get(const EditorModeLayerControl *control,
+        EditorGraphicsLayerBinding binding, const bool *inherited) {
+    if(!control) return 0;
+    if(inherited && *inherited) return 38;
+    return (inherited ? 38 : 0) +
+        (binding.layer == 0 || control->adding || control->edited_layer ? 86 : 48);
 }
 
 bool editor_mode_layer_control_draw(EditorModeLayerControl *control,
@@ -1042,7 +1058,7 @@ bool editor_mode_layer_control_draw(EditorModeLayerControl *control,
                 bool saved = false;
                 if(control->adding) {
                     EditorGraphicsLayer *created = editor_project_graphics_layer_add(
-                        project, control->edited_name, (int)control->edited_value);
+                        project, control->edited_name, editor_mode_layer_value_get(control->edited_value));
                     if(created != NULL) {
                         binding->layer = created->id;
                         saved = true;
@@ -1050,7 +1066,7 @@ bool editor_mode_layer_control_draw(EditorModeLayerControl *control,
                 } else {
                     saved = editor_project_graphics_layer_set(project,
                         control->edited_layer, control->edited_name,
-                        (int)control->edited_value);
+                        editor_mode_layer_value_get(control->edited_value));
                 }
                 if(saved) {
                     control->adding = false;
@@ -1065,8 +1081,11 @@ bool editor_mode_layer_control_draw(EditorModeLayerControl *control,
                     row_width - name_width - value_width - button_width * 2.0f,
                     28.0f}, &field_style);
         if(delete_result.clicked) {
-            (void)editor_project_graphics_layer_remove(project,
-                control->edited_layer);
+            EditorGraphicsLayer *removed = editor_project_graphics_layer_get(project, control->edited_layer);
+            int value = removed ? removed->value : binding->value;
+            if(editor_project_graphics_layer_remove(project, control->edited_layer) &&
+                    binding->layer == control->edited_layer)
+                *binding = (EditorGraphicsLayerBinding){.value = value};
             control->edited_layer = 0;
         }
         if(cancel_result.clicked || rohr_ui_key_pressed_check(SDLK_ESCAPE) ||
@@ -1094,7 +1113,7 @@ bool editor_mode_layer_control_draw(EditorModeLayerControl *control,
             (UIFieldBinding){.kind = UI_FIELD_FLOAT, .number = &value},
             &control->value_field,
             (UIRect){x + 104.0f, y, width - 114.0f, 28.0f}, &field_style);
-        if(result.changed) binding->value = (int)value;
+        if(result.changed) binding->value = editor_mode_layer_value_get(value);
         active = result.active;
     }
     return active;
@@ -1104,7 +1123,7 @@ static const char *visual_labels[]={"Fill Color","Border Color","Border Thicknes
 bool editor_visual_controls_create(EditorVisualControls *v,FontAsset *font) {
     if(!v || !font) return false;
     *v=(EditorVisualControls){0};
-    if(!editor_mode_accordion_section_create(&v->outer,font,"Visuals",true)) goto fail;
+    if(!editor_mode_accordion_section_create(&v->outer,font,"Appearance",true)) goto fail;
     const char *parts[]={"Spring","Endpoint A","Endpoint B"};
     for(size_t p=0;p<3;++p) {
         if(!editor_mode_accordion_section_create(&v->parts[p],font,parts[p],true)) goto fail;
@@ -1132,14 +1151,20 @@ bool editor_visual_controls_draw(EditorVisualControls *v,const EditorModeContext
     bool reset=v->object!=object || v->item!=item || v->kind!=kind,editing=false;
     v->object=object; v->item=item; v->kind=kind;
     float rows[8]={28,28,28,28,28,28,28,28};
+    EditorGraphicsLayerBinding *binding = editor_command_layer_get(c->project, kind, object, 0, item, NULL);
+    float layer_height = binding ? editor_mode_layer_control_height_get(c->layer_control, *binding, NULL) : 0;
     float height=0;
     if(spring) for(size_t p=0;p<3;++p) {
         EditorModeAccordionLayoutMetrics m=editor_mode_accordion_layout_metrics_get(height,cursor->padding,cursor->section_gap,rows,8,6,v->parts[p].expanded);
         height=m.next_y;
     }
+    float outer_rows[] = {layer_height, spring ? height : 8 * 28 + 7 * 6};
     EditorModeAccordionLayoutResult outer=editor_mode_accordion_layout_section(cursor,&v->outer,
-        "editor.visuals",spring?&height:rows,spring?1:8,6);
+        "editor.visuals",outer_rows,2,6);
     if(!outer.expanded) return false;
+    if(binding) editing |= editor_mode_layer_control_draw(c->layer_control,
+        "editor.visuals", c->project, binding, NULL, cursor->x, outer.content_y, cursor->width);
+    outer.content_y += layer_height + 6;
     EditorModeAccordionLayoutCursor nested=editor_mode_accordion_layout_cursor_get(cursor->x+8,cursor->width-16,outer.content_y);
     for(size_t p=0;p<(spring?3u:1u);++p) {
         char section_id[64]; snprintf(section_id,sizeof(section_id),"editor.visuals.part.%zu",p);

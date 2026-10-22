@@ -488,7 +488,8 @@ static EditorResult cli_area_command_write(const EditorProject *project, const E
 EditorResult editor_command_cli_standard_write(const EditorProject *project,
         const EditorCommand *command, const EditorCommandResult *result,
         const char *path, char *output, size_t capacity) {
-    if(command && (command->type >= EDITOR_COMMAND_APPLICATION_WINDOW_SET ||
+    if(command && ((command->type >= EDITOR_COMMAND_APPLICATION_WINDOW_SET &&
+            command->type <= EDITOR_COMMAND_JOINT_PLACE) ||
             (command->type == EDITOR_COMMAND_PROPERTY_SET &&
                 (command->data.property_set.property >= EDITOR_PROPERTY_LIFETIME_TIME_ENABLED ||
                  command->data.property_set.kind == EDITOR_ITEM_CAMERA ||
@@ -514,6 +515,45 @@ EditorResult editor_command_cli_standard_write(const EditorProject *project,
             if(!cli_token_add(output,capacity,&used,tokens[i])) goto full;
         if(set->kind!=EDITOR_ITEM_JOINT && !cli_token_add(output,capacity,&used,"set")) goto full;
         if(!cli_token_add(output,capacity,&used,value)) goto full;
+        return editor_result_value(true);
+    }
+    if(command && command->type == EDITOR_COMMAND_LAYER_SET) {
+        const char *selector = NULL;
+        switch(command->data.layer_set.kind) {
+            case EDITOR_ITEM_RIGID_BODY: selector = "--body-id"; break;
+            case EDITOR_ITEM_ANCHOR: selector = "--anchor-id"; break;
+            case EDITOR_ITEM_CAMERA: selector = "--camera-id"; break;
+            case EDITOR_ITEM_JOINT: selector = "--joint-id"; break;
+            case EDITOR_ITEM_FORCE: selector = "--force-id"; break;
+            case EDITOR_ITEM_TORQUE: selector = "--torque-id"; break;
+            case EDITOR_ITEM_SPRITE: selector = "--sprite-id"; break;
+            case EDITOR_ITEM_ANIMATED_SPRITE: selector = "--animated-sprite-id"; break;
+            case EDITOR_ITEM_SOFT_BODY: selector = "--soft-body-id"; break;
+            case EDITOR_ITEM_SOFT_NODE: selector = "--node-id"; break;
+            case EDITOR_ITEM_SOFT_BEAM: selector = "--beam-id"; break;
+            case EDITOR_ITEM_SOFT_AREA: selector = "--area-id"; break;
+            default: break;
+        }
+        if(!selector || !path || !output || !capacity) return editor_result_error(
+            EDITOR_ERROR_INVALID_ARGUMENT, "Invalid layer command output");
+        char object[24], parent[24], item[24], direct[24], named[24];
+        snprintf(object, sizeof(object), "%u", command->data.layer_set.object);
+        snprintf(parent, sizeof(parent), "%u", command->data.layer_set.parent);
+        snprintf(item, sizeof(item), "%u", command->data.layer_set.item);
+        snprintf(direct, sizeof(direct), "%d", command->data.layer_set.binding.value);
+        snprintf(named, sizeof(named), "%u", command->data.layer_set.binding.layer);
+        size_t used = 0;
+        output[0] = 0;
+        const char *prefix[] = {"rohr-cli", "--project", path, "--object-id", object};
+        for(size_t i = 0; i < sizeof(prefix)/sizeof(*prefix); ++i)
+            if(!cli_token_add(output, capacity, &used, prefix[i])) goto full;
+        if(command->data.layer_set.parent &&
+                (!cli_token_add(output, capacity, &used, "--soft-body-id") ||
+                 !cli_token_add(output, capacity, &used, parent))) goto full;
+        const char *suffix[] = {selector, item, "--property", "layer-binding", "set", direct, named,
+            command->data.layer_set.inherited ? "true" : "false"};
+        for(size_t i = 0; i < sizeof(suffix)/sizeof(*suffix); ++i)
+            if(!cli_token_add(output, capacity, &used, suffix[i])) goto full;
         return editor_result_value(true);
     }
     if(command && command->type == EDITOR_COMMAND_APP_VISIBILITY)
@@ -1371,6 +1411,183 @@ full:
     return editor_result_error(EDITOR_ERROR_CAPACITY, "Area command exceeds output capacity");
 }
 
+/* Layer editing uses the same selector and binding rules for every drawable. */
+static const struct {
+    const char *name;
+    EditorItemKind kind;
+} cli_layer_kinds[] = {
+    {"body", EDITOR_ITEM_RIGID_BODY}, {"anchor", EDITOR_ITEM_ANCHOR},
+    {"camera", EDITOR_ITEM_CAMERA}, {"joint", EDITOR_ITEM_JOINT},
+    {"force", EDITOR_ITEM_FORCE}, {"torque", EDITOR_ITEM_TORQUE},
+    {"sprite", EDITOR_ITEM_SPRITE}, {"animated-sprite", EDITOR_ITEM_ANIMATED_SPRITE},
+    {"soft-body", EDITOR_ITEM_SOFT_BODY}, {"node", EDITOR_ITEM_SOFT_NODE},
+    {"beam", EDITOR_ITEM_SOFT_BEAM}, {"area", EDITOR_ITEM_SOFT_AREA}
+};
+
+static bool cli_layer_integer(const char *text, int64_t minimum, int64_t maximum, int64_t *value) {
+    char *end;
+    if(!text || !text[0]) return false;
+    errno = 0;
+    long long parsed = strtoll(text, &end, 10);
+    if(errno || *end || parsed < minimum || parsed > maximum) return false;
+    *value = parsed;
+    return true;
+}
+
+static uint32_t cli_layer_item_id(const EditorObject *object, EditorItemKind kind,
+        uint32_t parent, const char *name) {
+    uint32_t id = 0;
+#define FIND(items, count) do { \
+    for(size_t i = 0; i < (count); ++i) if(!strcmp((items)[i].name, name)) { \
+        if(id) return 0; \
+        id = (items)[i].id; \
+    } \
+} while(0)
+    switch(kind) {
+        case EDITOR_ITEM_RIGID_BODY: FIND(object->rigid_bodies, object->rigid_body_count); break;
+        case EDITOR_ITEM_ANCHOR: FIND(object->anchors, object->anchor_count); break;
+        case EDITOR_ITEM_CAMERA: FIND(object->cameras, object->camera_count); break;
+        case EDITOR_ITEM_FORCE: FIND(object->force_items, object->force_count); break;
+        case EDITOR_ITEM_TORQUE: FIND(object->torque_items, object->torque_count); break;
+        case EDITOR_ITEM_JOINT: FIND(object->joint_items, object->joint_count); break;
+        case EDITOR_ITEM_SOFT_BODY: FIND(object->soft_body_items, object->soft_body_count); break;
+        case EDITOR_ITEM_SPRITE: FIND(object->sprites, object->sprite_count); break;
+        case EDITOR_ITEM_ANIMATED_SPRITE: FIND(object->animated_sprite_items, object->animated_sprite_count); break;
+        case EDITOR_ITEM_SOFT_NODE:
+        case EDITOR_ITEM_SOFT_BEAM:
+        case EDITOR_ITEM_SOFT_AREA:
+            for(size_t b = 0; b < object->soft_body_count; ++b) {
+                const EditorSoftBody *body = &object->soft_body_items[b];
+                if(body->id != parent) continue;
+                if(kind == EDITOR_ITEM_SOFT_NODE) { FIND(body->nodes, body->node_count); }
+                if(kind == EDITOR_ITEM_SOFT_BEAM) { FIND(body->beams, body->beam_count); }
+                if(kind == EDITOR_ITEM_SOFT_AREA) { FIND(body->areas, body->area_count); }
+            }
+            break;
+        default: break;
+    }
+#undef FIND
+    return id;
+}
+
+static EditorResult cli_layer_parse(const EditorProject *project, int count, char **args,
+        const char **path, EditorCommand *command, bool *handled) {
+    *handled = false;
+    int property_index = 0;
+    for(int i = 1; i + 1 < count; ++i)
+        if(!strcmp(args[i], "--property") &&
+                (!strcmp(args[i+1], "layer") || !strcmp(args[i+1], "layer-id") ||
+                 !strcmp(args[i+1], "layer-inherit") || !strcmp(args[i+1], "layer-binding"))) {
+            property_index = i;
+            break;
+        }
+    if(!property_index) return editor_result_value(true);
+    /* Viewport composition has its own selectors and placement commands. */
+    for(int i = 1; i < property_index; ++i)
+        if(!strcmp(args[i], "--viewport") || !strcmp(args[i], "--viewport-id") ||
+                !strcmp(args[i], "--screen") || !strcmp(args[i], "--screen-id"))
+            return editor_result_value(true);
+    *handled = true;
+    if(!project || property_index < 7) goto invalid;
+    EditorObjectId object_id = 0;
+    const EditorObject *object = NULL;
+    EditorItemKind kind = EDITOR_ITEM_OBJECT;
+    uint32_t parent = 0, item = 0;
+    const char *project_path = NULL;
+    for(int i = 1; i < property_index; i += 2) {
+        if(i + 1 >= property_index) goto invalid;
+        const char *flag = args[i], *value = args[i+1];
+        int64_t number;
+        if(!strcmp(flag, "--project")) {
+            if(project_path) goto invalid;
+            project_path = value;
+        } else if(!strcmp(flag, "--object-id") || !strcmp(flag, "--object")) {
+            if(object) goto invalid;
+            if(!strcmp(flag, "--object-id")) {
+                if(!cli_layer_integer(value, 1, UINT32_MAX, &number)) goto invalid;
+                object_id = (uint32_t)number;
+            } else {
+                for(size_t o = 0; o < project->object_count; ++o)
+                    if(!strcmp(project->objects[o].name, value)) {
+                        if(object_id) goto invalid;
+                        object_id = project->objects[o].id;
+                    }
+            }
+            object = editor_object_query_const_get(project, object_id);
+            if(!object) goto invalid;
+        } else {
+            if(!object) goto invalid;
+            bool found = false;
+            for(size_t k = 0; k < sizeof(cli_layer_kinds)/sizeof(*cli_layer_kinds); ++k) {
+                char name_flag[48], id_flag[48];
+                snprintf(name_flag, sizeof(name_flag), "--%s", cli_layer_kinds[k].name);
+                snprintf(id_flag, sizeof(id_flag), "--%s-id", cli_layer_kinds[k].name);
+                bool by_id = !strcmp(flag, id_flag);
+                if(!by_id && strcmp(flag, name_flag)) continue;
+                EditorItemKind next = cli_layer_kinds[k].kind;
+                if(kind != EDITOR_ITEM_OBJECT) {
+                    if(kind != EDITOR_ITEM_SOFT_BODY || (next != EDITOR_ITEM_SOFT_NODE &&
+                            next != EDITOR_ITEM_SOFT_BEAM && next != EDITOR_ITEM_SOFT_AREA)) goto invalid;
+                    parent = item;
+                }
+                kind = next;
+                if(by_id) {
+                    if(!cli_layer_integer(value, 1, UINT32_MAX, &number)) goto invalid;
+                    item = (uint32_t)number;
+                } else item = cli_layer_item_id(object, kind, parent, value);
+                if(!item) goto invalid;
+                found = true;
+                break;
+            }
+            if(!found) goto invalid;
+        }
+    }
+    if(!project_path || !object || !item) goto invalid;
+    bool *inherited = NULL;
+    EditorGraphicsLayerBinding *binding = editor_command_layer_get((EditorProject *)project,
+        kind, object_id, parent, item, &inherited);
+    if(!binding) goto invalid;
+    *command = (EditorCommand){.type = EDITOR_COMMAND_LAYER_SET,
+        .data.layer_set = {kind, object_id, parent, item, *binding, inherited && *inherited}};
+    const char *property = args[property_index+1];
+    int value_index = property_index + 2;
+    if(value_index < count && !strcmp(args[value_index], "set")) value_index++;
+    int64_t number;
+    if(!strcmp(property, "layer-binding")) {
+        if(value_index + 3 != count || !cli_layer_integer(args[value_index], INT_MIN, INT_MAX, &number)) goto invalid;
+        command->data.layer_set.binding.value = (int)number;
+        if(!cli_layer_integer(args[value_index+1], 0, UINT32_MAX, &number)) goto invalid;
+        command->data.layer_set.binding.layer = (uint32_t)number;
+        if(strcmp(args[value_index+2], "true") && strcmp(args[value_index+2], "false")) goto invalid;
+        command->data.layer_set.inherited = !strcmp(args[value_index+2], "true");
+    } else {
+        if(value_index + 1 != count) goto invalid;
+        const char *value = args[value_index];
+        if(!strcmp(property, "layer-inherit")) {
+            if(!inherited || (strcmp(value, "true") && strcmp(value, "false"))) goto invalid;
+            command->data.layer_set.inherited = !strcmp(value, "true");
+        } else if(!strcmp(property, "layer-id")) {
+            if(!cli_layer_integer(value, 0, UINT32_MAX, &number)) goto invalid;
+            command->data.layer_set.binding.layer = (uint32_t)number;
+            command->data.layer_set.inherited = false;
+        } else if(!strcmp(value, "inherit")) {
+            if(!inherited) goto invalid;
+            command->data.layer_set.inherited = true;
+        } else {
+            if(!cli_layer_integer(value, INT_MIN, INT_MAX, &number)) goto invalid;
+            command->data.layer_set.binding = (EditorGraphicsLayerBinding){.value = (int)number};
+            command->data.layer_set.inherited = false;
+        }
+    }
+    if((command->data.layer_set.binding.layer && !editor_project_graphics_layer_get(
+            (EditorProject *)project, command->data.layer_set.binding.layer)) ||
+            (command->data.layer_set.inherited && !inherited)) goto invalid;
+    *path = project_path;
+    return editor_result_value(true);
+invalid:
+    return editor_result_error(EDITOR_ERROR_INVALID_ARGUMENT, "Invalid layer target or binding");
+}
+
 EditorResult editor_command_cli_standard_parse(const EditorProject *project,
         int count, char **arguments, const char **path, EditorCommand *command) {
     CliInput input;
@@ -1392,6 +1609,8 @@ EditorResult editor_command_cli_standard_parse(const EditorProject *project,
         return editor_command_cli_parse(9, legacy, path, command);
     }
     bool input_handled = false;
+    EditorResult layer_result = cli_layer_parse(project, count, arguments, path, command, &input_handled);
+    if(input_handled) return layer_result;
     EditorResult source_result = editor_source_cli_parse(project, count, arguments, path, command, &input_handled);
     if(input_handled) return source_result;
     EditorResult area_result = cli_area_command_parse(project, count, arguments, path, command, &input_handled);

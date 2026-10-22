@@ -689,7 +689,7 @@ static bool com_priority_check(void) {
         box->vertex_count = 4;
         const Position corners[] = {{-20,-20},{20,-20},{20,20},{-20,20}};
         for(size_t v = 0; v < 4; v += 1)
-            box->vertices[v].position = (Position){corners[v].x, corners[v].y + y};
+            box->vertices[v].position = (Position){corners[v].x / zooms[z] * 2, corners[v].y / zooms[z] * 2 + y};
         PICK_REQUIRE(editor_mass_properties_get(body).center_available);
         cover->position = (Position){0,y};
         cover->size = (Scale){200 / zooms[z],200 / zooms[z]};

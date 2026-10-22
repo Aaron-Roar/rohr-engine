@@ -464,7 +464,7 @@ returning. The original failed fixture remains available for comparison.
 | 2. Visuals and visibility | Inspect `push_marker`, `spin_marker`, pin/weld/spring, the mirrored sprite, playing animations and `empty_animation`. Spring endpoints have different colors/scales/offsets. Toggle editor eyes separately from Visible in App, including the parent; rebuild and verify only app visibility affects runtime drawing and hidden bodies still simulate. Restore parent visibility without changing child settings. Empty animation must not prevent rendering. | Pending |
 | 3. Editor interaction | Select geometry, drag from the selecting press, use child-selection and rotation handles, and undo/redo each gesture. Pick force targets/references from menus and the viewport, checking hover highlights. Scroll a long selector; check modal menus do not move underlying items. Drag the slider thumb without moving its parent. Rename via Enter/Escape and confirm subsequent keyboard navigation works. | User-reported failures: oversized force/torque picking, persistent/overlapping child panels, first-element activation, object/joint scrolling, and delayed joint clamping. C6 panel lifecycle/scrolling and C8 source picking complete with user acceptance; C14 and broader interaction retests pending. |
 | 4. Input and audio | Exercise the starter's configured logical input actions and text entry without unintended gameplay input while editing. Run the installed-SDK `audio` example: Play Water Splash produces sound; music play/pause/resume and track switching work; Quit/escape shuts down. Review window size/aspect settings. Muted description defaults and queued/applied audio state retain their automated fixture evidence; silent startup alone is not proof of muted playback. | Pending |
-| 5. Project lifecycle and delivery | Build/run the application and Simulate Scene. The application includes direct-API extras; scene simulation contains authored objects. Verify run/pause/stop, return to Editor, close/reopen/reorder tabs through View, rebuild a visible edit and replay. Close/switch a project during an active build and verify cancellation; terminal interrupt reaches the subprocess. Launch installed-SDK artifacts outside their source directories. | User-reported failures: relocation, repeat builds, missing CMake recovery, generation diagnostics, and incomplete-joint generation. Startup error 21 reproduced in rohr-project-1. C1 diagnostics, C2 relocation/repeat builds, C3 missing CMake recovery, C4 partial-spawn startup, and C5 incomplete joints complete with verification below; C6 panel lifecycle/scrolling and C8 source picking also complete; C7 complete with its manual checks explicitly deferred; C9–C14 and broader interactive retests pending. |
+| 5. Project lifecycle and delivery | Build/run the application and Simulate Scene. The application includes direct-API extras; scene simulation contains authored objects. Verify run/pause/stop, return to Editor, close/reopen/reorder tabs through View, rebuild a visible edit and replay. Close/switch a project during an active build and verify cancellation; terminal interrupt reaches the subprocess. Launch installed-SDK artifacts outside their source directories. | User-reported failures: relocation, repeat builds, missing CMake recovery, generation diagnostics, and incomplete-joint generation. Startup error 21 reproduced in rohr-project-1. C1 diagnostics, C2 relocation/repeat builds, C3 missing CMake recovery, C4 partial-spawn startup, and C5 incomplete joints complete with verification below; C6 panel lifecycle/scrolling and C8 source picking also complete; C7 complete with its manual checks explicitly deferred; C9 complete with the additional panel check explicitly skipped; C10–C14 and broader interactive retests pending. |
 
 Preparation evidence (2026-10-21): full Linux build and **111/111 CTest tests
 pass**, including the installed-SDK comparisons and scene/build lifecycle
@@ -794,6 +794,37 @@ visuals; zoom and transformed arrows; overlap and context-menu targeting; and
 dragging/rotation with one-step undo/redo. Earlier review requests are resolved
 by this accepted refinement; C9–C14 remain unstarted. C7's deferred manual checks
 remain unverified.
+
+**C9 complete; additional panel confirmation explicitly skipped:** Render Layer controls
+live under Appearance, including the source/joint panels previously labeled
+Visuals. Anchors, camera guides, forces, and torques now have numeric/named
+bindings. Each item shares one binding across its visuals; editor annotations
+draw above application visuals, with deterministic layer ordering and matching
+selection/context targeting within each category. Anchors and camera guides
+remain editor-only, and soft-child inheritance is preserved.
+
+Bindings survive JSON, old-document defaults, duplicate/copy, undo/redo, named
+layer deletion, CLI commands, runtime import, and generated object catalogs.
+The layer command and compact history snapshots cover direct Appearance edits
+and registry changes without adding public engine APIs.
+
+Verification: 120/120 Linux tests pass after refreshing the installed SDK used
+by generated-consumer tests; the earlier stale-SDK failure is resolved. Linux
+editor/examples and Windows editor/tests cross-build without compiler warnings.
+Five focused ASan/UBSan tests pass with leak detection. Native Windows execution
+was not performed. Logs: `/tmp/c9_final_tests.log`, `/tmp/c9_sanitizer_tests.log`,
+`/tmp/c9_build.log`, and `/tmp/c9_windows_build.log`.
+
+The user confirmed PASS for the five review cases in
+`/tmp/c9-appearance-review`. A final audit then found missing GUI context wiring
+for the force, torque, joint, anchor, and camera layer controls. That omission
+is corrected; both platform builds and eight affected tests pass
+(`/tmp/c9_wiring_build.log`, `/tmp/c9_wiring_windows_build.log`,
+`/tmp/c9_wiring_tests.log`). The user explicitly skipped the additional focused
+review of those five panels in “C9 review - final appearance controls”. That
+check remains unverified; the earlier review PASS is retained. C9 closes with
+this recorded verification exception.
+C10–C14 remain untouched; C7's deferred manual checks remain unverified.
 
 ## Frozen fixture plan
 

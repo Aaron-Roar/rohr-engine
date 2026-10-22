@@ -92,6 +92,7 @@ static void author(EditorProject *p) {
             .location={.kind=location,.offset={1,2}},.orientation={.kind=angle,.offset=13}};
         if(location==ROHR_FORCE_COM_POSITION || location==ROHR_FORCE_ORIGIN_POSITION)
             f->description.location.reference=(ObjectSourceReference){OBJECT_SOURCE_BODY,body_id,0};
+        f->graphics_layer.value = 100 + location*4 + angle;
         if(location==ROHR_FORCE_BEAM_POSITION) {
             f->description.location.reference=(ObjectSourceReference){OBJECT_SOURCE_BEAM,beam_id,soft_id};
             f->description.location.anchor=ROHR_FORCE_BEAM_CENTER; f->description.location.fraction=.3f;
@@ -107,6 +108,7 @@ static void author(EditorProject *p) {
     }
     EditorTorque *t=editor_project_torque_add(p,o); assert(t);
     snprintf(t->name,sizeof(t->name),"spin");
+    t->graphics_layer.value = -55;
     t->description=(ObjectTorqueDescription){.target={OBJECT_SOURCE_BODY,body_id,0},.magnitude=-.5f};
     t=editor_project_torque_add(p,o); assert(t); snprintf(t->name,sizeof(t->name),"initial");
     t->description=(ObjectTorqueDescription){.mode=OBJECT_SOURCE_INITIAL};

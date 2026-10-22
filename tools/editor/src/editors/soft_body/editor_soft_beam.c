@@ -72,7 +72,8 @@ bool editor_soft_beam_editor_create(EditorSoftBeamEditor *editor,
     CREATE("Delete Beam", delete_label); CREATE("", stiffness_field);
     CREATE("", damping_field); CREATE("", thickness_field);
 #undef CREATE
-    if(!editor_mode_accordion_section_create(&editor->material_section, font,
+    if(!editor_mode_accordion_section_create(&editor->appearance_section, font, "Appearance", false) ||
+            !editor_mode_accordion_section_create(&editor->material_section, font,
             "Material", false)) goto fail;
     if(!editor_collision_controls_create(&editor->collision, font)) {
         editor_soft_beam_editor_destroy(editor); return false;
@@ -87,6 +88,7 @@ void editor_soft_beam_editor_destroy(EditorSoftBeamEditor *editor) {
     if(editor == NULL) return;
     editor_collision_controls_destroy(&editor->collision);
     editor_mode_accordion_section_destroy(&editor->material_section);
+    editor_mode_accordion_section_destroy(&editor->appearance_section);
     rohr_graphics_text_destroy(&editor->friction_label);
     rohr_graphics_text_destroy(&editor->restitution_label);
     rohr_graphics_text_destroy(&editor->friction_field);
@@ -281,7 +283,16 @@ bool editor_soft_beam_editor_draw(EditorSoftBeamEditor *editor,
         context->x + 10, cursor.y, context->width - 20, true);
     if(collision.changed) return true;
     field_active |= collision.active;
-    color_y = collision.bottom + 4;
+    cursor.y = collision.bottom + 4;
+    float layer_height = editor_mode_layer_control_height_get(context->layer_control,
+        beam->graphics_layer, &beam->graphics_layer_inherited);
+    float appearance_rows[] = {26, layer_height};
+    EditorModeAccordionLayoutResult appearance = editor_mode_accordion_layout_section(
+        &cursor, &editor->appearance_section, "editor.soft_beam.section.appearance",
+        appearance_rows, 2, 10);
+    bool layer_active = false;
+    if(appearance.expanded) {
+    color_y = appearance.content_y;
     layer_y = color_y + 36.0f;
     {
         bool inherit = !beam->color_overridden;
@@ -301,15 +312,12 @@ bool editor_soft_beam_editor_draw(EditorSoftBeamEditor *editor,
                 field_width, 26.0f}, context, EDITOR_ITEM_SOFT_BEAM,
             object->id, body->id, beam->id, EDITOR_PROPERTY_COLOR);
     }
-    bool layer_active = context->layer_control != NULL &&
+    layer_active = context->layer_control != NULL &&
         editor_mode_layer_control_draw(context->layer_control,
             "editor.soft_beam", context->project, &beam->graphics_layer,
             &beam->graphics_layer_inherited, context->x, layer_y,
             context->width);
-    float layer_height = context->layer_control == NULL ? 0.0f :
-        beam->graphics_layer.layer == 0 || context->layer_control->adding ||
-        context->layer_control->edited_layer != 0 ? 86.0f : 48.0f;
-    editor_mode_accordion_layout_measure_include(layer_y + layer_height);
+    }
     if(context->delete_y_get != NULL && context->delete_open_item != NULL &&
             !context->delete_footer) {
         UIButtonStyle style = editor_mode_delete_style_get();

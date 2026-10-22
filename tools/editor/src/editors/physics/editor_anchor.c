@@ -32,7 +32,9 @@ bool editor_anchor_editor_create(EditorAnchorEditor *editor, FontAsset *font) {
     CREATE("Delete Anchor", delete_label); CREATE("", x_field);
     CREATE("", y_field); CREATE("", rotation_field);
 #undef CREATE
-    if(!editor_mode_accordion_section_create(&editor->transform_section, font,
+    if(!editor_mode_accordion_section_create(&editor->appearance_section, font,
+            "Appearance", false) ||
+            !editor_mode_accordion_section_create(&editor->transform_section, font,
             "Transform", true) ||
             !editor_mode_accordion_section_create(&editor->attachment_section, font,
                 "Attachment", false)) goto fail;
@@ -54,6 +56,7 @@ void editor_anchor_editor_destroy(EditorAnchorEditor *editor) {
     DESTROY(x_field); DESTROY(y_field); DESTROY(rotation_field);
 #undef DESTROY
     editor_mode_accordion_section_destroy(&editor->transform_section);
+    editor_mode_accordion_section_destroy(&editor->appearance_section);
     editor_mode_accordion_section_destroy(&editor->attachment_section);
     for(size_t i = 0; i < EDITOR_ANCHOR_MAX; i += 1)
         rohr_graphics_text_destroy(&editor->anchor_names[i]);
@@ -124,6 +127,16 @@ bool editor_anchor_editor_draw(EditorAnchorEditor *editor,
         editor_mode_accordion_layout_section(&accordion,
             &editor->transform_section, "editor.anchor.section.transform",
             transform_rows, 2, 6.0f);
+    float layer_height = editor_mode_layer_control_height_get(context->layer_control,
+        anchor->graphics_layer, NULL);
+    EditorModeAccordionLayoutResult appearance = editor_mode_accordion_layout_section(
+        &accordion, &editor->appearance_section, "editor.anchor.section.appearance",
+        &layer_height, 1, 0);
+    bool layer_active = false;
+    if(appearance.expanded)
+        layer_active = editor_mode_layer_control_draw(context->layer_control,
+            "editor.anchor", context->project, &anchor->graphics_layer, NULL,
+            context->x, appearance.content_y, context->width);
     EditorModeAccordionLayoutResult attachment =
         editor_mode_accordion_layout_section(&accordion,
             &editor->attachment_section, "editor.anchor.section.attachment",
@@ -279,6 +292,6 @@ bool editor_anchor_editor_draw(EditorAnchorEditor *editor,
                     context->width - 20.0f, 34.0f}, &style).clicked)
             (void)context->delete_open_item(context->delete_context);
     }
-    return name_result.active || x_result.active || y_result.active ||
+    return layer_active || name_result.active || x_result.active || y_result.active ||
         rotation_result.active;
 }

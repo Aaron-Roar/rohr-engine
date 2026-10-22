@@ -275,6 +275,8 @@ static bool body_layers_check(void) {
     (void)editor_viewport_update(&state, &project, center,
         MOUSE_BUTTON_STATE_RELEASED, MOUSE_BUTTON_STATE_UP, false, 0, false);
     editor_viewport_selection_clear(&state);
+    state.selection = EDITOR_SELECTION_NONE;
+    state.selected_rigid_body = 0;
     state.mode = EDITOR_VIEWPORT_OBJECT;
 
     EditorGraphicsLayer *named = editor_project_graphics_layer_add(&project, "front", 25);
@@ -309,7 +311,8 @@ static bool body_layers_check(void) {
     CHECK(pixel_check(center, (Color){0,255,0,255}));
     node->graphics_layer_inherited = false;
     node->graphics_layer.value = -20;
-    CHECK(editor_viewport_selection_at_get(&project, &state, center, &hit) && hit.item == b->id);
+    CHECK(editor_viewport_selection_at_get(&project, &state, center, &hit) &&
+        hit.kind == EDITOR_SELECTION_SOFT_BODY && hit.item == soft->id);
     node->graphics_layer = a->graphics_layer;
     CHECK(editor_project_graphics_layer_set(&project, named->id, "front", 30));
     CHECK(editor_viewport_selection_at_get(&project, &state, center, &hit));
@@ -811,6 +814,50 @@ static bool soft_area_picking_check(void) {
     return true;
 }
 
+static bool annotation_layers_check(void) {
+    EditorProject p; editor_project_init(&p);
+    EditorViewportState state; editor_viewport_state_init(&state);
+    EditorObject *o = editor_project_object_add(&p, (Position){0}); CHECK(o);
+    EditorRigidBody *body = editor_project_rigid_body_add(&p, o); CHECK(body);
+    body->graphics_layer.value = INT_MAX;
+    body->surface_color = 0xff0000ff;
+    Shape shape = rohr_math_square_create(300, 300);
+    for(int i = 0; i < shape.amount_of_vertices; ++i)
+        body->hitboxes[0].vertices[i].position = shape.vertices[i];
+    EditorAnchor *anchor = editor_project_anchor_add(&p, o, (Position){0,20}, 0); CHECK(anchor);
+    anchor->graphics_layer.value = INT_MIN;
+    EditorForce *force = editor_project_force_add(&p, o); CHECK(force);
+    force->graphics_layer.value = INT_MIN + 1;
+    force->description.magnitude = 1;
+    force->app_hidden = true;
+    p.viewport_local_view = false; p.viewport_camera_zoom = 1;
+    state.mode = EDITOR_VIEWPORT_OBJECT;
+    Position point = {EDITOR_VIEWPORT_WIDTH * .5f,
+        EDITOR_MENU_HEIGHT + (EDITOR_VIEWPORT_BOTTOM - EDITOR_MENU_HEIGHT) * .5f - 20};
+    EditorSelectionRef hit;
+    /* Numeric extremes cannot move app fill in front of annotation strokes. */
+    CHECK(editor_viewport_selection_at_get(&p, &state, point, &hit));
+    CHECK(hit.kind == EDITOR_SELECTION_FORCE && hit.item == force->id);
+    draw(&p, &state);
+    CHECK(pixel_check(point, (Color){80,210,245,255}));
+    EditorGraphicsLayer *named = editor_project_graphics_layer_add(&p, "guide_front", INT_MAX); CHECK(named);
+    anchor->graphics_layer.layer = named->id;
+    CHECK(editor_viewport_selection_at_get(&p, &state, point, &hit));
+    CHECK(hit.kind == EDITOR_SELECTION_ANCHOR && hit.item == anchor->id);
+    draw(&p, &state);
+    CHECK(pixel_check(point, (Color){235,150,215,255}));
+    anchor->visible = false; force->visible = false;
+    CHECK(editor_viewport_selection_at_get(&p, &state, point, &hit));
+    CHECK(hit.kind == EDITOR_SELECTION_RIGID_BODY);
+    draw(&p, &state); CHECK(pixel_check(point, (Color){255,0,0,255}));
+    EditorCamera *camera = editor_project_camera_add(&p, o); CHECK(camera);
+    camera->position = (Position){0,20}; camera->graphics_layer.value = INT_MIN;
+    CHECK(editor_viewport_selection_at_get(&p, &state, point, &hit));
+    CHECK(hit.kind == EDITOR_SELECTION_CAMERA && hit.item == camera->id);
+    editor_viewport_state_destroy(&state); editor_project_destroy(&p);
+    return true;
+}
+
 bool editor_layers_check(void) {
     OK(rohr_engine_start());
     OK(rohr_graphics_start());
@@ -820,7 +867,7 @@ bool editor_layers_check(void) {
     OK(rohr_viewport_camera_clear(viewport.result.value));
     OK(rohr_viewport_disable_set(viewport.result.value));
     CHECK(SDL_SaveFile("editor_layers_frame.png", test_png, sizeof(test_png)));
-    bool passed = body_layers_check();
+    bool passed = annotation_layers_check() && body_layers_check();
 #ifdef ROHR_TEST_PREVIEW_WRAP
     if(passed) passed = rotated_preview_background_check();
     if(passed) passed = rotated_preview_content_check();

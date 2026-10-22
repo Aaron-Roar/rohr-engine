@@ -190,7 +190,8 @@ bool editor_rigid_body_editor_draw(EditorRigidBodyEditor *editor,
     float geometry_active_label_y = 0.0f, geometry_active_field_y = 0.0f;
     float geometry_add_y = 0.0f, geometry_list_y = 0.0f;
     float geometry_list_stride = 0.0f;
-    float transform_row_y[5] = {0}, physics_row_y[4] = {0};
+    float layer_y = 0;
+    float transform_row_y[4] = {0}, physics_row_y[4] = {0};
     float initial_motion_row_y[5] = {0};
     float material_row_y[2] = {0}, appearance_row_y[2] = {0};
     bool transform_open, initial_motion_open, physics_open, material_open,
@@ -235,10 +236,8 @@ bool editor_rigid_body_editor_draw(EditorRigidBodyEditor *editor,
         }
     }
     {
-        float layer_height = body->graphics_layer.layer == 0 ||
-            (context->layer_control != NULL &&
-                (context->layer_control->adding ||
-                    context->layer_control->edited_layer != 0)) ? 86.0f : 48.0f;
+        float layer_height = editor_mode_layer_control_height_get(context->layer_control,
+            body->graphics_layer, NULL);
         size_t binding_frame_count = 0;
         if(editor->binding_hitbox_open != 0) {
             for(size_t animation = 0; animation < object->animated_sprite_count;
@@ -254,8 +253,7 @@ bool editor_rigid_body_editor_draw(EditorRigidBodyEditor *editor,
         }
         const EditorModeAccordionLayoutGroup transform_groups[] = {
             {.row_count = 3, .row_height = 26.0f, .row_gap = 6.0f},
-            {.row_count = 1, .row_height = 28.0f, .gap_before = 6.0f},
-            {.row_count = 1, .row_height = layer_height, .gap_before = 4.0f}};
+            {.row_count = 1, .row_height = 28.0f, .gap_before = 6.0f}};
         const EditorModeAccordionLayoutGroup physics_groups[] = {
             {.row_count = 1, .row_height = 28.0f},
             {.row_count = 1, .row_height = 26.0f, .gap_before = 4.0f},
@@ -266,7 +264,7 @@ bool editor_rigid_body_editor_draw(EditorRigidBodyEditor *editor,
             26.0f, 26.0f, 26.0f, 26.0f, 26.0f};
         const float material_rows[] = {26.0f, 26.0f};
         const float parenting_rows[] = {26.0f};
-        const float appearance_rows[] = {26.0f, 26.0f};
+        const float appearance_rows[] = {26.0f, 26.0f, layer_height};
         EditorModeAccordionLayoutGroup collision_groups[] = {
             {.row_count = 1, .row_height = editor_collision_controls_height_get(
                 &editor->collision, context->project, true) + 32.0f}};
@@ -312,7 +310,7 @@ bool editor_rigid_body_editor_draw(EditorRigidBodyEditor *editor,
         EditorModeAccordionLayoutResult transform_layout =
             editor_mode_accordion_layout_nested_section(&accordion,
                 &editor->transform_section,
-                "editor.rigid_body.section.transform", transform_groups, 3);
+                "editor.rigid_body.section.transform", transform_groups, 2);
         transform_open = transform_layout.expanded;
         EditorModeAccordionLayoutResult initial_motion_layout =
             editor_mode_accordion_layout_section(&accordion,
@@ -342,7 +340,7 @@ bool editor_rigid_body_editor_draw(EditorRigidBodyEditor *editor,
             "editor.rigid_body.section.parenting", parenting_rows, 1, 0.0f,
             parenting_open, parenting_y);
         SECTION_LAYOUT(editor->appearance_section,
-            "editor.rigid_body.section.appearance", appearance_rows, 2, 6.0f,
+            "editor.rigid_body.section.appearance", appearance_rows, 3, 6.0f,
             appearance_open, appearance_y);
         EditorModeAccordionLayoutResult geometry_layout =
             editor_mode_accordion_layout_nested_section(&accordion,
@@ -353,11 +351,10 @@ bool editor_rigid_body_editor_draw(EditorRigidBodyEditor *editor,
         for(size_t row = 0; row < 3; row += 1)
             transform_row_y[row] =
                 editor_mode_accordion_layout_group_row_y(&transform_layout,
-                    transform_groups, 3, 0, row);
+                    transform_groups, 2, 0, row);
         transform_row_y[3] = editor_mode_accordion_layout_group_row_y(
-            &transform_layout, transform_groups, 3, 1, 0);
-        transform_row_y[4] = editor_mode_accordion_layout_group_row_y(
-            &transform_layout, transform_groups, 3, 2, 0);
+            &transform_layout, transform_groups, 2, 1, 0);
+        layer_y = appearance_y + 64.0f;
         for(size_t row = 0; row < 4; row += 1)
             physics_row_y[row] = editor_mode_accordion_layout_group_row_y(
                 &physics_layout, physics_groups, 4, row, 0);
@@ -433,10 +430,7 @@ bool editor_rigid_body_editor_draw(EditorRigidBodyEditor *editor,
             &field_style);
         if(result.changed) property_bool_set(context->project, object->id, body->id,
             EDITOR_PROPERTY_ROTATION_LOCKED, result.selected_index == 1);
-        if(context->layer_control != NULL)
-            field_active = editor_mode_layer_control_draw(context->layer_control,
-                "editor.rigid_body", context->project, &body->graphics_layer,
-                NULL, x, transform_row_y[4], width) || field_active;
+
     }
     if(initial_motion_open) {
         TextAsset *labels[] = {&editor->velocity_x_label,
@@ -499,6 +493,10 @@ bool editor_rigid_body_editor_draw(EditorRigidBodyEditor *editor,
     }
 #undef FLOAT_FIELD
     if(appearance_open) {
+        if(context->layer_control != NULL)
+            field_active = editor_mode_layer_control_draw(context->layer_control,
+                "editor.rigid_body", context->project, &body->graphics_layer,
+                NULL, x, layer_y, width) || field_active;
         rohr_ui_label(&editor->border_color_label,
             (UIRect){x + 8.0f, appearance_row_y[0], 104.0f, 26.0f});
         if(context->color_open != NULL) editor_mode_color_swatch(

@@ -252,6 +252,7 @@ static bool sources_import(ImportContext *c, ObjectDescription *root, const Edit
         ObjectDescription *d = add(c, root, o, NULL, OBJECT_FORCE, f->id, f->name);
         if(!d || !object_visuals_check(f->visuals)) return false;
         d->force = f->description; d->visuals = f->visuals;
+        d->layer = layer(c->project, f->graphics_layer);
         d->visible = !f->app_hidden; d->color = (Color){240, 180, 70, 255};
         ObjectForceOrientation *v = &d->force.orientation;
         if(!source_reference_import(c,o,&d->force.target) || !source_location_import(c,o,&d->force.location)) return false;
@@ -264,6 +265,7 @@ static bool sources_import(ImportContext *c, ObjectDescription *root, const Edit
         ObjectDescription *d = add(c,root,o,NULL,OBJECT_TORQUE,t->id,t->name);
         if(!d || !object_visuals_check(t->visuals)) return false;
         d->torque = t->description; d->visuals = t->visuals;
+        d->layer = layer(c->project, t->graphics_layer);
         d->visible = !t->app_hidden; d->color = (Color){240, 180, 70, 255};
         if(!source_reference_import(c,o,&d->torque.target)) return false;
     }

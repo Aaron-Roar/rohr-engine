@@ -202,7 +202,8 @@ bool editor_soft_body_editor_draw(EditorSoftBodyEditor *editor,
     bool field_active = false, transform_open, initial_motion_open, appearance_open,
         topology_open;
     float section_y = 118.0f;
-    float transform_row_y[4] = {0};
+    float layer_y = 0;
+    float transform_row_y[3] = {0};
     float initial_motion_row_y[5] = {0};
     float appearance_row_y[2] = {0};
     float topology_origin_y = 0.0f, topology_auto_shape_y = 0.0f;
@@ -245,15 +246,11 @@ bool editor_soft_body_editor_draw(EditorSoftBodyEditor *editor,
         }
     }
     {
-        float layer_height = body->graphics_layer.layer == 0 ||
-            (context->layer_control != NULL &&
-                (context->layer_control->adding ||
-                    context->layer_control->edited_layer != 0)) ? 86.0f : 48.0f;
+        float layer_height = editor_mode_layer_control_height_get(context->layer_control,
+            body->graphics_layer, NULL);
         const EditorModeAccordionLayoutGroup transform_groups[] = {
-            {.row_count = 3, .row_height = 26.0f, .row_gap = 10.0f},
-            {.row_count = 1, .row_height = layer_height,
-                .gap_before = 10.0f}};
-        const float appearance_rows[] = {26.0f, 26.0f};
+            {.row_count = 3, .row_height = 26.0f, .row_gap = 10.0f}};
+        const float appearance_rows[] = {26.0f, 26.0f, layer_height};
         const float initial_motion_rows[] = {
             26.0f, 26.0f, 26.0f, 26.0f, 26.0f};
         EditorModeAccordionLayoutGroup topology_groups[3] = {
@@ -278,7 +275,7 @@ bool editor_soft_body_editor_draw(EditorSoftBodyEditor *editor,
         EditorModeAccordionLayoutResult transform =
             editor_mode_accordion_layout_nested_section(&accordion,
                 &editor->transform_section,
-                "editor.soft_body.section.transform", transform_groups, 2);
+                "editor.soft_body.section.transform", transform_groups, 1);
         const float physics_rows[] = {26,26,26,26};
         EditorModeAccordionLayoutResult physics = editor_mode_accordion_layout_section(
             &accordion, &editor->physics_section, "editor.soft_body.section.physics",
@@ -298,7 +295,7 @@ bool editor_soft_body_editor_draw(EditorSoftBodyEditor *editor,
         appearance =
             editor_mode_accordion_layout_section(&accordion,
                 &editor->appearance_section,
-                "editor.soft_body.section.appearance", appearance_rows, 2,
+                "editor.soft_body.section.appearance", appearance_rows, 3,
                 6.0f);
         accordion.y = editor_soft_area_list_draw(&editor->areas, context, body, accordion.y);
         EditorModeAccordionLayoutResult topology =
@@ -310,9 +307,8 @@ bool editor_soft_body_editor_draw(EditorSoftBodyEditor *editor,
         for(size_t row = 0; row < 3; row += 1)
             transform_row_y[row] =
                 editor_mode_accordion_layout_group_row_y(&transform,
-                    transform_groups, 2, 0, row);
-        transform_row_y[3] = editor_mode_accordion_layout_group_row_y(
-            &transform, transform_groups, 2, 1, 0);
+                    transform_groups, 1, 0, row);
+        layer_y = appearance.content_y + 64.0f;
         appearance_open = appearance.expanded;
         for(size_t row = 0; row < 2; row += 1)
             appearance_row_y[row] = editor_mode_accordion_layout_row_y(
@@ -357,10 +353,7 @@ bool editor_soft_body_editor_draw(EditorSoftBodyEditor *editor,
             (UIFieldBinding){.kind = UI_FIELD_FLOAT, .number = &rotation},
             &editor->rotation_field, (UIRect){context->x + 92.0f,
                 transform_row_y[2], context->width - 102.0f, 26.0f}, &style);
-        if(context->layer_control != NULL)
-            layer_active = editor_mode_layer_control_draw(context->layer_control,
-                "editor.soft_body", context->project, &body->graphics_layer, NULL,
-                context->x, transform_row_y[3], context->width);
+
     }
     if(x_result.changed || y_result.changed || rotation_result.changed) {
         EditorCommand command = {.type = EDITOR_COMMAND_SOFT_BODY_TRANSFORM,
@@ -403,6 +396,10 @@ bool editor_soft_body_editor_draw(EditorSoftBodyEditor *editor,
         }
     }
     if(appearance_open) {
+        if(context->layer_control != NULL)
+            layer_active = editor_mode_layer_control_draw(context->layer_control,
+                "editor.soft_body", context->project, &body->graphics_layer, NULL,
+                context->x, layer_y, context->width);
     (void)editor_mode_color_swatch("editor.soft_body.node_color",
         &body->node_color, false, (UIRect){context->x + 100.0f,
             appearance_row_y[0],
