@@ -151,18 +151,40 @@ Position editor_torque_marker_position_get(const EditorObject *object,const Edit
     return p;
 }
 
+/* Two convex quads share their miter edge, producing one continuous tip.
+ * Drawing and picking consume these same polygons. */
+void editor_source_arrow_head_quads_get(Position center, Orientation angle, float scale,
+        Position quads[2][4]) {
+    if(quads==NULL || scale<=0) return;
+    float width=EDITOR_SOURCE_MARKER_HEAD_WIDTH/scale;
+    float length=EDITOR_SOURCE_MARKER_HEAD_LENGTH/scale;
+    for(size_t i=0;i<2;++i) {
+        float side=i?1.0f:-1.0f;
+        Position end={side*length*.5f,-length*0.866025404f};
+        Position normal={side*0.866025404f,.5f};
+        Position local[4]={{0,width},
+            {end.x+normal.x*width*.5f,end.y+normal.y*width*.5f},
+            {end.x-normal.x*width*.5f,end.y-normal.y*width*.5f},{0,-width}};
+        for(size_t j=0;j<4;++j) quads[i][j]=add(center,rotate(local[j],angle));
+    }
+}
+
 bool editor_torque_marker_strokes_get(const EditorObject *object,const EditorTorque *torque,float scale,
         Position strokes[EDITOR_TORQUE_MARKER_STROKE_COUNT][2]) {
     if(!object || !torque || !torque->visible || !strokes || scale<=0) return false;
     Position center=editor_torque_marker_position_get(object,torque);
     float sign=torque->description.magnitude<0?-1.0f:1.0f;
-    const float radius=44.0f/scale,head=14.0f/scale;
+    const float radius=44.0f/scale,head=EDITOR_SOURCE_MARKER_HEAD_LENGTH/scale;
     Position previous={center.x,center.y+radius};
     for(size_t i=0;i<32;++i) {
         float angle=math_degrees_to_radians(sign*270.0f*(i+1)/32);
         Position next={center.x+radius*sinf(angle),center.y+radius*cosf(angle)};
         strokes[i][0]=previous; strokes[i][1]=next; previous=next;
     }
+    /* Stop the shaft inside the joined head rather than exposing a flat cap. */
+    Position end=strokes[31][1],before=strokes[31][0];
+    float trim=EDITOR_SOURCE_MARKER_HEAD_WIDTH/(scale*hypotf(end.x-before.x,end.y-before.y));
+    strokes[31][1]=(Position){end.x+(before.x-end.x)*trim,end.y+(before.y-end.y)*trim};
     for(size_t i=0;i<2;++i) {
         float angle=math_degrees_to_radians(sign*360.0f+180.0f+(i?30.0f:-30.0f));
         strokes[32+i][0]=previous;

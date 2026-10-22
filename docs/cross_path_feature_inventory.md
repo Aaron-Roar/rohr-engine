@@ -462,9 +462,9 @@ returning. The original failed fixture remains available for comparison.
 |---|---|---|
 | 1. Composition and presentation | The left/right screens have different rotation, placement and resolution. The left screen extends past the viewport edge and clips. The red bar draws over the left screen but under the right; the green panel stays above both. Text wraps, rotates and clips. Resize wider/taller without losing content or distorting aspect. In the viewport editor, move/rotate a screen and change camera zoom/content transforms; placement and content remain independent after rebuilding. | PASS after corrective retests: runtime layering, text wrapping/rotation/clipping, resizing, Sway stability and camera zoom were accepted earlier. The user then confirmed PASS for the corrected camera preview and rotated clipping. Earlier screen-editor failures are resolved. |
 | 2. Visuals and visibility | Inspect `push_marker`, `spin_marker`, pin/weld/spring, the mirrored sprite, playing animations and `empty_animation`. Spring endpoints have different colors/scales/offsets. Toggle editor eyes separately from Visible in App, including the parent; rebuild and verify only app visibility affects runtime drawing and hidden bodies still simulate. Restore parent visibility without changing child settings. Empty animation must not prevent rendering. | Pending |
-| 3. Editor interaction | Select geometry, drag from the selecting press, use child-selection and rotation handles, and undo/redo each gesture. Pick force targets/references from menus and the viewport, checking hover highlights. Scroll a long selector; check modal menus do not move underlying items. Drag the slider thumb without moving its parent. Rename via Enter/Escape and confirm subsequent keyboard navigation works. | User-reported failures: oversized force/torque picking, persistent/overlapping child panels, first-element activation, object/joint scrolling, and delayed joint clamping. C6 panel lifecycle/scrolling complete with user acceptance; C8/C14 and broader interaction retests pending. |
+| 3. Editor interaction | Select geometry, drag from the selecting press, use child-selection and rotation handles, and undo/redo each gesture. Pick force targets/references from menus and the viewport, checking hover highlights. Scroll a long selector; check modal menus do not move underlying items. Drag the slider thumb without moving its parent. Rename via Enter/Escape and confirm subsequent keyboard navigation works. | User-reported failures: oversized force/torque picking, persistent/overlapping child panels, first-element activation, object/joint scrolling, and delayed joint clamping. C6 panel lifecycle/scrolling and C8 source picking complete with user acceptance; C14 and broader interaction retests pending. |
 | 4. Input and audio | Exercise the starter's configured logical input actions and text entry without unintended gameplay input while editing. Run the installed-SDK `audio` example: Play Water Splash produces sound; music play/pause/resume and track switching work; Quit/escape shuts down. Review window size/aspect settings. Muted description defaults and queued/applied audio state retain their automated fixture evidence; silent startup alone is not proof of muted playback. | Pending |
-| 5. Project lifecycle and delivery | Build/run the application and Simulate Scene. The application includes direct-API extras; scene simulation contains authored objects. Verify run/pause/stop, return to Editor, close/reopen/reorder tabs through View, rebuild a visible edit and replay. Close/switch a project during an active build and verify cancellation; terminal interrupt reaches the subprocess. Launch installed-SDK artifacts outside their source directories. | User-reported failures: relocation, repeat builds, missing CMake recovery, generation diagnostics, and incomplete-joint generation. Startup error 21 reproduced in rohr-project-1. C1 diagnostics, C2 relocation/repeat builds, C3 missing CMake recovery, C4 partial-spawn startup, and C5 incomplete joints complete with verification below; C6 panel lifecycle/scrolling also complete; C7–C14 and broader interactive retests pending. |
+| 5. Project lifecycle and delivery | Build/run the application and Simulate Scene. The application includes direct-API extras; scene simulation contains authored objects. Verify run/pause/stop, return to Editor, close/reopen/reorder tabs through View, rebuild a visible edit and replay. Close/switch a project during an active build and verify cancellation; terminal interrupt reaches the subprocess. Launch installed-SDK artifacts outside their source directories. | User-reported failures: relocation, repeat builds, missing CMake recovery, generation diagnostics, and incomplete-joint generation. Startup error 21 reproduced in rohr-project-1. C1 diagnostics, C2 relocation/repeat builds, C3 missing CMake recovery, C4 partial-spawn startup, and C5 incomplete joints complete with verification below; C6 panel lifecycle/scrolling and C8 source picking also complete; C7 complete with its manual checks explicitly deferred; C9–C14 and broader interactive retests pending. |
 
 Preparation evidence (2026-10-21): full Linux build and **111/111 CTest tests
 pass**, including the installed-SDK comparisons and scene/build lifecycle
@@ -718,7 +718,7 @@ windows and could not be reproduced. Two editor builds were open; the cause of
 that transient observation is unconfirmed. C7–C14 and the remaining broader
 interactive acceptance checks remain open.
 
-**C7 implementation and verification (interactive review pending):** Build
+**C7 complete; manual verification explicitly deferred:** Build
 Settings now exposes ten shared path locations, with scrolling, resolved paths,
 Browse, Reset, and fixed Apply/Cancel controls. Workspace path changes retain
 original content until copies are verified and metadata commits; conflicts,
@@ -750,12 +750,50 @@ regressions, sanitizer checks, and Windows cross-builds also passed after the
 nested-path, preview-font, and durable metadata-recovery follow-up fixes. The
 120-test suite passed before the final metadata-backup-only change.
 
-User review remains **Not tested yet**. Use the C7 review editor with
+The user explicitly deferred C7's five manual checks; they remain **unverified**,
+not passed. Revisit them after milestone implementation and during incremental
+full-game testing. This is a C7-only exception: other manual checks remain
+required unless the user explicitly chooses to defer them when presented.
+Use the C7 review editor with
 `/tmp/c7-path-review`: verify all rows and fixed actions; Apply custom assets,
 generated, build, application, and scene paths; build and simulate; reopen to
 check persistence; relocate the project while preserving `/tmp/c7-sdk`; reject
-an occupied generated-source destination without losing content. C7 remains
-open until this review passes. C8–C14 remain untouched.
+an occupied generated-source destination without losing content. C7 is closed
+with this recorded verification exception. C8 continues below; C9–C14 remain
+untouched.
+
+**C8 complete; manual review passed:** Force and torque
+annotation picking follows the drawn shaft rectangles and shared arrowhead
+polygons. Both shafts use 8.32 / 1.4 screen pixels; shorter chevron heads use 70%
+of that thickness and a joined tip. Drawing and picking consume the same head
+polygons. The force origin circle is decorative; empty torque centers and gaps
+allow underlying-body selection. Force rotation handles retain their original
+size and 14-pixel click buffer. App visual polygon picking remains unchanged.
+Returning to a previously edited body now replaces the shared selection list,
+preventing stale force/torque highlights.
+
+Force/torque regressions cover exact edges and joined tips, empty regions,
+underlying-body selection, zoom, signed/zero magnitude, visibility, rotation
+controls, dragging and history. Both pass at the current geometry, including
+regressions that reproduced the stale-selection failure before its fix.
+
+Final verification after all refinements: all 120 Linux tests pass, including
+installed-SDK application and scene integration; Linux editor and examples
+build without compiler warnings. Five focused ASan/UBSan tests (force, torque,
+navigation, visibility and history) pass with leak detection outside the
+sandbox. Windows editor and force/torque tests cross-compile without compiler
+warnings; native Windows execution was not performed. `git diff --check HEAD`
+passes. Verification logs: `/tmp/c8_review_build.log`,
+`/tmp/c8_review_tests.log`, `/tmp/c8_review_sanitizer_build.log`,
+`/tmp/c8_sanitizer_tests.log` and `/tmp/c8_review_windows_build.log`.
+
+User verification: PASS in the updated editor after the final geometry and
+selection-handoff refinements. Review fixture: `/tmp/c8-picking-review`. The five
+checks cover nearby-body selection and clearing the old highlight; hidden/app
+visuals; zoom and transformed arrows; overlap and context-menu targeting; and
+dragging/rotation with one-step undo/redo. Earlier review requests are resolved
+by this accepted refinement; C9–C14 remain unstarted. C7's deferred manual checks
+remain unverified.
 
 ## Frozen fixture plan
 

@@ -45,8 +45,70 @@ static void version_check(const char *path) {
     }
     yyjson_doc_free(doc);
 }
+static bool torque_picked(EditorProject *p,EditorViewportState *state,Position at,uint32_t id) {
+    EditorSelectionRef hit={0};
+    return editor_viewport_selection_at_get(p,state,screen(at,p->viewport_camera_zoom),&hit) &&
+        hit.kind==EDITOR_SELECTION_TORQUE && hit.item==id;
+}
+static void precise_torque_picking_check(void) {
+    EditorProject p={0}; editor_project_init(&p); p.viewport_local_view=false;
+    EditorObject *o=editor_project_object_add(&p,(Position){0}); assert(o);
+    EditorRigidBody *body=editor_project_rigid_body_add(&p,o); assert(body);
+    Shape square=rohr_math_square_create(1000,1000);
+    for(size_t i=0;i<square.amount_of_vertices;++i) body->hitboxes[0].vertices[i].position=square.vertices[i];
+    EditorTorque *t=editor_project_torque_add(&p,o); assert(t); t->app_hidden=true;
+    EditorViewportState state={0}; editor_viewport_state_init(&state); state.mode=EDITOR_VIEWPORT_OBJECT;
+    const size_t tested[]={0,8,16,24,32,33};
+    for(unsigned z=0;z<3;++z) for(int sign=-1;sign<=1;++sign) {
+        float zoom=z==0?.25f:z==1?1:4; p.viewport_camera_zoom=zoom; t->description.magnitude=sign;
+        Position strokes[EDITOR_TORQUE_MARKER_STROKE_COUNT][2];
+        assert(editor_torque_marker_strokes_get(o,t,zoom,strokes));
+        for(size_t i=0;i<SDL_arraysize(tested);++i) {
+            Position a=strokes[tested[i]][0],b=strokes[tested[i]][1];
+            float length=hypotf(b.x-a.x,b.y-a.y);
+            /* The inner head overlaps the arc near its midpoint; test its exposed end. */
+            float fraction=tested[i]>=32?.95f:.5f;
+            Position mid={a.x+(b.x-a.x)*fraction,a.y+(b.y-a.y)*fraction},n={-(b.y-a.y)/length,(b.x-a.x)/length};
+            float half_width=tested[i]>=32?2.08f:2.97142857f;
+            for(int side=-1;side<=1;side+=2) {
+                assert(torque_picked(&p,&state,(Position){mid.x+n.x*side*(half_width-.1f)/zoom,mid.y+n.y*side*(half_width-.1f)/zoom},t->id));
+                /* The inner head and arc overlap at this thickness. Check exposed edges only. */
+                if(tested[i]<32 || tested[i]==(sign<0?32:33))
+                    assert(!torque_picked(&p,&state,(Position){mid.x+n.x*side*(half_width+.1f)/zoom,mid.y+n.y*side*(half_width+.1f)/zoom},t->id));
+            }
+        }
+        /* The joined head has one closed apex, with no split between its sides. */
+        Position tip=strokes[32][0];
+        assert(torque_picked(&p,&state,(Position){tip.x,tip.y+4.0f/zoom},t->id));
+        assert(!torque_picked(&p,&state,(Position){tip.x,tip.y+4.3f/zoom},t->id));
+        assert(!torque_picked(&p,&state,(Position){tip.x+1/zoom,tip.y+4.0f/zoom},t->id));
+        assert(!torque_picked(&p,&state,(Position){tip.x-1/zoom,tip.y+4.0f/zoom},t->id));
+        /* No round cap before the first segment, no filled interior or arc gap. */
+        Position a=strokes[0][0],b=strokes[0][1]; float length=hypotf(b.x-a.x,b.y-a.y);
+        assert(!torque_picked(&p,&state,(Position){a.x-(b.x-a.x)*.1f/(length*zoom),a.y-(b.y-a.y)*.1f/(length*zoom)},t->id));
+        EditorSelectionRef hit={0};
+        assert(editor_viewport_selection_at_get(&p,&state,screen((Position){0},zoom),&hit));
+        assert(hit.kind==EDITOR_SELECTION_RIGID_BODY && hit.item==body->id);
+        assert(!torque_picked(&p,&state,(Position){(sign<0?1:-1)*31.1f/zoom,31.1f/zoom},t->id));
+        t->visible=false; assert(!torque_picked(&p,&state,strokes[8][0],t->id)); t->visible=true;
+    }
+    /* Clicking the empty center must start the body selection rather than torque dragging. */
+    p.viewport_camera_zoom=1;
+    state.selected_rigid_body=body->id;
+    Position source=screen((Position){44,0},1);
+    assert(editor_viewport_update(&state,&p,source,MOUSE_BUTTON_STATE_PRESSED,MOUSE_BUTTON_STATE_UP,false,0,false));
+    (void)editor_viewport_update(&state,&p,source,MOUSE_BUTTON_STATE_RELEASED,MOUSE_BUTTON_STATE_UP,false,0,false);
+    assert(editor_viewport_selection_contains(&state,(EditorSelectionRef){EDITOR_SELECTION_TORQUE,o->id,0,0,t->id}));
+    Position at=screen((Position){0},1);
+    assert(editor_viewport_update(&state,&p,at,MOUSE_BUTTON_STATE_PRESSED,MOUSE_BUTTON_STATE_UP,false,0,false));
+    assert(state.selected_rigid_body==body->id && !state.dragged_torque);
+    assert(!editor_viewport_selection_contains(&state,(EditorSelectionRef){EDITOR_SELECTION_TORQUE,o->id,0,0,t->id}));
+    (void)editor_viewport_update(&state,&p,at,MOUSE_BUTTON_STATE_RELEASED,MOUSE_BUTTON_STATE_UP,false,0,false);
+    editor_viewport_state_destroy(&state); editor_project_destroy(&p);
+}
 int main(void) {
     assert(!rohr_error_check(rohr_engine_start())); assert(!rohr_error_check(rohr_graphics_start()));
+    precise_torque_picking_check();
     EditorProject p={0}; editor_project_init(&p); p.viewport_local_view=false; p.viewport_camera_zoom=1;
     EditorObject *o=editor_project_object_add(&p,(Position){20,30}); assert(o); uint32_t oid=o->id;
     EditorRigidBody *body=editor_project_rigid_body_add(&p,o); assert(body); body->position=(Position){10,15};

@@ -257,7 +257,7 @@ contracts, and generated examples when a goal changes supported behavior.
    passed. User verification of all five cases: PASS. An initial scrolling
    failure could not be reproduced after switching windows; the exact
    hitbox/body/object return path has regression coverage. See the issue mapping.
-7. [ ] **C7 — Build path settings.** Expose editable project, engine/SDK,
+7. [x] **C7 — Build path settings.** Expose editable project, engine/SDK,
    source, assets, generated source, objects, editor-state, build, application,
    and scene paths with defaults, Browse, Reset, and resolved values. Share path
    configuration between editor and CLI. Changing Project moves the project;
@@ -271,15 +271,27 @@ contracts, and generated examples when a goal changes supported behavior.
    with previews, persistence, generation, application and scene, (4) custom
    SDK/build/output paths and editor/CLI repeat-build parity, and (5) conflicts,
    rollback, cancellation, custom scaffolding, and modal/scroll interactions.
-   Implementation and automated checks are in place. **Stuck: user editor review
-   is pending (Not tested yet)**; do not mark complete or advance to C8. See the
-   corrective issue mapping for automated evidence and review instructions.
-8. [ ] **C8 — Force and torque selection geometry.** Require direct hits on
-   visible force arrowhead/shaft geometry, including the app visual when shown;
-   remove oversized hit regions behind or around the arrow. Keep forgiving
-   picking around the curved rotation controls and tighten torque stroke
-   tolerance. Preserve visual sizes. Verify nearby body selection, hidden
-   visuals, zoom, overlapping visuals, and rotation dragging.
+   Complete: implementation and automated verification passed. By explicit user
+   decision, C7's five manual review checks are **deferred and unverified**, to
+   revisit after milestone implementation and during incremental full-game
+   testing. This exception applies only to C7; all other manual checks remain
+   required unless the user explicitly defers them when presented. Preserve the
+   review cases in the corrective issue mapping; do not record them as passed.
+8. [x] **C8 — Force and torque selection geometry.** Require direct hits on
+   visible arrow geometry, including app visuals when shown. Use matching force
+   and torque shaft widths (8.32 / 1.4 screen pixels), with shorter shared
+   chevron heads at 70% shaft thickness and one joined tip. The force origin
+   circle is decorative; empty torque centers/gaps and surrounding space do
+   not select sources. Retain the original force rotation-handle size and
+   forgiving 14-pixel buffer. Selecting a body must clear a previously selected
+   force/torque from both the active selection and shared selection list.
+   Verify five cases: nearby body selection and clean handoff; visibility;
+   zoom/transforms; overlapping visuals and context-menu targets; and
+   dragging/rotation with undo/redo. Complete: user review PASS after the final
+   size, arrowhead and selection-handoff refinements. All 120 Linux tests, Linux
+   examples, five focused ASan/UBSan tests with leak detection, and Windows
+   editor/force/torque test cross-builds passed without compiler warnings. Native
+   Windows execution was not performed; see the issue mapping for evidence.
 9. [ ] **C9 — Appearance and visual layers.** Move render-layer controls from
    Transform to Appearance and provide missing layer controls for editor
    visuals, including anchors. Distinguish editor-only annotations from

@@ -65,13 +65,13 @@ static void marker_picking_check(void) {
     a->visible=false; j->visible=false;
     EditorForce *f=editor_project_force_add(&p,o); assert(f); uint32_t fid=f->id;
     f->description.magnitude=10;
-    /* Force origin/shaft/head remain selectable independently of app visibility. */
+    /* The shaft starts at the origin; the origin circle itself is decorative. */
     f->app_hidden=true;
     assert(picked(&p,&state,(Position){0,0},EDITOR_SELECTION_FORCE,fid));
     for(unsigned z=0;z<3;++z) {
         float zoom=z==0?.25f:z==1?1:4; p.viewport_camera_zoom=zoom;
         assert(picked(&p,&state,(Position){0,88/zoom},EDITOR_SELECTION_FORCE,fid));
-        assert(picked(&p,&state,(Position){20/zoom,71/zoom},EDITOR_SELECTION_FORCE,fid));
+        assert(picked(&p,&state,(Position){3/zoom,78.64f/zoom},EDITOR_SELECTION_FORCE,fid));
         assert(picked(&p,&state,(Position){30/zoom,71/zoom},EDITOR_SELECTION_NONE,0));
         assert(picked(&p,&state,(Position){0,106/zoom},EDITOR_SELECTION_NONE,0));
     }
@@ -125,6 +125,53 @@ static void marker_picking_check(void) {
     assert(picked(&p,&state,coil,EDITOR_SELECTION_JOINT,jid));
     assert(picked(&p,&state,(Position){-32,120},EDITOR_SELECTION_NONE,0));
     j->app_hidden=true; assert(picked(&p,&state,(Position){-40,120},EDITOR_SELECTION_NONE,0));
+    editor_viewport_state_destroy(&state); editor_project_destroy(&p);
+}
+
+/* Verify visible boundaries independently of the hit-test implementation. */
+static Position arrow_point(float x, float y, float angle, float zoom) {
+    float a=math_degrees_to_radians(angle);
+    return (Position){(x*cosf(a)+y*sinf(a))/zoom,(-x*sinf(a)+y*cosf(a))/zoom};
+}
+static void precise_arrow_picking_check(void) {
+    EditorProject p={0}; editor_project_init(&p); p.viewport_local_view=false;
+    EditorObject *o=editor_project_object_add(&p,(Position){0}); assert(o);
+    EditorRigidBody *body=editor_project_rigid_body_add(&p,o); assert(body);
+    Shape square=rohr_math_square_create(1000,1000);
+    for(size_t i=0;i<square.amount_of_vertices;++i) body->hitboxes[0].vertices[i].position=square.vertices[i];
+    EditorForce *f=editor_project_force_add(&p,o); assert(f); f->app_hidden=true;
+    EditorViewportState state={0}; editor_viewport_state_init(&state); state.mode=EDITOR_VIEWPORT_OBJECT;
+    const Position hits[]={{2.87f,40},{-2.87f,40},{0,.1f},{0,87.9f},
+        {3,78.64f}};
+    const Position misses[]={{3.07f,40},{-3.07f,40},{0,-.1f},{0,88.1f},
+        {8,0},{0,-8},{4.5f,71},{20,71}};
+    for(unsigned z=0;z<3;++z) for(unsigned rotation=0;rotation<3;++rotation) for(int sign=-1;sign<=1;++sign) {
+        float zoom=z==0?.25f:z==1?1:4,angle=rotation==0?0:rotation==1?37:90;
+        p.viewport_camera_zoom=zoom; f->description.magnitude=sign;
+        f->description.orientation.offset=angle;
+        float drawn=angle+(sign<0?180:0);
+        for(size_t i=0;i<SDL_arraysize(hits);++i)
+            assert(picked(&p,&state,arrow_point(hits[i].x,hits[i].y,drawn,zoom),EDITOR_SELECTION_FORCE,f->id));
+        for(size_t i=0;i<SDL_arraysize(misses);++i)
+            assert(picked(&p,&state,arrow_point(misses[i].x,misses[i].y,drawn,zoom),EDITOR_SELECTION_RIGID_BODY,body->id));
+        /* Hidden annotations no longer intercept their formerly visible strokes. */
+        f->visible=false;
+        assert(picked(&p,&state,arrow_point(0,40,drawn,zoom),EDITOR_SELECTION_RIGID_BODY,body->id));
+        f->visible=true;
+    }
+    /* A real selecting press in the old padding opens/drags the body, not the force. */
+    p.viewport_camera_zoom=1; f->description.orientation.offset=0; f->description.magnitude=1;
+    /* Remembering a previously edited body must not leave a source in the selection set. */
+    state.selected_rigid_body=body->id;
+    Position source=screen((Position){0,40},1);
+    assert(editor_viewport_update(&state,&p,source,MOUSE_BUTTON_STATE_PRESSED,MOUSE_BUTTON_STATE_UP,false,0,false));
+    (void)editor_viewport_update(&state,&p,source,MOUSE_BUTTON_STATE_RELEASED,MOUSE_BUTTON_STATE_UP,false,0,false);
+    assert(editor_viewport_selection_contains(&state,(EditorSelectionRef){EDITOR_SELECTION_FORCE,o->id,0,0,f->id}));
+    Position at=screen((Position){5,20},1);
+    assert(editor_viewport_update(&state,&p,at,MOUSE_BUTTON_STATE_PRESSED,MOUSE_BUTTON_STATE_UP,false,0,false));
+    assert(state.selected_rigid_body==body->id && !state.dragged_force);
+    assert(!editor_viewport_selection_contains(&state,(EditorSelectionRef){EDITOR_SELECTION_FORCE,o->id,0,0,f->id}));
+    (void)editor_viewport_update(&state,&p,at,MOUSE_BUTTON_STATE_RELEASED,MOUSE_BUTTON_STATE_UP,false,0,false);
     editor_viewport_state_destroy(&state); editor_project_destroy(&p);
 }
 
@@ -232,11 +279,18 @@ static void rotation_arcs_check(void) {
         float zoom=z==0?.25f:z==1?1:4, angle=sign*73.0f, offset;
         Position center={12,34}, strokes[EDITOR_ROTATION_ARC_STROKE_COUNT][2];
         editor_rotation_control_arcs_get(center,angle,120/zoom,zoom/2,strokes);
+        point(strokes[5][1],editor_rotation_control_position_get(center,angle-22,120/zoom));
+        near(hypotf(strokes[6][1].x-strokes[6][0].x,strokes[6][1].y-strokes[6][0].y)*zoom,14);
         for(size_t i=0;i<EDITOR_ROTATION_ARC_STROKE_COUNT;++i) {
             Position mid={(strokes[i][0].x+strokes[i][1].x)*.5f,(strokes[i][0].y+strokes[i][1].y)*.5f};
             assert(editor_rotation_control_arcs_begin(center,angle,120/zoom,zoom/2,mid,14/zoom,&offset));
             near(editor_rotation_control_orientation_get(center,mid,offset,angle),angle);
         }
+        /* Rotation handles retain their original visible size and forgiving buffer. */
+        Position edge=editor_rotation_control_position_get(center,angle+5.5f,133/zoom);
+        assert(editor_rotation_control_arcs_begin(center,angle,120/zoom,zoom/2,edge,14/zoom,&offset));
+        Position beyond=editor_rotation_control_position_get(center,angle+5.5f,135/zoom);
+        assert(!editor_rotation_control_arcs_begin(center,angle,120/zoom,zoom/2,beyond,14/zoom,&offset));
         Position miss=editor_rotation_control_position_get(center,angle+90,120/zoom);
         assert(!editor_rotation_control_arcs_begin(center,angle,120/zoom,zoom/2,miss,14/zoom,&offset));
         assert(!editor_rotation_control_arcs_begin(center,angle,120/zoom,zoom/2,center,14/zoom,&offset));
@@ -247,6 +301,7 @@ int main(void) {
     assert(!rohr_error_check(rohr_engine_start()));
     assert(!rohr_error_check(rohr_graphics_start()));
     marker_picking_check();
+    precise_arrow_picking_check();
     rotation_arcs_check();
     reference_hover_check();
     EditorProject p={0}; editor_project_init(&p);
@@ -296,7 +351,7 @@ int main(void) {
     for(size_t z=0;z<3;++z) {
         float zoom=z==0?.25f:z==1?1:4; p.viewport_camera_zoom=zoom; p.viewport_local_view=false;
         f=editor_project_force_get(o,id); f->description=(ObjectForceDescription){.magnitude=z==1?-10:0};
-        Position tail=screen((Position){0},zoom), press={tail.x+3,tail.y+(z==1?20:-20)};
+        Position tail=screen((Position){0},zoom), press={tail.x+1,tail.y+(z==1?20:-20)};
         assert(pointer(&p,&s,&history,press,MOUSE_BUTTON_STATE_PRESSED)); assert(s.dragged_force);
         Position moved={press.x+20,press.y-10}; assert(pointer(&p,&s,&history,moved,MOUSE_BUTTON_STATE_DOWN));
         point(editor_project_force_get(o,id)->description.location.offset,(Position){20/zoom,10/zoom});
@@ -330,9 +385,9 @@ int main(void) {
     }
     p.viewport_camera_zoom=1;
     f=editor_project_force_get(o,id); f->description=(ObjectForceDescription){.magnitude=-2};
-    Position rotation=screen((Position){0,-120},1);
+    Position rotation=screen(editor_rotation_control_position_get((Position){0},193,120),1);
     assert(pointer(&p,&s,&history,rotation,MOUSE_BUTTON_STATE_PRESSED)); assert(s.rotated_force);
-    assert(pointer(&p,&s,&history,screen((Position){120,0},1),MOUSE_BUTTON_STATE_DOWN));
+    assert(pointer(&p,&s,&history,screen(editor_rotation_control_position_get((Position){0},103,120),1),MOUSE_BUTTON_STATE_DOWN));
     near(editor_project_force_get(o,id)->description.orientation.offset,-90);
     editor_history_transaction_cancel(&history); editor_viewport_transform_cancel(&s);
     near(editor_project_force_get(o,id)->description.orientation.offset,0);

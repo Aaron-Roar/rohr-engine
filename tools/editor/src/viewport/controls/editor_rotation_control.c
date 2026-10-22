@@ -36,6 +36,18 @@ void editor_rotation_control_arcs_get(Position center, Orientation orientation,
     }
 }
 
+/* Rectangular stroke with flat ends; coordinates and width use the same units. */
+bool editor_stroke_hit_check(Position pointer, Position start,
+        Position end, float width) {
+    Vec2D delta = {end.x - start.x, end.y - start.y};
+    Vec2D offset = {pointer.x - start.x, pointer.y - start.y};
+    float length_squared = delta.x * delta.x + delta.y * delta.y;
+    float along = offset.x * delta.x + offset.y * delta.y;
+    float across = offset.x * delta.y - offset.y * delta.x;
+    return length_squared > 0.0f && along >= 0.0f && along <= length_squared &&
+        fabsf(across) <= width * 0.5f * sqrtf(length_squared);
+}
+
 bool editor_rotation_control_arcs_begin(Position center, Orientation orientation,
         float arm_length, float scale, Position pointer, float radius,
         float *pointer_offset) {

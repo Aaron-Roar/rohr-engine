@@ -7,6 +7,9 @@
 
 #include "rohr.h"
 
+/* Exact flat-ended stroke picking, in any consistent coordinate space. */
+bool editor_stroke_hit_check(Position pointer, Position start, Position end, float width);
+
 enum { EDITOR_ROTATION_ARC_STROKE_COUNT = 16 };
 /* World-space strokes; scale is screen pixels per world unit. */
 void editor_rotation_control_arcs_get(Position center, Orientation orientation,

@@ -524,10 +524,11 @@ static Position editor_particle_center_world_get(const EditorObject *object,
 
 #define EDITOR_FORCE_CONTROL_SCALE 2.0f
 #define EDITOR_FORCE_ARROW_LENGTH (44.0f * EDITOR_FORCE_CONTROL_SCALE)
-#define EDITOR_FORCE_ARROW_HEAD (10.0f * EDITOR_FORCE_CONTROL_SCALE)
 #define EDITOR_FORCE_ORIGIN_RADIUS (4.0f * EDITOR_FORCE_CONTROL_SCALE)
-#define EDITOR_FORCE_STROKE_WIDTH (2.0f * EDITOR_FORCE_CONTROL_SCALE)
-#define EDITOR_FORCE_PICK_RADIUS (7.0f * EDITOR_FORCE_CONTROL_SCALE)
+#define EDITOR_FORCE_STROKE_WIDTH EDITOR_TORQUE_STROKE_WIDTH
+#define EDITOR_FORCE_ROTATION_STROKE_WIDTH (2.0f * EDITOR_FORCE_CONTROL_SCALE)
+#define EDITOR_FORCE_ROTATION_PICK_RADIUS (7.0f * EDITOR_FORCE_CONTROL_SCALE)
+#define EDITOR_TORQUE_STROKE_WIDTH EDITOR_SOURCE_MARKER_STROKE_WIDTH
 #define EDITOR_FORCE_ROTATION_ARM_LENGTH (EDITOR_VIEWPORT_ROTATION_ARM_LENGTH * EDITOR_FORCE_CONTROL_SCALE)
 static bool editor_force_arrow_get(const EditorObject *object, const EditorForce *force,
         Position *tail, Position *tip, float *angle) {
@@ -907,14 +908,15 @@ static int editor_joint_pick_layer_get(const EditorObject *object,const EditorJo
 static int editor_force_pick_layer_get(const EditorObject *object,const EditorForce *force,Position pointer) {
     Position tail,tip; float angle;
     if(!object->visible || !editor_force_arrow_get(object,force,&tail,&tip,&angle)) return 0;
-    Position p=editor_view_world_to_screen(pointer),a=editor_view_world_to_screen(tail),b=editor_view_world_to_screen(tip);
-    Position left=editor_view_world_to_screen(editor_rotation_control_position_get(tip,angle+150,EDITOR_FORCE_ARROW_HEAD/editor_view_scale));
-    Position right=editor_view_world_to_screen(editor_rotation_control_position_get(tip,angle-150,EDITOR_FORCE_ARROW_HEAD/editor_view_scale));
-    float tolerance=EDITOR_FORCE_PICK_RADIUS*EDITOR_FORCE_PICK_RADIUS;
-    if(editor_segment_distance_squared(p,a,b)<=tolerance ||
-            editor_segment_distance_squared(p,b,left)<=tolerance ||
-            editor_segment_distance_squared(p,b,right)<=tolerance ||
-            editor_circle_hit_check(p,tail,EDITOR_FORCE_ORIGIN_RADIUS/editor_view_scale,EDITOR_FORCE_PICK_RADIUS)) return EDITOR_GRAPHICS_LAYER_JOINT;
+    Position center=editor_rotation_control_position_get(tip,angle+180,EDITOR_SOURCE_MARKER_HEAD_WIDTH/editor_view_scale);
+    Position shaft_end=editor_rotation_control_position_get(center,angle+180,EDITOR_SOURCE_MARKER_HEAD_WIDTH/editor_view_scale);
+    Position p=editor_view_world_to_screen(pointer);
+    if(editor_stroke_hit_check(p,editor_view_world_to_screen(tail),editor_view_world_to_screen(shaft_end),
+            EDITOR_FORCE_STROKE_WIDTH)) return EDITOR_GRAPHICS_LAYER_JOINT;
+    Position head[2][4]; editor_source_arrow_head_quads_get(center,angle,editor_view_scale,head);
+    EditorMarkerPick pick={.pointer=p};
+    for(size_t i=0;i<2;++i) editor_marker_polygon_pick(head[i],4,(Color){255,255,255,255},&pick);
+    if(pick.hit) return EDITOR_GRAPHICS_LAYER_JOINT;
     MarkerGeometry geometry;
     if(!object->app_hidden && !force->app_hidden && editor_force_marker_get(object,force,&geometry) &&
             editor_marker_hit_check(&geometry,pointer)) return EDITOR_GRAPHICS_LAYER_JOINT-1;
@@ -929,10 +931,13 @@ static bool editor_torque_annotation_hit_check(const EditorObject *object,const 
     Position strokes[EDITOR_TORQUE_MARKER_STROKE_COUNT][2];
     if(!object->visible || !editor_torque_marker_strokes_get(object,torque,editor_view_scale,strokes)) return false;
     Position p=editor_view_world_to_screen(pointer);
-    for(size_t i=0;i<EDITOR_TORQUE_MARKER_STROKE_COUNT;++i)
-        if(editor_segment_distance_squared(p,editor_view_world_to_screen(strokes[i][0]),
-                editor_view_world_to_screen(strokes[i][1]))<=EDITOR_FORCE_PICK_RADIUS*EDITOR_FORCE_PICK_RADIUS) return true;
-    return false;
+    for(size_t i=0;i<EDITOR_TORQUE_MARKER_STROKE_COUNT-2;++i)
+        if(editor_stroke_hit_check(p,editor_view_world_to_screen(strokes[i][0]),
+                editor_view_world_to_screen(strokes[i][1]),EDITOR_TORQUE_STROKE_WIDTH)) return true;
+    Position head[2][4]; editor_source_arrow_head_quads_get(strokes[32][0],0,editor_view_scale,head);
+    EditorMarkerPick pick={.pointer=p};
+    for(size_t i=0;i<2;++i) editor_marker_polygon_pick(head[i],4,(Color){255,255,255,255},&pick);
+    return pick.hit;
 }
 static int editor_torque_pick_layer_get(const EditorObject *object,const EditorTorque *torque,Position pointer) {
     if(editor_torque_annotation_hit_check(object,torque,pointer)) return EDITOR_GRAPHICS_LAYER_JOINT;
@@ -1629,11 +1634,14 @@ static EditorMarqueeBounds editor_marquee_soft_body_bounds_get(
 
 static EditorMarqueeBounds editor_marquee_torque_bounds_get(const EditorObject *object,const EditorTorque *torque) {
     EditorMarqueeBounds bounds={0}; Position strokes[EDITOR_TORQUE_MARKER_STROKE_COUNT][2];
-    if(editor_torque_marker_strokes_get(object,torque,editor_view_scale,strokes))
+    if(editor_torque_marker_strokes_get(object,torque,editor_view_scale,strokes)) {
         for(size_t i=0;i<EDITOR_TORQUE_MARKER_STROKE_COUNT;++i) {
             editor_marquee_bounds_point_add(&bounds,strokes[i][0]);
             editor_marquee_bounds_point_add(&bounds,strokes[i][1]);
         }
+        Position head[2][4]; editor_source_arrow_head_quads_get(strokes[32][0],0,editor_view_scale,head);
+        for(size_t i=0;i<2;++i) for(size_t j=0;j<4;++j) editor_marquee_bounds_point_add(&bounds,head[i][j]);
+    }
     return bounds;
 }
 static EditorMarqueeBounds editor_marquee_object_bounds_get(
@@ -5481,7 +5489,7 @@ bool editor_viewport_update(EditorViewportState *state, EditorProject *project,
         if(force && editor_force_arrow_get(object,force,&tail,&tip,&angle) &&
                 editor_rotation_control_arcs_begin(tail,angle,EDITOR_FORCE_ROTATION_ARM_LENGTH/editor_view_scale,
                     editor_view_scale/EDITOR_FORCE_CONTROL_SCALE,pointer,
-                    EDITOR_FORCE_PICK_RADIUS/editor_view_scale,&state->rotation_pointer_offset)) {
+                    EDITOR_FORCE_ROTATION_PICK_RADIUS/editor_view_scale,&state->rotation_pointer_offset)) {
             state->rotated_force=true; return true;
         }
     }
@@ -6221,8 +6229,8 @@ bool editor_viewport_update(EditorViewportState *state, EditorProject *project,
                     state->last_viewport_click_selection = EDITOR_SELECTION_NONE;
                     return true;
                 }
-                state->selection = EDITOR_SELECTION_PARTICLE;
-                state->selected_rigid_body = candidate_body->id;
+                (void)editor_viewport_selection_set(project,state,
+                    (EditorSelectionRef){EDITOR_SELECTION_PARTICLE,object->id,0,0,candidate_body->id},false);
                 if(double_clicked) {
                     state->mode = EDITOR_VIEWPORT_PARTICLE_RADIUS;
                     state->last_viewport_click_selection = EDITOR_SELECTION_NONE;
@@ -6271,6 +6279,11 @@ bool editor_viewport_update(EditorViewportState *state, EditorProject *project,
                 state->selected_hitbox = candidate->id;
                 editor_viewport_hitbox_editor_enter(state);
             }
+            /* Legacy child-entry paths also replace the shared selection set.
+             * Otherwise a previously selected force/torque remains highlighted. */
+            EditorSelectionRef selected;
+            if(editor_viewport_selection_ref_get(project,state,&selected))
+                (void)editor_viewport_selection_set(project,state,selected,false);
             if(body_selected_for_drag) {
                 state->dragged_body = true;
                 state->drag_offset = (Vec2D){
@@ -7054,8 +7067,10 @@ static void editor_viewport_object_draw(const EditorObject *object,
             editor_viewport_path_selected(state,EDITOR_SELECTION_TORQUE,object->id,0,0,t->id);
         Color color=selected?(Color){255,215,70,255}:t->description.magnitude==0?(Color){130,140,150,255}:(Color){80,210,245,255};
         editor_view_scene_layer_set((EditorGraphicsLayerBinding){0},EDITOR_GRAPHICS_LAYER_JOINT);
-        for(size_t stroke=0;stroke<EDITOR_TORQUE_MARKER_STROKE_COUNT;++stroke)
-            editor_line_width_draw(strokes[stroke][0],strokes[stroke][1],4.0f,color);
+        for(size_t stroke=0;stroke<EDITOR_TORQUE_MARKER_STROKE_COUNT-2;++stroke)
+            editor_line_width_draw(strokes[stroke][0],strokes[stroke][1],EDITOR_TORQUE_STROKE_WIDTH,color);
+        Position head[2][4]; editor_source_arrow_head_quads_get(strokes[32][0],0,editor_view_scale,head);
+        for(size_t side=0;side<2;++side) editor_marker_polygon_draw(head[side],4,color,NULL);
     }
     if(!editor_view_camera_preview) for(size_t i=0;i<object->force_count;++i) {
         const EditorForce *force=&object->force_items[i]; Position tail,tip; float angle;
@@ -7064,9 +7079,11 @@ static void editor_viewport_object_draw(const EditorObject *object,
             editor_viewport_path_selected(state,EDITOR_SELECTION_FORCE,object->id,0,0,force->id);
         Color color=selected?(Color){255,215,70,255}:force->description.magnitude==0?(Color){130,140,150,255}:(Color){80,210,245,255};
         editor_view_scene_layer_set((EditorGraphicsLayerBinding){0},EDITOR_GRAPHICS_LAYER_JOINT);
-        editor_line_width_draw(tail,tip,EDITOR_FORCE_STROKE_WIDTH,color);
-        editor_line_width_draw(tip,editor_rotation_control_position_get(tip,angle+150,EDITOR_FORCE_ARROW_HEAD/editor_view_scale),EDITOR_FORCE_STROKE_WIDTH,color);
-        editor_line_width_draw(tip,editor_rotation_control_position_get(tip,angle-150,EDITOR_FORCE_ARROW_HEAD/editor_view_scale),EDITOR_FORCE_STROKE_WIDTH,color);
+        Position center=editor_rotation_control_position_get(tip,angle+180,EDITOR_SOURCE_MARKER_HEAD_WIDTH/editor_view_scale);
+        Position shaft_end=editor_rotation_control_position_get(center,angle+180,EDITOR_SOURCE_MARKER_HEAD_WIDTH/editor_view_scale);
+        editor_line_width_draw(tail,shaft_end,EDITOR_FORCE_STROKE_WIDTH,color);
+        Position head[2][4]; editor_source_arrow_head_quads_get(center,angle,editor_view_scale,head);
+        for(size_t side=0;side<2;++side) editor_marker_polygon_draw(head[side],4,color,NULL);
         editor_circle_width_draw(tail,EDITOR_FORCE_ORIGIN_RADIUS/editor_view_scale,EDITOR_FORCE_STROKE_WIDTH,color);
         if(selected && state->mode==EDITOR_VIEWPORT_FORCE && state->selected_item_count<2) {
             Position strokes[EDITOR_ROTATION_ARC_STROKE_COUNT][2];
@@ -7074,7 +7091,7 @@ static void editor_viewport_object_draw(const EditorObject *object,
                 EDITOR_FORCE_ROTATION_ARM_LENGTH/editor_view_scale,
                 editor_view_scale/EDITOR_FORCE_CONTROL_SCALE,strokes);
             for(size_t stroke=0;stroke<EDITOR_ROTATION_ARC_STROKE_COUNT;++stroke)
-                editor_line_width_draw(strokes[stroke][0],strokes[stroke][1],EDITOR_FORCE_STROKE_WIDTH,color);
+                editor_line_width_draw(strokes[stroke][0],strokes[stroke][1],EDITOR_FORCE_ROTATION_STROKE_WIDTH,color);
         }
     }
 
