@@ -19,6 +19,10 @@ typedef struct EditorWorkspaceConfig {
     char asset_directory[EDITOR_WORKSPACE_PATH_MAX];
     char object_directory[EDITOR_WORKSPACE_PATH_MAX];
     char editor_state_file[EDITOR_WORKSPACE_PATH_MAX];
+    char engine_directory[EDITOR_WORKSPACE_PATH_MAX];
+    char build_directory[EDITOR_WORKSPACE_PATH_MAX];
+    char application_executable[EDITOR_WORKSPACE_PATH_MAX];
+    char scene_executable[EDITOR_WORKSPACE_PATH_MAX];
 } EditorWorkspaceConfig;
 
 typedef struct EditorWorkspace {
@@ -26,6 +30,33 @@ typedef struct EditorWorkspace {
     char directory[EDITOR_WORKSPACE_PATH_MAX];
     bool open;
 } EditorWorkspace;
+
+typedef enum EditorWorkspacePath {
+    EDITOR_PATH_PROJECT, EDITOR_PATH_ENGINE, EDITOR_PATH_SOURCE,
+    EDITOR_PATH_ASSETS, EDITOR_PATH_GENERATED, EDITOR_PATH_OBJECTS,
+    EDITOR_PATH_STATE, EDITOR_PATH_BUILD, EDITOR_PATH_APPLICATION,
+    EDITOR_PATH_SCENE, EDITOR_PATH_COUNT
+} EditorWorkspacePath;
+const char *editor_workspace_path_label_get(EditorWorkspacePath kind);
+char *editor_workspace_path_value_get(EditorWorkspace *workspace, EditorWorkspacePath kind);
+EditorResult editor_workspace_path_resolve(const char *root, const char *value, char *output, size_t capacity);
+EditorResult editor_workspace_path_get(const EditorWorkspace *workspace, EditorWorkspacePath kind,
+    char *output, size_t capacity);
+bool editor_workspace_path_contains_check(const char *root, const char *path);
+/* Resolve a stable project asset name (assets/...) to its authored storage. */
+EditorResult editor_workspace_asset_path_get(const EditorWorkspace *workspace,
+    const char *asset, char *output, size_t capacity);
+/* Apply is synchronous; callers must stop builds/scenes and release project handles first. */
+/* Normalize a draft and reject conflicts without mutating the filesystem. */
+EditorResult editor_workspace_paths_validate(const EditorWorkspace *workspace, EditorWorkspace *desired);
+/* Save and relocate transactionally. A successful false value means a recovery
+ * copy could not be removed; its location is logged. Authored data is replaced
+ * only after files and metadata are committed. */
+EditorResult editor_workspace_paths_apply(EditorWorkspace *workspace, EditorProject *project,
+    const EditorWorkspace *desired);
+EditorResult editor_workspace_scaffold_paths_check(const EditorWorkspace *workspace);
+EditorResult editor_workspace_scaffold_paths_write(const EditorWorkspace *workspace);
+EditorResult editor_workspace_build_paths_write(const EditorWorkspace *workspace);
 
 typedef enum EditorWorkspaceCommandType {
     EDITOR_WORKSPACE_COMMAND_CREATE,

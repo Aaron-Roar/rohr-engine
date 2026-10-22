@@ -284,6 +284,34 @@ EditorResult editor_config_command_target_expand(const EditorConfigCommand *comm
     return editor_result_value(true);
 }
 
+EditorResult editor_config_workspace_arguments_expand(const EditorWorkspace *workspace,
+        char arguments[EDITOR_CONFIG_ARGUMENT_MAX][EDITOR_CONFIG_ARGUMENT_LENGTH_MAX],
+        const char *output[EDITOR_CONFIG_ARGUMENT_MAX + 1]) {
+    const char *keys[] = {"{source}", "{assets}", "{generated}", "{objects}", "{state}", "{application}", "{scene}"};
+    const EditorWorkspacePath kinds[] = {EDITOR_PATH_SOURCE, EDITOR_PATH_ASSETS, EDITOR_PATH_GENERATED,
+        EDITOR_PATH_OBJECTS, EDITOR_PATH_STATE, EDITOR_PATH_APPLICATION, EDITOR_PATH_SCENE};
+    for(size_t i = 0; i < EDITOR_CONFIG_ARGUMENT_MAX && output[i]; ++i) {
+        char expanded[EDITOR_CONFIG_ARGUMENT_LENGTH_MAX]; size_t used = 0;
+        const char *input = output[i];
+        while(*input) {
+            size_t k = 0;
+            for(; k < SDL_arraysize(keys); ++k) if(!strncmp(input, keys[k], strlen(keys[k]))) break;
+            if(k == SDL_arraysize(keys)) {
+                if(used + 1 >= sizeof(expanded)) return editor_result_error(EDITOR_ERROR_CAPACITY, "Expanded path argument is too long");
+                expanded[used++] = *input++; continue;
+            }
+            char path[EDITOR_WORKSPACE_PATH_MAX * 2];
+            EditorResult r = editor_workspace_path_get(workspace, kinds[k], path, sizeof(path));
+            if(editor_result_check(r)) return r;
+            size_t length = strlen(path);
+            if(used + length >= sizeof(expanded)) return editor_result_error(EDITOR_ERROR_CAPACITY, "Expanded path argument is too long");
+            memcpy(expanded + used, path, length); used += length; input += strlen(keys[k]);
+        }
+        expanded[used] = 0; memcpy(arguments[i], expanded, used + 1); output[i] = arguments[i];
+    }
+    return editor_result_value(true);
+}
+
 EditorResult editor_config_sdk_path_get(char *output, size_t capacity,
         const char *name, bool required) {
     const char *base = SDL_GetBasePath();

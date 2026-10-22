@@ -72,6 +72,7 @@ static Scale editor_view_preview_dimensions;
 static Orientation editor_view_preview_camera_rotation;
 static Orientation editor_view_preview_content_rotation;
 static char editor_asset_root[EDITOR_ASSET_PATH_MAX];
+static char editor_asset_directory[EDITOR_ASSET_PATH_MAX * 2];
 
 /* A draw owns this compact, sorted layer table until all commands are queued.
  * Authored values never enter the editor's menu/control layer namespace. */
@@ -306,7 +307,11 @@ static Orientation editor_sprite_world_rotation_get(const EditorObject *object,
     return rotation;
 }
 
+void editor_viewport_asset_directory_set(const char *path) {
+    SDL_strlcpy(editor_asset_directory, path ? path : "", sizeof(editor_asset_directory));
+}
 void editor_viewport_asset_root_set(const char *path) {
+    editor_asset_directory[0] = 0;
     if(path == NULL) editor_asset_root[0] = '\0';
     else snprintf(editor_asset_root, sizeof(editor_asset_root), "%s", path);
 }
@@ -343,6 +348,7 @@ void editor_viewport_assets_destroy(void) {
     editor_animation_preview_tick = 0;
     editor_animation_preview_time = 0.0;
     editor_asset_root[0] = '\0';
+    editor_asset_directory[0] = '\0';
 }
 
 static EditorPreviewTexture *editor_preview_texture_entry_get(const char *path) {
@@ -353,7 +359,10 @@ static EditorPreviewTexture *editor_preview_texture_entry_get(const char *path) 
     if(path == NULL || path[0] == '\0') return NULL;
     absolute = path[0] == '/' || path[0] == '\\' ||
         (path[0] != '\0' && path[1] == ':');
-    if(absolute || editor_asset_root[0] == '\0')
+    if(editor_asset_directory[0] && !strncmp(path, "assets/", 7)) {
+        if(SDL_snprintf(resolved, sizeof(resolved), "%s/%s", editor_asset_directory, path + 7) >= (int)sizeof(resolved)) return NULL;
+    }
+    else if(absolute || editor_asset_root[0] == '\0')
         snprintf(resolved, sizeof(resolved), "%s", path);
     else snprintf(resolved, sizeof(resolved), "%s%s%s", editor_asset_root,
         editor_asset_root[strlen(editor_asset_root) - 1] == '/' ||
@@ -2964,7 +2973,12 @@ static FontAsset *editor_viewport_ui_font_get(const EditorProject *project,
     }
     preview->id = id;
     preview->point_size = registered->point_size;
-    if(editor_asset_root[0] != '\0' && registered->path[0] != '/' &&
+    if(editor_asset_directory[0] && !strncmp(registered->path, "assets/", 7)) {
+        if(SDL_snprintf(resolved, sizeof(resolved), "%s/%s", editor_asset_directory, registered->path + 7) >= (int)sizeof(resolved)) {
+            preview->failed = true; return NULL;
+        }
+    }
+    else if(editor_asset_root[0] != '\0' && registered->path[0] != '/' &&
             !(strlen(registered->path) > 2 && registered->path[1] == ':'))
         snprintf(resolved, sizeof(resolved), "%s/%s", editor_asset_root,
             registered->path);

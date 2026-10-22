@@ -49,7 +49,7 @@ file(APPEND "${FIXTURE}/build/CMakeCache.txt" "\nC3_CACHE_ONLY:STRING=retained\n
 file(REMOVE "${FIXTURE}/CMakeLists.txt")
 run("${PROBE}" project "${FIXTURE}" app "${SDK_PREFIX}")
 file(READ "${FIXTURE}/CMakeLists.txt" root)
-if(NOT root MATCHES "include\\(src/generated/project_scene.cmake\\)")
+if(NOT root MATCHES "ROHR_GENERATED_DIRECTORY.*/project_scene.cmake")
     message(FATAL_ERROR "Restored root did not include scene integration")
 endif()
 file(REMOVE "${FIXTURE}/src/generated/project_scene.cmake")

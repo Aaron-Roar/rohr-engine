@@ -164,7 +164,7 @@ static void scaffolding_checks(const EditorWorkspace *parent) {
     SDL_snprintf(path, sizeof(path), "%s/.gitignore", workspace.directory); save(path, "custom ignore");
     reset_output(); OK(editor_build_prepare(&workspace, true, NULL, capture, NULL));
     assert(strstr(captured, "Restored") && strstr(captured, "CMakeLists.txt") && strstr(captured, "project_scene.cmake"));
-    char *text = SDL_LoadFile(root, NULL); assert(text && strstr(text, "project(Recovery") && strstr(text, "include(src/generated/project_scene.cmake)")); SDL_free(text);
+    char *text = SDL_LoadFile(root, NULL); assert(text && strstr(text, "project(Recovery") && strstr(text, "include(\"${ROHR_GENERATED_DIRECTORY}/project_scene.cmake\")")); SDL_free(text);
     text = SDL_LoadFile(scene, NULL); assert(text && strstr(text, "add_executable(${PROJECT_NAME}_scene")); SDL_free(text);
     text = SDL_LoadFile(path, NULL); assert(text && !strcmp(text, "custom ignore")); SDL_free(text);
     SDL_snprintf(path, sizeof(path), "%s/src/main.c", workspace.directory);

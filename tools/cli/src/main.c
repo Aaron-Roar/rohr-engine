@@ -345,16 +345,13 @@ static int cli_project_cmake_run(const EditorWorkspace *workspace,
     const char *const *process_arguments;
     const EditorConfigCommand *configured_command;
     char sdk[EDITOR_WORKSPACE_PATH_MAX * 2] = {0};
-    int count;
     EditorWorkspace absolute;
     EditorResult resolved = editor_build_workspace_get(workspace, &absolute);
     if(editor_result_check(resolved)) return cli_error(resolved);
     workspace = &absolute;
     SDL_strlcpy(root, workspace->directory, sizeof(root));
-    count = snprintf(build, sizeof(build), "%s/build", root);
-    if(count < 0 || (size_t)count >= sizeof(build)) return cli_error(
-        editor_result_error(EDITOR_ERROR_CAPACITY,
-            "Project build path is too long: %s", root));
+    resolved = editor_workspace_path_get(workspace, EDITOR_PATH_BUILD, build, sizeof(build));
+    if(editor_result_check(resolved)) return cli_error(resolved);
     configured_command = editor_config_command_get(config,
         EDITOR_CONFIG_FRONTEND_CLI, configure ? EDITOR_CONFIG_OPERATION_CONFIGURE :
         EDITOR_CONFIG_OPERATION_COMPILE);
@@ -368,7 +365,10 @@ static int cli_project_cmake_run(const EditorWorkspace *workspace,
     if(configured_command != NULL && configured_command->count == 0) return 0;
     if(configured_command != NULL || (!configure && scene_only)) {
         EditorResult result;
-        (void)cli_sdk_root_get(sdk, sizeof(sdk));
+        if(workspace->config.engine_directory[0]) {
+            result = editor_workspace_path_get(workspace, EDITOR_PATH_ENGINE, sdk, sizeof(sdk));
+            if(editor_result_check(result)) return cli_error(result);
+        } else (void)cli_sdk_root_get(sdk, sizeof(sdk));
         char target[EDITOR_CONFIG_ARGUMENT_LENGTH_MAX];
         result = editor_build_target_name_get(workspace, scene_only ? EDITOR_BUILD_SCENE : EDITOR_BUILD_PROJECT, target, sizeof(target));
         if(editor_result_check(result)) return cli_error(result);
@@ -376,11 +376,19 @@ static int cli_project_cmake_run(const EditorWorkspace *workspace,
             editor_build_compile_arguments_get(configured_command, root, build, sdk, target, configured_arguments, configured_output) :
             editor_config_command_target_expand(configured_command, root, build, sdk, target, configured_arguments, configured_output);
         if(editor_result_check(result)) return cli_error(result);
+        result = editor_config_workspace_arguments_expand(workspace, configured_arguments, configured_output);
+        if(editor_result_check(result)) return cli_error(result);
         process_arguments = configured_output;
     } else {
         if(configure && !cli_rohr_cmake_option_get(rohr_option,
                 sizeof(rohr_option))) return cli_error(editor_result_error(
             EDITOR_ERROR_FILE_IO, "Could not locate the Rohr SDK or source tree"));
+        if(configure && workspace->config.engine_directory[0]) {
+            resolved = editor_workspace_path_get(workspace, EDITOR_PATH_ENGINE, sdk, sizeof(sdk));
+            if(editor_result_check(resolved)) return cli_error(resolved);
+            if(snprintf(rohr_option, sizeof(rohr_option), "-DROHR_ENGINE_SOURCE_ROOT=%s", sdk) >= (int)sizeof(rohr_option))
+                return cli_error(editor_result_error(EDITOR_ERROR_CAPACITY, "Engine path is too long"));
+        }
         process_arguments = configure ? configure_arguments : compile_arguments;
     }
     int code = cli_process_run(root, process_arguments);

@@ -262,6 +262,7 @@ void editor_viewport_draw(
     bool grid_visible
 );
 void editor_viewport_asset_root_set(const char *path);
+void editor_viewport_asset_directory_set(const char *path);
 void editor_viewport_ui_font_set(FontAsset *font);
 void editor_viewport_assets_destroy(void);
 bool editor_viewport_selection_nudge(EditorViewportState *state,

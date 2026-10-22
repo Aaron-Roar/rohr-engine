@@ -59,7 +59,10 @@ EditorResult editor_build_workspace_get(const EditorWorkspace *workspace, Editor
 #endif
     if(!resolved) return editor_result_error(EDITOR_ERROR_FILE_IO, "Could not resolve project directory: %s", workspace->directory);
     EditorResult result = path_copy(absolute->directory, sizeof(absolute->directory), resolved);
-    free(resolved); return result;
+    free(resolved);
+    if(!editor_result_check(result)) result = editor_workspace_path_get(workspace, EDITOR_PATH_BUILD,
+        absolute->config.build_directory, sizeof(absolute->config.build_directory));
+    return result;
 }
 static char *metadata_read(const char *path) {
     SDL_PathInfo info;
@@ -111,7 +114,7 @@ static EditorResult build_location_get(const EditorWorkspace *workspace,
         bool *stale, bool *cached, bool *pending) {
     char directory[EDITOR_WORKSPACE_PATH_MAX * 2], path[EDITOR_WORKSPACE_PATH_MAX * 2];
     *stale = *cached = *pending = false;
-    SDL_snprintf(directory, sizeof(directory), "%s/build", workspace->directory);
+    SDL_snprintf(directory, sizeof(directory), "%s", workspace->config.build_directory);
     /* Never recover a copied project by modifying a build-directory link into
      * its original project (or another external directory). */
     bool linked = false;
@@ -151,6 +154,16 @@ static EditorResult build_location_get(const EditorWorkspace *workspace,
         line = next;
     }
     *cached = found[0] && found[1];
+    char configured_path[sizeof(path)];
+    SDL_snprintf(configured_path, sizeof(configured_path), "%s/rohr_paths_configured.cmake", directory);
+    if(build_file_check(configured_path)) {
+        size_t old_size = 0, new_size = 0;
+        char *old = SDL_LoadFile(configured_path, &old_size);
+        SDL_snprintf(path, sizeof(path), "%s/.rohr/project_paths.cmake", workspace->directory);
+        char *current = SDL_LoadFile(path, &new_size);
+        *stale |= !old || !current || old_size != new_size || memcmp(old, current, old_size);
+        SDL_free(old); SDL_free(current);
+    }
     SDL_free(text); return editor_result_value(true);
 }
 static EditorResult build_metadata_archive(const char *directory, const char *archive, const char *name) {
@@ -171,14 +184,14 @@ EditorResult editor_build_cache_prepare(const EditorWorkspace *workspace, bool c
     result = build_location_get(&absolute, &stale, &cached, &pending);
     if(editor_result_check(result) || (!stale && !pending)) return result;
     if(!configure_enabled) return editor_result_error(EDITOR_ERROR_INVALID_ARGUMENT,
-        "Project moved; enable configuration before rebuilding %s", absolute.directory);
+        "Project location or paths changed; enable configuration before rebuilding %s", absolute.directory);
     if(output) {
         const char *message = "\r\n[Build relocation] Reconfiguring at the current project location using saved settings. Cache-only options are not migrated.\r\n";
         output(context, message, strlen(message));
     }
     if(!stale) return editor_result_value(true); /* Retry an interrupted reconfiguration. */
     char directory[EDITOR_WORKSPACE_PATH_MAX * 2], archive[EDITOR_WORKSPACE_PATH_MAX * 2], marker[EDITOR_WORKSPACE_PATH_MAX * 2];
-    SDL_snprintf(directory, sizeof(directory), "%s/build", absolute.directory);
+    SDL_snprintf(directory, sizeof(directory), "%s", absolute.config.build_directory);
     if(SDL_snprintf(archive, sizeof(archive), "%s/rohr_relocated_cache_%llu", directory,
             (unsigned long long)SDL_GetPerformanceCounter()) >= (int)sizeof(archive))
         return editor_result_error(EDITOR_ERROR_CAPACITY, "Relocated cache archive path is too long");
@@ -223,6 +236,8 @@ EditorResult editor_build_prepare(const EditorWorkspace *workspace, bool configu
     EditorWorkspace absolute;
     EditorResult result = editor_build_workspace_get(workspace, &absolute);
     if(editor_result_check(result)) return result;
+    result = editor_workspace_build_paths_write(&absolute);
+    if(editor_result_check(result)) return result;
     /* Check relocation/link safety before creating project scaffolding. */
     result = editor_build_cache_prepare(&absolute, configure_enabled, output, context);
     if(editor_result_check(result)) return result;
@@ -243,7 +258,7 @@ EditorResult editor_build_prepare(const EditorWorkspace *workspace, bool configu
     const char *required[] = {"CMakeCache.txt", "CMakeFiles"};
     for(size_t i = 0; i < SDL_arraysize(required); ++i) {
         char path[EDITOR_WORKSPACE_PATH_MAX * 2]; SDL_PathInfo info;
-        SDL_snprintf(path, sizeof(path), "%s/build/%s", absolute.directory, required[i]);
+        SDL_snprintf(path, sizeof(path), "%s/%s", absolute.config.build_directory, required[i]);
         SDL_PathType expected = i == 0 ? SDL_PATHTYPE_FILE : SDL_PATHTYPE_DIRECTORY;
         if(!SDL_GetPathInfo(path, &info) || info.type != expected)
             return editor_result_error(EDITOR_ERROR_FILE_IO,
@@ -261,7 +276,7 @@ EditorResult editor_build_cache_configured(const EditorWorkspace *workspace) {
     if(stale || !cached) return editor_result_error(EDITOR_ERROR_INVALID_ARGUMENT,
         "Configure did not recreate a valid CMake cache for relocated project %s", absolute.directory);
     char marker[EDITOR_WORKSPACE_PATH_MAX * 2];
-    SDL_snprintf(marker, sizeof(marker), "%s/build/rohr_reconfigure_required.txt", absolute.directory);
+    SDL_snprintf(marker, sizeof(marker), "%s/rohr_reconfigure_required.txt", absolute.config.build_directory);
     if(!SDL_RemovePath(marker)) return editor_result_error(EDITOR_ERROR_FILE_IO,
         "Could not finish relocation recovery: %s", marker);
     return editor_result_value(true);
@@ -271,8 +286,10 @@ EditorResult editor_build_target_name_get(const EditorWorkspace *workspace,
         EditorBuildTarget target, char *output, size_t capacity) {
     if(!workspace || !workspace->open || !target_valid_check(target))
         return editor_result_error(EDITOR_ERROR_INVALID_ARGUMENT, "Build target needs an open project");
-    char path[EDITOR_WORKSPACE_PATH_MAX * 2];
-    if(SDL_snprintf(path, sizeof(path), "%s/build/rohr_target_%s.txt", workspace->directory,
+    char path[EDITOR_WORKSPACE_PATH_MAX * 2], directory[EDITOR_WORKSPACE_PATH_MAX * 2];
+    EditorResult resolved = editor_workspace_path_get(workspace, EDITOR_PATH_BUILD, directory, sizeof(directory));
+    if(editor_result_check(resolved)) return resolved;
+    if(SDL_snprintf(path, sizeof(path), "%s/rohr_target_%s.txt", directory,
             target_key(target)) >= (int)sizeof(path)) return editor_result_error(EDITOR_ERROR_CAPACITY, "Build metadata path is too long");
     char *name = metadata_read(path);
     if(name) { EditorResult result = path_copy(output, capacity, name); SDL_free(name); return result; }
@@ -304,7 +321,7 @@ EditorResult editor_build_executable_get(const EditorWorkspace *workspace,
         "Project moved; rebuild %s before running from %s", editor_build_target_label_get(target), workspace->directory);
     char directory[EDITOR_WORKSPACE_PATH_MAX * 2], pattern[80], path[EDITOR_WORKSPACE_PATH_MAX * 2];
     char chosen[EDITOR_WORKSPACE_PATH_MAX * 2] = {0}; SDL_Time newest = 0;
-    if(SDL_snprintf(directory, sizeof(directory), "%s/build", workspace->directory) >= (int)sizeof(directory))
+    if(SDL_snprintf(directory, sizeof(directory), "%s", workspace->config.build_directory) >= (int)sizeof(directory))
         return editor_result_error(EDITOR_ERROR_CAPACITY, "Build directory is too long");
     SDL_snprintf(pattern, sizeof(pattern), "rohr_%s_*.path", target_key(target));
     int count = 0; char **files = SDL_GlobDirectory(directory, pattern, 0, &count);
@@ -332,6 +349,14 @@ EditorResult editor_build_executable_get(const EditorWorkspace *workspace,
                     ) >= (int)sizeof(path)) continue;
             newest_executable(path, chosen, sizeof(chosen), &newest);
         }
+    }
+    const char *override = target == EDITOR_BUILD_SCENE ? workspace->config.scene_executable : workspace->config.application_executable;
+    if(*override) {
+        char expected[EDITOR_WORKSPACE_PATH_MAX * 2];
+        resolved = editor_workspace_path_get(workspace, target == EDITOR_BUILD_SCENE ? EDITOR_PATH_SCENE : EDITOR_PATH_APPLICATION, expected, sizeof(expected));
+        if(editor_result_check(resolved)) return resolved;
+        if(!chosen[0] || !build_path_same_check(chosen, expected))
+            return editor_result_error(EDITOR_ERROR_INVALID_ARGUMENT, "Rebuild %s at its configured output: %s", target_key(target), expected);
     }
     if(!chosen[0]) return editor_result_error(EDITOR_ERROR_FILE_IO,
         "No built %s executable was found. Use Build %s first.", target_key(target), editor_build_target_label_get(target));
@@ -395,13 +420,15 @@ static EditorResult stage_start(EditorBuild *build, bool configure) {
         if(editor_result_check(prepared)) return prepared;
     }
     char directory[EDITOR_WORKSPACE_PATH_MAX * 2], target[EDITOR_CONFIG_ARGUMENT_LENGTH_MAX];
-    SDL_snprintf(directory, sizeof(directory), "%s/build", build->workspace.directory);
+    SDL_snprintf(directory, sizeof(directory), "%s", build->workspace.config.build_directory);
     EditorResult result = editor_build_target_name_get(&build->workspace, build->target, target, sizeof(target));
     if(editor_result_check(result)) return result;
     if(configure) result = editor_config_command_target_expand(&build->configure,
         build->workspace.directory, directory, build->sdk, target, build->arguments, build->argv);
     else result = editor_build_compile_arguments_get(&build->compile,
         build->workspace.directory, directory, build->sdk, target, build->arguments, build->argv);
+    if(editor_result_check(result)) return result;
+    result = editor_config_workspace_arguments_expand(&build->workspace, build->arguments, build->argv);
     if(editor_result_check(result)) return result;
     if(!build->argv[0]) {
         stage_output(build, "SKIPPED (command disabled)");
@@ -426,7 +453,12 @@ EditorResult editor_build_start(EditorBuild *build, const EditorWorkspace *works
     build->output = output; build->context = context;
     EditorResult result = path_copy(build->sdk, sizeof(build->sdk), sdk ? sdk : "");
     if(editor_result_check(result)) return result;
-    result = path_copy(build->option, sizeof(build->option), configure_option ? configure_option : "");
+    if(workspace->config.engine_directory[0]) {
+        result = editor_workspace_path_get(workspace, EDITOR_PATH_ENGINE, build->sdk, sizeof(build->sdk));
+        if(editor_result_check(result)) return result;
+        if(SDL_snprintf(build->option, sizeof(build->option), "-DROHR_ENGINE_SOURCE_ROOT=%s", build->sdk) >= (int)sizeof(build->option))
+            return editor_result_error(EDITOR_ERROR_CAPACITY, "Engine path is too long");
+    } else result = path_copy(build->option, sizeof(build->option), configure_option ? configure_option : "");
     if(editor_result_check(result)) return result;
     const EditorConfigCommand *command = editor_config_command_get(config, EDITOR_CONFIG_FRONTEND_GUI, EDITOR_CONFIG_OPERATION_CONFIGURE);
     if(command) build->configure = *command;

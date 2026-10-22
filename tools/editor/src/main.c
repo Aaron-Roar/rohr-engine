@@ -98,11 +98,17 @@ typedef enum EditorWorkspaceBrowserAction {
     EDITOR_WORKSPACE_BROWSER_ADD_FONT
 } EditorWorkspaceBrowserAction;
 
-static const char *editor_project_relative_path_get(const char *project_directory,
+static const char *editor_project_relative_path_get(const EditorWorkspace *workspace,
         const char *path) {
     size_t directory_length;
-
-    if(project_directory == NULL || path == NULL) return path;
+    if(!workspace || !path) return path;
+    const char *project_directory = workspace->directory;
+    char assets[EDITOR_WORKSPACE_PATH_MAX * 2];
+    static char canonical[EDITOR_ASSET_PATH_MAX];
+    if(!editor_result_check(editor_workspace_path_get(workspace, EDITOR_PATH_ASSETS, assets, sizeof(assets))) &&
+            editor_workspace_path_contains_check(assets, path) && path[strlen(assets)] == '/') {
+        if(snprintf(canonical, sizeof(canonical), "assets%s", path + strlen(assets)) < (int)sizeof(canonical)) return canonical;
+    }
     directory_length = strlen(project_directory);
     while(directory_length > 0 &&
             (project_directory[directory_length - 1] == '/' ||
@@ -128,9 +134,8 @@ static EditorResult editor_project_fonts_validate(const EditorWorkspace *workspa
     for(size_t i = 0; i < project->ui_font_count; i += 1) {
         const EditorUiFont *font = &project->ui_fonts[i];
         FontAssetResult loaded;
-        if(font->path[0] == '/' || (strlen(font->path) > 2 && font->path[1] == ':'))
-            snprintf(path, sizeof(path), "%s", font->path);
-        else snprintf(path, sizeof(path), "%s/%s", workspace->directory, font->path);
+        EditorResult resolved = editor_workspace_asset_path_get(workspace, font->path, path, sizeof(path));
+        if(editor_result_check(resolved)) return resolved;
         loaded = rohr_graphics_font_load((FontDescription){.file = path,
             .point_size = font->point_size});
         if(rohr_error_check(loaded)) {
@@ -2697,7 +2702,8 @@ int main(int argc, char **argv) {
             notification_panel.log_open = false;
         } else if(build_settings_panel.open &&
                 rohr_input_key_pressed_check(SDL_SCANCODE_ESCAPE)) {
-            build_settings_panel.open = false;
+            if(build_settings_panel.browser.active) build_settings_panel.browser.active = false;
+            else build_settings_panel.open = false;
             rohr_ui_field_focus_clear();
         } else if(visual_settings_panel.open &&
                 rohr_input_key_pressed_check(SDL_SCANCODE_ESCAPE)) {
@@ -2939,7 +2945,7 @@ int main(int argc, char **argv) {
             fmaxf(560.0f, EDITOR_VIEWPORT_WIDTH * 0.84f),
             fminf(500.0f, EDITOR_VIEWPORT_BOTTOM - EDITOR_MENU_HEIGHT - 68.0f)
         };
-        if(file_browser.active)
+        if(file_browser.active || (build_settings_panel.open && build_settings_panel.browser.active))
             rohr_ui_modal_set((UIRect){0.0f, EDITOR_MENU_HEIGHT,
                 editor_window_width, EDITOR_WINDOW_HEIGHT - EDITOR_MENU_HEIGHT});
         else if(context_menu_modal)
@@ -3790,6 +3796,11 @@ int main(int argc, char **argv) {
         }
         editor_viewport_asset_root_set(workspace.open ? workspace.directory : NULL);
         if(workspace.open) {
+            char assets[EDITOR_WORKSPACE_PATH_MAX * 2];
+            if(!editor_result_check(editor_workspace_path_get(&workspace, EDITOR_PATH_ASSETS, assets, sizeof(assets))))
+                editor_viewport_asset_directory_set(assets);
+        }
+        if(workspace.open) {
             EditorSceneAction action = editor_scene_panel_draw(&build_runtime.panel,
                 editor_scene_bounds_get(), build_runtime.pending || editor_build_active_check(build_runtime.build));
             if(action == EDITOR_SCENE_ACTION_EDITOR || action == EDITOR_SCENE_ACTION_STOP)
@@ -4136,7 +4147,7 @@ int main(int argc, char **argv) {
             if(settings_menu.changed && settings_menu.selected_index == 0 &&
                     workspace.open) {
                 EditorResult result = editor_build_settings_panel_open(
-                    &build_settings_panel, workspace.directory);
+                    &build_settings_panel, &workspace);
                 if(editor_result_check(result)) {
                     editor_build_notification_result_failure(&terminal_panel, &notification_panel,
                         "Build settings", result);
@@ -4199,6 +4210,38 @@ int main(int argc, char **argv) {
                 build_runtime.panel.active_tab != EDITOR_SCENE_TAB_EDITOR;
             editor_scene_settings_panel_draw(&scene_settings_panel, &project, &history,
                 &viewport_state, build_settings_bounds);
+        }
+        if(build_settings_panel.apply_requested) {
+            build_settings_panel.apply_requested = false;
+            EditorWorkspace desired = build_settings_panel.draft;
+            EditorResult result = editor_workspace_paths_validate(&workspace, &desired);
+            if(!editor_result_check(result)) {
+                editor_build_runtime_cancel(&build_runtime);
+                editor_terminal_panel_project_close(&terminal_panel);
+                editor_log_close();
+                editor_viewport_assets_destroy();
+                editor_viewport_ui_font_set(&font);
+                result = editor_build_settings_panel_apply(&build_settings_panel, &workspace, &project);
+                editor_viewport_asset_root_set(workspace.directory);
+                char assets[EDITOR_WORKSPACE_PATH_MAX * 2];
+                if(!editor_result_check(editor_workspace_path_get(&workspace, EDITOR_PATH_ASSETS, assets, sizeof(assets))))
+                    editor_viewport_asset_directory_set(assets);
+                editor_log_open(workspace.directory);
+                (void)editor_terminal_panel_project_open(&terminal_panel, workspace.directory);
+                if(!editor_result_check(result)) {
+                    /* Filesystem moves cannot be undone through authored-data history. */
+                    editor_history_reset(&history);
+                    saved_project_hash = editor_project_hash_get(&project);
+                    editor_mode_named_text_clear_all();
+                    ui_interaction_cancel();
+                }
+            }
+            if(editor_result_check(result)) {
+                SDL_strlcpy(build_settings_panel.error, result.result.error.message,
+                    sizeof(build_settings_panel.error));
+                editor_build_notification_result_failure(&terminal_panel, &notification_panel,
+                    "Build settings", result);
+            }
         }
         if(build_settings_panel.build_requested) {
             build_settings_panel.build_requested = false;
@@ -4378,7 +4421,7 @@ int main(int argc, char **argv) {
                                 break;
                             }
                             relative_path = editor_project_relative_path_get(
-                                workspace.directory, selected_path);
+                                &workspace, selected_path);
                             if(strlen(relative_path) >=
                                     sizeof(add_command.data.animation_frame_add.path)) {
                                 load_result = editor_result_error(
@@ -4417,7 +4460,7 @@ int main(int argc, char **argv) {
                     animation_browser_sprite = 0;
                 } else if(workspace_browser_action == EDITOR_WORKSPACE_BROWSER_ADD_SPRITE) {
                     const char *sprite_path = editor_project_relative_path_get(
-                        workspace.directory, browser_result.path);
+                        &workspace, browser_result.path);
                     EditorCommand add_command = {.type = EDITOR_COMMAND_SPRITE_ADD,
                         .data.sprite_add = {.object = sprite_browser_object,
                             .size = {64.0f, 64.0f}}};
@@ -4450,7 +4493,7 @@ int main(int argc, char **argv) {
                     sprite_browser_object = 0;
                 } else if(workspace_browser_action == EDITOR_WORKSPACE_BROWSER_ADD_FONT) {
                     const char *font_path = editor_project_relative_path_get(
-                        workspace.directory, browser_result.path);
+                        &workspace, browser_result.path);
                     FontAssetResult loaded_font = rohr_graphics_font_load(
                         (FontDescription){.file = browser_result.path,
                             .point_size = 12.0f});

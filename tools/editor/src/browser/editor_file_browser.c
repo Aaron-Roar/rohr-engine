@@ -59,7 +59,7 @@ static SDL_EnumerationResult SDLCALL editor_file_browser_entry_add(void *userdat
                 browser->mode == EDITOR_FILE_BROWSER_OPEN_PNG_MULTI) &&
             !editor_file_browser_extension_check(filename, ".png"))
         return SDL_ENUM_CONTINUE;
-    if(info.type != SDL_PATHTYPE_DIRECTORY &&
+    if(!browser->all_files && info.type != SDL_PATHTYPE_DIRECTORY &&
             browser->mode != EDITOR_FILE_BROWSER_DIRECTORY &&
             browser->mode != EDITOR_FILE_BROWSER_CREATE_DIRECTORY &&
             browser->mode != EDITOR_FILE_BROWSER_OPEN_PNG &&

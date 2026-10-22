@@ -257,13 +257,23 @@ contracts, and generated examples when a goal changes supported behavior.
    passed. User verification of all five cases: PASS. An initial scrolling
    failure could not be reproduced after switching windows; the exact
    hitbox/body/object return path has regression coverage. See the issue mapping.
-7. [ ] **C7 — Build path settings.** Expose current project, engine/SDK, build,
-   asset, generated-source, application executable, and scene executable paths.
-   Make every listed path editable, with defaults and a way to reset overrides.
-   Use C2's path resolution and C6's panel behavior. Persist overrides and show
-   resolved paths accurately after relocation/reconfiguration. Verify default
-   and customized paths through generation, building, and launching, including
-   asset and generated-source locations.
+7. [ ] **C7 — Build path settings.** Expose editable project, engine/SDK,
+   source, assets, generated source, objects, editor-state, build, application,
+   and scene paths with defaults, Browse, Reset, and resolved values. Share path
+   configuration between editor and CLI. Changing Project moves the project;
+   changing content paths moves contents and managed references. Internal paths
+   follow the project; external locations never move merely because Project
+   moves. Executable overrides control build output and launch. Preserve custom
+   main.c, valid caches, and compatible custom scaffolding; reject conflicting
+   destinations before mutation and retain recoverable originals through commit.
+   Verify five cases: (1) defaults/persistence/reset, (2) project relocation with
+   external paths and across filesystems, (3) nested/spaced content relocation
+   with previews, persistence, generation, application and scene, (4) custom
+   SDK/build/output paths and editor/CLI repeat-build parity, and (5) conflicts,
+   rollback, cancellation, custom scaffolding, and modal/scroll interactions.
+   Implementation and automated checks are in place. **Stuck: user editor review
+   is pending (Not tested yet)**; do not mark complete or advance to C8. See the
+   corrective issue mapping for automated evidence and review instructions.
 8. [ ] **C8 — Force and torque selection geometry.** Require direct hits on
    visible force arrowhead/shaft geometry, including the app visual when shown;
    remove oversized hit regions behind or around the arrow. Keep forgiving

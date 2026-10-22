@@ -238,6 +238,74 @@ cmake -S . -B build -DCMAKE_PREFIX_PATH=/path/to/rohr
 cmake --build build
 ```
 
+## Project and build paths
+
+**Settings → Build Settings** edits the project, engine/SDK, source, assets,
+generated source, objects, editor-state file, build directory, application
+executable, and scene executable. Each row shows its configured value and
+resolved location, with Browse and Reset. Apply/Cancel remain outside the
+scrolling fields. Project Reset reverts the proposed move; other resets restore
+their defaults. An empty engine or executable override inherits its default.
+For an already configured multi-configuration build, an inherited executable
+shows the discovered output location.
+
+Path settings are shared by the editor and CLI in `project.rohr.json`:
+
+| Field | Default |
+|---|---|
+| `engine_directory` | SDK/source tree associated with the tool |
+| `source_directory` | `src` |
+| `asset_directory` | `assets` |
+| `generated_directory` | `src/generated` |
+| `object_directory` | `objects` |
+| `editor_state_file` | `objects/project.rohr.json` |
+| `build_directory` | `build` |
+| `application_executable` | CMake's application target output |
+| `scene_executable` | CMake's scene target output |
+
+Apply saves the current authored project. Changing Project moves that project;
+changing a content location moves its existing contents. An unchanged nested
+location follows its parent (for example, generated source follows Source).
+Internal locations are stored relative to the project. External locations are
+stored absolutely and **do not move when the project moves**. Explicitly changing
+an external content location moves that content to the requested destination.
+Changing only Build or executable outputs selects new destinations; it does not
+move old build artifacts. Executable fields control both CMake output and launch.
+
+Apply cancels active build/application/scene children and releases terminal and
+preview handles before relocation, then reopens project services. It clears
+project undo history because filesystem relocation is not an authored-data undo
+operation. Cancel leaves files untouched. Occupied content destinations,
+destructive overlaps, and relocation through symbolic-link ancestors are
+rejected. Source/generated and objects/state may be nested; build outputs may
+be inside Build. Other overlapping storage locations are rejected. POSIX links
+inside a copied tree stay links; their targets are not traversed. Windows
+reparse-point copies fail safely. Moves retain recovery copies until project
+state and scaffolding are saved; copy or metadata failures restore the previous
+locations. A recovery-cleanup failure logs the retained copy's location.
+
+Recognized stock CMake files upgrade to configurable paths. Developer `main.c`
+is preserved. Custom CMake files are preserved and must opt in before changing
+paths: include `.rohr/project_paths.cmake`, use `ROHR_SOURCE_DIRECTORY`,
+`ROHR_GENERATED_DIRECTORY`, and `ROHR_ASSET_DIRECTORY`, and call
+`rohr_project_output(target APPLICATION)` / `rohr_project_output(target SCENE)`.
+Include the scene scaffold through `ROHR_GENERATED_DIRECTORY`. After adapting
+each customized scaffold, add `# Rohr path settings compatible`. Incompatible
+custom scaffolding blocks relocation before files move.
+
+Generated and authored asset names retain the runtime `assets/...` interface;
+previews resolve it through the configured asset directory, and CMake stages
+that directory beside each executable. `.rohr/project_paths.cmake` is generated,
+not user-authored. Unchanged settings retain valid CMake caches; changed path
+settings require reconfiguration and block stale executable launches. Existing
+projects without the optional new manifest fields retain their defaults.
+
+Custom command arrays additionally support `{source}`, `{assets}`, `{generated}`,
+`{objects}`, `{state}`, `{application}`, and `{scene}`. These expand to resolved
+paths without invoking a shell. Existing `{project}`, `{build}`, `{sdk}`, and
+`{target}` placeholders retain their roles. Editing the manifest manually changes
+resolution but does not move files; use Build Settings for content relocation.
+
 ## Lua configuration
 
 The SDK provides `share/rohr/editor.lua`. New projects receive a portable

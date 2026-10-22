@@ -26,11 +26,11 @@ static void workspace_fixture_remove(const char *root) {
         "src/generated/scene/project_viewports.c", "src/generated/scene/project_viewports.h",
         "src/generated/project_objects.c", "src/generated/project_objects.h",
         "src/generated/project_viewports.c", "src/generated/project_viewports.h",
-        "CMakeLists.txt", ".gitignore", "editor.lua",
+        "CMakeLists.txt", ".gitignore", "editor.lua", ".rohr/project_paths.cmake",
         "assets/tutorial_frame_1.png", "assets/tutorial_frame_2.png"
     };
     static const char *directories[] = {
-        "src/generated/scene", "src/generated", "src", "assets", "objects"
+        "src/generated/scene", "src/generated", "src", "assets", "objects", ".rohr"
     };
 
     for(size_t i = 0; i < sizeof(files) / sizeof(files[0]); i += 1) {
@@ -225,7 +225,7 @@ static bool scene_scaffold_check(const EditorWorkspace *workspace,
     if(!main_source || !scene_source || !cmake_source || SDL_GetPathInfo(legacy_path, NULL)) goto done;
     if(!strstr(scene_source, "scene/project_viewports.h") ||
             !strstr(main_source, "tug_create(&scene.authored.tug, (Position){0, 0})")) goto done;
-    const char *include = strstr(cmake_source, "\ninclude(src/generated/project_scene.cmake)\n");
+    const char *include = strstr(cmake_source, "\ninclude(\"${ROHR_GENERATED_DIRECTORY}/project_scene.cmake\")\n");
     if(!include) goto done;
     edited = SDL_malloc(strlen(cmake_source) + 64);
     if(!edited) goto done;
@@ -1094,12 +1094,12 @@ int main(void) {
         }
         snprintf(path, sizeof(path), "%s/CMakeLists.txt", fixture);
         if(!file_contains(path,
-                "add_executable(${PROJECT_NAME} src/main.c") ||
+                "add_executable(${PROJECT_NAME} \"${ROHR_SOURCE_DIRECTORY}/main.c\"") ||
                 !file_contains(path,
                     "target_link_libraries(${PROJECT_NAME} PRIVATE ${ROHR_ENGINE_TARGET})") ||
                 !file_contains(path,
                     "add_custom_target(${PROJECT_NAME}_assets ALL") ||
-                !file_contains(path, "${CMAKE_SOURCE_DIR}/assets") ||
+                !file_contains(path, "${ROHR_ASSET_DIRECTORY}") ||
                 !file_contains(path,
                     "$<TARGET_FILE_DIR:${PROJECT_NAME}>/assets") ||
                 !file_contains(path,

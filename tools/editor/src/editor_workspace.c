@@ -44,15 +44,21 @@ static void editor_workspace_c_string_write(FILE *file, const char *value) {
 
 static bool editor_workspace_path_join(char *output, size_t capacity,
     const char *directory, const char *relative) {
-    size_t length;
+    return !editor_result_check(editor_workspace_path_resolve(directory, relative, output, capacity));
+}
 
-    if(output == NULL || capacity == 0 || directory == NULL || relative == NULL) {
-        return false;
-    }
-    length = strlen(directory);
-    return snprintf(output, capacity, "%s%s%s", directory,
-        length > 0 && directory[length - 1] != '/' ? "/" : "", relative) <
-        (int)capacity;
+/* Stable generated filenames are mapped through the workspace's storage paths. */
+static bool editor_workspace_file_path(const EditorWorkspace *workspace, char *output,
+        size_t capacity, const char *canonical) {
+    const char *suffix = canonical;
+    EditorWorkspacePath kind = EDITOR_PATH_PROJECT;
+    if(!strncmp(canonical, "src/generated", 13) && (!canonical[13] || canonical[13] == '/')) {
+        kind = EDITOR_PATH_GENERATED; suffix += 13;
+    } else if(!strncmp(canonical, "src/", 4)) { kind = EDITOR_PATH_SOURCE; suffix += 3; }
+    if(*suffix == '/' && kind != EDITOR_PATH_PROJECT) ++suffix;
+    char base[EDITOR_WORKSPACE_PATH_MAX * 2];
+    return !editor_result_check(editor_workspace_path_get(workspace, kind, base, sizeof(base))) &&
+        editor_workspace_path_join(output, capacity, base, suffix);
 }
 
 static const char *editor_workspace_basename(const char *path) {
@@ -537,6 +543,10 @@ static bool editor_workspace_manifest_save(const EditorWorkspace *workspace) {
         workspace->config.object_directory);
     yyjson_mut_obj_add_strcpy(document, root, "editor_state_file",
         workspace->config.editor_state_file);
+    yyjson_mut_obj_add_strcpy(document, root, "engine_directory", workspace->config.engine_directory);
+    yyjson_mut_obj_add_strcpy(document, root, "build_directory", workspace->config.build_directory);
+    yyjson_mut_obj_add_strcpy(document, root, "application_executable", workspace->config.application_executable);
+    yyjson_mut_obj_add_strcpy(document, root, "scene_executable", workspace->config.scene_executable);
     success = yyjson_mut_write_file(path, document, YYJSON_WRITE_PRETTY, NULL, NULL);
     yyjson_mut_doc_free(document);
     return success;
@@ -607,6 +617,18 @@ static EditorResult editor_workspace_manifest_load(EditorWorkspace *workspace,
             path, #Field); \
         goto done; \
     }
+#define EDITOR_OPTIONAL_PATH(Field) do { \
+    yyjson_val *v = yyjson_obj_get(root, #Field); \
+    if(v) { const char *text = yyjson_get_str(v); \
+        if(!text || strlen(text) >= sizeof(workspace->config.Field)) { \
+            result = editor_result_error(EDITOR_ERROR_SCHEMA_INVALID, "Invalid workspace path field: %s", #Field); goto done; } \
+        SDL_strlcpy(workspace->config.Field, text, sizeof(workspace->config.Field)); } \
+} while(0)
+    EDITOR_OPTIONAL_PATH(engine_directory);
+    EDITOR_OPTIONAL_PATH(build_directory);
+    EDITOR_OPTIONAL_PATH(application_executable);
+    EDITOR_OPTIONAL_PATH(scene_executable);
+#undef EDITOR_OPTIONAL_PATH
     EDITOR_MANIFEST_STRING_READ(name);
     EDITOR_MANIFEST_STRING_READ(source_directory);
     EDITOR_MANIFEST_STRING_READ(generated_directory);
@@ -883,10 +905,8 @@ static bool editor_workspace_generated_objects_write(const EditorWorkspace *work
     bool generated_has_input_actions = false;
 
     if(workspace == NULL || project == NULL ||
-            !editor_workspace_path_join(header_path, sizeof(header_path),
-                workspace->directory, scene ? "src/generated/scene/project_objects.h" : "src/generated/project_objects.h") ||
-            !editor_workspace_path_join(source_path, sizeof(source_path),
-                workspace->directory, scene ? "src/generated/scene/project_objects.c" : "src/generated/project_objects.c")) return false;
+            !editor_workspace_file_path(workspace, header_path, sizeof(header_path), scene ? "src/generated/scene/project_objects.h" : "src/generated/project_objects.h") ||
+            !editor_workspace_file_path(workspace, source_path, sizeof(source_path), scene ? "src/generated/scene/project_objects.c" : "src/generated/project_objects.c")) return false;
     for(size_t i = 0; i < project->input_controller_count; i += 1)
         if(project->input_controllers[i].action_count > 0)
             generated_has_input_actions = true;
@@ -2062,10 +2082,8 @@ static bool editor_workspace_generated_viewports_write(
     FILE *source;
     size_t text_count = 0;
     if(workspace == NULL || project == NULL ||
-            !editor_workspace_path_join(header_path, sizeof(header_path),
-                workspace->directory, scene ? "src/generated/scene/project_viewports.h" : "src/generated/project_viewports.h") ||
-            !editor_workspace_path_join(source_path, sizeof(source_path),
-                workspace->directory, scene ? "src/generated/scene/project_viewports.c" : "src/generated/project_viewports.c")) return false;
+            !editor_workspace_file_path(workspace, header_path, sizeof(header_path), scene ? "src/generated/scene/project_viewports.h" : "src/generated/project_viewports.h") ||
+            !editor_workspace_file_path(workspace, source_path, sizeof(source_path), scene ? "src/generated/scene/project_viewports.c" : "src/generated/project_viewports.c")) return false;
     header = fopen(header_path, "wb");
     if(header == NULL) return false;
     source = fopen(source_path, "wb");
@@ -2616,8 +2634,7 @@ static bool editor_workspace_main_write(const EditorWorkspace *workspace,
     FILE *file;
 
     if(workspace == NULL || project == NULL ||
-            !editor_workspace_path_join(path, sizeof(path), workspace->directory,
-                "src/main.c")) return false;
+            !editor_workspace_file_path(workspace, path, sizeof(path), "src/main.c")) return false;
     file = fopen(path, "wb");
     if(file == NULL) return false;
     bool written = fputs(tutorial ? editor_starter_main_source : editor_workspace_main_source, file) != EOF;
@@ -2642,7 +2659,7 @@ static bool editor_workspace_tick_main_check(const char *contents) {
         strcmp(contents + prefix + old_length, start + strlen(new_tick)) == 0;
 }
 
-static bool editor_workspace_cmake_format(const EditorWorkspace *workspace,
+static bool editor_workspace_cmake_legacy_format(const EditorWorkspace *workspace,
         char *cmake, size_t capacity) {
     int cmake_length;
 
@@ -2682,12 +2699,64 @@ static bool editor_workspace_cmake_format(const EditorWorkspace *workspace,
     return cmake_length >= 0 && (size_t)cmake_length < capacity;
 }
 
+static bool editor_workspace_cmake_format(const EditorWorkspace *workspace, char *output, size_t capacity) {
+    int n = snprintf(output, capacity,
+        "# Rohr managed project scaffold v2\n"
+        "cmake_minimum_required(VERSION 3.20)\nproject(%s LANGUAGES C)\n"
+        "set(CMAKE_C_STANDARD 11)\nset(CMAKE_C_STANDARD_REQUIRED ON)\n"
+        "include(.rohr/project_paths.cmake)\n"
+        "if(DEFINED ROHR_ENGINE_SOURCE_ROOT AND EXISTS \"${ROHR_ENGINE_SOURCE_ROOT}/CMakeLists.txt\")\n"
+        "  set(ROHR_BUILD_EXAMPLES OFF CACHE BOOL \"\" FORCE)\n"
+        "  set(ROHR_BUILD_TESTS OFF CACHE BOOL \"\" FORCE)\n"
+        "  set(ROHR_BUILD_EDITOR OFF CACHE BOOL \"\" FORCE)\n"
+        "  set(ROHR_BUILD_CLI OFF CACHE BOOL \"\" FORCE)\n"
+        "  add_subdirectory(\"${ROHR_ENGINE_SOURCE_ROOT}\" rohr-engine)\n"
+        "  set(ROHR_ENGINE_TARGET rohr_engine)\nelse()\n"
+        "  if(DEFINED ROHR_ENGINE_SOURCE_ROOT)\n    list(PREPEND CMAKE_PREFIX_PATH \"${ROHR_ENGINE_SOURCE_ROOT}\")\n  endif()\n"
+        "  find_package(Rohr CONFIG REQUIRED)\n  set(ROHR_ENGINE_TARGET Rohr::Engine)\nendif()\n"
+        "file(GLOB ROHR_GENERATED_SOURCES CONFIGURE_DEPENDS \"${ROHR_GENERATED_DIRECTORY}/*.c\")\n"
+        "list(FILTER ROHR_GENERATED_SOURCES EXCLUDE REGEX \"(^|/)project_scene[.]c$\")\n"
+        "add_executable(${PROJECT_NAME} \"${ROHR_SOURCE_DIRECTORY}/main.c\" ${ROHR_GENERATED_SOURCES})\n"
+        "target_include_directories(${PROJECT_NAME} PRIVATE \"${ROHR_GENERATED_DIRECTORY}\")\n"
+        "target_link_libraries(${PROJECT_NAME} PRIVATE ${ROHR_ENGINE_TARGET})\n"
+        "rohr_project_output(${PROJECT_NAME} APPLICATION)\n"
+        "add_custom_target(${PROJECT_NAME}_assets ALL COMMAND ${CMAKE_COMMAND} -E copy_directory\n"
+        "  \"${ROHR_ASSET_DIRECTORY}\" \"$<TARGET_FILE_DIR:${PROJECT_NAME}>/assets\" VERBATIM)\n"
+        "add_dependencies(${PROJECT_NAME} ${PROJECT_NAME}_assets)\n", workspace->config.name);
+    return n >= 0 && (size_t)n < capacity;
+}
+static bool editor_workspace_scene_cmake_format(const EditorWorkspace *workspace, char *output, size_t capacity) {
+    (void)workspace;
+    const char *text =
+        "# Rohr managed scene scaffold v2\ninclude(\"${CMAKE_SOURCE_DIR}/.rohr/project_paths.cmake\")\n"
+        "configure_file(\"${CMAKE_SOURCE_DIR}/.rohr/project_paths.cmake\" \"${CMAKE_BINARY_DIR}/rohr_paths_configured.cmake\" COPYONLY)\n"
+        "get_target_property(_rohr_app_sources ${PROJECT_NAME} SOURCES)\n"
+        "list(FILTER _rohr_app_sources EXCLUDE REGEX \"(^|/)project_scene[.]c$\")\n"
+        "set_property(TARGET ${PROJECT_NAME} PROPERTY SOURCES \"${_rohr_app_sources}\")\n"
+        "add_executable(${PROJECT_NAME}_scene \"${ROHR_GENERATED_DIRECTORY}/project_scene.c\"\n"
+        "  \"${ROHR_GENERATED_DIRECTORY}/scene/project_objects.c\" \"${ROHR_GENERATED_DIRECTORY}/scene/project_viewports.c\")\n"
+        "target_include_directories(${PROJECT_NAME}_scene PRIVATE \"${ROHR_GENERATED_DIRECTORY}/scene\")\n"
+        "target_link_libraries(${PROJECT_NAME}_scene PRIVATE ${ROHR_ENGINE_TARGET})\n"
+        "rohr_project_output(${PROJECT_NAME}_scene SCENE)\n"
+        "add_custom_target(${PROJECT_NAME}_scene_assets ALL COMMAND ${CMAKE_COMMAND} -E copy_directory\n"
+        "  \"${ROHR_ASSET_DIRECTORY}\" \"$<TARGET_FILE_DIR:${PROJECT_NAME}_scene>/assets\" VERBATIM)\n"
+        "if(TARGET ${PROJECT_NAME}_assets)\n  add_dependencies(${PROJECT_NAME}_scene_assets ${PROJECT_NAME}_assets)\nendif()\n"
+        "add_dependencies(${PROJECT_NAME}_scene ${PROJECT_NAME}_scene_assets)\n"
+        "add_custom_target(${PROJECT_NAME}_project DEPENDS ${PROJECT_NAME} ${PROJECT_NAME}_scene)\n"
+        "file(WRITE \"${CMAKE_BINARY_DIR}/rohr_target_application.txt\" \"${PROJECT_NAME}\")\n"
+        "file(WRITE \"${CMAKE_BINARY_DIR}/rohr_target_scene.txt\" \"${PROJECT_NAME}_scene\")\n"
+        "file(WRITE \"${CMAKE_BINARY_DIR}/rohr_target_project.txt\" \"${PROJECT_NAME}_project\")\n"
+        "file(GENERATE OUTPUT \"${CMAKE_BINARY_DIR}/rohr_application_$<CONFIG>.path\" CONTENT \"$<TARGET_FILE:${PROJECT_NAME}>\")\n"
+        "file(GENERATE OUTPUT \"${CMAKE_BINARY_DIR}/rohr_scene_$<CONFIG>.path\" CONTENT \"$<TARGET_FILE:${PROJECT_NAME}_scene>\")\n";
+    return SDL_strlcpy(output, text, capacity) < capacity;
+}
+
 static const char scene_cmake_include[] =
-    "\ninclude(src/generated/project_scene.cmake)\n";
+    "\ninclude(\"${ROHR_GENERATED_DIRECTORY}/project_scene.cmake\")\n";
 
 static bool editor_workspace_scaffold_write(const EditorWorkspace *workspace) {
     char path[EDITOR_WORKSPACE_PATH_MAX * 2];
-    char cmake[EDITOR_WORKSPACE_PATH_MAX * 4];
+    char cmake[EDITOR_WORKSPACE_PATH_MAX * 8];
     if(!editor_workspace_cmake_format(workspace, cmake, sizeof(cmake)) ||
             strlen(cmake) + strlen(scene_cmake_include) >= sizeof(cmake)) return false;
     strcat(cmake, scene_cmake_include);
@@ -2697,7 +2766,7 @@ static bool editor_workspace_scaffold_write(const EditorWorkspace *workspace) {
             ".gitignore") && editor_workspace_file_write(path, "build/\nlogs/\n");
 }
 
-static bool editor_workspace_scene_cmake_format(const EditorWorkspace *workspace,
+static bool editor_workspace_scene_cmake_legacy_format(const EditorWorkspace *workspace,
         char *cmake, size_t capacity) {
     int count = snprintf(cmake, capacity,
         "# Generated by Rohr Engine. Preserved when present; restored if missing.\n"
@@ -2733,13 +2802,113 @@ static bool editor_workspace_scene_cmake_format(const EditorWorkspace *workspace
     return count >= 0 && (size_t)count < capacity;
 }
 
+
+EditorResult editor_workspace_build_paths_write(const EditorWorkspace *workspace) {
+    char path[EDITOR_WORKSPACE_PATH_MAX * 2];
+    if(!editor_workspace_directory_create(workspace->directory, ".rohr") ||
+            !editor_workspace_path_join(path, sizeof(path), workspace->directory, ".rohr/project_paths.cmake"))
+        return editor_result_error(EDITOR_ERROR_FILE_IO, "Could not prepare project path settings");
+    char temporary[sizeof(path) + 48];
+    snprintf(temporary, sizeof(temporary), "%s.tmp_%llu", path, (unsigned long long)SDL_GetPerformanceCounter());
+    FILE *file = fopen(temporary, "wbx");
+    if(!file) return editor_result_error(EDITOR_ERROR_FILE_IO, "Could not write %s", temporary);
+    const EditorWorkspacePath kinds[] = {EDITOR_PATH_SOURCE, EDITOR_PATH_GENERATED, EDITOR_PATH_ASSETS,
+        EDITOR_PATH_ENGINE, EDITOR_PATH_APPLICATION, EDITOR_PATH_SCENE};
+    const char *variables[] = {"ROHR_SOURCE_DIRECTORY", "ROHR_GENERATED_DIRECTORY", "ROHR_ASSET_DIRECTORY",
+        "ROHR_ENGINE_SOURCE_ROOT", "ROHR_APPLICATION_EXECUTABLE", "ROHR_SCENE_EXECUTABLE"};
+    bool ok = fputs("# Generated project paths. Edit these through Build Settings.\n", file) >= 0;
+    for(size_t i = 0; ok && i < SDL_arraysize(kinds); ++i) {
+        const char *configured = editor_workspace_path_value_get((EditorWorkspace *)workspace, kinds[i]);
+        if(i >= 3 && !*configured) continue;
+        char resolved[EDITOR_WORKSPACE_PATH_MAX * 2], root[EDITOR_WORKSPACE_PATH_MAX * 2];
+        EditorResult r = editor_workspace_path_get(workspace, kinds[i], resolved, sizeof(resolved));
+        if(editor_result_check(r) || editor_result_check(editor_workspace_path_get(workspace,
+                EDITOR_PATH_PROJECT, root, sizeof(root)))) { ok = false; break; }
+        if(editor_workspace_path_contains_check(root, resolved))
+            ok = fprintf(file, "set(%s \"${CMAKE_SOURCE_DIR}%s\")\n", variables[i], resolved + strlen(root)) >= 0;
+        else ok = fprintf(file, "set(%s \"%s\")\n", variables[i], resolved) >= 0;
+    }
+    if(ok) ok = fputs(
+        "function(rohr_project_output target kind)\n"
+        "  if(DEFINED ROHR_${kind}_EXECUTABLE)\n"
+        "    get_filename_component(directory \"${ROHR_${kind}_EXECUTABLE}\" DIRECTORY)\n"
+        "    get_filename_component(filename \"${ROHR_${kind}_EXECUTABLE}\" NAME)\n"
+        "    set_target_properties(${target} PROPERTIES OUTPUT_NAME \"${filename}\" SUFFIX \"\"\n"
+        "      RUNTIME_OUTPUT_DIRECTORY \"$<1:${directory}>\")\n"
+        "  endif()\nendfunction()\n", file) >= 0;
+    bool closed = fclose(file) == 0;
+    if(ok && closed) {
+        size_t before_size = 0, after_size = 0;
+        void *before = SDL_LoadFile(path, &before_size), *after = SDL_LoadFile(temporary, &after_size);
+        bool same = before && after && before_size == after_size && !memcmp(before, after, before_size);
+        SDL_free(before); SDL_free(after);
+        if(same) { (void)SDL_RemovePath(temporary); return editor_result_value(true); }
+        if(SDL_RenamePath(temporary, path)) return editor_result_value(true);
+    }
+    (void)SDL_RemovePath(temporary);
+    return editor_result_error(EDITOR_ERROR_FILE_IO, "Could not write %s", path);
+}
+
+static bool scaffold_known(const EditorWorkspace *workspace, const char *text, bool scene) {
+    char expected[EDITOR_WORKSPACE_PATH_MAX * 8];
+    if(scene) {
+        if(editor_workspace_scene_cmake_legacy_format(workspace, expected, sizeof(expected)) && !strcmp(text, expected)) return true;
+        return editor_workspace_scene_cmake_format(workspace, expected, sizeof(expected)) && !strcmp(text, expected);
+    }
+    if(editor_workspace_cmake_legacy_format(workspace, expected, sizeof(expected))) {
+        if(!strcmp(text, expected)) return true;
+        SDL_strlcat(expected, "\ninclude(src/generated/project_scene.cmake)\n", sizeof(expected));
+        if(!strcmp(text, expected)) return true;
+    }
+    if(!editor_workspace_cmake_format(workspace, expected, sizeof(expected))) return false;
+    if(!strcmp(text, expected)) return true;
+    SDL_strlcat(expected, scene_cmake_include, sizeof(expected));
+    return !strcmp(text, expected);
+}
+EditorResult editor_workspace_scaffold_paths_check(const EditorWorkspace *workspace) {
+    const char *names[] = {"CMakeLists.txt", "src/generated/project_scene.cmake"};
+    for(size_t i = 0; i < SDL_arraysize(names); ++i) {
+        char path[EDITOR_WORKSPACE_PATH_MAX * 2]; SDL_PathInfo info;
+        if(!editor_workspace_file_path(workspace, path, sizeof(path), names[i]))
+            return editor_result_error(EDITOR_ERROR_CAPACITY, "CMake path is too long");
+        if(!SDL_GetPathInfo(path, &info)) continue;
+        char *text = SDL_LoadFile(path, NULL);
+        bool ok = text && (scaffold_known(workspace, text, i != 0) ||
+            strstr(text, "# Rohr path settings compatible") != NULL);
+        SDL_free(text);
+        if(!ok) return editor_result_error(EDITOR_ERROR_INVALID_ARGUMENT,
+            "Customized %s must use .rohr/project_paths.cmake and ROHR_SOURCE_DIRECTORY, ROHR_GENERATED_DIRECTORY, "
+            "ROHR_ASSET_DIRECTORY and rohr_project_output; mark it '# Rohr path settings compatible' after adapting it. No files moved.", path);
+    }
+    return editor_result_value(true);
+}
+EditorResult editor_workspace_scaffold_paths_write(const EditorWorkspace *workspace) {
+    EditorResult r = editor_workspace_build_paths_write(workspace);
+    if(editor_result_check(r)) return r;
+    const char *names[] = {"CMakeLists.txt", "src/generated/project_scene.cmake"};
+    for(size_t i = 0; i < SDL_arraysize(names); ++i) {
+        char path[EDITOR_WORKSPACE_PATH_MAX * 2], text[EDITOR_WORKSPACE_PATH_MAX * 8];
+        if(!editor_workspace_file_path(workspace, path, sizeof(path), names[i]))
+            return editor_result_error(EDITOR_ERROR_CAPACITY, "CMake path is too long");
+        char *existing = SDL_LoadFile(path, NULL);
+        bool custom = existing && strstr(existing, "# Rohr path settings compatible");
+        SDL_free(existing); if(custom) continue;
+        bool ok = i ? editor_workspace_scene_cmake_format(workspace, text, sizeof(text)) :
+            editor_workspace_cmake_format(workspace, text, sizeof(text));
+        if(!i) SDL_strlcat(text, scene_cmake_include, sizeof(text));
+        if(!ok || !editor_workspace_file_write(path, text))
+            return editor_result_error(EDITOR_ERROR_FILE_IO, "Could not update %s", path);
+    }
+    return editor_result_value(true);
+}
+
 /* Exclusive creation keeps existing customizations and dangling links intact. */
 static EditorResult editor_workspace_cmake_restore_file(const EditorWorkspace *workspace,
         const char *relative, const char *contents, bool *restored) {
     char path[EDITOR_WORKSPACE_PATH_MAX * 2];
     SDL_PathInfo info;
     *restored = false;
-    if(!editor_workspace_path_join(path, sizeof(path), workspace->directory, relative))
+    if(!editor_workspace_file_path(workspace, path, sizeof(path), relative))
         return editor_result_error(EDITOR_ERROR_CAPACITY, "CMake path is too long: %s", relative);
     if(SDL_GetPathInfo(path, &info)) {
         if(info.type != SDL_PATHTYPE_FILE) return editor_result_error(EDITOR_ERROR_FILE_IO,
@@ -2771,14 +2940,16 @@ EditorResult editor_workspace_cmake_restore(const EditorWorkspace *workspace,
     if(!workspace || !workspace->open || !root_restored || !scene_restored)
         return editor_result_error(EDITOR_ERROR_INVALID_ARGUMENT, "CMake recovery needs an open project");
     *root_restored = *scene_restored = false;
-    char cmake[EDITOR_WORKSPACE_PATH_MAX * 4];
+    EditorResult paths = editor_workspace_build_paths_write(workspace);
+    if(editor_result_check(paths)) return paths;
+    char cmake[EDITOR_WORKSPACE_PATH_MAX * 8];
     if(!editor_workspace_cmake_format(workspace, cmake, sizeof(cmake)) ||
             strlen(cmake) + strlen(scene_cmake_include) >= sizeof(cmake))
         return editor_result_error(EDITOR_ERROR_CAPACITY, "Project CMake template is too long");
     strcat(cmake, scene_cmake_include);
     EditorResult result = editor_workspace_cmake_restore_file(workspace, "CMakeLists.txt", cmake, root_restored);
     if(editor_result_check(result)) return result;
-    if(!editor_workspace_directory_create(workspace->directory, "src/generated"))
+    if(!editor_workspace_directory_create(workspace->directory, workspace->config.generated_directory))
         return editor_result_error(EDITOR_ERROR_FILE_IO,
             "Could not prepare CMake directory: %s/src/generated", workspace->directory);
     if(!editor_workspace_scene_cmake_format(workspace, cmake, sizeof(cmake)))
@@ -2795,7 +2966,9 @@ static bool editor_workspace_scene_modules_write(const EditorWorkspace *workspac
     EditorObject *objects = NULL;
     EditorViewportCameraItem *items = NULL;
     bool written = false;
-    if(!editor_workspace_directory_create(workspace->directory, "src/generated/scene")) return false;
+    char scene_directory[EDITOR_WORKSPACE_PATH_MAX * 2];
+    if(!editor_workspace_file_path(workspace, scene_directory, sizeof(scene_directory), "src/generated/scene") ||
+            !SDL_CreateDirectory(scene_directory)) return false;
     if(selection && selection->objects_selected) {
         if(selection->object_count) {
             objects = calloc(selection->object_count, sizeof(*objects));
@@ -2840,13 +3013,12 @@ done:
 static bool editor_workspace_scene_write(const EditorWorkspace *workspace,
         const EditorProject *project, const EditorSceneSelection *selection) {
     char path[EDITOR_WORKSPACE_PATH_MAX * 2];
-    char cmake[EDITOR_WORKSPACE_PATH_MAX * 4];
+    char cmake[EDITOR_WORKSPACE_PATH_MAX * 8];
     SDL_PathInfo info;
     if(!editor_workspace_scene_modules_write(workspace, project, selection) ||
-            !editor_workspace_path_join(path, sizeof(path), workspace->directory,
-                "src/generated/project_scene.c") ||
+            !editor_workspace_file_path(workspace, path, sizeof(path), "src/generated/project_scene.c") ||
             !editor_workspace_file_write(path, editor_scene_source)) return false;
-    if(!editor_workspace_path_join(path, sizeof(path), workspace->directory, "src/scene.c")) return false;
+    if(!editor_workspace_file_path(workspace, path, sizeof(path), "src/scene.c")) return false;
     if(SDL_GetPathInfo(path, &info)) {
         if(info.type != SDL_PATHTYPE_FILE) return false;
         char *existing_scene = SDL_LoadFile(path, NULL);
@@ -2883,7 +3055,7 @@ static bool editor_workspace_scene_write(const EditorWorkspace *workspace,
             strcat(cmake, scene_cmake_include);
             success = editor_workspace_file_write(path, cmake);
         }
-    } else if(success && strstr(existing, "include(src/generated/project_scene.cmake)") == NULL) {
+    } else if(success && strstr(existing, "project_scene.cmake") == NULL) {
         editor_log_error("Scene build integration",
             "Preserved customized %s. To add the scene target, include(src/generated/project_scene.cmake) "
             "after defining ROHR_GENERATED_SOURCES and ROHR_ENGINE_TARGET.", path);
@@ -2933,10 +3105,8 @@ static bool editor_workspace_starter_assets_copy(const EditorWorkspace *workspac
             if(snprintf(source, sizeof(source), "%s/%s", ROHR_DEVELOPMENT_SOURCE_DIR,
                     development_names[i]) >= (int)sizeof(source)) return false;
         }
-        if(!editor_workspace_path_join(relative, sizeof(relative),
-                workspace->config.asset_directory, names[i]) ||
-                !editor_workspace_path_join(destination, sizeof(destination),
-                    workspace->directory, relative) ||
+        if(editor_result_check(editor_workspace_path_get(workspace, EDITOR_PATH_ASSETS, relative, sizeof(relative))) ||
+                !editor_workspace_path_join(destination, sizeof(destination), relative, names[i]) ||
                 !SDL_CopyFile(source, destination)) return false;
     }
     return true;
@@ -2957,8 +3127,7 @@ static bool editor_workspace_legacy_main_upgrade(const EditorWorkspace *workspac
     char path[EDITOR_WORKSPACE_PATH_MAX * 2];
     char *contents;
     bool legacy;
-    if(!editor_workspace_path_join(path, sizeof(path), workspace->directory,
-            "src/main.c")) return false;
+    if(!editor_workspace_file_path(workspace, path, sizeof(path), "src/main.c")) return false;
     contents = SDL_LoadFile(path, NULL);
     if(contents == NULL) return false;
     bool legacy_joints = strcmp(contents, editor_starter_main_legacy_joint_source) == 0;
@@ -2969,7 +3138,8 @@ static bool editor_workspace_legacy_main_upgrade(const EditorWorkspace *workspac
 
 static bool editor_workspace_c_generate_selected(const EditorWorkspace *workspace,
     const EditorProject *project, const EditorSceneSelection *selection) {
-    if(!project) return false;
+    if(!project || !workspace || editor_result_check(editor_workspace_build_paths_write(workspace))) return false;
+    if(!editor_workspace_directory_create(workspace->directory, workspace->config.generated_directory)) return false;
     for(size_t i = 0; i < project->object_count; ++i)
         if(!editor_sources_check(&project->objects[i])) return false;
     return workspace != NULL && workspace->open &&
@@ -3082,7 +3252,7 @@ EditorResult editor_workspace_create(EditorWorkspace *workspace, EditorProject *
         EDITOR_ERROR_FILE_IO, "Could not copy starter assets under: %s", directory);
     if(!editor_workspace_save(&created, project)) return editor_result_error(
         EDITOR_ERROR_FILE_IO, "Could not save the initial project state under: %s", directory);
-    if(!editor_workspace_scaffold_write(&created)) return editor_result_error(
+    if(editor_result_check(editor_workspace_build_paths_write(&created)) || !editor_workspace_scaffold_write(&created)) return editor_result_error(
         EDITOR_ERROR_FILE_IO, "Could not write the project build scaffold under: %s", directory);
     if(!editor_workspace_config_template_copy(&created)) return editor_result_error(
         EDITOR_ERROR_FILE_IO, "Could not copy editor.lua under: %s", directory);

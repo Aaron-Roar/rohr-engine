@@ -27,6 +27,7 @@ typedef struct EditorFileBrowserEntry {
 
 typedef struct EditorFileBrowser {
     bool active;
+    bool all_files; /* Unrestricted file selection for build output paths. */
     EditorFileBrowserMode mode;
     char directory[EDITOR_FILE_BROWSER_PATH_MAX];
     char selected_directory[EDITOR_FILE_BROWSER_PATH_MAX];

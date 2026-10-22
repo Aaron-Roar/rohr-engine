@@ -718,6 +718,45 @@ windows and could not be reproduced. Two editor builds were open; the cause of
 that transient observation is unconfirmed. C7–C14 and the remaining broader
 interactive acceptance checks remain open.
 
+**C7 implementation and verification (interactive review pending):** Build
+Settings now exposes ten shared path locations, with scrolling, resolved paths,
+Browse, Reset, and fixed Apply/Cancel controls. Workspace path changes retain
+original content until copies are verified and metadata commits; conflicts,
+unsupported copy entries, and metadata failures preserve the old workspace.
+Nested generated/state paths follow their parent; external locations stay put
+when the project moves. Explicit output paths control compilation and launch.
+Managed CMake templates consume shared paths and record their configured values,
+so unchanged builds reuse caches while changed settings block stale launches.
+Custom main.c is preserved; custom scaffolding requires explicit compatibility
+before relocation. Applying settings cancels project children, releases handles,
+refreshes previews, and clears authored undo history.
+
+`editor_workspace_paths` covers defaults, persisted overrides, nested locations,
+external assets, project moves, resets, conflicts, symbolic-link ancestors,
+copy-failure rollback, metadata-failure rollback, custom-scaffold rejection,
+asset resolution, and command substitutions. `editor_workspace_paths_build`
+builds and launches installed-SDK applications/scenes from external paths with
+spaces through CLI and the GUI's controller; checks main.c preservation, asset
+staging, cache retention, output changes, and stale-launch rejection. A separate
+run moved a project from `/tmp` to `/dev/shm` and back successfully. Existing
+scaffold tests now assert the configurable CMake interface.
+
+The 120-test Linux suite passed; four focused ASan/UBSan checks passed with leak
+detection outside the sandbox (workspace paths, build processes, editor project,
+reference picking). Linux examples built, and installed-SDK application/scene
+startup checks passed. Windows GUI, CLI, path tests, and build tests
+cross-compiled; native Windows execution has not been performed. Final focused
+regressions, sanitizer checks, and Windows cross-builds also passed after the
+nested-path, preview-font, and durable metadata-recovery follow-up fixes. The
+120-test suite passed before the final metadata-backup-only change.
+
+User review remains **Not tested yet**. Use the C7 review editor with
+`/tmp/c7-path-review`: verify all rows and fixed actions; Apply custom assets,
+generated, build, application, and scene paths; build and simulate; reopen to
+check persistence; relocate the project while preserving `/tmp/c7-sdk`; reject
+an occupied generated-source destination without losing content. C7 remains
+open until this review passes. C8–C14 remain untouched.
+
 ## Frozen fixture plan
 
 These are comparison cases for this inventory, not tests implemented in goal 1.
