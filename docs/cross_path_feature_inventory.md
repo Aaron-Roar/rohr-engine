@@ -462,9 +462,9 @@ returning. The original failed fixture remains available for comparison.
 |---|---|---|
 | 1. Composition and presentation | The left/right screens have different rotation, placement and resolution. The left screen extends past the viewport edge and clips. The red bar draws over the left screen but under the right; the green panel stays above both. Text wraps, rotates and clips. Resize wider/taller without losing content or distorting aspect. In the viewport editor, move/rotate a screen and change camera zoom/content transforms; placement and content remain independent after rebuilding. | PASS after corrective retests: runtime layering, text wrapping/rotation/clipping, resizing, Sway stability and camera zoom were accepted earlier. The user then confirmed PASS for the corrected camera preview and rotated clipping. Earlier screen-editor failures are resolved. |
 | 2. Visuals and visibility | Inspect `push_marker`, `spin_marker`, pin/weld/spring, the mirrored sprite, playing animations and `empty_animation`. Spring endpoints have different colors/scales/offsets. Toggle editor eyes separately from Visible in App, including the parent; rebuild and verify only app visibility affects runtime drawing and hidden bodies still simulate. Restore parent visibility without changing child settings. Empty animation must not prevent rendering. | Pending |
-| 3. Editor interaction | Select geometry, drag from the selecting press, use child-selection and rotation handles, and undo/redo each gesture. Pick force targets/references from menus and the viewport, checking hover highlights. Scroll a long selector; check modal menus do not move underlying items. Drag the slider thumb without moving its parent. Rename via Enter/Escape and confirm subsequent keyboard navigation works. | User-reported failures: oversized force/torque picking, persistent/overlapping child panels, first-element activation, object/joint scrolling, and delayed joint clamping. Corrections C6/C8/C14 and retests pending. |
+| 3. Editor interaction | Select geometry, drag from the selecting press, use child-selection and rotation handles, and undo/redo each gesture. Pick force targets/references from menus and the viewport, checking hover highlights. Scroll a long selector; check modal menus do not move underlying items. Drag the slider thumb without moving its parent. Rename via Enter/Escape and confirm subsequent keyboard navigation works. | User-reported failures: oversized force/torque picking, persistent/overlapping child panels, first-element activation, object/joint scrolling, and delayed joint clamping. C6 panel lifecycle/scrolling complete with user acceptance; C8/C14 and broader interaction retests pending. |
 | 4. Input and audio | Exercise the starter's configured logical input actions and text entry without unintended gameplay input while editing. Run the installed-SDK `audio` example: Play Water Splash produces sound; music play/pause/resume and track switching work; Quit/escape shuts down. Review window size/aspect settings. Muted description defaults and queued/applied audio state retain their automated fixture evidence; silent startup alone is not proof of muted playback. | Pending |
-| 5. Project lifecycle and delivery | Build/run the application and Simulate Scene. The application includes direct-API extras; scene simulation contains authored objects. Verify run/pause/stop, return to Editor, close/reopen/reorder tabs through View, rebuild a visible edit and replay. Close/switch a project during an active build and verify cancellation; terminal interrupt reaches the subprocess. Launch installed-SDK artifacts outside their source directories. | User-reported failures: relocation, repeat builds, missing CMake recovery, generation diagnostics, and incomplete-joint generation. Startup error 21 reproduced in rohr-project-1. C1 diagnostics, C2 relocation/repeat builds, C3 missing CMake recovery, C4 partial-spawn startup, and C5 incomplete joints complete with verification below; C6–C14 and broader interactive retests pending. |
+| 5. Project lifecycle and delivery | Build/run the application and Simulate Scene. The application includes direct-API extras; scene simulation contains authored objects. Verify run/pause/stop, return to Editor, close/reopen/reorder tabs through View, rebuild a visible edit and replay. Close/switch a project during an active build and verify cancellation; terminal interrupt reaches the subprocess. Launch installed-SDK artifacts outside their source directories. | User-reported failures: relocation, repeat builds, missing CMake recovery, generation diagnostics, and incomplete-joint generation. Startup error 21 reproduced in rohr-project-1. C1 diagnostics, C2 relocation/repeat builds, C3 missing CMake recovery, C4 partial-spawn startup, and C5 incomplete joints complete with verification below; C6 panel lifecycle/scrolling also complete; C7–C14 and broader interactive retests pending. |
 
 Preparation evidence (2026-10-21): full Linux build and **111/111 CTest tests
 pass**, including the installed-SDK comparisons and scene/build lifecycle
@@ -684,8 +684,39 @@ compiled catalogs, JSON loading, and physics-only spawning against the installed
 SDK outside the source directory; it also builds and starts Simulate Scene.
 All 117 Linux tests and three focused ASan/UBSan tests passed. Linux examples
 built, and Windows editor/CLI and joint tests cross-compiled without compiler
-warnings. Native Windows execution was not performed. C6–C14 and broader
-interactive acceptance remain open.
+warnings. Native Windows execution was not performed.
+
+**C6 verification:** panel identity follows the open editor and item, including
+same-type siblings, rather than the selected child row. Navigation cancels old
+dropdown, field, pointer, and scroll capture. Back/Close, editor visibility, and
+the name stay fixed above measured scrolling properties. New editors start at
+the top; only Back restores parent scroll, clamped to current content. History
+is bounded and project-local, with deleted entries pruned. Shared settings use
+the open item; object property commands now have their own undo snapshot.
+
+`editor_panel_lifecycle` covers fresh child/sibling entry, Back-only restoration,
+deletion/project reset, stale dropdown and field cancellation, fixed-header
+clicks, clipped rows, measured content, clamped offsets, nested wheel routing,
+and keyboard scrolling. It also draws the real object, rigid-body, and hitbox
+panels through the return sequence and verifies wheel input without an off-panel
+click. `editor_configuration_controls` verifies that selected child rows do not
+redirect object edits and that undo preserves the body's previous setting.
+
+All 118 Linux tests passed, including integration retries outside the sandbox
+for local scene sockets. Five focused ASan/UBSan checks passed with leak
+detection outside the sandbox: panel lifecycle, navigation, UI reports, history,
+and configuration controls. The added test's panel-cache cleanup order was fixed
+after sanitizer detection. Linux examples built; the UI example also built
+independently against a fresh installed SDK and ran from `/tmp` with dummy
+drivers until its three-second smoke-test timeout, without runtime errors.
+Windows editor and panel/configuration tests cross-compiled without compiler
+warnings; native Windows execution was not performed.
+
+The user confirmed all five C6 interactive checks PASS in the identified current
+editor window. An earlier reported scroll failure cleared after switching
+windows and could not be reproduced. Two editor builds were open; the cause of
+that transient observation is unconfirmed. C7–C14 and the remaining broader
+interactive acceptance checks remain open.
 
 ## Frozen fixture plan
 

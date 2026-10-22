@@ -237,12 +237,26 @@ contracts, and generated examples when a goal changes supported behavior.
    still fail. All 117 Linux tests, including installed-SDK application and scene
    startup, three focused ASan/UBSan checks, and Windows cross-builds passed.
    Native Windows execution was not performed; see the corrective issue mapping.
-6. [ ] **C6 — Shared panel lifecycle and scrolling.** Remove inactive child
+6. [x] **C6 — Shared panel lifecycle and scrolling.** Remove inactive child
    controls when returning to object/top-level editors. Fix overlapping panels,
    first-element activation glitches, stale input capture, and blocked scrolling
    in object/joint editors. Cover all editor kinds through shared navigation,
    including opening the first row, returning to a parent, switching siblings,
    and scrolling without an off-column or viewport click to recover.
+   Keep Back/Close, the editor eye, and name outside the property scroll region.
+   New child and sibling editors start at the top; only Back restores a parent's
+   previous scroll position, clamped to its current content. History is local to
+   the open project and drops deleted items. Verify five cases: first-row open;
+   nested Back; sibling/type switching; wheel/scrollbar and fixed-header access;
+   and navigation with active controls, deletion, and project close/reopen.
+   Complete: shared editor/item identity clears inactive interaction capture;
+   fixed headers, measured content, and Back-only scroll history cover parent
+   and sibling navigation. Shared settings target the open item and object
+   settings now undo independently. All 118 Linux tests, five focused ASan/UBSan
+   checks, standalone installed-SDK UI example startup, and Windows cross-builds
+   passed. User verification of all five cases: PASS. An initial scrolling
+   failure could not be reproduced after switching windows; the exact
+   hitbox/body/object return path has regression coverage. See the issue mapping.
 7. [ ] **C7 — Build path settings.** Expose current project, engine/SDK, build,
    asset, generated-source, application executable, and scene executable paths.
    Make every listed path editable, with defaults and a way to reset overrides.

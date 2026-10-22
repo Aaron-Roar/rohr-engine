@@ -156,6 +156,8 @@ bool editor_mode_text_cache_reserve(EditorModeTextCache *cache, size_t required)
 void editor_mode_text_cache_destroy(EditorModeTextCache *cache);
 UIFieldResult editor_mode_name_field(const char *id, char *name,
     size_t capacity, TextAsset *display, UIRect bounds);
+/* Suppress a name field already drawn by the fixed tool-panel header. */
+void editor_mode_external_name_set(const char *id);
 const char *editor_mode_name_field_id_get(EditorViewportMode mode);
 bool editor_mode_name_focus_request(EditorViewportState *state);
 bool editor_mode_name_focus_pending_check(const EditorViewportState *state);

@@ -592,9 +592,13 @@ UIButtonStyle editor_mode_section_field_style_get(void) {
     };
 }
 
+static const char *editor_mode_external_name;
+void editor_mode_external_name_set(const char *id) { editor_mode_external_name = id; }
+
 UIFieldResult editor_mode_field(const char *id, UIFieldBinding binding,
         TextAsset *display, UIRect bounds, const UIButtonStyle *style) {
     UIButtonStyle baseline;
+    if(id && editor_mode_external_name && !strcmp(id, editor_mode_external_name)) return (UIFieldResult){0};
     if(id != NULL && editor_mode_pending_field_focus != NULL &&
             strcmp(id, editor_mode_pending_field_focus) == 0) {
         ui_field_focus_set(id, binding, display, true);

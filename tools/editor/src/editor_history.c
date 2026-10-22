@@ -472,6 +472,8 @@ static EditorHistoryAggregateChange *editor_history_command_aggregate_capture(
             kind = command->data.property_set.kind;
             object = command->data.property_set.object;
             parent = command->data.property_set.parent;
+            if(kind == EDITOR_ITEM_OBJECT)
+                return editor_history_aggregate_capture(project, kind, object, 0);
             break;
         case EDITOR_COMMAND_COLLISION_FILTER_SET:
             kind = command->data.collision_filter_set.kind;

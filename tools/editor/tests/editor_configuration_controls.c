@@ -49,6 +49,7 @@ int main(void) {
     EditorViewportState state = {0}; editor_viewport_state_init(&state);
     assert(editor_viewport_selection_set(&p, &state,
         (EditorSelectionRef){EDITOR_SELECTION_RIGID_BODY, o->id, 0, 0, body->id}, false));
+    assert(editor_navigation_selected_open(&p, &state));
     p.navigation = editor_navigation_state_get(&p, &state);
     EditorHistory history; assert(editor_history_init(&history, &p));
     editor_command_executing_callback_set(begin, &history);
@@ -61,6 +62,14 @@ int main(void) {
     assert(editor_history_undo(&history));
     assert(!p.objects[0].rigid_bodies[0].entity_settings.lifetime.deadline.time_enabled);
     assert(editor_history_redo(&history));
+    assert(p.objects[0].rigid_bodies[0].entity_settings.lifetime.deadline.time_enabled);
+    /* Selecting a body row in the object editor must still edit the object. */
+    state.mode = EDITOR_VIEWPORT_OBJECT;
+    entity_click(&entity, &context, (Position){20, 50});
+    assert(p.objects[0].entity_settings.lifetime.deadline.time_enabled);
+    assert(p.objects[0].rigid_bodies[0].entity_settings.lifetime.deadline.time_enabled);
+    assert(editor_history_undo(&history));
+    assert(!p.objects[0].entity_settings.lifetime.deadline.time_enabled);
     assert(p.objects[0].rigid_bodies[0].entity_settings.lifetime.deadline.time_enabled);
     EditorApplicationSettingsPanel app; assert(editor_application_settings_panel_create(&app, &font));
     app.open = true;

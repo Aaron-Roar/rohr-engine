@@ -5,6 +5,7 @@
 #include <stdint.h>
 #include <math.h>
 #include "ui.h"
+#include "graphics/ui_internal.h"
 #include "core/report_internal.h"
 #include "graphics/text_assets.h"
 #include "physics.h"
@@ -51,6 +52,8 @@ typedef struct UINavigationItem {
     uint64_t id;
     uint64_t dropdown_id;
     UIRect bounds;
+    uint64_t scroll_id;
+    UIRect scroll_bounds;
 } UINavigationItem;
 
 typedef struct UIScrollRecord {
@@ -127,6 +130,8 @@ typedef struct UIContext {
     float scroll_offset_stack[UI_SCROLL_REGION_MAX];
     float scroll_content_stack[UI_SCROLL_REGION_MAX];
     size_t scroll_depth;
+    float scroll_measured_stack[UI_SCROLL_REGION_MAX];
+    uint64_t scroll_id_stack[UI_SCROLL_REGION_MAX];
     UIScrollRecord scroll_records[UI_SCROLL_RECORD_MAX];
     UIScrollRecord scroll_previous[UI_SCROLL_RECORD_MAX];
     size_t scroll_record_count;
@@ -216,6 +221,12 @@ static bool ui_dropdown_pointer_capture_check(uint64_t interaction_id) {
 
 static UIRect ui_bounds_resolve(UIRect bounds) {
     bounds.y += ui_context.translation_y;
+    if(ui_context.scroll_depth > 0) {
+        size_t i = ui_context.scroll_depth - 1;
+        float bottom = bounds.y + bounds.height + ui_context.scroll_offset_stack[i] -
+            ui_context.scroll_clip_stack[i].y;
+        ui_context.scroll_measured_stack[i] = fmaxf(ui_context.scroll_measured_stack[i], bottom);
+    }
     return bounds;
 }
 
@@ -266,7 +277,9 @@ static void ui_navigation_item_register(uint64_t id, UIRect bounds) {
         (UINavigationItem){.id = id,
             .dropdown_id = ui_context.dropdown_option_interaction ?
                 ui_context.dropdown_id : 0,
-            .bounds = bounds};
+            .bounds = bounds,
+            .scroll_id = ui_context.scroll_depth ? ui_context.scroll_id_stack[ui_context.scroll_depth - 1] : 0,
+            .scroll_bounds = ui_context.scroll_depth ? ui_context.scroll_clip_stack[ui_context.scroll_depth - 1] : (UIRect){0}};
     ui_metric(ROHR_REPORT_UI_NAVIGATION_ENTRIES_PEAK, ui_context.navigation_item_count);
 }
 static void ui_surface_raw(UIRect bounds, Color color) {
@@ -543,6 +556,22 @@ bool ui_navigation_focus_bounds_get(UIRect *bounds) {
     return false;
 }
 
+float ui_navigation_scroll_delta_get(const char *scroll_id) {
+    uint64_t id = ui_hash_id(scroll_id);
+    for(size_t i = 0; i < ui_context.navigation_previous_count; ++i) {
+        const UINavigationItem *item = &ui_context.navigation_previous[i];
+        if(item->id != ui_context.navigation_focus_id || item->scroll_id != id) continue;
+        if(item->bounds.y < item->scroll_bounds.y) return item->bounds.y - item->scroll_bounds.y;
+        return fmaxf(0, item->bounds.y + item->bounds.height -
+            item->scroll_bounds.y - item->scroll_bounds.height);
+    }
+    return 0;
+}
+
+float ui_scroll_content_height_get(void) {
+    return ui_context.scroll_depth ? ui_context.scroll_measured_stack[ui_context.scroll_depth - 1] : 0;
+}
+
 UIButtonStyle ui_button_style_default_get(void) {
     return (UIButtonStyle){
         .idle = {55, 65, 81, 255},
@@ -730,6 +759,29 @@ void ui_field_focus_clear(void) {
     ui_context.field_edit[0] = '\0';
     ui_context.field_cursor = 0;
     ui_context.field_scroll_x = ui_context.field_scroll_y = 0;
+}
+
+void ui_dropdown_dismiss(void) {
+    if(ui_context.active_id == ui_context.dropdown_id) ui_context.active_id = 0;
+    ui_context.dropdown_id = ui_context.dropdown_capture_id = ui_context.dropdown_render_id = 0;
+    ui_context.dropdown_option_count = ui_context.dropdown_total_option_count = 0;
+}
+
+void ui_interaction_cancel(void) {
+    ui_field_focus_clear();
+    ui_context.active_id = ui_context.last_clicked_id = 0;
+    ui_context.dropdown_id = ui_context.dropdown_capture_id = ui_context.dropdown_render_id = 0;
+    ui_context.dropdown_option_count = ui_context.dropdown_total_option_count = 0;
+    ui_context.scrollbar_active_id = 0;
+    ui_context.navigation_focus_id = ui_context.navigation_activate_id = 0;
+    ui_context.navigation_focus_changed_id = 0;
+    ui_context.navigation_previous_count = ui_context.navigation_item_count = 0;
+    ui_context.scroll_previous_count = ui_context.scroll_record_count = 0;
+    ui_context.field_key_count = ui_context.field_text_event_count = 0;
+    ui_context.field_text[0] = '\0';
+    ui_context.wheel_y = 0;
+    ui_context.pointer_claimed = ui_context.pointer_consumed = true;
+    ui_context.input.primary_button = MOUSE_BUTTON_STATE_UP;
 }
 
 static void ui_field_text_input_ensure(void) {
@@ -1518,6 +1570,8 @@ UIScrollRegionResult ui_scroll_region_begin(const char *id, UIRect bounds,
     ui_context.scroll_clip_stack[ui_context.scroll_depth] = resolved_bounds;
     ui_context.scroll_offset_stack[ui_context.scroll_depth] = result.offset;
     ui_context.scroll_content_stack[ui_context.scroll_depth] = content_height;
+    ui_context.scroll_measured_stack[ui_context.scroll_depth] = 0;
+    ui_context.scroll_id_stack[ui_context.scroll_depth] = scroll_id;
     ui_context.scroll_depth += 1;
     ui_context.translation_y -= result.offset;
     ui_context.scopes[ui_context.scope_count++] = (UIScope){.kind = UI_SCOPE_SCROLL,
@@ -1796,7 +1850,7 @@ Report ui_update(void) {
             case UI_SCOPE_MODAL: ui_modal_controls_end(); break;
         }
     }
-    if(ui_context.dropdown_id != 0 &&
+    if(ui_context.dropdown_id != 0 && ui_context.dropdown_seen &&
             ui_context.dropdown_render_id == ui_context.dropdown_id) {
         if(ui_context.dropdown_hint != NULL) {
             UIRect hint = ui_context.dropdown_popup_bounds;

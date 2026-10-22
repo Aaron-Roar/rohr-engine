@@ -23,6 +23,8 @@
 #include "editor_viewport.h"
 #include "editor_layout.h"
 #include "editor_navigation.h"
+#include "panels/editor_panel_lifecycle.h"
+#include "graphics/ui_internal.h"
 #include "editor_command.h"
 #include "editor_object_commands.h"
 #include "editors/editor_mode_controls.h"
@@ -208,6 +210,7 @@ typedef struct EditorModeHierarchyContext {
     MouseButtonState secondary;
     float scroll_offset;
     float content_offset;
+    UIRect clip;
     bool additive_selection;
 } EditorModeHierarchyContext;
 
@@ -2124,6 +2127,7 @@ static void editor_mode_hierarchy_row(void *opaque,
         }
         return;
     }
+    if(!editor_point_in_rect(context->pointer, context->clip)) return;
     if(context->secondary == MOUSE_BUTTON_STATE_PRESSED &&
             editor_point_in_rect(context->pointer, screen_bounds) &&
             !editor_viewport_context_menu_point_contains(context->context_menu,
@@ -2266,6 +2270,7 @@ int main(int argc, char **argv) {
     TextAsset create_project_label = {0};
     TextAsset save_label = {0};
     TextAsset close_label = {0};
+    TextAsset panel_name = {0};
     TextAsset back_label = {0};
     TextAsset close_project_label = {0};
     TextAsset exit_label = {0};
@@ -2319,7 +2324,6 @@ int main(int argc, char **argv) {
     EditorSoftBodyEditor soft_body_editor = {0};
     EditorModeLayerControl layer_control = {0};
     EditorModeAccordionSection mode_accordions[EDITOR_MODE_ACCORDION_COUNT] = {0};
-    float mode_measured_heights[EDITOR_MODE_ACCORDION_COUNT] = {0};
     EditorCoordinateToggle coordinate_toggle = {0};
     EditorViewportContextMenu viewport_context_menu = {0};
     EditorOriginPanel origin_panel = {0};
@@ -2352,7 +2356,7 @@ int main(int argc, char **argv) {
     bool column_frame_multi_edit_open = false;
     EditorCloseAction close_action = EDITOR_CLOSE_NONE;
     float panel_scroll_offset = 0.0f;
-    EditorViewportMode panel_scroll_mode = EDITOR_VIEWPORT_HIERARCHY;
+    EditorPanelLifecycle panel_lifecycle = {0};
 
     editor_operation_terminal = &terminal_panel;
     editor_operation_workspace = &workspace;
@@ -2477,6 +2481,7 @@ int main(int argc, char **argv) {
             !editor_text_create(&font, "Create Project", &create_project_label) ||
             !editor_text_create(&font, "Save", &save_label) ||
             !editor_text_create(&font, "Close", &close_label) ||
+            !editor_text_create(&font, "", &panel_name) ||
             !editor_text_create(&font, "Back", &back_label) ||
             !editor_text_create(&font, "Close Project", &close_project_label) ||
             !editor_text_create(&font, "Exit", &exit_label) ||
@@ -2760,7 +2765,7 @@ int main(int argc, char **argv) {
                 editor_history_transaction_cancel(&history);
                 editor_viewport_transform_cancel(&viewport_state);
             } else if((viewport_state.mode==EDITOR_VIEWPORT_FORCE || viewport_state.mode==EDITOR_VIEWPORT_TORQUE) && viewport_state.selected_item_count<=1) {
-                editor_viewport_back(&viewport_state);
+                editor_panel_back(&panel_lifecycle, &viewport_state);
             } else if(viewport_state.selected_item_count > 1) {
                 editor_viewport_multi_selection_dismiss(&project, &viewport_state);
             } else if(viewport_state.mode == EDITOR_VIEWPORT_LAYOUT ||
@@ -2770,15 +2775,15 @@ int main(int argc, char **argv) {
                     viewport_state.mode == EDITOR_VIEWPORT_UI_SLIDER_EDITOR ||
                     viewport_state.mode == EDITOR_VIEWPORT_UI_VERTEX_EDITOR ||
                     viewport_state.mode == EDITOR_VIEWPORT_UI_LINE_EDITOR) {
-                editor_viewport_back(&viewport_state);
+                editor_panel_back(&panel_lifecycle, &viewport_state);
             } else if(editor_viewport_hitbox_editor_active_get(&viewport_state)) {
-                editor_viewport_back(&viewport_state);
+                editor_panel_back(&panel_lifecycle, &viewport_state);
             } else if(viewport_state.mode == EDITOR_VIEWPORT_HIERARCHY &&
                     viewport_state.selection == EDITOR_SELECTION_OBJECT) {
                 editor_project_selection_clear(&project);
                 viewport_state.selection = EDITOR_SELECTION_NONE;
             } else if(viewport_state.mode == EDITOR_VIEWPORT_CAMERA_ENTITY) {
-                editor_viewport_back(&viewport_state);
+                editor_panel_back(&panel_lifecycle, &viewport_state);
             }
         }
         if(workspace.open && !viewport_state.reference_picker_open && !build_settings_panel.open &&
@@ -2840,7 +2845,7 @@ int main(int argc, char **argv) {
                 if(down) moved = rohr_ui_navigation_move(UI_NAVIGATION_DOWN) || moved;
                 if(left && !rohr_ui_navigation_move(UI_NAVIGATION_LEFT)) {
                     if(editor_viewport_hitbox_editor_active_get(&viewport_state)) {
-                        editor_viewport_back(&viewport_state);
+                        editor_panel_back(&panel_lifecycle, &viewport_state);
                     }
                 } else if(left) {
                     moved = true;
@@ -2855,14 +2860,7 @@ int main(int argc, char **argv) {
                     (void)editor_navigation_selected_open(&project, &viewport_state);
                 }
                 if(moved) {
-                    UIRect focused;
-                    if(rohr_ui_navigation_focus_bounds_get(&focused)) {
-                        if(focused.y < 8.0f) panel_scroll_offset += focused.y - 8.0f;
-                        if(focused.y + focused.height > EDITOR_WINDOW_HEIGHT - 8.0f) {
-                            panel_scroll_offset += focused.y + focused.height -
-                                (EDITOR_WINDOW_HEIGHT - 8.0f);
-                        }
-                    }
+                    panel_scroll_offset += ui_navigation_scroll_delta_get("editor.tools.scroll");
                 }
             }
         }
@@ -2952,41 +2950,42 @@ int main(int argc, char **argv) {
                 notification_panel.report_open ||
                 notification_panel.log_open)
             rohr_ui_modal_set(build_settings_bounds);
-        if(panel_scroll_mode != viewport_state.mode) {
-            panel_scroll_mode = viewport_state.mode;
-            panel_scroll_offset = 0.0f;
+        panel_lifecycle.current.offset = panel_scroll_offset;
+        bool panel_transition = editor_panel_lifecycle_update(&panel_lifecycle, &project, &viewport_state);
+        if(panel_transition) {
+            panel_scroll_offset = panel_lifecycle.current.offset;
+            ui_interaction_cancel();
             rigid_body_editor.binding_hitbox_open = 0;
+            input_settings_panel.key_capture_active = false;
+            input_settings_panel.open = false;
+            hierarchy_drag = (EditorHierarchyDragState){0};
+            viewport_state.reference_picker_open = viewport_state.reference_picker_hovered = false;
         }
+        EditorPanelKey panel_draw_key = panel_lifecycle.current.key;
         bool delete_footer = editor_panel_delete_footer_check(&viewport_state);
         float panel_footer_height = workspace.open && delete_footer ? 54.0f : 0.0f;
         bool mode_accordion_applies = viewport_state.selected_item_count <= 1 &&
             viewport_state.mode >= 0 &&
             (size_t)viewport_state.mode < EDITOR_MODE_ACCORDION_COUNT &&
             editor_mode_properties_accordion_check(viewport_state.mode);
-        float panel_content_offset = workspace.open ?
-            (mode_accordion_applies ? 96.0f : 58.0f) : 0.0f;
-        float panel_content_height = panel_content_offset + fmaxf(
-            editor_panel_content_height_get(&project, &viewport_state,
-                &rigid_body_editor),
-            editor_bulk_panel_content_height_get(&bulk_panel, &project, &viewport_state));
-        if(viewport_state.mode >= 0 &&
-                (size_t)viewport_state.mode < EDITOR_MODE_ACCORDION_COUNT &&
-                mode_measured_heights[viewport_state.mode] > 0.0f)
-            panel_content_height = panel_content_offset +
-                mode_measured_heights[viewport_state.mode];
-        if(viewport_state.mode==EDITOR_VIEWPORT_FORCE && mode_measured_heights[viewport_state.mode] == 0)
-            panel_content_height=panel_content_offset+force_editor.content_height;
-        if(viewport_state.mode==EDITOR_VIEWPORT_TORQUE && mode_measured_heights[viewport_state.mode] == 0)
-            panel_content_height=panel_content_offset+torque_editor.content_height;
-        if(mode_accordion_applies &&
-                !mode_accordions[viewport_state.mode].expanded)
-            panel_content_height = panel_content_offset + 76.0f;
-        panel_scroll_offset = rohr_ui_scroll_region_begin("editor.tools.scroll",
-            (UIRect){EDITOR_VIEWPORT_WIDTH, EDITOR_MENU_HEIGHT,
-                EDITOR_TOOLS_WIDTH, EDITOR_WINDOW_HEIGHT - EDITOR_MENU_HEIGHT -
-                    panel_footer_height},
-            panel_content_height,
-            panel_scroll_offset, 42.0f).offset;
+        const char *panel_name_id = viewport_state.selected_item_count <= 1 ?
+            editor_mode_name_field_id_get(viewport_state.mode) : NULL;
+        char panel_name_value[EDITOR_OBJECT_NAME_MAX] = {0};
+        bool panel_has_name = workspace.open && panel_name_id &&
+            editor_navigation_selection_name_get(&project, panel_draw_key.item,
+                panel_name_value, sizeof(panel_name_value));
+        float panel_body_top = editor_panel_body_top_get(viewport_state.mode, panel_has_name);
+        if(panel_draw_key.text_child) panel_body_top = 42;
+        float panel_header_bottom = workspace.open ?
+            (panel_has_name ? EDITOR_PANEL_HEADER_BOTTOM : EDITOR_PANEL_NAV_BOTTOM) : EDITOR_MENU_HEIGHT;
+        bool header_editing = false;
+        bool mode_properties_open = true;
+        Position panel_pointer = rohr_graphics_mouse_screen_position_get();
+        if(workspace.open && !context_menu_modal &&
+                pointer_state.button_states[MOUSE_BUTTON_LEFT] == MOUSE_BUTTON_STATE_PRESSED &&
+                panel_pointer.x >= EDITOR_VIEWPORT_WIDTH && panel_pointer.x < editor_window_width &&
+                panel_pointer.y >= EDITOR_MENU_HEIGHT && panel_pointer.y < panel_header_bottom)
+            ui_dropdown_dismiss();
         if(workspace.open) {
             EditorViewportMode panel_mode = viewport_state.mode;
             EditorSelectionRef eye_ref; bool eye_visible = true;
@@ -3012,12 +3011,41 @@ int main(int argc, char **argv) {
             editor_mode_divider_draw(
                 EDITOR_VIEWPORT_WIDTH, 84.0f, EDITOR_TOOLS_WIDTH);
         }
+        editor_mode_name_focus_apply(&viewport_state);
+        if(panel_has_name) {
+            (void)rohr_graphics_text_value_set(&panel_name, panel_name_value);
+            UIFieldResult name = editor_mode_field(panel_name_id,
+                (UIFieldBinding){.kind = UI_FIELD_STRING, .string = panel_name_value,
+                    .string_capacity = sizeof(panel_name_value)}, &panel_name,
+                (UIRect){EDITOR_VIEWPORT_WIDTH + 10, EDITOR_PANEL_NAME_TOP, EDITOR_TOOLS_WIDTH - 20, 30}, NULL);
+            header_editing = name.active;
+            if(name.changed) (void)editor_navigation_selection_name_set(&project,
+                panel_draw_key.item, panel_name_value);
+        }
+        if(mode_accordion_applies) {
+            if(editor_mode_name_focus_pending_check(&viewport_state))
+                editor_mode_accordion_section_expanded_set(&mode_accordions[viewport_state.mode], true);
+            mode_properties_open = editor_mode_accordion_section_draw(
+                &mode_accordions[viewport_state.mode], "editor.mode.properties",
+                (UIRect){EDITOR_VIEWPORT_WIDTH + 6, panel_header_bottom,
+                    EDITOR_TOOLS_WIDTH - 12, 30}, 0);
+            panel_header_bottom += 36;
+        }
+        float panel_content_offset = panel_header_bottom - panel_body_top;
+        float panel_content_height = panel_lifecycle.current.measured_height;
+        if(panel_content_height <= 0) panel_content_height = fmaxf(
+            editor_panel_content_height_get(&project, &viewport_state, &rigid_body_editor),
+            editor_bulk_panel_content_height_get(&bulk_panel, &project, &viewport_state));
+        panel_content_height = mode_properties_open ? fmaxf(0, panel_content_height - panel_body_top) : 0;
+        UIRect panel_scroll_bounds = {EDITOR_VIEWPORT_WIDTH, panel_header_bottom,
+            EDITOR_TOOLS_WIDTH, fmaxf(1, EDITOR_WINDOW_HEIGHT - panel_header_bottom - panel_footer_height)};
+        panel_scroll_offset = rohr_ui_scroll_region_begin("editor.tools.scroll",
+            panel_scroll_bounds, panel_content_height, panel_scroll_offset, 42).offset;
+        panel_lifecycle.current.offset = panel_scroll_offset;
         editor_auto_shape_picker_frame_begin(&auto_shape_editor,
-            panel_content_offset - panel_scroll_offset,
-            (UIRect){EDITOR_VIEWPORT_WIDTH, EDITOR_MENU_HEIGHT,
-                EDITOR_TOOLS_WIDTH, EDITOR_WINDOW_HEIGHT - EDITOR_MENU_HEIGHT -
-                    panel_footer_height});
+            panel_content_offset - panel_scroll_offset, panel_scroll_bounds);
         rohr_ui_translation_y_push(panel_content_offset);
+        editor_mode_external_name_set(panel_has_name ? panel_name_id : NULL);
         viewport_state.preview_rigid_body = 0;
         viewport_state.preview_soft_body = 0;
         viewport_state.preview_anchor = 0;
@@ -3037,7 +3065,7 @@ int main(int argc, char **argv) {
         field_editing = false;
         Position hierarchy_pointer = rohr_graphics_mouse_screen_position_get();
         MouseButtonState hierarchy_primary =
-            context_menu_modal ? MOUSE_BUTTON_STATE_UP :
+            (context_menu_modal || panel_transition) ? MOUSE_BUTTON_STATE_UP :
                 pointer_state.button_states[MOUSE_BUTTON_LEFT];
         bool hierarchy_additive_selection =
             editor_selection_modifier_check();
@@ -3046,19 +3074,6 @@ int main(int argc, char **argv) {
             if(viewport_state.selected_items[i].kind !=
                     EDITOR_SELECTION_ANIMATION_FRAME) frame_multi_selection = false;
         if(!frame_multi_selection) column_frame_multi_edit_open = false;
-        bool mode_properties_open = true;
-        if(mode_accordion_applies &&
-                editor_mode_name_focus_pending_check(&viewport_state))
-            editor_mode_accordion_section_expanded_set(
-                &mode_accordions[viewport_state.mode], true);
-        if(mode_accordion_applies) {
-            mode_properties_open = editor_mode_accordion_section_draw(
-                &mode_accordions[viewport_state.mode],
-                "editor.mode.properties", (UIRect){EDITOR_VIEWPORT_WIDTH + 6.0f,
-                    4.0f, EDITOR_TOOLS_WIDTH - 12.0f, 30.0f},
-                fmaxf(0.0f, panel_content_height - 34.0f));
-        }
-        editor_mode_name_focus_apply(&viewport_state);
         editor_mode_accordion_layout_measure_reset();
         if(!mode_properties_open) {
             field_editing = false;
@@ -3114,7 +3129,7 @@ int main(int argc, char **argv) {
                 .secondary = pointer_state.button_states[MOUSE_BUTTON_RIGHT],
                 .primary = hierarchy_primary,
                 .scroll_offset = panel_scroll_offset,
-                .content_offset = panel_content_offset,
+                .content_offset = panel_content_offset, .clip = panel_scroll_bounds,
                 .additive_selection = hierarchy_additive_selection};
             field_editing = editor_rigid_body_editor_draw(&rigid_body_editor,
                 &(EditorModeContext){.history = &history, .project = &project,
@@ -3178,7 +3193,7 @@ int main(int argc, char **argv) {
                 .secondary = pointer_state.button_states[MOUSE_BUTTON_RIGHT],
                 .primary = hierarchy_primary,
                 .scroll_offset = panel_scroll_offset,
-                .content_offset = panel_content_offset,
+                .content_offset = panel_content_offset, .clip = panel_scroll_bounds,
                 .additive_selection = hierarchy_additive_selection};
             field_editing = editor_joint_editor_draw(&joint_editor,
                 &(EditorModeContext){.history = &history, .project = &project,
@@ -3226,7 +3241,7 @@ int main(int argc, char **argv) {
                 .secondary = pointer_state.button_states[MOUSE_BUTTON_RIGHT],
                 .primary = hierarchy_primary,
                 .scroll_offset = panel_scroll_offset,
-                .content_offset = panel_content_offset,
+                .content_offset = panel_content_offset, .clip = panel_scroll_bounds,
                 .additive_selection = hierarchy_additive_selection};
             field_editing = editor_soft_body_editor_draw(&soft_body_editor,
                 &auto_shape_editor, &(EditorModeContext){.history = &history, .project = &project,
@@ -3268,7 +3283,7 @@ int main(int argc, char **argv) {
                 .drag = &hierarchy_drag, .pointer = hierarchy_pointer,
                 .secondary = pointer_state.button_states[MOUSE_BUTTON_RIGHT],
                 .primary = hierarchy_primary, .scroll_offset = panel_scroll_offset,
-                .content_offset = panel_content_offset,
+                .content_offset = panel_content_offset, .clip = panel_scroll_bounds,
                 .additive_selection = hierarchy_additive_selection};
             field_editing = editor_soft_area_editor_draw(&soft_body_editor.areas,
                 &(EditorModeContext){.history = &history, .project = &project, .viewport = &viewport_state,
@@ -3333,7 +3348,7 @@ int main(int argc, char **argv) {
                 .secondary = pointer_state.button_states[MOUSE_BUTTON_RIGHT],
                 .primary = hierarchy_primary,
                 .scroll_offset = panel_scroll_offset,
-                .content_offset = panel_content_offset,
+                .content_offset = panel_content_offset, .clip = panel_scroll_bounds,
                 .additive_selection = hierarchy_additive_selection};
             EditorAnimationBrowserContext browser_context = {
                 .browser = &file_browser, .workspace = &workspace, .font = &font,
@@ -3422,7 +3437,7 @@ int main(int argc, char **argv) {
                 .secondary = pointer_state.button_states[MOUSE_BUTTON_RIGHT],
                 .primary = hierarchy_primary,
                 .scroll_offset = panel_scroll_offset,
-                .content_offset = panel_content_offset,
+                .content_offset = panel_content_offset, .clip = panel_scroll_bounds,
                 .additive_selection = hierarchy_additive_selection};
             field_editing = editor_layout_viewport_editor_draw(
                 &layout_viewport_editor,
@@ -3443,7 +3458,7 @@ int main(int argc, char **argv) {
                 .secondary = pointer_state.button_states[MOUSE_BUTTON_RIGHT],
                 .primary = hierarchy_primary,
                 .scroll_offset = panel_scroll_offset,
-                .content_offset = panel_content_offset,
+                .content_offset = panel_content_offset, .clip = panel_scroll_bounds,
                 .additive_selection = hierarchy_additive_selection};
             EditorAnimationBrowserContext browser_context = {
                 .browser = &file_browser, .workspace = &workspace, .font = &font,
@@ -3478,7 +3493,7 @@ int main(int argc, char **argv) {
                     .secondary = pointer_state.button_states[MOUSE_BUTTON_RIGHT],
                     .primary = hierarchy_primary,
                     .scroll_offset = panel_scroll_offset,
-                    .content_offset = panel_content_offset,
+                    .content_offset = panel_content_offset, .clip = panel_scroll_bounds,
                     .additive_selection = hierarchy_additive_selection};
                 input_settings_panel.open = true;
                 editor_input_controller_editor_draw(&input_settings_panel,
@@ -3513,7 +3528,7 @@ int main(int argc, char **argv) {
                     .secondary = pointer_state.button_states[MOUSE_BUTTON_RIGHT],
                     .primary = hierarchy_primary,
                     .scroll_offset = panel_scroll_offset,
-                    .content_offset = panel_content_offset,
+                    .content_offset = panel_content_offset, .clip = panel_scroll_bounds,
                     .additive_selection = hierarchy_additive_selection};
                 input_settings_panel.open = true;
                 editor_input_action_editor_draw(&input_settings_panel,
@@ -3563,7 +3578,7 @@ int main(int argc, char **argv) {
                 .secondary = pointer_state.button_states[MOUSE_BUTTON_RIGHT],
                 .primary = hierarchy_primary,
                 .scroll_offset = panel_scroll_offset,
-                .content_offset = panel_content_offset,
+                .content_offset = panel_content_offset, .clip = panel_scroll_bounds,
                 .additive_selection = hierarchy_additive_selection};
             editor_hierarchy_editor_draw(&hierarchy_editor,
                 &(EditorModeContext){.history = &history, .project = &project,
@@ -3574,25 +3589,31 @@ int main(int argc, char **argv) {
                     .primary_button = hierarchy_primary});
         }
         if(mode_properties_open && viewport_state.selected_item_count <= 1 &&
-                viewport_state.mode != EDITOR_VIEWPORT_HIERARCHY) {
-            float settings_y = fmaxf(118, editor_mode_accordion_layout_measure_get());
+                viewport_state.mode != EDITOR_VIEWPORT_HIERARCHY &&
+                editor_panel_key_equal(panel_draw_key, editor_panel_key_get(&project, &viewport_state))) {
+            float settings_y = fmaxf(editor_mode_accordion_layout_measure_get(),
+                ui_scroll_content_height_get() + panel_body_top);
+            settings_y += 8;
             field_editing |= editor_entity_settings_panel_draw(&entity_settings_panel,
                 &(EditorModeContext){.history = &history, .project = &project,
                     .viewport = &viewport_state, .x = EDITOR_VIEWPORT_WIDTH,
                     .width = EDITOR_TOOLS_WIDTH}, settings_y);
         }
+        editor_mode_external_name_set(NULL);
+        field_editing |= header_editing;
         rohr_ui_translation_y_pop();
         if(editor_hierarchy_drag_update(&hierarchy_drag, &project,
                 &viewport_state, &history, hierarchy_primary))
             pointer_selection_handled = true;
         {
-            float measured = editor_mode_accordion_layout_measure_get();
-            if(measured > 0.0f && viewport_state.mode >= 0 &&
-                    (size_t)viewport_state.mode < EDITOR_MODE_ACCORDION_COUNT)
-                mode_measured_heights[viewport_state.mode] = measured;
+            if(mode_properties_open)
+                panel_lifecycle.current.measured_height = fmaxf(
+                    editor_mode_accordion_layout_measure_get(),
+                    ui_scroll_content_height_get() + panel_body_top);
         }
         rohr_ui_scroll_region_end();
-        if(delete_footer) {
+        if(delete_footer && editor_panel_key_equal(panel_draw_key,
+                editor_panel_key_get(&project, &viewport_state))) {
             const TextAsset *delete_label = NULL;
             const char *delete_id = NULL;
             bool delete_enabled = true;
@@ -3738,7 +3759,7 @@ int main(int argc, char **argv) {
                 }
             }
         }
-        if(navigate_back_requested) editor_viewport_back(&viewport_state);
+        if(navigate_back_requested) editor_panel_back(&panel_lifecycle, &viewport_state);
         {
             Position pointer = rohr_graphics_mouse_screen_position_get();
             bool opened_here = editor_viewport_context_menu_open_check(
@@ -4146,6 +4167,8 @@ int main(int argc, char **argv) {
                 saved_project_hash = editor_project_hash_get(&project);
                 editor_viewport_state_init(&viewport_state);
                 panel_scroll_offset = 0.0f;
+                panel_lifecycle = (EditorPanelLifecycle){0};
+                ui_interaction_cancel();
             } else {
                 close_action = EDITOR_CLOSE_PROJECT;
             }
@@ -4235,6 +4258,8 @@ int main(int argc, char **argv) {
                         saved_project_hash = editor_project_hash_get(&project);
                         editor_viewport_state_init(&viewport_state);
                         panel_scroll_offset = 0.0f;
+                        panel_lifecycle = (EditorPanelLifecycle){0};
+                        ui_interaction_cancel();
                     }
                     close_action = EDITOR_CLOSE_NONE;
                 } else {
@@ -4261,6 +4286,8 @@ int main(int argc, char **argv) {
                     saved_project_hash = editor_project_hash_get(&project);
                     editor_viewport_state_init(&viewport_state);
                     panel_scroll_offset = 0.0f;
+                    panel_lifecycle = (EditorPanelLifecycle){0};
+                    ui_interaction_cancel();
                 }
                 close_action = EDITOR_CLOSE_NONE;
             }
@@ -4501,6 +4528,8 @@ int main(int argc, char **argv) {
                         editor_physics_settings_apply(&project);
                         saved_project_hash = editor_project_hash_get(&project);
                         panel_scroll_offset = 0.0f;
+                        panel_lifecycle = (EditorPanelLifecycle){0};
+                        ui_interaction_cancel();
                         (void)editor_terminal_panel_project_open(
                             &terminal_panel, workspace.directory);
                         {
@@ -4737,6 +4766,8 @@ int main(int argc, char **argv) {
             viewport_state.dragged_viewport_vertex ||
             viewport_state.dragged_viewport_text ||
             viewport_state.rotated_viewport_item);
+        if(!editor_panel_key_equal(panel_draw_key, editor_panel_key_get(&project, &viewport_state)))
+            ui_interaction_cancel();
         rohr_ui_update();
         if(scene_menu_open || file_browser.active || color_picker.open ||
                 build_settings_panel.open || visual_settings_panel.open || physics_settings_panel.open ||
@@ -4822,6 +4853,7 @@ int main(int argc, char **argv) {
     rohr_graphics_text_destroy(&dont_save_label);
     rohr_graphics_text_destroy(&unsaved_changes_label);
     rohr_graphics_text_destroy(&close_label);
+    rohr_graphics_text_destroy(&panel_name);
     rohr_graphics_text_destroy(&back_label);
     rohr_graphics_text_destroy(&close_project_label);
     rohr_graphics_text_destroy(&exit_label);
@@ -4929,6 +4961,7 @@ fail:
     rohr_graphics_text_destroy(&dont_save_label);
     rohr_graphics_text_destroy(&unsaved_changes_label);
     rohr_graphics_text_destroy(&close_label);
+    rohr_graphics_text_destroy(&panel_name);
     rohr_graphics_text_destroy(&back_label);
     rohr_graphics_text_destroy(&close_project_label);
     rohr_graphics_text_destroy(&exit_label);

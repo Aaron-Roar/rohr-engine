@@ -6,6 +6,7 @@ add_executable(rohr_editor_gui
     src/editor_history.c
     src/editor_shortcuts.c
     src/editor_navigation.c
+    src/panels/editor_panel_lifecycle.c
     src/editor_viewport.c
     src/editors/multi/editor_bulk_panel.c
     src/panels/editor_build_settings_panel.c
@@ -97,6 +98,25 @@ if(ROHR_BUILD_TESTS)
         target_compile_options(editor_build_diagnostics_test PRIVATE ${ROHR_SANITIZER_COMPILE_OPTIONS})
         target_link_options(editor_build_diagnostics_test PRIVATE ${ROHR_SANITIZER_LINK_OPTIONS})
     endif()
+    add_executable(editor_panel_lifecycle_test tests/editor_panel_lifecycle.c
+        ${editor_diagnostics_sources})
+    target_include_directories(editor_panel_lifecycle_test PRIVATE
+        src ${PROJECT_SOURCE_DIR}/lib ${PROJECT_SOURCE_DIR}/src)
+    target_compile_definitions(editor_panel_lifecycle_test PRIVATE
+        ROHR_DEVELOPMENT_SOURCE_DIR="${PROJECT_SOURCE_DIR}")
+    target_link_libraries(editor_panel_lifecycle_test PRIVATE rohr_engine rohr_terminal rohr_editor_core)
+    set_target_properties(editor_panel_lifecycle_test PROPERTIES
+        RUNTIME_OUTPUT_DIRECTORY ${ROHR_BUILD_OUTPUT_DIRECTORY}/tests)
+    if(NOT MSVC)
+        target_compile_options(editor_panel_lifecycle_test PRIVATE -UNDEBUG)
+    endif()
+    if(ROHR_ENABLE_SANITIZERS)
+        target_compile_options(editor_panel_lifecycle_test PRIVATE ${ROHR_SANITIZER_COMPILE_OPTIONS})
+        target_link_options(editor_panel_lifecycle_test PRIVATE ${ROHR_SANITIZER_LINK_OPTIONS})
+    endif()
+    add_test(NAME editor_panel_lifecycle COMMAND editor_panel_lifecycle_test)
+    set_tests_properties(editor_panel_lifecycle PROPERTIES
+        ENVIRONMENT "SDL_VIDEODRIVER=dummy;SDL_AUDIODRIVER=dummy")
     if(NOT CMAKE_CROSSCOMPILING)
         add_test(NAME editor_build_diagnostics COMMAND editor_build_diagnostics_test
             ${CMAKE_CURRENT_BINARY_DIR}/diagnostics_project)

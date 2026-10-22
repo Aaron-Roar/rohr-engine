@@ -2,6 +2,7 @@
  * SPDX-License-Identifier: LGPL-3.0-only
  */
 #include "editor_entity_settings_panel.h"
+#include "editor_navigation.h"
 #include <stddef.h>
 #include <stdlib.h>
 #include <stdio.h>
@@ -119,8 +120,10 @@ bool editor_entity_settings_panel_draw(EditorEntitySettingsPanel *p,
     EditorSelectionRef selected;
     EditorItemKind kind;
     if(!p || !context || !context->project || !context->viewport ||
-            context->viewport->selected_item_count > 1 ||
-            !editor_viewport_selection_ref_get(context->project, context->viewport, &selected) ||
+            context->viewport->selected_item_count > 1) return false;
+    EditorViewportState opened = *context->viewport;
+    if(!editor_navigation_open_item_selection_set(&opened) ||
+            !editor_viewport_selection_ref_get(context->project, &opened, &selected) ||
             !selection_kind_get(selected.kind, &kind)) return false;
     ObjectEntitySettings *settings = editor_command_entity_settings_get(context->project,
         kind, selected.object, selected.parent, selected.item);
