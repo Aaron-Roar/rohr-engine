@@ -1887,7 +1887,7 @@ EngineResult game_state_files_load(const char *const *paths, size_t path_count) 
             : yyjson_obj_get(assets, "animations");
         if(yyjson_is_uint(version) && yyjson_get_uint(version) < GAME_STATE_VERSION) {
             result = error_result_error_detail(ERROR_ENGINE_STATE_INVALID,
-                "collision response migration required for older game-state formats; C11 migration is not available yet");
+                "collision response migration required for older game-state formats; use rohr-cli migrate-collisions preview|apply with all interacting legacy JSON files");
             goto cleanup;
         }
         if(!yyjson_is_obj(root) || !yyjson_is_uint(version)

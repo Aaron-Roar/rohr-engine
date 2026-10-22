@@ -466,7 +466,7 @@ returning. The original failed fixture remains available for comparison.
 | 2. Visuals and visibility | Inspect `push_marker`, `spin_marker`, pin/weld/spring, the mirrored sprite, playing animations and `empty_animation`. Spring endpoints have different colors/scales/offsets. Toggle editor eyes separately from Visible in App, including the parent; rebuild and verify only app visibility affects runtime drawing and hidden bodies still simulate. Restore parent visibility without changing child settings. Empty animation must not prevent rendering. | Pending |
 | 3. Editor interaction | Select geometry, drag from the selecting press, use child-selection and rotation handles, and undo/redo each gesture. Pick force targets/references from menus and the viewport, checking hover highlights. Scroll a long selector; check modal menus do not move underlying items. Drag the slider thumb without moving its parent. Rename via Enter/Escape and confirm subsequent keyboard navigation works. | User-reported failures: oversized force/torque picking, persistent/overlapping child panels, first-element activation, object/joint scrolling, and delayed joint clamping. C6 panel lifecycle/scrolling and C8 source picking complete with user acceptance; C14 and broader interaction retests pending. |
 | 4. Input and audio | Exercise the starter's configured logical input actions and text entry without unintended gameplay input while editing. Run the installed-SDK `audio` example: Play Water Splash produces sound; music play/pause/resume and track switching work; Quit/escape shuts down. Review window size/aspect settings. Muted description defaults and queued/applied audio state retain their automated fixture evidence; silent startup alone is not proof of muted playback. | Pending |
-| 5. Project lifecycle and delivery | Build/run the application and Simulate Scene. The application includes direct-API extras; scene simulation contains authored objects. Verify run/pause/stop, return to Editor, close/reopen/reorder tabs through View, rebuild a visible edit and replay. Close/switch a project during an active build and verify cancellation; terminal interrupt reaches the subprocess. Launch installed-SDK artifacts outside their source directories. | User-reported failures: relocation, repeat builds, missing CMake recovery, generation diagnostics, and incomplete-joint generation. Startup error 21 reproduced in rohr-project-1. C1 diagnostics, C2 relocation/repeat builds, C3 missing CMake recovery, C4 partial-spawn startup, and C5 incomplete joints complete with verification below; C6 panel lifecycle/scrolling and C8 source picking also complete; C7 complete with its manual checks explicitly deferred; C9 complete with the additional panel check explicitly skipped; C10 directional response complete; C11–C14 and broader interactive retests pending. |
+| 5. Project lifecycle and delivery | Build/run the application and Simulate Scene. The application includes direct-API extras; scene simulation contains authored objects. Verify run/pause/stop, return to Editor, close/reopen/reorder tabs through View, rebuild a visible edit and replay. Close/switch a project during an active build and verify cancellation; terminal interrupt reaches the subprocess. Launch installed-SDK artifacts outside their source directories. | User-reported failures: relocation, repeat builds, missing CMake recovery, generation diagnostics, and incomplete-joint generation. Startup error 21 reproduced in rohr-project-1. C1 diagnostics, C2 relocation/repeat builds, C3 missing CMake recovery, C4 partial-spawn startup, and C5 incomplete joints complete with verification below; C6 panel lifecycle/scrolling and C8 source picking also complete; C7 complete with its manual checks explicitly deferred; C9 complete with the additional panel check explicitly skipped; C10 directional response and C11 explicit migration complete; C12–C14 and broader interactive retests pending. |
 
 Preparation evidence (2026-10-21): full Linux build and **111/111 CTest tests
 pass**, including the installed-SDK comparisons and scene/build lifecycle
@@ -842,8 +842,8 @@ equivalent `rohr_` wrappers). Old names are removed. Mask queries do not report
 actual contact. Editor controls, command/history paths, CLI `responds-to`, JSON,
 runtime snapshots, and generated code use the new names. Project format 12 and
 runtime format 10 reject older files before replacing state, with a
-migration-required diagnostic retained through runtime object loading. C11's
-general migration is not implemented. Shipped car hubs have an explicit category
+migration-required diagnostic retained through runtime object loading. C11 now
+provides the explicit migration described below. Shipped car hubs have an explicit category
 and room exclusion; Pong walls exclude paddles in both directions. These targeted
 fixture updates preserve their prior allowed/excluded relationships.
 
@@ -880,8 +880,62 @@ corrects it). Windows engine/editor/CLI, response/persistence tests, car/Pong
 examples, and the car regression cross-build without compiler warnings.
 Final platform logs: `/tmp/c10_windows_final_build.log`,
 `/tmp/c10_windows_examples_build.log`, `/tmp/c10_car_windows_build.log`.
-Native Windows execution was not performed. C11–C14 remain unstarted; prior
-C7/C9 manual-review exceptions remain unchanged.
+Native Windows execution was not performed. C10 did not implement C11–C14;
+subsequent C11 evidence follows. C7/C9 manual-review exceptions remain unchanged.
+
+**C11 complete — explicit behavior-preserving collision migration:**
+`rohr-cli migrate-collisions preview|apply FILE.json [FILE.json ...]` supports
+editor project 11 → 12 and runtime state/snapshot 9 → 10. Preview is read-only;
+apply preserves exact originals and a JSON mapping report beside the inputs.
+Loaders remain strict. There is no automatic conversion or legacy simulation
+mode. Developer-owned C, assets and manifests are not rewritten.
+
+Migration retains category bits when they can express the old mutual relation.
+Otherwise it groups equal response neighborhoods or uses exact reversed legacy
+bit-pair channels, with deterministic names and a per-profile mapping. It verifies
+both new response directions against every old ordered pair, including repeated
+instances of one profile. All interacting files must be supplied together;
+unseen files, future edits and entities created in developer-owned C require
+manual mask review. [Usage, recovery and bounded capacity](collision_migration.md)
+document the supported encodings rather than claiming a minimum Boolean encoding.
+
+Five acceptance cases:
+
+1. Read-only deterministic preview, explicit application, exact original bytes,
+   strict supported versions, duplicate-key rejection, and malformed numeric
+   filters are covered by `editor_collision_migration`.
+2. Shared categories with different filters retain every acceptance/exclusion
+   in both directions. Coverage includes zero/all filters, all 64 original bits,
+   a remapped 64-neighborhood boundary, and 130 profiles encoded via bit pairs.
+3. Project rigid bodies, standalone particles, soft nodes and disabled beams
+   survive migration and save/reload. Runtime templates, implicit default
+   filters, node/beam topology snapshots and subsequent snapshots load correctly.
+4. A provably over-capacity 66-target case, stale inputs and occupied sidecars
+   refuse without modifying inputs. Injected failure after a prior file has
+   been replaced restores the entire batch. Originals remain available for
+   manual recovery after process interruption; multi-file crash atomicity is
+   not claimed.
+5. `editor_collision_migration_generated` runs CLI preview/apply, validates the
+   project, regenerates C, verifies the developer-owned main's checksum, builds
+   against the installed SDK, and checks the old relationships through both
+   generated catalogs and runtime object loading from outside the source tree.
+
+Verification: all **123/123 Linux tests** passed (`/tmp/c11_final_tests.log`).
+The focused migration suite passed ASan/UBSan with leak detection
+(`/tmp/c11_sanitizer_tests.log`), including the injected replacement failure.
+Linux engine/editor/CLI/tests built; the new migration module also passed
+`-Wall -Wextra -Wpedantic -Werror`. The standalone game-state example independently
+built against the installed SDK and exited successfully from `/tmp`
+(`/tmp/c11_example_build.log`, `/tmp/c11_example_run.log`). Windows CLI and
+migration tests cross-built (`/tmp/c11_windows_build.log`); native Windows
+execution was not performed. Final audit tightened rejection of explicitly
+empty/incomplete legacy filters and bounded generated category labels without
+compiler warnings. Both migration tests then passed again
+(`/tmp/c11_audit_tests.log`), as did ASan/UBSan with leak detection
+(`/tmp/c11_audit_sanitizer_tests.log`) and the Windows cross-build
+(`/tmp/c11_audit_windows_build.log`). No rendering behavior changed or new manual visual
+gate was introduced. C7/C9's explicit review exceptions remain unchanged.
+C12–C14 remain unstarted.
 
 ## Frozen fixture plan
 

@@ -10,6 +10,7 @@
 #endif
 
 #include "editor_command.h"
+#include "editor_collision_migration.h"
 #include "editor_config.h"
 #include "editor_build.h"
 #include <signal.h>
@@ -252,6 +253,7 @@ static void cli_usage_print(void) {
         "  Project: rohr-cli [--project <project-directory>] "
             "<operation>\n"
         "  Project operations: create, validate, generate-c, compile, build\n"
+        "  Collision migration: rohr-cli migrate-collisions preview|apply FILE.json [FILE.json ...]\n"
         "  Scene operations: build-scene, simulate-scene\n"
         "  Scene selectors: --object <name> or --object-id <id>; --viewport <name> or --viewport-id <id>\n"
         "  Scene defaults: all objects and the first viewport\n"
@@ -630,6 +632,24 @@ static int cli_object_command(int count, char **arguments) {
 }
 
 int main(int count, char **arguments) {
+    if(count >= 2 && !strcmp(arguments[1], "migrate-collisions")) {
+        if(count < 4 || (strcmp(arguments[2], "preview") && strcmp(arguments[2], "apply"))) {
+            fputs("Usage: rohr-cli migrate-collisions preview|apply FILE.json [FILE.json ...]\n"
+                "Supply all interacting legacy project/state files together. Apply preserves originals.\n", stderr);
+            return 1;
+        }
+        EditorCollisionMigration *plan = NULL;
+        EditorResult result = editor_collision_migration_prepare(
+            (const char *const *)(arguments + 3), (size_t)count - 3, &plan);
+        if(editor_result_check(result)) return cli_error(result);
+        puts(editor_collision_migration_report_get(plan));
+        if(!strcmp(arguments[2], "apply")) {
+            result = editor_collision_migration_apply(plan);
+            if(!editor_result_check(result)) puts("Migration applied. Originals preserved; regenerate editor-owned C and update developer-owned masks using the report.");
+        }
+        editor_collision_migration_destroy(plan);
+        return editor_result_check(result) ? cli_error(result) : 0;
+    }
     if(cli_help_request_check(count, arguments)) {
         cli_help_print(count, arguments);
         return 0;

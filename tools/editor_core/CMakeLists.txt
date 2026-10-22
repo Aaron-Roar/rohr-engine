@@ -2,6 +2,7 @@
 # SPDX-License-Identifier: LGPL-3.0-only
 
 add_library(rohr_editor_core STATIC
+    src/editor_collision_migration.c
     src/editor_object_catalog.c
     src/editor_scene_session.c
     src/editor_build.c
@@ -37,6 +38,14 @@ if(ROHR_ENABLE_SANITIZERS)
 endif()
 
 if(ROHR_BUILD_TESTS)
+    add_executable(editor_collision_migration_test tests/editor_collision_migration.c)
+    add_test(NAME editor_collision_migration COMMAND editor_collision_migration_test)
+    set_tests_properties(editor_collision_migration PROPERTIES
+        ENVIRONMENT "SDL_VIDEODRIVER=dummy;SDL_AUDIODRIVER=dummy")
+    if(UNIX AND NOT APPLE)
+        target_compile_definitions(editor_collision_migration_test PRIVATE ROHR_TEST_RENAME_WRAP)
+        target_link_options(editor_collision_migration_test PRIVATE -Wl,--wrap=SDL_RenamePath)
+    endif()
     add_executable(editor_configuration_parity_test tests/editor_configuration_parity.c
         ${PROJECT_SOURCE_DIR}/tools/editor/src/editor_history.c)
     add_executable(editor_construction_parity_test tests/editor_construction_parity.c)
@@ -48,7 +57,7 @@ if(ROHR_BUILD_TESTS)
     add_executable(editor_workspace_paths_test tests/editor_workspace_paths.c)
     add_test(NAME editor_workspace_paths COMMAND editor_workspace_paths_test "${CMAKE_CURRENT_BINARY_DIR}/path fixtures")
     add_executable(editor_scene_generation_test tests/editor_scene_generation.c)
-    foreach(scene_target editor_workspace_paths_test scene_child_test editor_scene_session_test editor_build_test editor_scene_generation_test editor_configuration_parity_test editor_construction_parity_test editor_incomplete_joints_test editor_interaction_fixture)
+    foreach(scene_target editor_collision_migration_test editor_workspace_paths_test scene_child_test editor_scene_session_test editor_build_test editor_scene_generation_test editor_configuration_parity_test editor_construction_parity_test editor_incomplete_joints_test editor_interaction_fixture)
         target_include_directories(${scene_target} PRIVATE ${PROJECT_SOURCE_DIR}/src)
         target_link_libraries(${scene_target} PRIVATE rohr_editor_core)
         if(NOT MSVC)
@@ -73,6 +82,13 @@ if(ROHR_BUILD_TESTS)
         ENVIRONMENT "SDL_VIDEODRIVER=dummy;SDL_AUDIODRIVER=dummy")
     if(ROHR_BUILD_SDK_CONSUMER_TESTS AND NOT CMAKE_CROSSCOMPILING)
         if(ROHR_BUILD_CLI)
+            add_test(NAME editor_collision_migration_generated COMMAND ${CMAKE_COMMAND}
+                -DCLI=$<TARGET_FILE:rohr_editor_cli>
+                -DTEST_EXECUTABLE=$<TARGET_FILE:editor_collision_migration_test>
+                "-DFIXTURE=${CMAKE_CURRENT_BINARY_DIR}/collision migration fixture"
+                "-DSDK_PREFIX=${ROHR_SDK_INSTALL_PREFIX}"
+                -P "${CMAKE_CURRENT_SOURCE_DIR}/tests/collision_migration_generation.cmake")
+            set_tests_properties(editor_collision_migration_generated PROPERTIES LABELS "sdk;linux" TIMEOUT 180)
             add_test(NAME editor_workspace_paths_build COMMAND ${CMAKE_COMMAND}
                 -DCLI=$<TARGET_FILE:rohr_editor_cli> -DPROBE=$<TARGET_FILE:editor_build_test>
                 -DPATHS=$<TARGET_FILE:editor_workspace_paths_test>

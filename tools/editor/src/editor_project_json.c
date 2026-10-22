@@ -2182,7 +2182,7 @@ EditorResult editor_project_load(EditorProject *project, const char *path) {
     if(version != EDITOR_PROJECT_FORMAT_VERSION) {
         result = editor_result_error(EDITOR_ERROR_SCHEMA_VERSION,
             version < EDITOR_PROJECT_FORMAT_VERSION
-                ? "Project editor state '%s' uses format_version %u; collision response migration required before loading as version %u (C11 migration is not available yet)"
+                ? "Project editor state '%s' uses format_version %u; collision response migration required before loading as version %u (use rohr-cli migrate-collisions preview|apply with all interacting legacy JSON files)"
                 : "Project editor state '%s' uses format_version %u; this editor requires %u",
             path, version, EDITOR_PROJECT_FORMAT_VERSION);
         goto done;

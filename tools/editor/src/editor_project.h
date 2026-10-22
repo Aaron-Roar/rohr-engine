@@ -31,8 +31,8 @@
     (EDITOR_RIGID_BODY_MAX + EDITOR_JOINT_MAX + EDITOR_SOFT_BODY_MAX + \
         EDITOR_CAMERA_MAX + EDITOR_ANCHOR_MAX + 2 * EDITOR_SOURCE_MAX)
 #define EDITOR_COLLISION_MASK_MAX 64
-/* Version 11 adds authored configuration and reference parity.
- * Versions 8–10 remain readable with the documented defaults. */
+/* Version 12 uses directional response masks. Version 11 requires explicit
+ * collision migration; older structural formats are unsupported. */
 #define EDITOR_PROJECT_FORMAT_VERSION 12
 #define EDITOR_NAVIGATION_MODE_MAX 33
 #define EDITOR_NAVIGATION_SELECTION_MAX 30

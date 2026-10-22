@@ -320,8 +320,8 @@ contracts, and generated examples when a goal changes supported behavior.
     Preserve overlap detection independently of these masks and respect
     Static/Kinematic restrictions. Test all four mask combinations, reversed
     arguments, moving nonresponders, and a third body with a different response
-    relationship. Existing data must not be silently reinterpreted while C11's
-    migration is unavailable.
+    relationship. Existing data must not be silently reinterpreted; C11 provides
+    explicit migration for the immediately preceding formats.
     Agreed C10 boundary: project format 12 and runtime-state format 10 reject
     older files with a migration-required diagnostic, leaving files untouched.
     Use `.responds_to`, `collision_response_set/all_set/none_set`, directional
@@ -340,9 +340,9 @@ contracts, and generated examples when a goal changes supported behavior.
     outside their source directories. Windows engine/editor/CLI, response and
     persistence tests, car/Pong examples and the car regression cross-built
     without compiler warnings; native Windows execution was not performed.
-    Old formats remain rejected; C11 migration is not implemented. See the
+    Old formats remain rejected until explicitly migrated through C11. See the
     corrective issue mapping for evidence and compatibility details.
-11. [ ] **C11 — Behavior-preserving mask migration.** Convert existing mutual
+11. [x] **C11 — Behavior-preserving mask migration.** Convert existing mutual
     filters into the new directional system by adding/splitting categories and
     rebuilding response masks as needed. Preserve every previously allowed or
     excluded pair, including collider profiles sharing a category but having
@@ -352,6 +352,19 @@ contracts, and generated examples when a goal changes supported behavior.
     without partially modifying the project. No permanent legacy mode. Cover
     save/reload, regeneration, supported stored-data paths, and explain effects
     on developer-authored C that uses category constants.
+    Complete: explicit CLI preview/apply supports project 11 → 12 and runtime
+    state/snapshot 9 → 10; other versions remain rejected. One deterministic
+    mapping covers all supplied files, preserving old bits where possible and
+    using profile splits or legacy bit-pair channels when needed. Every ordered
+    profile pair is verified in both directions before publishing. Apply keeps
+    exact originals and a named/profile mapping report, rejects stale inputs
+    and occupied sidecars, and rolls back failed replacements. Developer-owned
+    C remains unchanged. All 123 Linux tests, focused ASan/UBSan with leak
+    detection, installed-SDK generated consumer and game-state example execution,
+    and Windows CLI/test cross-builds passed. Native Windows execution was not
+    performed. See [migration usage and limits](docs/collision_migration.md) and
+    the corrective issue mapping for the five acceptance cases. C7/C9 review
+    exceptions remain unchanged; C12 has not started.
 12. [ ] **C12 — Explicit kinematic authoring.** Expose Dynamic / Static /
     Kinematic for supported physical entities using the engine's existing motion
     semantics. Preserve explicit kinematic intent and mass through mode changes,
