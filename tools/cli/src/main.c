@@ -77,6 +77,8 @@ static const CliHelpDomain cli_help_domains[] = {
         "--anchor wheel_anchor --property position 12 8", 1},
     {"--soft-body", "soft body", "position <x> <y>, rotation <degrees>, initial-angular-velocity <degrees/s>, "
         "origin <x> <y>, mass <number>, center-of-mass <x> <y>, node-color <hex>, beam-color <hex>, "
+        "gravity <true|false>, collision <true|false>, friction <number>, restitution <0..1>, "
+        "category <mask> <true|false>, responds-to <mask> <true|false>, "
         "motion <dynamic|static|kinematic>, static <true|false>, "
         "visibility <true|false>, auto-shape <shape> <triangle-kind> <width> "
         "<height> <radius> <apex-offset>",

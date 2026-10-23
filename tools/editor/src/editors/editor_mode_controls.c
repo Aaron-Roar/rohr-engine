@@ -13,6 +13,39 @@
 #include <stdlib.h>
 #include <string.h>
 
+bool editor_mode_checkbox_mixed(const char *id, TextAsset *label, UIRect bounds, bool all, bool any) {
+    UIButtonResult result = rohr_ui_interaction(id, bounds);
+    rohr_ui_surface(bounds, result.hovered ? (Color){67,75,90,255} : (Color){48,54,66,255});
+    UIRect box = {bounds.x + 4, bounds.y + 4, 20, 20};
+    rohr_ui_border(box, 2, (Color){200,205,215,255});
+    if(all) rohr_ui_surface((UIRect){box.x + 5,box.y + 5,10,10}, (Color){225,230,240,255});
+    else if(any) rohr_ui_surface((UIRect){box.x + 4,box.y + 9,12,2}, (Color){255,215,70,255});
+    rohr_ui_label(label, (UIRect){bounds.x + 32,bounds.y,bounds.width - 32,bounds.height});
+    return result.clicked;
+}
+UIFieldResult editor_mode_mixed_number_field(EditorMixedNumberField *state,
+        const char *id, TextAsset *display, UIRect bounds, bool mixed, float *value,
+        float minimum, float maximum) {
+    if(state == NULL || value == NULL) return (UIFieldResult){0};
+    if(!state->active) {
+        if(mixed) snprintf(state->text, sizeof(state->text), "Mixed");
+        else snprintf(state->text, sizeof(state->text), "%.9g", (double)*value);
+    }
+    UIFieldResult result = editor_mode_field(id, (UIFieldBinding){.kind = UI_FIELD_STRING,
+        .string = state->text, .string_capacity = sizeof(state->text)}, display, bounds, NULL);
+    state->active = result.active && !result.submitted;
+    result.changed = false;
+    if(result.submitted) {
+        char *end = NULL;
+        float entered = strtof(state->text, &end);
+        if(end != state->text && *end == '\0' && isfinite(entered) &&
+                entered >= minimum && entered <= maximum) {
+            *value = entered; result.changed = true;
+        }
+    }
+    return result;
+}
+
 static float editor_mode_accordion_measured_bottom;
 static const char *editor_mode_pending_field_focus;
 static char editor_mode_text_error[512];

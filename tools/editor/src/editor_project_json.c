@@ -506,6 +506,12 @@ static yyjson_mut_val *editor_json_soft_body_write(yyjson_mut_doc *document,
     yyjson_mut_obj_add_bool(document, value, "visible", body->visible);
     yyjson_mut_obj_add_bool(document, value, "visible_in_app", !body->app_hidden);
     editor_entity_settings_json_write(document, value, body->entity_settings);
+    yyjson_mut_obj_add_bool(document, value, "node_gravity_default", body->node_gravity_default);
+    yyjson_mut_obj_add_bool(document, value, "node_collision_default", body->node_collision_default);
+    yyjson_mut_obj_add_uint(document, value, "node_category_default", body->node_category_default);
+    yyjson_mut_obj_add_uint(document, value, "node_responds_to_default", body->node_responds_to_default);
+    yyjson_mut_obj_add_real(document, value, "node_friction_default", body->node_friction_default);
+    yyjson_mut_obj_add_real(document, value, "node_restitution_default", body->node_restitution_default);
     yyjson_mut_obj_add_bool(document, value, "node_static_default", body->node_static_default);
     yyjson_mut_obj_add_bool(document, value, "node_kinematic_driven_default", body->node_kinematic_driven_default);
     yyjson_mut_obj_add_uint(document, value, "node_color", body->node_color);
@@ -1513,6 +1519,10 @@ static bool editor_json_soft_body_read(yyjson_val *value, EditorSoftBody *body,
     *body = (EditorSoftBody){
         .node_color = UINT32_C(0xffaa46ff),
         .beam_color = UINT32_C(0xebf0f5ff),
+        .node_collision_default = true,
+        .node_category_default = UINT64_C(1),
+        .node_responds_to_default = UINT64_C(1),
+        .node_restitution_default = 0.25f,
     };
     if(!yyjson_is_obj(value) || !editor_json_uint(value, "id", &body->id) || body->id == 0 ||
             !editor_json_name(value, body->name) || !editor_json_position_read(
@@ -1521,6 +1531,21 @@ static bool editor_json_soft_body_read(yyjson_val *value, EditorSoftBody *body,
             (!editor_json_app_visibility_read(value, &body->app_hidden) || !editor_entity_settings_json_read(value, &body->entity_settings)) || !yyjson_is_arr(nodes) ||
             !yyjson_is_arr(beams)) return false;
     if(hierarchy != NULL && !yyjson_is_arr(hierarchy)) return false;
+    if(yyjson_obj_get(value, "node_gravity_default") != NULL &&
+            !editor_json_bool(value, "node_gravity_default", &body->node_gravity_default)) return false;
+    if(yyjson_obj_get(value, "node_collision_default") != NULL &&
+            !editor_json_bool(value, "node_collision_default", &body->node_collision_default)) return false;
+    if(yyjson_obj_get(value, "node_category_default") != NULL &&
+            !editor_json_uint64(value, "node_category_default", &body->node_category_default)) return false;
+    if(yyjson_obj_get(value, "node_responds_to_default") != NULL &&
+            !editor_json_uint64(value, "node_responds_to_default", &body->node_responds_to_default)) return false;
+    if(yyjson_obj_get(value, "node_friction_default") != NULL &&
+            !editor_json_real(value, "node_friction_default", &body->node_friction_default)) return false;
+    if(yyjson_obj_get(value, "node_restitution_default") != NULL &&
+            !editor_json_real(value, "node_restitution_default", &body->node_restitution_default)) return false;
+    if(!isfinite(body->node_friction_default) || !isfinite(body->node_restitution_default) ||
+            body->node_friction_default < 0 || body->node_restitution_default < 0 ||
+            body->node_restitution_default > 1) return false;
     if((yyjson_obj_get(value, "node_static_default") != NULL &&
             !editor_json_bool(value, "node_static_default", &body->node_static_default)) ||
             (yyjson_obj_get(value, "node_kinematic_driven_default") != NULL &&

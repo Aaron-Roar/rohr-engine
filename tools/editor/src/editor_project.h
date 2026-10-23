@@ -380,6 +380,12 @@ typedef struct EditorSoftBody {
     /** Authored defaults for new nodes; existing nodes keep independent modes. */
     bool node_static_default;
     bool node_kinematic_driven_default;
+    bool node_gravity_default;
+    bool node_collision_default;
+    RohrCollisionCategoryMask node_category_default;
+    RohrCollisionCategoryMask node_responds_to_default;
+    float node_friction_default;
+    float node_restitution_default;
     EditorSoftNode *nodes;
     size_t node_count;
     size_t node_capacity;

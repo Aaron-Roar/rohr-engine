@@ -8,6 +8,7 @@
 #include "editors/editor_mode_controls.h"
 
 #include <stdio.h>
+#include <float.h>
 
 static UIButtonStyle selected_style_get(void) {
     UIButtonStyle style = rohr_ui_button_style_default_get();
@@ -32,7 +33,7 @@ static EditorSoftBody *body_get(EditorObject *object, EditorSoftBodyId id) {
     return NULL;
 }
 
-static void initial_motion_set(EditorProject *project, EditorObjectId object,
+static void float_property_set(EditorProject *project, EditorObjectId object,
         EditorSoftBodyId body, EditorPropertyKind property, float value) {
     EditorCommand command = {.type = EDITOR_COMMAND_PROPERTY_SET,
         .data.property_set = {EDITOR_ITEM_SOFT_BODY, object, 0, body, 0,
@@ -46,6 +47,9 @@ bool editor_soft_body_editor_create(EditorSoftBodyEditor *editor,
     *editor = (EditorSoftBodyEditor){.font = font};
 #define CREATE(value, member) \
     if(!editor_mode_text_create(font, value, &editor->member)) goto fail
+    CREATE("Gravity", gravity_label);
+    CREATE("Friction", material_labels[0]); CREATE("Restitution", material_labels[1]);
+    CREATE("", material_fields[0]); CREATE("", material_fields[1]);
     CREATE("Mixed Motion", motion_mixed_label);
     CREATE("Dynamic", motion_dynamic_label); CREATE("Static", motion_static_label);
     CREATE("Kinematic", motion_kinematic_label);
@@ -66,7 +70,8 @@ bool editor_soft_body_editor_create(EditorSoftBodyEditor *editor,
     CREATE("", acceleration_x_field); CREATE("", acceleration_y_field);
     CREATE("", angular_velocity_field);
 #undef CREATE
-    if(!editor_center_of_mass_editor_create(&editor->mass_properties, font) ||
+    if(!editor_collision_controls_create(&editor->collision, font) ||
+            !editor_center_of_mass_editor_create(&editor->mass_properties, font) ||
             !editor_mode_accordion_section_create(&editor->physics_section, font, "Physics", false) ||
             !editor_soft_area_editor_create(&editor->areas, font) ||
             !editor_mode_accordion_section_create(&editor->transform_section, font,
@@ -86,6 +91,8 @@ fail:
 void editor_soft_body_editor_destroy(EditorSoftBodyEditor *editor) {
     if(editor == NULL) return;
 #define DESTROY(member) rohr_graphics_text_destroy(&editor->member)
+    DESTROY(gravity_label); DESTROY(material_labels[0]); DESTROY(material_labels[1]);
+    DESTROY(material_fields[0]); DESTROY(material_fields[1]);
     DESTROY(motion_mixed_label); DESTROY(motion_dynamic_label);
     DESTROY(motion_static_label); DESTROY(motion_kinematic_label);
     DESTROY(name_label); DESTROY(x_label); DESTROY(y_label);
@@ -102,6 +109,7 @@ void editor_soft_body_editor_destroy(EditorSoftBodyEditor *editor) {
     DESTROY(acceleration_x_field); DESTROY(acceleration_y_field);
     DESTROY(angular_velocity_field);
 #undef DESTROY
+    editor_collision_controls_destroy(&editor->collision);
     editor_soft_area_editor_destroy(&editor->areas);
     editor_center_of_mass_editor_destroy(&editor->mass_properties);
     editor_mode_accordion_section_destroy(&editor->physics_section);
@@ -281,10 +289,16 @@ bool editor_soft_body_editor_draw(EditorSoftBodyEditor *editor,
             editor_mode_accordion_layout_nested_section(&accordion,
                 &editor->transform_section,
                 "editor.soft_body.section.transform", transform_groups, 1);
-        const float physics_rows[] = {28,26,26,26,26};
+        EditorSelectionRef physics_ref = {EDITOR_SELECTION_SOFT_BODY, object->id, 0, 0, body->id};
+        uint64_t previous_selection = editor->collision.selection_key;
+        editor_collision_controls_selection_set(&editor->collision, &physics_ref, 1);
+        if(previous_selection != editor->collision.selection_key)
+            editor->materials[0] = editor->materials[1] = (EditorMixedNumberField){0};
+        const float physics_rows[] = {28,26,26,26,26,28,26,26,
+            editor_collision_controls_height_get(&editor->collision, context->project, true)};
         EditorModeAccordionLayoutResult physics = editor_mode_accordion_layout_section(
             &accordion, &editor->physics_section, "editor.soft_body.section.physics",
-            physics_rows, 5, 6);
+            physics_rows, 9, 6);
         if(physics.expanded) {
             const TextAsset *options[] = {&editor->motion_mixed_label,
                 &editor->motion_dynamic_label, &editor->motion_static_label,
@@ -305,6 +319,34 @@ bool editor_soft_body_editor_draw(EditorSoftBodyEditor *editor,
             field_active |= editor_soft_center_of_mass_editor_draw(
                 &editor->mass_properties, context, object, body,
                 editor_mode_accordion_layout_row_y(&physics, physics_rows, 1, 6));
+            EditorSoftBodyPhysicsValues values = editor_soft_body_physics_get(body);
+            if(editor_mode_checkbox_mixed("editor.soft_body.gravity", &editor->gravity_label,
+                    (UIRect){context->x + 10,
+                        editor_mode_accordion_layout_row_y(&physics, physics_rows, 5, 6),
+                        context->width - 20, 28}, values.gravity_all, values.gravity_any)) {
+                EditorCommand command = {.type = EDITOR_COMMAND_PROPERTY_SET,
+                    .data.property_set = {EDITOR_ITEM_SOFT_BODY, object->id, 0, body->id, 0,
+                        EDITOR_PROPERTY_GRAVITY, EDITOR_PROPERTY_VALUE_BOOL,
+                        {.boolean = !values.gravity_all}}};
+                (void)editor_command_execute(context->project, &command);
+            }
+            for(size_t i = 0; i < 2; ++i) {
+                float y = editor_mode_accordion_layout_row_y(&physics, physics_rows, i + 6, 6);
+                rohr_ui_label(&editor->material_labels[i], (UIRect){context->x + 10, y, 112, 26});
+                float value = i == 0 ? values.friction : values.restitution;
+                UIFieldResult field = editor_mode_mixed_number_field(&editor->materials[i],
+                    i == 0 ? "editor.soft_body.friction" : "editor.soft_body.restitution",
+                    &editor->material_fields[i], (UIRect){context->x + 126, y, context->width - 136, 26},
+                    i == 0 ? values.friction_mixed : values.restitution_mixed, &value, 0, i == 0 ? FLT_MAX : 1);
+                if(field.changed) float_property_set(context->project, object->id, body->id,
+                    i == 0 ? EDITOR_PROPERTY_FRICTION : EDITOR_PROPERTY_RESTITUTION, value);
+                field_active |= field.active;
+            }
+            EditorCollisionDrawResult collision = editor_collision_controls_draw(&editor->collision,
+                "editor.soft_body.collision", context->project, context->history, &physics_ref, 1,
+                context->x + 10, editor_mode_accordion_layout_row_y(&physics, physics_rows, 8, 6),
+                context->width - 20, true);
+            field_active |= collision.active;
         }
         EditorModeAccordionLayoutResult appearance =
             editor_mode_accordion_layout_section(&accordion,
@@ -413,7 +455,7 @@ bool editor_soft_body_editor_draw(EditorSoftBodyEditor *editor,
                 fields[i], (UIRect){context->x + 122.0f,
                     initial_motion_row_y[i], context->width - 132.0f, 26.0f},
                 &style);
-            if(result.changed) initial_motion_set(context->project, object->id,
+            if(result.changed) float_property_set(context->project, object->id,
                 body->id, properties[i], values[i]);
             field_active = field_active || result.active;
         }

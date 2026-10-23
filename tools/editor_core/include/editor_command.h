@@ -171,6 +171,13 @@ typedef struct EditorItemRenameCommand {
 } EditorItemRenameCommand;
 
 #include "editor_entity_settings.h"
+typedef struct EditorSoftBodyPhysicsValues {
+    bool gravity_all, gravity_any;
+    float friction, restitution;
+    bool friction_mixed, restitution_mixed;
+} EditorSoftBodyPhysicsValues;
+EditorSoftBodyPhysicsValues editor_soft_body_physics_get(const EditorSoftBody *body);
+
 typedef enum EditorMotionMode {
     EDITOR_MOTION_DYNAMIC,
     EDITOR_MOTION_STATIC,

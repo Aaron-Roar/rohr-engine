@@ -7,6 +7,7 @@
 
 #include "editors/editor_mode_context.h"
 #include "editor_soft_area.h"
+#include "editors/editor_collision_controls.h"
 #include "editors/physics/editor_center_of_mass.h"
 #include "editors/editor_mode_controls.h"
 #include "editors/geometry/editor_auto_shape_editor.h"
@@ -16,6 +17,9 @@ typedef struct EditorSoftBodyEditor {
     EditorSoftAreaEditor areas;
     EditorCenterOfMassEditor mass_properties;
     EditorModeAccordionSection physics_section;
+    EditorCollisionControls collision;
+    TextAsset gravity_label, material_labels[2], material_fields[2];
+    EditorMixedNumberField materials[2];
     TextAsset name_label, x_label, y_label, rotation_label;
     TextAsset motion_mixed_label, motion_dynamic_label, motion_static_label, motion_kinematic_label;
     TextAsset velocity_x_label, velocity_y_label, acceleration_x_label;

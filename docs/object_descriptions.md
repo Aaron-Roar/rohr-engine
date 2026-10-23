@@ -277,8 +277,43 @@ replaces motion mode, preserving every node's other settings. Empty bodies show
 their authored default. Static retains each node's dormant explicit intent.
 `node_static_default` and `node_kinematic_driven_default` are editor-only boolean
 fields persisted in project format 13; missing fields default false in 12/13.
-Generated code and runtime catalogs use the resolved per-node values. Whole-body
-collision and gravity controls remain C13.
+Generated code and runtime catalogs use the resolved per-node values.
+
+### Whole-body node physics
+
+The soft-body Physics panel also exposes Gravity, Collision, Category, Responds
+To, Friction, and Restitution. A parent edit changes only that property on every
+existing node and its default for future nodes. Category and Responds To edits
+change only the selected bit, preserving other bits and per-node overrides.
+Independent node edits produce Mixed values at the parent; empty bodies display
+their defaults. Material fields commit on Enter. The same properties are available
+in compatible bulk selections and CLI commands, with undo/redo in the editor.
+Beams retain independent material and collision settings; collision remains opt-in.
+
+Project format 13 persists six additional optional authoring fields. Formats 12
+and 13 accept missing fields using historical new-node defaults:
+
+| Field | Missing value |
+| --- | --- |
+| `node_gravity_default` | `false` |
+| `node_collision_default` | `true` |
+| `node_category_default` | `1` |
+| `node_responds_to_default` | `1` |
+| `node_friction_default` | `0` |
+| `node_restitution_default` | `0.25` |
+
+Flags must be boolean, masks unsigned 64-bit integers, friction finite and
+nonnegative, and restitution finite in [0, 1]. Loading never reapplies defaults
+to existing nodes. Runtime format 10 and public runtime descriptions remain
+unchanged: generated constructors, catalogs, spawning, and snapshots carry the
+resolved node settings. Generated constructors restore collision enablement after
+material setters so disabled collision retains its stored masks.
+
+```sh
+rohr-cli --project game/objects/project.rohr.json --object actor --soft-body cloth --property gravity true
+rohr-cli --project game/objects/project.rohr.json --object actor --soft-body cloth --property friction 0.6
+rohr-cli --project game/objects/project.rohr.json --object actor --soft-body cloth --property responds-to default false
+```
 
 CLI examples (substitute your object/body/node names):
 

@@ -7,6 +7,17 @@
 
 #include "editors/editor_mode_context.h"
 
+typedef struct EditorMixedNumberField {
+    char text[64];
+    bool active;
+} EditorMixedNumberField;
+bool editor_mode_checkbox_mixed(const char *id, TextAsset *label, UIRect bounds,
+    bool all, bool any);
+/** Commit numeric changes on Enter; mixed and invalid input never write values. */
+UIFieldResult editor_mode_mixed_number_field(EditorMixedNumberField *state,
+    const char *id, TextAsset *display, UIRect bounds, bool mixed, float *value,
+    float minimum, float maximum);
+
 typedef struct EditorModeTextCache {
     TextAsset *labels;
     char (*values)[EDITOR_OBJECT_NAME_MAX];

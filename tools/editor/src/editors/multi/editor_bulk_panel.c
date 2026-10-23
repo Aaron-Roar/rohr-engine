@@ -10,6 +10,7 @@
 #include "editor_navigation.h"
 
 #include <errno.h>
+#include <float.h>
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -302,6 +303,14 @@ static size_t editor_bulk_selection_properties_get(EditorProject *project,
     }
     if(app_supported) output[used++] = (EditorBulkProperty){"Visible in App",
         EDITOR_BULK_APP_VISIBILITY, EDITOR_BULK_CHECKBOX, 0};
+    if(motion_supported) {
+        output[used++] = (EditorBulkProperty){"Gravity", EDITOR_BULK_PROPERTY,
+            EDITOR_BULK_CHECKBOX, EDITOR_PROPERTY_GRAVITY};
+        output[used++] = (EditorBulkProperty){"Friction", EDITOR_BULK_PROPERTY,
+            EDITOR_BULK_FLOAT, EDITOR_PROPERTY_FRICTION};
+        output[used++] = (EditorBulkProperty){"Restitution", EDITOR_BULK_PROPERTY,
+            EDITOR_BULK_FLOAT, EDITOR_PROPERTY_RESTITUTION};
+    }
     bool visual_supported=state->selected_item_count>0,springs=visual_supported;
     for(size_t i=0;i<state->selected_item_count;++i) {
         EditorSelectionRef ref=state->selected_items[i];
@@ -316,7 +325,13 @@ static size_t editor_bulk_selection_properties_get(EditorProject *project,
     }
     if(visual_supported) for(size_t i=0;i<(springs?24u:8u) && used<EDITOR_BULK_PROPERTY_MAX;++i)
         output[used++]=visual_properties[i];
-    for(size_t i = 0; i < count && used < EDITOR_BULK_PROPERTY_MAX; ++i) output[used++] = properties[i];
+    for(size_t i = 0; i < count && used < EDITOR_BULK_PROPERTY_MAX; ++i) {
+        if(motion_supported && properties[i].target == EDITOR_BULK_PROPERTY &&
+                (properties[i].property == EDITOR_PROPERTY_GRAVITY ||
+                 properties[i].property == EDITOR_PROPERTY_FRICTION ||
+                 properties[i].property == EDITOR_PROPERTY_RESTITUTION)) continue;
+        output[used++] = properties[i];
+    }
     return used;
 }
 
@@ -882,6 +897,52 @@ static bool editor_bulk_checkbox_draw(const char *id, UIRect bounds,
     return interaction.clicked;
 }
 
+static bool editor_bulk_physics_value_get(const EditorProject *project,
+        const EditorViewportState *state, EditorPropertyKind property, float *value, bool *mixed) {
+    *mixed = false;
+    for(size_t i = 0; i < state->selected_item_count; ++i) {
+        EditorSelectionRef ref = state->selected_items[i];
+        const EditorObject *object = editor_object_query_const_get(project, ref.object);
+        if(object == NULL) return false;
+        EditorSoftBodyPhysicsValues physics = {0};
+        bool found = false;
+        if(ref.kind == EDITOR_SELECTION_RIGID_BODY || ref.kind == EDITOR_SELECTION_PARTICLE) {
+            for(size_t b = 0; b < object->rigid_body_count; ++b) {
+                const EditorRigidBody *body = &object->rigid_bodies[b];
+                if(body->id != ref.item) continue;
+                physics = (EditorSoftBodyPhysicsValues){body->gravity_enabled, body->gravity_enabled,
+                    body->friction, body->restitution, false, false}; found = true; break;
+            }
+        } else for(size_t b = 0; b < object->soft_body_count; ++b) {
+            const EditorSoftBody *body = &object->soft_body_items[b];
+            if(ref.kind == EDITOR_SELECTION_SOFT_BODY && body->id == ref.item) {
+                physics = editor_soft_body_physics_get(body); found = true; break;
+            }
+            if(body->id != ref.parent) continue;
+            if(ref.kind == EDITOR_SELECTION_SOFT_NODE) for(size_t n = 0; n < body->node_count; ++n) {
+                const EditorSoftNode *node = &body->nodes[n];
+                if(node->id != ref.item) continue;
+                physics = (EditorSoftBodyPhysicsValues){node->gravity_enabled, node->gravity_enabled,
+                    node->friction, node->restitution, false, false}; found = true; break;
+            }
+            if(ref.kind == EDITOR_SELECTION_SOFT_BEAM) for(size_t n = 0; n < body->beam_count; ++n) {
+                const EditorSoftBeam *beam = &body->beams[n];
+                if(beam->id != ref.item) continue;
+                physics.friction = beam->friction; physics.restitution = beam->restitution;
+                found = true; break;
+            }
+        }
+        if(!found) return false;
+        float current = property == EDITOR_PROPERTY_GRAVITY ? (float)physics.gravity_all :
+            property == EDITOR_PROPERTY_FRICTION ? physics.friction : physics.restitution;
+        bool local_mixed = property == EDITOR_PROPERTY_GRAVITY ? physics.gravity_all != physics.gravity_any :
+            property == EDITOR_PROPERTY_FRICTION ? physics.friction_mixed : physics.restitution_mixed;
+        if(i == 0) *value = current;
+        *mixed |= local_mixed || *value != current;
+    }
+    return state->selected_item_count > 0;
+}
+
 bool editor_bulk_panel_draw(EditorBulkPanel *panel, EditorProject *project,
         EditorViewportState *state, EditorHistory *history,
         EditorAutoShapeEditor *auto_shape, float x, float width,
@@ -894,7 +955,9 @@ bool editor_bulk_panel_draw(EditorBulkPanel *panel, EditorProject *project,
     EditorBulkProperty selection_properties[EDITOR_BULK_PROPERTY_MAX];
     property_count = editor_bulk_selection_properties_get(project, state, selection_properties);
     properties = selection_properties;
+    uint64_t previous_selection = panel->collision.selection_key;
     editor_collision_controls_selection_set(&panel->collision, state->selected_items, state->selected_item_count);
+    if(previous_selection != panel->collision.selection_key) memset(panel->numbers, 0, sizeof(panel->numbers));
     EditorCollisionValues collision_values;
     bool collision_supported = editor_collision_values_get(project, state->selected_items,
         state->selected_item_count, &collision_values);
@@ -906,6 +969,7 @@ bool editor_bulk_panel_draw(EditorBulkPanel *panel, EditorProject *project,
         panel->kind = editor_viewport_selection_homogeneous_check(state) ?
             state->selected_items[0].kind : EDITOR_SELECTION_NONE;
         panel->property_count = property_count;
+        memset(panel->numbers, 0, sizeof(panel->numbers));
         memset(panel->values, 0, sizeof(panel->values));
         memset(panel->assigned, 0, sizeof(panel->assigned));
         memset(panel->booleans, 0, sizeof(panel->booleans));
@@ -939,6 +1003,13 @@ bool editor_bulk_panel_draw(EditorBulkPanel *panel, EditorProject *project,
                 }
                 if(n == 0) panel->booleans[i] = command.data.app_visibility.visible;
                 else if(panel->booleans[i] != command.data.app_visibility.visible) panel->assigned[i] = false;
+            }
+        }
+        if(properties[i].target == EDITOR_BULK_PROPERTY &&
+                properties[i].property == EDITOR_PROPERTY_GRAVITY) {
+            float value = 0; bool mixed = false;
+            if(editor_bulk_physics_value_get(project, state, properties[i].property, &value, &mixed)) {
+                panel->assigned[i] = !mixed; panel->booleans[i] = value != 0;
             }
         }
         if(properties[i].value == EDITOR_BULK_CHECKBOX) {
@@ -1058,6 +1129,20 @@ bool editor_bulk_panel_draw(EditorBulkPanel *panel, EditorProject *project,
                 panel->assigned[i] = true;
                 color_open(color_context, &panel->colors[i],
                     properties[i].property);
+            }
+        } else if(properties[i].target == EDITOR_BULK_PROPERTY &&
+                (properties[i].property == EDITOR_PROPERTY_FRICTION ||
+                 properties[i].property == EDITOR_PROPERTY_RESTITUTION)) {
+            float value = 0; bool mixed = false;
+            if(editor_bulk_physics_value_get(project, state, properties[i].property, &value, &mixed)) {
+                UIFieldResult result = editor_mode_mixed_number_field(&panel->numbers[i], id,
+                    &panel->fields[i], control, mixed, &value, 0,
+                    properties[i].property == EDITOR_PROPERTY_FRICTION ? FLT_MAX : 1);
+                editing |= result.active;
+                if(result.changed) {
+                    char text[64]; snprintf(text, sizeof(text), "%.9g", (double)value);
+                    (void)editor_bulk_apply(project, state, history, &properties[i], text);
+                }
             }
         } else {
             UIFieldResult result = editor_mode_field(id,

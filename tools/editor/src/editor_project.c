@@ -2758,6 +2758,10 @@ EditorSoftBody *editor_project_soft_body_add(EditorProject *project, EditorObjec
         .id = project->next_soft_body_id++,
         .node_color = UINT32_C(0xffaa46ff),
         .beam_color = UINT32_C(0xebf0f5ff),
+        .node_collision_default = true,
+        .node_category_default = UINT64_C(1),
+        .node_responds_to_default = UINT64_C(1),
+        .node_restitution_default = 0.25f,
         .visible = true
     };
     if(!EDITOR_ARRAY_RESERVE(body->nodes, body->node_capacity,
@@ -2823,12 +2827,12 @@ EditorSoftNode *editor_project_soft_node_add(EditorProject *project, EditorSoftB
         .static_body = body->node_static_default,
         .kinematic_driven = body->node_kinematic_driven_default,
         .radius = 4.0f,
-        .friction = 0.0f,
-        .restitution = 0.25f,
-        .gravity_enabled = false,
-        .collision_enabled = true,
-        .collision_category = UINT64_C(1),
-        .responds_to = UINT64_C(1),
+        .friction = body->node_friction_default,
+        .restitution = body->node_restitution_default,
+        .gravity_enabled = body->node_gravity_default,
+        .collision_enabled = body->node_collision_default,
+        .collision_category = body->node_category_default,
+        .responds_to = body->node_responds_to_default,
         .color = UINT32_C(0xffaa46ff),
         .visible = true
     };

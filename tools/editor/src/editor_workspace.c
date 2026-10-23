@@ -1466,12 +1466,13 @@ static bool editor_workspace_generated_objects_write(const EditorWorkspace *work
                 Acceleration acceleration = node->initial_motion_inherited ?
                     body->initial_acceleration : node->initial_acceleration;
                 fprintf(source,
-                    "    { EntityResult created = rohr_physics_soft_body_node_add((SoftBodyNodeDescription){.restitution = 0.25f, .collision_enabled = true, .collision_filter = {.category = ROHR_COLLISION_CATEGORY_SOFT_BODY_NODE, .responds_to = ROHR_COLLISION_CATEGORY_ALL & ~ROHR_COLLISION_CATEGORY_SOFT_BODY_NODE}, "
+                    "    { EntityResult created = rohr_physics_soft_body_node_add((SoftBodyNodeDescription){.restitution = 0.25f, .collision_enabled = %s, .collision_filter = {.category = ROHR_COLLISION_CATEGORY_SOFT_BODY_NODE, .responds_to = ROHR_COLLISION_CATEGORY_ALL & ~ROHR_COLLISION_CATEGORY_SOFT_BODY_NODE}, "
                     ".owner = object->%s, .position = {position.x + %#.9gf, "
                     "position.y + %#.9gf}, .mass = %#.9gf, .radius = %#.9gf});\n"
                     "      if(rohr_error_check(created)) { result = rohr_error_result_error("
                     "created.result.error); goto fail; }\n"
                     "      object->%s = created.result.value; }\n",
+                    node->collision_enabled ? "true" : "false",
                     body->name, transformed.x, transformed.y,
                     node->node_mass, node->radius, node->name);
                 fprintf(source,
@@ -1495,15 +1496,18 @@ static bool editor_workspace_generated_objects_write(const EditorWorkspace *work
                     "    result = rohr_physics_restitution_set(object->%s, %#.9gf);\n"
                     "    if(rohr_error_check(result)) goto fail;\n",
                     node->name, node->friction, node->name, node->restitution);
+                /* The focused restitution setter enables collision. Restore
+                 * the authored flag after applying material settings. */
+                if(!node->collision_enabled) fprintf(source,
+                    "    result = rohr_entity_components_delete(object->%s, ROHR_COLLISION);\n"
+                    "    if(rohr_error_check(result)) goto fail;\n", node->name);
                 fprintf(source,
                     "    result = rohr_physics_soft_body_node_collision_filter_description_set("
                     "object->%s, (CollisionFilterDescription){.category = UINT64_C(%llu), .responds_to = UINT64_C(%llu)});\n"
                     "    if(rohr_error_check(result)) goto fail;\n",
                     node->name,
-                    (unsigned long long)(node->collision_enabled ?
-                        node->collision_category : ROHR_COLLISION_CATEGORY_NONE),
-                    (unsigned long long)(node->collision_enabled ?
-                        node->responds_to : ROHR_COLLISION_CATEGORY_NONE));
+                    (unsigned long long)node->collision_category,
+                    (unsigned long long)node->responds_to);
                 if(node->kinematic_driven) fprintf(source,
                     "    result = rohr_physics_kinematic_driven_set(object->%s);\n"
                     "    if(rohr_error_check(result)) goto fail;\n", node->name);

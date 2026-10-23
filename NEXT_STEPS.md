@@ -387,16 +387,27 @@ contracts, and generated examples when a goal changes supported behavior.
     both platforms and passed Linux startup/interrupt checks. Native Windows
     execution was not performed. User review accepted C12 conditional on the
     whole-body motion addition, now implemented and verified without image
-    analysis. See the corrective issue mapping. Remaining C13/C14 work is deferred.
-13. [ ] **C13 — Remaining soft-body Physics controls.** Expose collision and
-    gravity at soft-body level. Motion was completed in C12 at the user's request.
-    Changing a body-level property bulk-applies that property to all existing
-    nodes and sets its default for new nodes. Individual nodes can then be edited
-    independently; a subsequent body-level edit overwrites that property's node
-    values again without resetting unrelated properties. Apply this policy
-    consistently to collision settings and applicable flags. Keep beam collision
-    explicitly opt-in. Include mixed-state display, persistence, generation,
-    and undo/redo.
+    analysis. See the corrective issue mapping. C13 completion follows; C14 remains planned.
+13. [x] **C13 — Remaining soft-body Physics controls.** Expose Gravity,
+    Collision, Category, Responds To, Friction, and Restitution at soft-body level.
+    Motion was completed in C12. Each parent edit changes only that property on
+    existing nodes and its default for new nodes; mask edits change only the
+    selected bit. Independent node overrides display Mixed, empty bodies show
+    defaults, and beams retain independent settings with opt-in collision.
+    Complete: parent and compatible bulk controls, Enter-only material commits,
+    history, CLI, persistence, generated constructors/catalogs, runtime snapshots,
+    and spawning are verified. Project 13 accepts optional defaults in 12/13;
+    runtime format remains 10 and C11 migration remains supported. Generated
+    constructors preserve disabled collision and stored masks after material
+    setters. All 127 Linux tests passed, including eight launch tests rerun
+    outside the sandbox after sandbox-only failures. Seven ASan/UBSan suites
+    passed with leak detection. Windows editor/CLI/test and installed-SDK fixture
+    cross-builds passed without compiler warnings. Three generated examples built
+    independently against both SDKs and passed Linux startup/interrupt checks;
+    native Windows execution was not performed. User editor review: PASS, with
+    duplication UI explicitly deferred to later work. Existing object-data
+    duplication is tested. No image analysis or developer-owned main.c changes.
+    See the corrective issue mapping for the five acceptance cases and logs.
 14. [ ] **C14 — Immediate joint clamping.** Apply editor joint placement without
     requiring an unrelated subsequent movement. Respect world/fixed anchors,
     locks, connected groups, incomplete joints, and a single undo transaction

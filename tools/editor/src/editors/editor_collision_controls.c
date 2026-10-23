@@ -8,15 +8,17 @@
 
 enum { COLLISION_ROW_HEIGHT = 28, COLLISION_ROW_STRIDE = 32 };
 static bool target_get(EditorProject *project, EditorSelectionRef ref,
-        EditorItemKind *kind, bool *enabled, uint64_t *category, uint64_t *with) {
+        EditorItemKind *kind, EditorCollisionValues *values) {
     EditorObject *object = NULL;
     if(project == NULL) return false;
     for(size_t i = 0; i < project->object_count; i += 1)
         if(project->objects[i].id == ref.object) object = &project->objects[i];
     if(object == NULL) return false;
 #define TARGET(value, item_kind) do { \
-    *kind = item_kind; *enabled = (value)->collision_enabled; \
-    *category = (value)->collision_category; *with = (value)->responds_to; return true; \
+    *kind = item_kind; *values = (EditorCollisionValues){ \
+        (value)->collision_enabled, (value)->collision_enabled, \
+        (value)->collision_category, (value)->collision_category, \
+        (value)->responds_to, (value)->responds_to}; return true; \
 } while(0)
     if(ref.kind == EDITOR_SELECTION_RIGID_BODY || ref.kind == EDITOR_SELECTION_PARTICLE) {
         EditorRigidBody *body = editor_project_rigid_body_get(object, ref.item);
@@ -24,6 +26,22 @@ static bool target_get(EditorProject *project, EditorSelectionRef ref,
     }
     for(size_t b = 0; b < object->soft_body_count; b += 1) {
         EditorSoftBody *body = &object->soft_body_items[b];
+        if(ref.kind == EDITOR_SELECTION_SOFT_BODY && body->id == ref.item) {
+            *kind = EDITOR_ITEM_SOFT_BODY;
+            *values = (EditorCollisionValues){body->node_collision_default, body->node_collision_default,
+                body->node_category_default, body->node_category_default,
+                body->node_responds_to_default, body->node_responds_to_default};
+            if(body->node_count == 0) return true;
+            *values = (EditorCollisionValues){.enabled_all = true,
+                .category_all = UINT64_MAX, .with_all = UINT64_MAX};
+            for(size_t i = 0; i < body->node_count; ++i) {
+                const EditorSoftNode *node = &body->nodes[i];
+                values->enabled_all &= node->collision_enabled; values->enabled_any |= node->collision_enabled;
+                values->category_all &= node->collision_category; values->category_any |= node->collision_category;
+                values->with_all &= node->responds_to; values->with_any |= node->responds_to;
+            }
+            return true;
+        }
         if(body->id != ref.parent) continue;
         if(ref.kind == EDITOR_SELECTION_SOFT_NODE)
             for(size_t i = 0; i < body->node_count; i += 1)
@@ -40,11 +58,11 @@ bool editor_collision_values_get(EditorProject *project, const EditorSelectionRe
     if(selections == NULL || count == 0 || values == NULL) return false;
     EditorCollisionValues result = {.enabled_all = true, .category_all = UINT64_MAX, .with_all = UINT64_MAX};
     for(size_t i = 0; i < count; i += 1) {
-        EditorItemKind kind; bool enabled; uint64_t category, with;
-        if(!target_get(project, selections[i], &kind, &enabled, &category, &with)) return false;
-        result.enabled_all &= enabled; result.enabled_any |= enabled;
-        result.category_all &= category; result.category_any |= category;
-        result.with_all &= with; result.with_any |= with;
+        EditorItemKind kind; EditorCollisionValues target;
+        if(!target_get(project, selections[i], &kind, &target)) return false;
+        result.enabled_all &= target.enabled_all; result.enabled_any |= target.enabled_any;
+        result.category_all &= target.category_all; result.category_any |= target.category_any;
+        result.with_all &= target.with_all; result.with_any |= target.with_any;
     }
     *values = result;
     return true;
@@ -83,14 +101,14 @@ EditorResult editor_collision_edit(EditorProject *project, EditorHistory *histor
     }
     for(size_t i = 0; i < count; i += 1) {
         EditorSelectionRef ref = selections[i];
-        EditorItemKind kind; bool prior; uint64_t category, with;
-        if(!target_get(project, ref, &kind, &prior, &category, &with)) {
+        EditorItemKind kind; EditorCollisionValues prior;
+        if(!target_get(project, ref, &kind, &prior)) {
             executed.kind = ERROR_RESULT_ERROR;
             executed.result.error = editor_result_error(EDITOR_ERROR_NOT_FOUND, "Collision target disappeared").result.error;
             goto fail;
         }
         EditorCommand command = {0};
-        uint32_t parent = kind == EDITOR_ITEM_RIGID_BODY ? 0 : ref.parent;
+        uint32_t parent = kind == EDITOR_ITEM_RIGID_BODY || kind == EDITOR_ITEM_SOFT_BODY ? 0 : ref.parent;
         if(filter < 0) command = (EditorCommand){.type = EDITOR_COMMAND_PROPERTY_SET,
             .data.property_set = {kind, ref.object, parent, ref.item, 0,
                 EDITOR_PROPERTY_COLLISION, EDITOR_PROPERTY_VALUE_BOOL, {.boolean = enabled}}};
@@ -157,16 +175,6 @@ float editor_collision_controls_height_get(const EditorCollisionControls *contro
     if(controls->error_message[0]) rows++;
     return rows * COLLISION_ROW_STRIDE;
 }
-static bool checkbox(const char *id, TextAsset *label, UIRect bounds, bool all, bool any) {
-    UIButtonResult result = rohr_ui_interaction(id, bounds);
-    rohr_ui_surface(bounds, result.hovered ? (Color){67,75,90,255} : (Color){48,54,66,255});
-    UIRect box = {bounds.x + 4, bounds.y + 4, 20, 20};
-    rohr_ui_border(box, 2, (Color){200,205,215,255});
-    if(all) rohr_ui_surface((UIRect){box.x + 5,box.y + 5,10,10}, (Color){225,230,240,255});
-    else if(any) rohr_ui_surface((UIRect){box.x + 4,box.y + 9,12,2}, (Color){255,215,70,255});
-    rohr_ui_label(label, (UIRect){bounds.x + 32,bounds.y,bounds.width - 32,bounds.height});
-    return result.clicked;
-}
 static void error_set(EditorCollisionControls *controls, EditorResult result) {
     snprintf(controls->error_message, sizeof(controls->error_message), "%s",
         editor_result_check(result) ? result.result.error.message : "");
@@ -183,7 +191,7 @@ EditorCollisionDrawResult editor_collision_controls_draw(EditorCollisionControls
     bool open[] = {controls->open[0], controls->open[1]};
     if(toggle) {
         snprintf(key, sizeof(key), "%s.enabled", id);
-        if(checkbox(key, &controls->toggle, (UIRect){x,y,width,COLLISION_ROW_HEIGHT}, values.enabled_all, values.enabled_any)) {
+        if(editor_mode_checkbox_mixed(key, &controls->toggle, (UIRect){x,y,width,COLLISION_ROW_HEIGHT}, values.enabled_all, values.enabled_any)) {
             error_set(controls, editor_collision_edit(project, history, selections, count, -1, NULL, !values.enabled_all, false));
             result.changed = true; goto done;
         }
@@ -217,7 +225,7 @@ EditorCollisionDrawResult editor_collision_controls_draw(EditorCollisionControls
             bool all = ((f == 0 ? values.category_all : values.with_all) & bit) != 0;
             bool any = ((f == 0 ? values.category_any : values.with_any) & bit) != 0;
             snprintf(key, sizeof(key), "%s.filter.%zu.mask.%zu", id, f, m);
-            if(checkbox(key, &controls->labels[m], (UIRect){x,y,width,COLLISION_ROW_HEIGHT}, all, any)) {
+            if(editor_mode_checkbox_mixed(key, &controls->labels[m], (UIRect){x,y,width,COLLISION_ROW_HEIGHT}, all, any)) {
                 error_set(controls, editor_collision_edit(project, history, selections, count, (int)f,
                     project->collision_masks[m].name, !all, false));
                 result.changed = true; goto done;

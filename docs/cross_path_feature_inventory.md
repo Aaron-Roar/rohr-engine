@@ -466,7 +466,7 @@ returning. The original failed fixture remains available for comparison.
 | 2. Visuals and visibility | Inspect `push_marker`, `spin_marker`, pin/weld/spring, the mirrored sprite, playing animations and `empty_animation`. Spring endpoints have different colors/scales/offsets. Toggle editor eyes separately from Visible in App, including the parent; rebuild and verify only app visibility affects runtime drawing and hidden bodies still simulate. Restore parent visibility without changing child settings. Empty animation must not prevent rendering. | Pending |
 | 3. Editor interaction | Select geometry, drag from the selecting press, use child-selection and rotation handles, and undo/redo each gesture. Pick force targets/references from menus and the viewport, checking hover highlights. Scroll a long selector; check modal menus do not move underlying items. Drag the slider thumb without moving its parent. Rename via Enter/Escape and confirm subsequent keyboard navigation works. | User-reported failures: oversized force/torque picking, persistent/overlapping child panels, first-element activation, object/joint scrolling, and delayed joint clamping. C6 panel lifecycle/scrolling and C8 source picking complete with user acceptance; C14 and broader interaction retests pending. |
 | 4. Input and audio | Exercise the starter's configured logical input actions and text entry without unintended gameplay input while editing. Run the installed-SDK `audio` example: Play Water Splash produces sound; music play/pause/resume and track switching work; Quit/escape shuts down. Review window size/aspect settings. Muted description defaults and queued/applied audio state retain their automated fixture evidence; silent startup alone is not proof of muted playback. | Pending |
-| 5. Project lifecycle and delivery | Build/run the application and Simulate Scene. The application includes direct-API extras; scene simulation contains authored objects. Verify run/pause/stop, return to Editor, close/reopen/reorder tabs through View, rebuild a visible edit and replay. Close/switch a project during an active build and verify cancellation; terminal interrupt reaches the subprocess. Launch installed-SDK artifacts outside their source directories. | User-reported failures: relocation, repeat builds, missing CMake recovery, generation diagnostics, and incomplete-joint generation. Startup error 21 reproduced in rohr-project-1. C1 diagnostics, C2 relocation/repeat builds, C3 missing CMake recovery, C4 partial-spawn startup, and C5 incomplete joints complete with verification below; C6 panel lifecycle/scrolling and C8 source picking also complete; C7 complete with its manual checks explicitly deferred; C9 complete with the additional panel check explicitly skipped; C10 directional response and C11 explicit migration complete; C12 explicit motion authoring complete (including whole-body motion added at final review); C13–C14 and broader interactive retests pending. |
+| 5. Project lifecycle and delivery | Build/run the application and Simulate Scene. The application includes direct-API extras; scene simulation contains authored objects. Verify run/pause/stop, return to Editor, close/reopen/reorder tabs through View, rebuild a visible edit and replay. Close/switch a project during an active build and verify cancellation; terminal interrupt reaches the subprocess. Launch installed-SDK artifacts outside their source directories. | User-reported failures: relocation, repeat builds, missing CMake recovery, generation diagnostics, and incomplete-joint generation. Startup error 21 reproduced in rohr-project-1. C1 diagnostics, C2 relocation/repeat builds, C3 missing CMake recovery, C4 partial-spawn startup, and C5 incomplete joints complete with verification below; C6 panel lifecycle/scrolling and C8 source picking also complete; C7 complete with its manual checks explicitly deferred; C9 complete with the additional panel check explicitly skipped; C10 directional response and C11 explicit migration complete; C12 explicit motion authoring complete (including whole-body motion added at final review); C13 whole-body node physics complete; C14 and broader interactive retests pending. |
 
 Preparation evidence (2026-10-21): full Linux build and **111/111 CTest tests
 pass**, including the installed-SDK comparisons and scene/build lifecycle
@@ -542,7 +542,7 @@ each pursued goal needs its own relevant checks and interactive retest.
 | Force picking includes excessive space around/behind the arrow; rotation controls need padding | C8 |
 | Torque picking is slightly too large | C8 |
 | Soft-body controls remain after returning to the object editor | C6 |
-| Soft-body Physics lacks collision, gravity, and motion controls | C13; body edits bulk-apply the changed property to nodes and set new-node defaults; later per-node edits remain available |
+| Soft-body Physics lacks collision, gravity, and motion controls | C12 motion and C13 gravity/collision/materials complete; body edits change only the selected property or mask bit on nodes and new-node defaults; later per-node edits remain available |
 | Other child editors also remain after returning to top level | C6 |
 | Object joint editor does not scroll | C6 |
 | Joint clamping waits for a later movement | C14; update on property edits and continuously during dragging, with one undo step per gesture |
@@ -2396,4 +2396,72 @@ restarted to use the rebuilt executable. Reproduced fixtures also include
 `driven_soft`, whose nodes receive explicit Kinematic through the body command.
 
 C12 is complete. C7/C9's earlier manual review exceptions remain unchanged.
-Remaining C13 collision/gravity controls and C14 have not started.
+C13 verification follows. C14 has not started.
+
+**C13 complete — whole-soft-body node physics controls:**
+
+The parent Physics panel and compatible bulk selections expose Gravity,
+Collision, Category, Responds To, Friction, and Restitution. Body edits update
+existing nodes and defaults for future nodes; each command changes only its
+property, or its selected mask bit. Individual node overrides produce Mixed
+values, while empty parents display defaults. Materials commit on Enter. Beam
+settings remain independent and beam collision stays opt-in. The built-in
+`default` collision mask now resolves by its stored name before C-identifier
+normalization, so toggling it works in UI and CLI.
+
+Project format remains 13 with optional, validated defaults accepted in 12/13;
+missing fields retain historical new-node values and never overwrite existing
+nodes. Runtime format remains 10. Resolved node values flow through generated
+constructors, catalogs, file import, snapshots, and independent spawns. Direct
+generated constructors now restore disabled collision after the existing
+restitution setter and preserve stored category/response masks. No physics
+pipeline semantics or developer-owned `main.c` files changed.
+
+Acceptance evidence (2026-10-23):
+
+1. **Authoring and history:** `editor_soft_physics` exercises parent and mixed
+   bulk pointer controls, Enter-only material commits, invalid input, undo/redo,
+   empty bodies, new-node inheritance, and object data duplication. Exact node
+   comparisons prove unrelated properties remain unchanged; beam data remains
+   unchanged by parent edits.
+2. **Mixed values and defaults:** independent node overrides produce mixed
+   gravity, collision, materials, and mask bits; subsequent property edits
+   preserve other overrides. Adding/toggling a named mask preserves unrelated
+   bits and shares one history transaction. JSON round trips preserve defaults;
+   malformed supplied defaults fail, and missing defaults in both supported
+   project versions preserve existing node records.
+3. **Physics behavior:** deterministic catalog-spawned nodes verify gravity
+   acceleration, collision-disabled prescribed movement, restitution bounce,
+   and tangential friction response. Directional response and motion regression
+   suites retain coverage of masks and Dynamic/Static/Kinematic behavior.
+4. **Cross-path parity:** raw command parsing/serialization and the published
+   CLI exercise all six properties. Runtime project import and snapshot restore
+   preserve node settings. `editor_soft_physics_generated` builds an installed-SDK
+   application, scene, and assertion consumer; the consumer executes direct
+   generated constructors, generated catalogs, and file-loaded catalogs with
+   repeated independent instances. C11 migration regressions remain passing.
+5. **Delivery and user review:** all 127 Linux tests pass. Eight scene/process
+   launch tests initially failed under sandbox restrictions and passed when
+   rerun outside the sandbox. Both documentation checks pass after the updates.
+   The focused seven ASan/UBSan suites pass with
+   leak detection. The Windows editor, CLI, focused tests, and installed-SDK
+   application/scene/consumer cross-build without compiler warnings. COM,
+   player-controller, and soft-body examples regenerate without tracked changes,
+   build independently against both SDKs, and pass Linux startup/interrupt checks
+   outside their source directories. Native Windows execution was not performed.
+   The user reviewed `/tmp/c13_editor_review` in “C13 review - soft-body physics”
+   and reported PASS. The user explicitly deferred duplication UI to later work;
+   the existing object-data duplication path is tested. No image analysis was used.
+
+Reproduce the focused test with `ctest --test-dir build -R '^editor_soft_physics'`
+and an up-to-date `ROHR_SDK_INSTALL_PREFIX`. Create a fresh manual fixture with
+`build/tests/editor_soft_physics_test /tmp/c13_editor_review_new` under dummy SDL
+video/audio drivers; open `SoftPhysics` → `cloth` → Physics. Check parent settings,
+node overrides and Mixed display, category/response bits, new-node inheritance,
+compatible bulk selections, and undo/redo. Keep beams unchanged. Do not regenerate
+over an in-progress user review project.
+
+Verification logs are `/tmp/c13_final_tests.log`, `/tmp/c13_launch_retests.log`,
+`/tmp/c13_sanitizer_tests.log`, `/tmp/c13_windows_build.log`,
+`/tmp/c13_generated_windows.log`, and `/tmp/c13_examples.log`.
+C7/C9 review exceptions remain unchanged. C14 remains unimplemented.

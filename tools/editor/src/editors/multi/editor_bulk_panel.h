@@ -6,6 +6,7 @@
 #define ROHR_EDITOR_BULK_PANEL_H
 
 #include "editor_history.h"
+#include "editors/editor_mode_controls.h"
 #include "editors/editor_collision_controls.h"
 #include "editor_viewport.h"
 #include "editors/geometry/editor_auto_shape_editor.h"
@@ -32,6 +33,7 @@ typedef struct EditorBulkPanel {
     TextAsset revolute_label;
     TextAsset weld_label;
     TextAsset spring_label;
+    EditorMixedNumberField numbers[EDITOR_BULK_PROPERTY_MAX];
     char values[EDITOR_BULK_PROPERTY_MAX][64];
     bool assigned[EDITOR_BULK_PROPERTY_MAX];
     bool booleans[EDITOR_BULK_PROPERTY_MAX];

@@ -101,7 +101,9 @@ int main(void) {
     assert(history.undo_count == undo_before);
     assert(editor_collision_values_get(&project,refs,4,&values) && !values.enabled_any);
     soft = &project.objects[0].soft_body_items[0]; soft->beams[0].collision_thickness = ROHR_SOFT_BODY_BEAM_COLLISION_THICKNESS_MIN;
-    EditorSelectionRef incompatible[] = {refs[0],{EDITOR_SELECTION_SOFT_BODY,refs[0].object,0,0,soft->id}};
+    EditorSelectionRef compatible[] = {refs[0],{EDITOR_SELECTION_SOFT_BODY,refs[0].object,0,0,soft->id}};
+    assert(editor_collision_values_get(&project,compatible,2,&values));
+    EditorSelectionRef incompatible[] = {refs[0],{EDITOR_SELECTION_OBJECT,refs[0].object,0,0,refs[0].object}};
     assert(!editor_collision_values_get(&project,incompatible,2,&values));
     assert(editor_result_check(editor_collision_edit(&project,&history,incompatible,2,-1,NULL,true,false)));
     /* Real pointer input: own-section expansion, mixed bit click, independent fields, scrolling. */

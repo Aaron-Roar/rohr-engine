@@ -1681,7 +1681,14 @@ property. `ObjectEntitySettings` is copied independently for each spawn.
   persists a default for future nodes; independent node edits yield mixed display.
   Only motion is overwritten by later body-level motion edits. These defaults are
   authoring metadata; runtime construction uses resolved node descriptions.
-  Whole-body collision/gravity controls remain C13. Beams default to automatic measured rest length;
+  Whole-body Gravity, Collision, Friction, Restitution, Category, and Responds To
+  follow the same existing-node/new-node policy. Filter edits replace only the
+  selected bit. Per-node overrides display Mixed; material edits commit on Enter.
+  Optional project 12/13 defaults are gravity false, collision true, category and
+  response masks 1, friction 0, and restitution 0.25; loading preserves existing
+  node records. Runtime format 10 uses resolved node values. Parent edits never
+  change beams. See [authoring defaults](object_descriptions.md#whole-body-node-physics).
+  Beams default to automatic measured rest length;
   enabling Explicit freezes the current endpoint distance, and editing the
   length enables Explicit. Switching back to Auto measures at construction.
 - Cameras independently follow position and orientation and optionally pause

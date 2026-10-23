@@ -15,6 +15,23 @@
 #include <string.h>
 #include <limits.h>
 
+EditorSoftBodyPhysicsValues editor_soft_body_physics_get(const EditorSoftBody *body) {
+    if(body == NULL) return (EditorSoftBodyPhysicsValues){0};
+    EditorSoftBodyPhysicsValues value = {
+        .gravity_all = body->node_gravity_default, .gravity_any = body->node_gravity_default,
+        .friction = body->node_friction_default, .restitution = body->node_restitution_default};
+    if(body->node_count == 0) return value;
+    value.gravity_all = true; value.gravity_any = false;
+    value.friction = body->nodes[0].friction; value.restitution = body->nodes[0].restitution;
+    for(size_t i = 0; i < body->node_count; ++i) {
+        const EditorSoftNode *node = &body->nodes[i];
+        value.gravity_all &= node->gravity_enabled; value.gravity_any |= node->gravity_enabled;
+        value.friction_mixed |= node->friction != value.friction;
+        value.restitution_mixed |= node->restitution != value.restitution;
+    }
+    return value;
+}
+
 static EditorMotionMode editor_motion_get(bool is_static, bool explicit_mode) {
     return is_static ? EDITOR_MOTION_STATIC :
         explicit_mode ? EDITOR_MOTION_KINEMATIC : EDITOR_MOTION_DYNAMIC;
@@ -195,6 +212,12 @@ static bool editor_command_collision_mask_find(const EditorProject *project,
         const char *name, size_t *index) {
     char formatted[EDITOR_OBJECT_NAME_MAX];
     if(project == NULL || name == NULL || index == NULL) return false;
+    /* Existing names, including the built-in C keyword "default", are canonical. */
+    for(size_t i = 0; i < project->collision_mask_count; ++i) {
+        if(strcmp(project->collision_masks[i].name, name) == 0) {
+            *index = i; return true;
+        }
+    }
     editor_project_property_name_format(formatted, sizeof(formatted), name);
     if(formatted[0] == '\0') return false;
     for(size_t i = 0; i < project->collision_mask_count; i += 1) {
@@ -1468,6 +1491,28 @@ static EditorCommandResult editor_command_execute_internal(EditorProject *projec
                     for(size_t i = 0; i < body->node_count; ++i)
                         editor_motion_set(&body->nodes[i].static_body,
                             &body->nodes[i].kinematic_driven, mode);
+                } else if((set->property == EDITOR_PROPERTY_GRAVITY ||
+                        set->property == EDITOR_PROPERTY_COLLISION) &&
+                        set->value_kind == EDITOR_PROPERTY_VALUE_BOOL) {
+                    bool gravity = set->property == EDITOR_PROPERTY_GRAVITY;
+                    if(gravity) body->node_gravity_default = set->value.boolean;
+                    else body->node_collision_default = set->value.boolean;
+                    for(size_t i = 0; i < body->node_count; ++i) {
+                        if(gravity) body->nodes[i].gravity_enabled = set->value.boolean;
+                        else body->nodes[i].collision_enabled = set->value.boolean;
+                    }
+                } else if((set->property == EDITOR_PROPERTY_FRICTION ||
+                        set->property == EDITOR_PROPERTY_RESTITUTION) &&
+                        set->value_kind == EDITOR_PROPERTY_VALUE_FLOAT &&
+                        isfinite(set->value.number) && set->value.number >= 0 &&
+                        (set->property == EDITOR_PROPERTY_FRICTION || set->value.number <= 1)) {
+                    bool friction = set->property == EDITOR_PROPERTY_FRICTION;
+                    if(friction) body->node_friction_default = set->value.number;
+                    else body->node_restitution_default = set->value.number;
+                    for(size_t i = 0; i < body->node_count; ++i) {
+                        if(friction) body->nodes[i].friction = set->value.number;
+                        else body->nodes[i].restitution = set->value.number;
+                    }
                 } else if(set->property == EDITOR_PROPERTY_MASS &&
                         set->value_kind == EDITOR_PROPERTY_VALUE_FLOAT) {
                     if(!editor_soft_mass_values_set(body, false, set->value.number,
@@ -1790,6 +1835,20 @@ property_invalid:
                 return editor_command_error(editor_result_error(
                     EDITOR_ERROR_NOT_FOUND,
                     "collision mask '%s' was not found", set->mask).result.error);
+            if(set->kind == EDITOR_ITEM_SOFT_BODY) {
+                EditorSoftBody *body = editor_command_soft_body_get(object, set->item);
+                if(body == NULL) return editor_command_not_found("soft body", set->item);
+                bit = UINT64_C(1) << index;
+                filter = set->filter == EDITOR_COLLISION_FILTER_CATEGORY ?
+                    &body->node_category_default : &body->node_responds_to_default;
+                if(set->enabled) *filter |= bit; else *filter &= ~bit;
+                for(size_t i = 0; i < body->node_count; ++i) {
+                    filter = set->filter == EDITOR_COLLISION_FILTER_CATEGORY ?
+                        &body->nodes[i].collision_category : &body->nodes[i].responds_to;
+                    if(set->enabled) *filter |= bit; else *filter &= ~bit;
+                }
+                return (EditorCommandResult){.kind = ERROR_RESULT_VALUE};
+            }
             if(set->kind == EDITOR_ITEM_RIGID_BODY) {
                 EditorRigidBody *body = editor_project_rigid_body_get(object, set->item);
                 if(body == NULL) return editor_command_not_found("rigid body", set->item);
@@ -1813,7 +1872,7 @@ property_invalid:
             } else {
                 return editor_command_error(editor_result_error(
                     EDITOR_ERROR_INVALID_ARGUMENT,
-                    "collision filters are only supported by rigid bodies, soft nodes, and soft beams")
+                    "collision filters are only supported by rigid bodies, soft bodies, soft nodes, and soft beams")
                         .result.error);
             }
             bit = UINT64_C(1) << index;
@@ -3380,8 +3439,8 @@ EditorResult editor_command_cli_parse(int count, char **arguments,
         int filter_index;
         int mask_index;
         int enabled_index;
-        if(strcmp(domain, "rigid-body") == 0 && count == 9) {
-            set->kind = EDITOR_ITEM_RIGID_BODY;
+        if((strcmp(domain, "rigid-body") == 0 || strcmp(domain, "soft-body") == 0) && count == 9) {
+            set->kind = strcmp(domain, "soft-body") == 0 ? EDITOR_ITEM_SOFT_BODY : EDITOR_ITEM_RIGID_BODY;
             if(!editor_command_uint_parse(arguments[4], &set->object) ||
                     !editor_command_uint_parse(arguments[5], &set->item))
                 goto collision_filter_invalid;
@@ -4756,6 +4815,7 @@ EditorResult editor_command_cli_write(const EditorCommand *command,
                 "category" : "responds-to";
             const char *enabled = set->enabled ? "true" : "false";
             if((set->kind != EDITOR_ITEM_RIGID_BODY &&
+                        set->kind != EDITOR_ITEM_SOFT_BODY &&
                         set->kind != EDITOR_ITEM_SOFT_NODE &&
                         set->kind != EDITOR_ITEM_SOFT_BEAM) ||
                     (set->filter != EDITOR_COLLISION_FILTER_CATEGORY &&
@@ -4763,7 +4823,7 @@ EditorResult editor_command_cli_write(const EditorCommand *command,
                     !editor_command_text_append(output, output_capacity, &used, "filter ") ||
                     !editor_command_shell_text_append(output, output_capacity, &used,
                         document_path)) goto capacity_error;
-            if(set->kind == EDITOR_ITEM_RIGID_BODY)
+            if(set->kind == EDITOR_ITEM_RIGID_BODY || set->kind == EDITOR_ITEM_SOFT_BODY)
                 snprintf(values, sizeof(values), " %u %u %s ", set->object,
                     set->item, filter);
             else snprintf(values, sizeof(values), " %u %u %u %s ", set->object,
