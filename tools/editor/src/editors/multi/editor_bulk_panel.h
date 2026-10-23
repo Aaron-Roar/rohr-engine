@@ -26,6 +26,7 @@ typedef struct EditorBulkPanel {
     TextAsset unset_label;
     TextAsset dynamic_label;
     TextAsset static_label;
+    TextAsset kinematic_label;
     TextAsset rotation_unlocked_label;
     TextAsset rotation_locked_label;
     TextAsset revolute_label;

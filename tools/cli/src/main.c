@@ -57,7 +57,7 @@ static const CliHelpDomain cli_help_domains[] = {
     {"--body", "rigid body",
         "position <x> <y>, rotation <degrees>, initial-angular-velocity <degrees/s>, origin <x> <y>, center-of-mass automatic|explicit <x> <y>, mass <number>, "
         "friction <number>, restitution <0..1>, gravity <true|false>, "
-        "static <true|false>, rotation-locked <true|false>, collision <true|false>, "
+        "motion <dynamic|static|kinematic>, static <true|false>, rotation-locked <true|false>, collision <true|false>, "
         "particle <true|false>, particle-radius <number>, "
         "particle-origin-x <number>, particle-origin-y <number>, "
         "particle-auto-fit <true|false>, outline-color <hex>, surface-color <hex>, "
@@ -77,14 +77,16 @@ static const CliHelpDomain cli_help_domains[] = {
         "--anchor wheel_anchor --property position 12 8", 1},
     {"--soft-body", "soft body", "position <x> <y>, rotation <degrees>, initial-angular-velocity <degrees/s>, "
         "origin <x> <y>, mass <number>, center-of-mass <x> <y>, node-color <hex>, beam-color <hex>, "
+        "motion <dynamic|static|kinematic>, static <true|false>, "
         "visibility <true|false>, auto-shape <shape> <triangle-kind> <width> "
         "<height> <radius> <apex-offset>",
         "--soft-body cloth --property beam-color ff8800ff", 1},
     {"--node", "soft-body node", "position <x> <y>, mass <number>, "
+        "motion <dynamic|static|kinematic>, static <true|false>, "
         "friction <number>, restitution <0..1>, gravity <true|false>, "
         "collision <true|false>, node-radius <number>, color <hex>, "
         "visibility <true|false>",
-        "--soft-body cloth --node corner --property mass 1", 2},
+        "--soft-body cloth --node corner --property motion kinematic", 2},
     {"--beam", "soft-body beam", "friction <number>, restitution <0..1>, "
         "stiffness <number>, damping <number>, "
         "color <hex>, visibility <true|false>, node-a <node|none>, node-b <node|none>",

@@ -324,7 +324,13 @@ representations by `local_origin`. A
 polygon approximation quality. Creation and full configuration replacement keep
 circle and active polygon geometry synchronized. `static_body` creates a static
 particle; mass, velocity, acceleration, and gravity settings are retained even
-while static, ready for a later dynamic transition.
+while static, ready for a later dynamic transition. `kinematic_driven` stores
+explicit prescribed-motion intent independently of mass. Getters report that
+intent even while Static and never infer it from zero mass. Full replacement
+sets or clears intent; an automatically kinematic zero-mass particle resumes
+simulation once mass becomes positive, whereas explicit intent survives mass
+changes. Kinematic particles move with prescribed motion and ignore gravity
+and contact impulses. Response masks remain independently editable.
 
 `rohr_physics_particle_description_get()` returns current configurable values,
 including the owner and active polygon quality. Modify its result and pass it to

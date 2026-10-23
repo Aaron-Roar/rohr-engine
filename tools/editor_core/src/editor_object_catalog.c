@@ -15,7 +15,7 @@ static const char *path_get(const Catalog *c, const ObjectDescription *d) {
 static bool reserved(const char *name) {
     static const char *fields[] = {"_description", "id", "name", "kind", "categories", "parent", "children", "child_count",
         "position", "orientation", "velocity", "acceleration", "angular_velocity", "entity_settings", "mass", "radius", "friction", "restitution",
-        "static_body", "gravity_enabled", "collision_enabled", "rotation_locked", "visible", "center_of_mass_explicit",
+        "kinematic_driven", "static_body", "gravity_enabled", "collision_enabled", "rotation_locked", "visible", "center_of_mass_explicit",
         "center_of_mass", "particle_origin", "particle_vertices", "collision_filter", "geometry", "geometry_count",
         "active_geometry", "hitbox_bindings", "hitbox_binding_count", "color", "border_color", "color_overridden", "layer",
         "target", "endpoint_a", "endpoint_b", "joint_type", "rest_length", "stiffness", "damping", "rest_angle", "thickness",
@@ -201,7 +201,7 @@ static void value_write(FILE *f, const Catalog *c, const ObjectDescription *d) {
     if(d->child_count) fprintf(f, ",.children=object_children_%llu", id);
     V(position); F(orientation); V(velocity); V(acceleration); F(angular_velocity);
     F(mass); F(radius); F(friction); F(restitution);
-    U(static_body); U(gravity_enabled); U(collision_enabled); U(rotation_locked); U(visible);
+    U(kinematic_driven); U(static_body); U(gravity_enabled); U(collision_enabled); U(rotation_locked); U(visible);
     U(center_of_mass_explicit); V(center_of_mass); V(particle_origin); U(particle_vertices);
     fprintf(f, ",.collision_filter={UINT64_C(%llu),UINT64_C(%llu)}",
         (unsigned long long)d->collision_filter.category, (unsigned long long)d->collision_filter.responds_to);

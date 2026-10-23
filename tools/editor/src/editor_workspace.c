@@ -725,6 +725,7 @@ static void editor_workspace_particle_config_write(FILE *source,
         "    .collision_filter = {.category = UINT64_C(%llu), "
             ".responds_to = UINT64_C(%llu)},\n"
         "    .static_body = %s,\n"
+        "    .kinematic_driven = %s,\n"
         "    .gravity_enabled = %s,\n"
         "    .collision_enabled = %s\n"
         "};\n\n",
@@ -737,6 +738,7 @@ static void editor_workspace_particle_config_write(FILE *source,
         (unsigned long long)body->collision_category,
         (unsigned long long)body->responds_to,
         body->static_body ? "true" : "false",
+        body->kinematic_driven ? "true" : "false",
         body->gravity_enabled ? "true" : "false",
         body->collision_enabled ? "true" : "false");
 }
@@ -936,7 +938,7 @@ static bool editor_workspace_generated_objects_write(const EditorWorkspace *work
         "static inline EngineResult generated_body_create(Entity *output, Position position,\n"
         "    float rotation, Velocity velocity, Acceleration acceleration,\n"
         "    AngularVelocity angular_velocity, Shape hitbox, float mass_value, float friction,\n"
-        "    float restitution, bool static_body, bool rotation_locked,\n"
+        "    float restitution, bool static_body, bool kinematic_driven, bool rotation_locked,\n"
         "    bool gravity_enabled, bool collision_enabled, bool particle,\n"
         "    Position particle_origin, float particle_radius,\n"
         "    RohrCollisionCategoryMask collision_category,\n"
@@ -964,17 +966,15 @@ static bool editor_workspace_generated_objects_write(const EditorWorkspace *work
         "    }\n"
         "    GENERATED_APPLY(rohr_physics_friction_set(*output, friction));\n"
         "    GENERATED_APPLY(rohr_physics_restitution_set(*output, restitution));\n"
+        "    GENERATED_APPLY(rohr_physics_mass_set(*output, mass_value));\n"
+        "    GENERATED_APPLY(rohr_physics_velocity_set(*output, velocity));\n"
+        "    GENERATED_APPLY(rohr_physics_angular_velocity_set(*output, angular_velocity));\n"
+        "    GENERATED_APPLY(rohr_physics_acceleration_set(*output, acceleration));\n"
+        "    if(kinematic_driven) GENERATED_APPLY(rohr_physics_kinematic_driven_set(*output));\n"
         "    if(static_body) GENERATED_APPLY(rohr_physics_static_set(*output));\n"
-        "    else {\n"
-        "        GENERATED_APPLY(rohr_physics_mass_set(*output, mass_value));\n"
-        "        GENERATED_APPLY(rohr_physics_velocity_set(*output, velocity));\n"
-        "        GENERATED_APPLY(rohr_physics_angular_velocity_set(*output, angular_velocity));\n"
-        "        GENERATED_APPLY(rohr_physics_acceleration_set(*output, acceleration));\n"
-        "        GENERATED_APPLY(rohr_physics_dynamic_set(*output));\n"
-        "        if(rotation_locked) GENERATED_APPLY(rohr_physics_angle_lock_set(*output, "
-        "rotation, rotation));\n"
-        "        if(gravity_enabled) GENERATED_APPLY(rohr_physics_gravity_enable(*output));\n"
-        "    }\n"
+        "    else GENERATED_APPLY(rohr_physics_dynamic_set(*output));\n"
+        "    if(rotation_locked) GENERATED_APPLY(rohr_physics_angle_lock_set(*output, rotation, rotation));\n"
+        "    if(gravity_enabled) GENERATED_APPLY(rohr_physics_gravity_enable(*output));\n"
         "#undef GENERATED_APPLY\n"
         "    return rohr_error_result_value(true);\n"
         "fail:\n"
@@ -1182,12 +1182,13 @@ static bool editor_workspace_generated_objects_write(const EditorWorkspace *work
                         initial_hitbox->vertices[vertex].position.y);
             } else fprintf(source, "{0}");
             fprintf(source,
-                "}}, %#.9gf, %#.9gf, %#.9gf, %s, %s, %s, %s, %s, "
+                "}}, %#.9gf, %#.9gf, %#.9gf, %s, %s, %s, %s, %s, %s, "
                 "(Position){%#.9gf, %#.9gf}, %#.9gf, "
                 "UINT64_C(%llu), UINT64_C(%llu));\n"
                 "    if(rohr_error_check(result)) goto fail;\n",
                 body->mass_value, body->friction, body->restitution,
                 body->static_body ? "true" : "false",
+                body->kinematic_driven ? "true" : "false",
                 body->rotation_locked ? "true" : "false",
                 body->gravity_enabled ? "true" : "false",
                 body->collision_enabled ? "true" : "false",
@@ -1503,6 +1504,9 @@ static bool editor_workspace_generated_objects_write(const EditorWorkspace *work
                         node->collision_category : ROHR_COLLISION_CATEGORY_NONE),
                     (unsigned long long)(node->collision_enabled ?
                         node->responds_to : ROHR_COLLISION_CATEGORY_NONE));
+                if(node->kinematic_driven) fprintf(source,
+                    "    result = rohr_physics_kinematic_driven_set(object->%s);\n"
+                    "    if(rohr_error_check(result)) goto fail;\n", node->name);
                 if(node->static_body) fprintf(source,
                     "    result = rohr_physics_static_set(object->%s);\n"
                     "    if(rohr_error_check(result)) goto fail;\n", node->name);

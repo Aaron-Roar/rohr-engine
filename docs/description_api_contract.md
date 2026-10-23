@@ -259,7 +259,8 @@ if(!rohr_error_check(current)) {
 Replacement validates all values and prepares geometry/allocation before an
 ownership transfer. Any failure leaves configuration, ownership, geometry, and
 variant IDs unchanged. It does not reset names, parents, children, connections,
-lifetimes, hold state, explicit kinematic mode, or visual resources. Position,
+lifetimes, hold state, or visual resources. Explicit `kinematic_driven` is part of
+the replacement configuration; its getter never infers intent from zero mass. Position,
 velocity, and acceleration are current configurable values and are replaced when
 supplied; omitted fields become zero/false. Radius must be positive. A zero
 `rigid_vertices` selects the established engine default; getters return the active
@@ -270,7 +271,12 @@ for static particles too. Static bodies remain excluded from dynamic simulation;
 changing back to dynamic can reuse these stored settings. Saved formats already
 carry these fields and need no version change. Older static saves lacking these
 values still load; missing stored mass/motion is reported as zero. Mass zero on a
-dynamic particle retains the engine's existing kinematic behavior.
+dynamic particle retains the engine's existing automatic kinematic behavior.
+Explicit `kinematic_driven` survives mass changes and stays dormant while Static.
+Replacing the description with `kinematic_driven = false` clears explicit intent,
+including at zero mass; the low-level removal API retains its existing mass
+precondition. Runtime format remains 10; authored project saves now use format 13
+and accept format 12 with missing intent defaulted to false.
 
 Changing radius, local origin, or polygon quality rebuilds the active circular
 polygon and particle-circle metadata together. Focused radius/origin setters do
@@ -298,7 +304,8 @@ Container orientation is clockwise degrees. Transform edits move existing nodes
 and rotate their motion, preserving child topology, rest values, and handles.
 Unchanged descriptions do not rebase the observed soft-body frame.
 
-Nodes include motion, material/filter, static/gravity/collision flags, and color
+Nodes include motion, explicit `kinematic_driven` intent, material/filter,
+static/gravity/collision flags, and color
 overrides. Static settings survive later dynamic transitions and saves. Creation requires
 positive node mass; full replacement also accepts zero mass established through
 focused setters, preserving the existing kinematic behavior. Their
@@ -1668,7 +1675,13 @@ property. `ObjectEntitySettings` is copied independently for each spawn.
   fixed. Transform offsets are driver-local. Angles, angular acceleration, and
   angular-velocity limits use degrees. A transform driver does not become owner.
   The editor exposes initial angular configuration on rotational rigid bodies.
-- Static nodes are explicit. Beams default to automatic measured rest length;
+- Nodes expose Dynamic / Static / Kinematic with explicit intent separate from
+  mass and collision response. Static preserves dormant intent; selecting Dynamic
+  clears it. The soft-body motion selector bulk-applies the selected mode and
+  persists a default for future nodes; independent node edits yield mixed display.
+  Only motion is overwritten by later body-level motion edits. These defaults are
+  authoring metadata; runtime construction uses resolved node descriptions.
+  Whole-body collision/gravity controls remain C13. Beams default to automatic measured rest length;
   enabling Explicit freezes the current endpoint distance, and editing the
   length enables Explicit. Switching back to Auto measures at construction.
 - Cameras independently follow position and orientation and optionally pause

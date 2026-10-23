@@ -17,6 +17,7 @@ typedef struct EditorSoftBodyEditor {
     EditorCenterOfMassEditor mass_properties;
     EditorModeAccordionSection physics_section;
     TextAsset name_label, x_label, y_label, rotation_label;
+    TextAsset motion_mixed_label, motion_dynamic_label, motion_static_label, motion_kinematic_label;
     TextAsset velocity_x_label, velocity_y_label, acceleration_x_label;
     TextAsset acceleration_y_label, angular_velocity_label;
     TextAsset node_color_label, beam_color_label;

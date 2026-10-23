@@ -98,7 +98,6 @@ static const EditorBulkProperty rigid_body_properties[] = {
     {"Friction", EDITOR_BULK_PROPERTY, EDITOR_BULK_FLOAT, EDITOR_PROPERTY_FRICTION},
     {"Restitution", EDITOR_BULK_PROPERTY, EDITOR_BULK_FLOAT, EDITOR_PROPERTY_RESTITUTION},
     {"Gravity", EDITOR_BULK_PROPERTY, EDITOR_BULK_CHECKBOX, EDITOR_PROPERTY_GRAVITY},
-    {"Motion", EDITOR_BULK_PROPERTY, EDITOR_BULK_MOTION_DROPDOWN, EDITOR_PROPERTY_STATIC},
     {"Rotation", EDITOR_BULK_PROPERTY, EDITOR_BULK_ROTATION_DROPDOWN,
         EDITOR_PROPERTY_ROTATION_LOCKED},
     {"Particle", EDITOR_BULK_PROPERTY, EDITOR_BULK_CHECKBOX, EDITOR_PROPERTY_PARTICLE},
@@ -287,6 +286,15 @@ static size_t editor_bulk_selection_properties_get(EditorProject *project,
     const EditorBulkProperty *properties = editor_viewport_selection_homogeneous_check(state) ?
         editor_bulk_properties_get(state->selected_items[0].kind, &count) :
         editor_bulk_mixed_properties_get(state, &count);
+    bool motion_supported = state->selected_item_count > 0;
+    for(size_t i = 0; i < state->selected_item_count; ++i) {
+        EditorHierarchySelection kind = state->selected_items[i].kind;
+        if(kind != EDITOR_SELECTION_RIGID_BODY && kind != EDITOR_SELECTION_PARTICLE &&
+                kind != EDITOR_SELECTION_SOFT_NODE &&
+                kind != EDITOR_SELECTION_SOFT_BODY) motion_supported = false;
+    }
+    if(motion_supported) output[used++] = (EditorBulkProperty){"Motion",
+        EDITOR_BULK_PROPERTY, EDITOR_BULK_MOTION_DROPDOWN, EDITOR_PROPERTY_MOTION};
     bool app_supported = state->selected_item_count > 0;
     for(size_t i = 0; i < state->selected_item_count && app_supported; ++i) {
         EditorCommand command;
@@ -683,10 +691,15 @@ static bool editor_bulk_property_command_get(EditorSelectionRef ref,
         set.value_kind = EDITOR_PROPERTY_VALUE_FLOAT;
         if(!editor_bulk_float_parse(text, &set.value.number)) return false;
     } else if(property->value == EDITOR_BULK_CHECKBOX ||
-            property->value == EDITOR_BULK_MOTION_DROPDOWN ||
             property->value == EDITOR_BULK_ROTATION_DROPDOWN) {
         set.value_kind = EDITOR_PROPERTY_VALUE_BOOL;
         if(!editor_bulk_bool_parse(text, &set.value.boolean)) return false;
+    } else if(property->value == EDITOR_BULK_MOTION_DROPDOWN) {
+        set.value_kind = EDITOR_PROPERTY_VALUE_UINT;
+        if(!strcmp(text, "dynamic")) set.value.integer = EDITOR_MOTION_DYNAMIC;
+        else if(!strcmp(text, "static")) set.value.integer = EDITOR_MOTION_STATIC;
+        else if(!strcmp(text, "kinematic")) set.value.integer = EDITOR_MOTION_KINEMATIC;
+        else return false;
     } else if(property->value == EDITOR_BULK_COLOR) {
         set.value_kind = EDITOR_PROPERTY_VALUE_UINT;
         if(!editor_bulk_color_parse(text, &set.value.integer)) return false;
@@ -801,6 +814,7 @@ bool editor_bulk_panel_create(EditorBulkPanel *panel, FontAsset *font) {
     if(!editor_bulk_text_create(font, "—", &panel->unset_label) ||
             !editor_bulk_text_create(font, "Dynamic", &panel->dynamic_label) ||
             !editor_bulk_text_create(font, "Static", &panel->static_label) ||
+            !editor_bulk_text_create(font, "Kinematic", &panel->kinematic_label) ||
             !editor_bulk_text_create(font, "Rotation: Unlocked",
                 &panel->rotation_unlocked_label) ||
             !editor_bulk_text_create(font, "Rotation: Locked",
@@ -833,6 +847,7 @@ void editor_bulk_panel_destroy(EditorBulkPanel *panel) {
     rohr_graphics_text_destroy(&panel->unset_label);
     rohr_graphics_text_destroy(&panel->dynamic_label);
     rohr_graphics_text_destroy(&panel->static_label);
+    rohr_graphics_text_destroy(&panel->kinematic_label);
     rohr_graphics_text_destroy(&panel->rotation_unlocked_label);
     rohr_graphics_text_destroy(&panel->rotation_locked_label);
     rohr_graphics_text_destroy(&panel->revolute_label);
@@ -937,7 +952,7 @@ bool editor_bulk_panel_draw(EditorBulkPanel *panel, EditorProject *project,
                 properties[i].value == EDITOR_BULK_ROTATION_DROPDOWN ||
                 properties[i].value == EDITOR_BULK_JOINT_KIND_DROPDOWN) {
             const TextAsset *motion[] = {&panel->unset_label,
-                &panel->dynamic_label, &panel->static_label};
+                &panel->dynamic_label, &panel->static_label, &panel->kinematic_label};
             const TextAsset *rotation[] = {&panel->unset_label,
                 &panel->rotation_unlocked_label, &panel->rotation_locked_label};
             const TextAsset *joint[] = {&panel->unset_label,
@@ -945,7 +960,48 @@ bool editor_bulk_panel_draw(EditorBulkPanel *panel, EditorProject *project,
             const TextAsset *const *options = motion;
             size_t count = 3;
             UIDropdownResult result;
-            if(properties[i].value == EDITOR_BULK_ROTATION_DROPDOWN)
+            if(properties[i].value == EDITOR_BULK_MOTION_DROPDOWN) {
+                count = 4;
+                panel->dropdown_indices[i] = 0;
+                for(size_t n = 0; n < state->selected_item_count; ++n) {
+                    EditorSelectionRef ref = state->selected_items[n];
+                    EditorObject *object = editor_bulk_object_get(project, ref.object);
+                    if(!object) break;
+                    bool is_static = false, explicit_mode = false;
+                    EditorMotionMode body_mode = EDITOR_MOTION_DYNAMIC;
+                    if(ref.kind == EDITOR_SELECTION_SOFT_BODY) {
+                        EditorSoftBody *soft = NULL;
+                        for(size_t b = 0; b < object->soft_body_count; ++b)
+                            if(object->soft_body_items[b].id == ref.item) soft = &object->soft_body_items[b];
+                        body_mode = editor_soft_body_motion_get(soft);
+                        if(body_mode == EDITOR_MOTION_MIXED) {
+                            panel->dropdown_indices[i] = 0; break;
+                        }
+                        is_static = body_mode == EDITOR_MOTION_STATIC;
+                        explicit_mode = body_mode == EDITOR_MOTION_KINEMATIC;
+                    } else if(ref.kind == EDITOR_SELECTION_SOFT_NODE) {
+                        EditorSoftNode *node = NULL;
+                        for(size_t b = 0; b < object->soft_body_count; ++b) {
+                            EditorSoftBody *soft = &object->soft_body_items[b];
+                            if(soft->id != ref.parent) continue;
+                            for(size_t k = 0; k < soft->node_count; ++k)
+                                if(soft->nodes[k].id == ref.item) node = &soft->nodes[k];
+                        }
+                        if(!node) break;
+                        is_static = node->static_body; explicit_mode = node->kinematic_driven;
+                    } else {
+                        EditorRigidBody *body = editor_project_rigid_body_get(object, ref.item);
+                        if(!body) break;
+                        is_static = body->static_body; explicit_mode = body->kinematic_driven;
+                    }
+                    size_t mode = 1 + (is_static ? EDITOR_MOTION_STATIC :
+                        explicit_mode ? EDITOR_MOTION_KINEMATIC : EDITOR_MOTION_DYNAMIC);
+                    if(n && panel->dropdown_indices[i] != mode) {
+                        panel->dropdown_indices[i] = 0; break;
+                    }
+                    panel->dropdown_indices[i] = mode;
+                }
+            } else if(properties[i].value == EDITOR_BULK_ROTATION_DROPDOWN)
                 options = rotation;
             else if(properties[i].value == EDITOR_BULK_JOINT_KIND_DROPDOWN) {
                 options = joint;
@@ -960,6 +1016,10 @@ bool editor_bulk_panel_draw(EditorBulkPanel *panel, EditorProject *project,
                     result.selected_index == 2 ?
                         (properties[i].value == EDITOR_BULK_JOINT_KIND_DROPDOWN ?
                             "weld" : "true") : "spring";
+                if(properties[i].value == EDITOR_BULK_MOTION_DROPDOWN) {
+                    const char *modes[] = {"dynamic", "static", "kinematic"};
+                    value = modes[result.selected_index - 1];
+                }
                 panel->dropdown_indices[i] = result.selected_index;
                 panel->assigned[i] = true;
                 (void)editor_bulk_apply(project, state, history,

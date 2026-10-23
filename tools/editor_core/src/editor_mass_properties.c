@@ -15,7 +15,7 @@ EditorMassProperties editor_mass_properties_get(const EditorRigidBody *body) {
     Position centroid;
     double unit_inertia;
     if(body == NULL) return result;
-    result.angular_response = !body->static_body && !body->rotation_locked &&
+    result.angular_response = !body->static_body && !body->kinematic_driven && !body->rotation_locked &&
         !body->particle;
     if(body->standalone_particle) {
         result.center = body->particle_origin;

@@ -406,6 +406,28 @@ if(ROHR_BUILD_TESTS)
     set_tests_properties(editor_collision_controls PROPERTIES
         ENVIRONMENT "SDL_VIDEODRIVER=dummy;SDL_AUDIODRIVER=dummy")
 
+    get_target_property(motion_test_sources editor_collision_controls_test SOURCES)
+    list(REMOVE_ITEM motion_test_sources tests/editor_collision_controls.c)
+    add_executable(editor_motion_authoring_test tests/editor_motion_authoring.c ${motion_test_sources}
+        src/editors/soft_body/editor_soft_body.c src/editors/soft_body/editor_soft_area.c)
+    target_include_directories(editor_motion_authoring_test PRIVATE src ${PROJECT_SOURCE_DIR}/lib ${PROJECT_SOURCE_DIR}/src)
+    target_link_libraries(editor_motion_authoring_test PRIVATE rohr_engine rohr_editor_core)
+    if(NOT MSVC)
+        target_compile_options(editor_motion_authoring_test PRIVATE -Wall -Wextra -Wpedantic -UNDEBUG)
+    endif()
+    set_target_properties(editor_motion_authoring_test PROPERTIES RUNTIME_OUTPUT_DIRECTORY ${ROHR_BUILD_OUTPUT_DIRECTORY}/tests)
+    add_test(NAME editor_motion_authoring COMMAND editor_motion_authoring_test)
+    set_tests_properties(editor_motion_authoring PROPERTIES ENVIRONMENT "SDL_VIDEODRIVER=dummy;SDL_AUDIODRIVER=dummy")
+
+    if(ROHR_SDK_INSTALL_PREFIX AND NOT CMAKE_CROSSCOMPILING)
+        add_test(NAME editor_motion_generated COMMAND ${CMAKE_COMMAND}
+            -DTEST_EXECUTABLE=$<TARGET_FILE:editor_motion_authoring_test>
+            "-DFIXTURE=${CMAKE_CURRENT_BINARY_DIR}/motion generated project"
+            "-DSDK_PREFIX=${ROHR_SDK_INSTALL_PREFIX}"
+            -P "${CMAKE_CURRENT_SOURCE_DIR}/tests/motion_generation.cmake")
+        set_tests_properties(editor_motion_generated PROPERTIES LABELS "sdk;linux")
+    endif()
+
     add_executable(editor_viewport_context_menu_test
         tests/editor_viewport_context_menu.c
         src/viewport/menus/editor_viewport_context_menu.c
@@ -490,7 +512,7 @@ if(ROHR_BUILD_TESTS)
 endif()
 
 if(ROHR_BUILD_TESTS AND ROHR_ENABLE_SANITIZERS)
-    foreach(area_editor_target editor_visibility_test editor_torque_test editor_force_test editor_reference_picker_test editor_project_test editor_navigation_test editor_history_test editor_area_authoring_test editor_auto_shape_test editor_collision_controls_test editor_com_authoring_test editor_particle_authoring_test editor_beam_materials_test editor_configuration_controls_test)
+    foreach(area_editor_target editor_motion_authoring_test editor_visibility_test editor_torque_test editor_force_test editor_reference_picker_test editor_project_test editor_navigation_test editor_history_test editor_area_authoring_test editor_auto_shape_test editor_collision_controls_test editor_com_authoring_test editor_particle_authoring_test editor_beam_materials_test editor_configuration_controls_test)
         target_compile_options(${area_editor_target} PRIVATE ${ROHR_SANITIZER_COMPILE_OPTIONS})
     endforeach()
 endif()

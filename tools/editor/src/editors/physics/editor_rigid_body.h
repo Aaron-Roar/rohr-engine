@@ -20,6 +20,7 @@ typedef struct EditorRigidBodyEditor {
     TextAsset border_color_label, surface_color_label;
     TextAsset parent_label, none_label;
     TextAsset gravity_label, dynamic_label, static_label;
+    TextAsset kinematic_label, zero_mass_label;
     TextAsset rotation_unlocked_label, rotation_locked_label;
     TextAsset particle_label;
     TextAsset origin_label, active_hitbox_label, add_hitbox_label, delete_label;

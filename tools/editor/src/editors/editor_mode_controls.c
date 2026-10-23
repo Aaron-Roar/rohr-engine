@@ -579,6 +579,7 @@ void editor_mode_element_icon_draw(EditorHierarchySelection kind,
                 center.y + 3.0f * scale, 6.0f * scale, 2.0f * scale},
                 color);
             break;
+        case EDITOR_SELECTION_CENTER_OF_MASS:
         case EDITOR_SELECTION_NONE:
             break;
     }

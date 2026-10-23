@@ -202,6 +202,9 @@ static EngineResult body_apply(Entity entity, const ObjectDescription *d, bool n
     APPLY(physics_friction_set(entity, d->friction));
     APPLY(physics_restitution_set(entity, d->restitution));
     APPLY(physics_collision_filter_description_set(entity, d->collision_filter));
+    APPLY(physics_static_set(entity));
+    if(d->kinematic_driven) APPLY(physics_kinematic_driven_set(entity));
+    else APPLY(physics_kinematic_driven_remove(entity));
     if(d->static_body) APPLY(physics_static_set(entity));
     else APPLY(physics_dynamic_set(entity));
     if(d->gravity_enabled) APPLY(physics_gravity_enable(entity));
@@ -304,6 +307,7 @@ static EngineResult spawn_entry(SpawnContext *c, size_t i, unsigned pass) {
         .position=position,.local_origin=d->particle_origin,.radius=d->radius,.rigid_vertices=d->particle_vertices,
         .velocity=d->velocity,.acceleration=d->acceleration,.mass_value=d->mass,.friction=d->friction,
         .restitution=d->restitution,.collision_filter=d->collision_filter,.static_body=!physics || d->static_body,
+        .kinematic_driven=physics && d->kinematic_driven,
         .gravity_enabled=physics && d->gravity_enabled,.collision_enabled=physics && d->collision_enabled});
     else if(geometry_enabled && d->kind == OBJECT_SOFT_BODY) created = physics_soft_body_add(
         (SoftBodyDescription){.owner = parent, .position = position, .orientation = orientation});
@@ -311,6 +315,7 @@ static EngineResult spawn_entry(SpawnContext *c, size_t i, unsigned pass) {
         .owner = parent, .position = position, .mass = physics ? d->mass : 1, .radius = d->radius,
         .velocity = d->velocity, .acceleration = d->acceleration, .friction = d->friction,
         .restitution = d->restitution, .collision_filter = d->collision_filter,
+        .kinematic_driven = physics && d->kinematic_driven,
         .static_body = !physics || d->static_body, .gravity_enabled = physics && d->gravity_enabled,
         .collision_enabled = physics && d->collision_enabled,
         .draw_color = d->color, .draw_color_overridden = d->color_overridden});

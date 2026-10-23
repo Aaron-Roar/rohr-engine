@@ -71,6 +71,8 @@ bool editor_soft_node_editor_create(EditorSoftNodeEditor *editor,
     CREATE("Friction", friction_label); CREATE("Restitution", restitution_label);
     CREATE("Gravity", gravity_label);
     CREATE("Static", static_label);
+    CREATE("Kinematic", kinematic_label);
+    CREATE("Dynamic", dynamic_label);
 
     CREATE("Node Color", color_label);
     CREATE("Inherit", inherit_label); CREATE("Visible in App", visibility_label);
@@ -114,7 +116,7 @@ void editor_soft_node_editor_destroy(EditorSoftNodeEditor *editor) {
     DESTROY(name_label); DESTROY(x_label); DESTROY(y_label); DESTROY(mass_label);
     DESTROY(radius_label); DESTROY(friction_label); DESTROY(restitution_label);
     DESTROY(gravity_label);
-    DESTROY(static_label);
+    DESTROY(static_label); DESTROY(kinematic_label); DESTROY(dynamic_label);
 
     DESTROY(color_label); DESTROY(inherit_label); DESTROY(visibility_label);
     DESTROY(motion_inherit_label); DESTROY(velocity_x_label);
@@ -361,12 +363,18 @@ bool editor_soft_node_editor_draw(EditorSoftNodeEditor *editor,
                     context->width - 20.0f, 28.0f}, &gravity))
             bool_set(context->project, object->id, body->id, node->id,
                 EDITOR_PROPERTY_GRAVITY, gravity);
-        bool static_body = node->static_body;
-        if(checkbox("editor.soft_node.static", &editor->static_label,
-                (UIRect){context->x + 10.0f, physics_row_y[3],
-                    context->width - 20.0f, 28.0f}, &static_body))
-            bool_set(context->project, object->id, body->id, node->id,
-                EDITOR_PROPERTY_STATIC, static_body);
+        const TextAsset *options[] = {&editor->dynamic_label, &editor->static_label, &editor->kinematic_label};
+        UIDropdownResult motion = editor_mode_dropdown("editor.soft_node.motion", options, 3,
+            node->static_body ? EDITOR_MOTION_STATIC :
+                node->kinematic_driven ? EDITOR_MOTION_KINEMATIC : EDITOR_MOTION_DYNAMIC,
+            (UIRect){context->x + 10, physics_row_y[3], context->width - 20, 28}, NULL);
+        if(motion.changed) {
+            EditorCommand command = {.type = EDITOR_COMMAND_PROPERTY_SET,
+                .data.property_set = {EDITOR_ITEM_SOFT_NODE, object->id, body->id, node->id, 0,
+                    EDITOR_PROPERTY_MOTION, EDITOR_PROPERTY_VALUE_UINT,
+                    {.integer = (uint32_t)motion.selected_index}}};
+            (void)editor_command_execute(context->project, &command);
+        }
     }
     }
     friction_value = node->friction;
@@ -403,11 +411,12 @@ bool editor_soft_node_editor_draw(EditorSoftNodeEditor *editor,
         field_active |= collision.active;
     }
     if(appearance_open) {
-    if(context->layer_control != NULL)
+    if(context->layer_control != NULL) {
         layer_active = editor_mode_layer_control_draw(context->layer_control,
             "editor.soft_node", context->project, &node->graphics_layer,
             &node->graphics_layer_inherited, context->x, layer_y,
             context->width);
+    }
         bool inherit = !node->color_overridden;
         float field_width = fmaxf(34.0f, context->width - 196.0f);
         if(inherit) node->color = body->node_color;

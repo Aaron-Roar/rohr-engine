@@ -153,6 +153,7 @@ typedef struct ObjectDescription ObjectDescription;
     float friction; \
     float restitution; \
     bool static_body; \
+    bool kinematic_driven; \
     bool gravity_enabled; \
     bool collision_enabled; \
     bool rotation_locked; \

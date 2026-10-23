@@ -15,13 +15,16 @@ EngineResult project_viewports_create(ProjectViewports *resources, ProjectObject
     EngineResult result = rohr_error_result_value(true);
     if(resources == NULL || objects == NULL) return rohr_error_result_error(ERROR_ENGINE_COMPONENT_MISSING);
     *resources = (ProjectViewports){0};
-    if(rohr_error_check(result = rohr_graphics_layer_entity_set(objects->player_world.floor, 0))) goto fail;
-    if(rohr_error_check(result = rohr_graphics_layer_entity_set(objects->player_world.player, 0))) goto fail;
+    if(objects->player_world.floor != ENTITY_INVALID)
+        if(rohr_error_check(result = rohr_graphics_layer_entity_set(objects->player_world.floor, 0))) goto fail;
+    if(objects->player_world.player != ENTITY_INVALID)
+        if(rohr_error_check(result = rohr_graphics_layer_entity_set(objects->player_world.player, 0))) goto fail;
     resources->fonts[resources->font_count++] = rohr_graphics_font_default_get();
     { ViewportIdResult created = rohr_viewport_create((ViewportDescription){.rectangle={0.00000000f, 0.00000000f, 1280.00000000f, 720.00000000f}, .fit=2, .background_color=rohr_graphics_color_hex_create(UINT32_C(0x000000ff))});
       if(rohr_error_check(created)) { result = rohr_error_result_error(created.result.error); goto fail; }
       resources->viewports[resources->viewport_count++] = created.result.value;
-      if(rohr_error_check(result = rohr_camera_render_callback_set(objects->player_world.camera_main_camera, render_scene, objects))) goto fail;
+      if(!rohr_error_check(rohr_camera_get(objects->player_world.camera_main_camera)))
+        if(rohr_error_check(result = rohr_camera_render_callback_set(objects->player_world.camera_main_camera, render_scene, objects))) goto fail;
       { ScreenIdResult screen = rohr_screen_create((ScreenDescription){objects->player_world.camera_main_camera, 1280, 720});
         if(rohr_error_check(screen)) { result = rohr_error_result_error(screen.result.error); goto fail; }
         resources->screens[resources->screen_count++] = screen.result.value;

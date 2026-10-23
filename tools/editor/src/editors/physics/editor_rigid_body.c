@@ -82,7 +82,9 @@ bool editor_rigid_body_editor_create(EditorRigidBodyEditor *editor,
     CREATE("Border Color", border_color_label); CREATE("Surface Color", surface_color_label);
     CREATE("Parent", parent_label); CREATE("None", none_label);
     CREATE("Gravity", gravity_label); CREATE("Dynamic", dynamic_label);
-    CREATE("Static", static_label); CREATE("Rotation Unlocked", rotation_unlocked_label);
+    CREATE("Static", static_label);
+    CREATE("Kinematic", kinematic_label);
+    CREATE("Zero mass: behaves kinematically.", zero_mass_label); CREATE("Rotation Unlocked", rotation_unlocked_label);
     CREATE("Rotation Locked", rotation_locked_label);
     CREATE("Particle", particle_label);
     CREATE("Origin", origin_label);
@@ -137,7 +139,7 @@ void editor_rigid_body_editor_destroy(EditorRigidBodyEditor *editor) {
     DESTROY(mass_label); DESTROY(friction_label); DESTROY(restitution_label);
     DESTROY(border_color_label); DESTROY(surface_color_label); DESTROY(gravity_label);
     DESTROY(parent_label); DESTROY(none_label);
-    DESTROY(dynamic_label); DESTROY(static_label); DESTROY(rotation_unlocked_label);
+    DESTROY(dynamic_label); DESTROY(static_label); DESTROY(kinematic_label); DESTROY(zero_mass_label); DESTROY(rotation_unlocked_label);
     DESTROY(rotation_locked_label); DESTROY(particle_label);
     DESTROY(origin_label);
     DESTROY(active_hitbox_label); DESTROY(add_hitbox_label);
@@ -255,7 +257,8 @@ bool editor_rigid_body_editor_draw(EditorRigidBodyEditor *editor,
             {.row_count = 3, .row_height = 26.0f, .row_gap = 6.0f},
             {.row_count = 1, .row_height = 28.0f, .gap_before = 6.0f}};
         const EditorModeAccordionLayoutGroup physics_groups[] = {
-            {.row_count = 1, .row_height = 28.0f},
+            {.row_count = 1, .row_height =
+                !body->static_body && !body->kinematic_driven && body->mass_value == 0 ? 58.0f : 28.0f},
             {.row_count = 1, .row_height = 26.0f, .gap_before = 4.0f},
             {.row_count = 1, .row_height = 28.0f, .gap_before = 6.0f},
             {.row_count = EDITOR_COM_ROW_COUNT, .row_height = EDITOR_COM_ROW_HEIGHT,
@@ -565,14 +568,18 @@ bool editor_rigid_body_editor_draw(EditorRigidBodyEditor *editor,
                 EDITOR_PROPERTY_GRAVITY, value);
     }
     if(physics_open) {
-        const TextAsset *options[] = {&editor->dynamic_label, &editor->static_label};
+        const TextAsset *options[] = {&editor->dynamic_label, &editor->static_label, &editor->kinematic_label};
         UIButtonStyle field_style = editor_mode_section_field_style_get();
         UIDropdownResult result = editor_mode_dropdown("editor.rigid_body.motion", options,
-            2, body->static_body ? 1 : 0,
+            3, body->static_body ? EDITOR_MOTION_STATIC :
+                body->kinematic_driven ? EDITOR_MOTION_KINEMATIC : EDITOR_MOTION_DYNAMIC,
             (UIRect){x + 10.0f, physics_row_y[0], width - 20.0f, 28.0f},
             &field_style);
-        if(result.changed) property_bool_set(context->project, object->id, body->id,
-            EDITOR_PROPERTY_STATIC, result.selected_index == 1);
+        if(result.changed) property_uint_set(context->project, object->id, body->id,
+            EDITOR_PROPERTY_MOTION, (uint32_t)result.selected_index);
+        if(!body->static_body && !body->kinematic_driven && body->mass_value == 0)
+            rohr_ui_label(&editor->zero_mass_label,
+                (UIRect){x + 10, physics_row_y[0] + 30, width - 20, 26});
     }
     {
         float row_x = x + 10.0f, row_width = width - 20.0f;

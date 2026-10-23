@@ -143,8 +143,8 @@ int main(int argc, char **argv) {
     editor_mode_accordion_section_expanded_set(&ui.physics_section,true);
     editor_mode_accordion_section_expanded_set(&ui.transform_section,false);
     panel(&ui,&shape,&context,false,(Position){0},MOUSE_BUTTON_STATE_UP);
-    /* Transform header starts at 118, Physics header follows at 154; first row 190. */
-    number(&ui,&shape,&context,false,190,"8");
+    /* Physics starts at 154: Motion row 190, then total mass at 224. */
+    number(&ui,&shape,&context,false,224,"8");
     assert(near(editor_soft_mass_properties_get(soft).total,8));
     for(size_t i = 0; i < 4; i++) assert(near(soft->nodes[i].node_mass,2));
     assert(editor_history_undo(&history)); soft = soft_get(&project);

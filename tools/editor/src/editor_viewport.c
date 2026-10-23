@@ -4941,7 +4941,7 @@ bool editor_viewport_update(EditorViewportState *state, EditorProject *project,
     }
     if(primary_button == MOUSE_BUTTON_STATE_PRESSED &&
             state->selected_item_count >= 2 && !state->selection_modifier) {
-        Position rotation_handle;
+        Position rotation_handle = {0};
         bool group_handle_closest = true;
         if(editor_group_pivot_get(project, state, &state->group_pivot)) {
             rotation_handle = (Position){state->group_pivot.x,

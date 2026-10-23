@@ -171,6 +171,17 @@ typedef struct EditorItemRenameCommand {
 } EditorItemRenameCommand;
 
 #include "editor_entity_settings.h"
+typedef enum EditorMotionMode {
+    EDITOR_MOTION_DYNAMIC,
+    EDITOR_MOTION_STATIC,
+    EDITOR_MOTION_KINEMATIC,
+    /** Display-only value; not accepted by motion commands. */
+    EDITOR_MOTION_MIXED
+} EditorMotionMode;
+
+/** Common node mode, or the authored default when the body is empty. */
+EditorMotionMode editor_soft_body_motion_get(const EditorSoftBody *body);
+
 typedef enum EditorPropertyKind {
     EDITOR_PROPERTY_CENTER_OF_MASS,
     EDITOR_PROPERTY_MASS,
@@ -178,6 +189,7 @@ typedef enum EditorPropertyKind {
     EDITOR_PROPERTY_RESTITUTION,
     EDITOR_PROPERTY_GRAVITY,
     EDITOR_PROPERTY_STATIC,
+    EDITOR_PROPERTY_MOTION,
     EDITOR_PROPERTY_ROTATION_LOCKED,
     EDITOR_PROPERTY_COLLISION,
     EDITOR_PROPERTY_PARTICLE,

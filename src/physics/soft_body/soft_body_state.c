@@ -311,6 +311,7 @@ SoftBodyNodeDescriptionResult physics_soft_body_node_description_get(Entity enti
         .friction = frictions_pool.used[index] ? frictions[index] : 0,
         .restitution = restitutions_pool.used[index] ? restitutions[index] : 0,
         .collision_filter = filter.result.value,
+        .kinematic_driven = physics_kinematic_explicit_check(index),
         .static_body = (entity_mask[index] & ROHR_STATIC) != 0,
         .gravity_enabled = (entity_mask[index] & ROHR_GRAVITY) != 0,
         .collision_enabled = (entity_mask[index] & ROHR_COLLISION) != 0,
@@ -351,6 +352,9 @@ EngineResult physics_soft_body_node_description_set(Entity entity, SoftBodyNodeD
     soft_body_nodes[index].responds_to = description.collision_filter.responds_to;
     soft_body_nodes[index].draw_color = description.draw_color;
     soft_body_nodes[index].draw_color_overridden = description.draw_color_overridden;
+    (void)physics_static_set(entity);
+    if(description.kinematic_driven) (void)physics_kinematic_driven_set(entity);
+    else (void)physics_kinematic_driven_remove(entity);
     entity_mask[index] &= ~(ROHR_STATIC | ROHR_DYNAMIC | ROHR_GRAVITY | ROHR_COLLISION);
     entity_mask[index] |= ROHR_MASS | ROHR_COLLISION_FILTER | (description.static_body ? ROHR_STATIC : ROHR_DYNAMIC);
     if(description.gravity_enabled) entity_mask[index] |= ROHR_GRAVITY;

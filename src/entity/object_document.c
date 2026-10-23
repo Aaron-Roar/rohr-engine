@@ -79,7 +79,7 @@ static bool body_read(ImportContext *c, ObjectDescription *root, const EditorObj
     d->mass = s->mass_value; d->velocity = s->initial_velocity;
     d->acceleration = s->initial_acceleration; d->angular_velocity = s->initial_angular_velocity;
     d->friction = s->friction; d->restitution = s->restitution;
-    d->static_body = s->static_body; d->gravity_enabled = s->gravity_enabled;
+    d->kinematic_driven = s->kinematic_driven; d->static_body = s->static_body; d->gravity_enabled = s->gravity_enabled;
     d->collision_enabled = s->collision_enabled; d->rotation_locked = s->rotation_locked;
     d->radius = s->particle ? s->particle_radius : 0; d->particle_origin = s->particle_origin;
     d->particle_vertices = s->particle_rigid_vertices; d->visible = !s->app_hidden;
@@ -175,7 +175,7 @@ static bool soft_read(ImportContext *c, ObjectDescription *root, const EditorObj
         v->velocity = n->initial_motion_inherited ? motion_values[i] : n->initial_velocity;
         v->acceleration = n->initial_motion_inherited ? s->initial_acceleration : n->initial_acceleration;
         v->friction = n->friction; v->restitution = n->restitution;
-        v->static_body = n->static_body;
+        v->static_body = n->static_body; v->kinematic_driven = n->kinematic_driven;
         v->gravity_enabled = n->gravity_enabled; v->collision_enabled = n->collision_enabled;
         v->collision_filter = (CollisionFilterDescription){n->collision_category, n->responds_to};
         v->visible = !n->app_hidden; v->color = graphics_color_hex_create(n->color_overridden ? n->color : s->node_color);

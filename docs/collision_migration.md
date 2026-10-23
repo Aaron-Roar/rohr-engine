@@ -1,8 +1,11 @@
 # Explicit collision-mask migration
 
 Project format **11** and runtime state/snapshot format **9** used mutual collision
-filters: both bodies had to accept a pair. Current formats **12** and **10** use
-directional `responds_to` masks. Loading an old file still fails until it is
+filters: both bodies had to accept a pair. Project formats **12/13** and runtime
+format **10** use directional `responds_to` masks. Migration still produces project
+**12** and runtime **10**; migrated projects load with missing explicit kinematic
+intent defaulted to false and subsequently save as **13**. Format 13 adds boolean
+`kinematic_driven` authoring without changing collision masks or runtime format. Loading an old file still fails until it is
 explicitly migrated. Older structural formats are unsupported.
 
 Close applications/editors using the files, then preview **all files that can

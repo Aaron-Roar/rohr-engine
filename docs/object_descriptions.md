@@ -249,7 +249,48 @@ with an offset or rotating a copied object. Use origin references for a point
 that follows an instance transform, or COM references for a world-axis offset
 from an instance's current COM.
 
-Only editor document version 12 is accepted. Bundled documents use version
-12, with `forces`/`torques` arrays and `next_force_id`/`next_torque_id` counters.
+Editor document versions 12 and 13 are accepted; saving writes version 13.
+Version 12 defaults missing `kinematic_driven` to false. Supplied values must be
+boolean in either version. Bundled version 12 documents remain supported, with
+`forces`/`torques` arrays and `next_force_id`/`next_torque_id` counters.
 Runtime game-state format uses version 10 and keeps its existing generic
 ownership, target restoration, and temporary-source lifetime rules.
+
+
+### Authored motion modes
+
+Rigid bodies, standalone particles, and individual soft-body nodes expose
+Dynamic / Static / Kinematic in Physics and applicable mixed bulk selections.
+`ObjectDescription`, `ParticleDescription`, `SoftBodyNodeDescription`, and the
+editor data store explicit `kinematic_driven` intent independently of `static_body`.
+Dynamic clears that intent; Kinematic sets it; Static preserves it while stopping
+simulation. Mass, velocity, acceleration, gravity, and response masks remain
+stored and editable. A zero-mass Dynamic body or particle displays
+“Zero mass: behaves kinematically.” Positive mass restores automatic dynamic
+behavior; explicitly Kinematic items remain kinematic. Soft-node authoring and
+creation still require positive mass.
+
+The soft-body Physics selector applies the chosen mode to all existing nodes and
+sets the default for newly added nodes. Individual node edits remain independent;
+the body shows Mixed Motion when node modes differ. A subsequent body edit only
+replaces motion mode, preserving every node's other settings. Empty bodies show
+their authored default. Static retains each node's dormant explicit intent.
+`node_static_default` and `node_kinematic_driven_default` are editor-only boolean
+fields persisted in project format 13; missing fields default false in 12/13.
+Generated code and runtime catalogs use the resolved per-node values. Whole-body
+collision and gravity controls remain C13.
+
+CLI examples (substitute your object/body/node names):
+
+```sh
+rohr-cli --project game --object actor --body chassis --property motion kinematic
+rohr-cli --project game --object actor --soft-body cloth --property motion kinematic
+rohr-cli --project game --object actor --soft-body cloth --node corner --property motion dynamic
+```
+
+`static true` selects Static and preserves dormant explicit intent; `static false`
+selects Dynamic and clears it. Mode edits share history and preserve intent in
+copies, project files, generated constructors/catalogs, runtime import, snapshots,
+and independent spawned instances. Kinematic motion ignores gravity and contact
+impulses while still affecting responding dynamic bodies. Collision-response masks
+remain independent of motion eligibility. Runtime format remains 10.

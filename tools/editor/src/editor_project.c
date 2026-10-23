@@ -2820,6 +2820,8 @@ EditorSoftNode *editor_project_soft_node_add(EditorProject *project, EditorSoftB
         .position = position,
         .initial_motion_inherited = true,
         .node_mass = 1.0f,
+        .static_body = body->node_static_default,
+        .kinematic_driven = body->node_kinematic_driven_default,
         .radius = 4.0f,
         .friction = 0.0f,
         .restitution = 0.25f,

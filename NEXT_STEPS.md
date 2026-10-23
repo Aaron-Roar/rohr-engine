@@ -364,22 +364,39 @@ contracts, and generated examples when a goal changes supported behavior.
     and Windows CLI/test cross-builds passed. Native Windows execution was not
     performed. See [migration usage and limits](docs/collision_migration.md) and
     the corrective issue mapping for the five acceptance cases. C7/C9 review
-    exceptions remain unchanged; C12 has not started.
-12. [ ] **C12 — Explicit kinematic authoring.** Expose Dynamic / Static /
+    exceptions remain unchanged; C12 implementation and automated verification are
+    recorded below.
+12. [x] **C12 — Explicit kinematic authoring.** Expose Dynamic / Static /
     Kinematic for supported physical entities using the engine's existing motion
     semantics. Preserve explicit kinematic intent and mass through mode changes,
-    undo/redo, project persistence, CLI, generation, and spawning. Body-wide
-    Kinematic remains independent of per-category response masks. Verify driven
-    movement, immunity to contact impulses, and normal response after returning
-    to Dynamic with valid mass.
-13. [ ] **C13 — Soft-body Physics controls.** Expose collision, gravity, and
-    supported motion modes at soft-body level. Changing a body-level property
-    bulk-applies that property to all existing nodes and sets its default for
-    new nodes. Individual nodes can then be edited independently; a subsequent
-    body-level edit overwrites that property's node values again without
-    resetting unrelated properties. Apply this policy consistently to collision
-    settings and applicable flags. Keep beam collision explicitly opt-in.
-    Include mixed-state display, persistence, generation, and undo/redo.
+    undo/redo, project persistence, CLI, generation, and spawning. Motion remains
+    independent of per-category response masks. Verify prescribed movement,
+    immunity to contact impulses, and restored positive-mass dynamic response.
+    Complete: rigid bodies, standalone particles, individual soft nodes, and
+    applicable mixed bulk selections expose all three modes with history.
+    At the user's final review request, whole-soft-body motion moved from C13
+    into C12: a body edit applies to existing nodes and persists a default for
+    new nodes; independent node edits show Mixed Motion. Unrelated node settings
+    are preserved. Static keeps dormant explicit intent; Dynamic clears it.
+    Project saves use format 13, accept 12, and retain C11's 11 → 12 migration.
+    Runtime format remains 10. All 125 Linux tests passed, including pointer
+    controls and the adjusted soft-mass field regression. Six ASan/UBSan suites
+    passed with leak detection. Installed-SDK generated construction/spawning
+    passed on Linux and cross-built for Windows, including body-level authored
+    modes. COM, player-controller, and soft-body examples built independently on
+    both platforms and passed Linux startup/interrupt checks. Native Windows
+    execution was not performed. User review accepted C12 conditional on the
+    whole-body motion addition, now implemented and verified without image
+    analysis. See the corrective issue mapping. Remaining C13/C14 work is deferred.
+13. [ ] **C13 — Remaining soft-body Physics controls.** Expose collision and
+    gravity at soft-body level. Motion was completed in C12 at the user's request.
+    Changing a body-level property bulk-applies that property to all existing
+    nodes and sets its default for new nodes. Individual nodes can then be edited
+    independently; a subsequent body-level edit overwrites that property's node
+    values again without resetting unrelated properties. Apply this policy
+    consistently to collision settings and applicable flags. Keep beam collision
+    explicitly opt-in. Include mixed-state display, persistence, generation,
+    and undo/redo.
 14. [ ] **C14 — Immediate joint clamping.** Apply editor joint placement without
     requiring an unrelated subsequent movement. Respect world/fixed anchors,
     locks, connected groups, incomplete joints, and a single undo transaction

@@ -351,6 +351,7 @@ static yyjson_mut_val *editor_json_body_write(yyjson_mut_doc *document,
     yyjson_mut_obj_add_real(document, value, "mass", body->mass_value);
     yyjson_mut_obj_add_real(document, value, "friction", body->friction);
     yyjson_mut_obj_add_real(document, value, "restitution", body->restitution);
+    yyjson_mut_obj_add_bool(document, value, "kinematic_driven", body->kinematic_driven);
     yyjson_mut_obj_add_bool(document, value, "static", body->static_body);
     yyjson_mut_obj_add_bool(document, value, "rotation_locked", body->rotation_locked);
     yyjson_mut_obj_add_bool(document, value, "gravity_enabled", body->gravity_enabled);
@@ -505,6 +506,8 @@ static yyjson_mut_val *editor_json_soft_body_write(yyjson_mut_doc *document,
     yyjson_mut_obj_add_bool(document, value, "visible", body->visible);
     yyjson_mut_obj_add_bool(document, value, "visible_in_app", !body->app_hidden);
     editor_entity_settings_json_write(document, value, body->entity_settings);
+    yyjson_mut_obj_add_bool(document, value, "node_static_default", body->node_static_default);
+    yyjson_mut_obj_add_bool(document, value, "node_kinematic_driven_default", body->node_kinematic_driven_default);
     yyjson_mut_obj_add_uint(document, value, "node_color", body->node_color);
     yyjson_mut_obj_add_uint(document, value, "beam_color", body->beam_color);
     for(size_t i = 0; i < body->node_count; i += 1) {
@@ -529,6 +532,7 @@ static yyjson_mut_val *editor_json_soft_body_write(yyjson_mut_doc *document,
         yyjson_mut_obj_add_real(document, item, "friction", node->friction);
         yyjson_mut_obj_add_real(document, item, "restitution", node->restitution);
         yyjson_mut_obj_add_bool(document, item, "gravity_enabled", node->gravity_enabled);
+        yyjson_mut_obj_add_bool(document, item, "kinematic_driven", node->kinematic_driven);
         yyjson_mut_obj_add_bool(document, item, "static_body", node->static_body);
         yyjson_mut_obj_add_bool(document, item, "collision_enabled", node->collision_enabled);
         yyjson_mut_obj_add_uint(document, item, "collision_category", node->collision_category);
@@ -1285,6 +1289,8 @@ static bool editor_json_body_read(yyjson_val *value, EditorRigidBody *body,
             !editor_json_real(value, "mass", &body->mass_value) ||
             !editor_json_real(value, "friction", &body->friction) ||
             !editor_json_real(value, "restitution", &body->restitution) ||
+            (yyjson_obj_get(value, "kinematic_driven") &&
+                !editor_json_bool(value, "kinematic_driven", &body->kinematic_driven)) ||
             !editor_json_bool(value, "static", &body->static_body) ||
             !editor_json_bool(value, "rotation_locked", &body->rotation_locked) ||
             !editor_json_bool(value, "gravity_enabled", &body->gravity_enabled) ||
@@ -1515,6 +1521,11 @@ static bool editor_json_soft_body_read(yyjson_val *value, EditorSoftBody *body,
             (!editor_json_app_visibility_read(value, &body->app_hidden) || !editor_entity_settings_json_read(value, &body->entity_settings)) || !yyjson_is_arr(nodes) ||
             !yyjson_is_arr(beams)) return false;
     if(hierarchy != NULL && !yyjson_is_arr(hierarchy)) return false;
+    if((yyjson_obj_get(value, "node_static_default") != NULL &&
+            !editor_json_bool(value, "node_static_default", &body->node_static_default)) ||
+            (yyjson_obj_get(value, "node_kinematic_driven_default") != NULL &&
+            !editor_json_bool(value, "node_kinematic_driven_default",
+                &body->node_kinematic_driven_default))) return false;
     if(yyjson_obj_get(value, "node_color") != NULL &&
             (!editor_json_uint(value, "node_color", &body->node_color) ||
             !editor_json_uint(value, "beam_color", &body->beam_color))) return false;
@@ -1580,6 +1591,8 @@ static bool editor_json_soft_body_read(yyjson_val *value, EditorSoftBody *body,
             return false;
         }
         if(node->radius <= 0.0f) return false;
+        if(yyjson_obj_get(item, "kinematic_driven") &&
+                !editor_json_bool(item, "kinematic_driven", &node->kinematic_driven)) return false;
         if(yyjson_obj_get(item, "static_body") &&
                 !editor_json_bool(item, "static_body", &node->static_body)) return false;
         if(collision_enabled != NULL &&
@@ -2179,7 +2192,7 @@ EditorResult editor_project_load(EditorProject *project, const char *path) {
             path, EDITOR_PROJECT_FORMAT_VERSION);
         goto done;
     }
-    if(version != EDITOR_PROJECT_FORMAT_VERSION) {
+    if(version != 12 && version != EDITOR_PROJECT_FORMAT_VERSION) {
         result = editor_result_error(EDITOR_ERROR_SCHEMA_VERSION,
             version < EDITOR_PROJECT_FORMAT_VERSION
                 ? "Project editor state '%s' uses format_version %u; collision response migration required before loading as version %u (use rohr-cli migrate-collisions preview|apply with all interacting legacy JSON files)"

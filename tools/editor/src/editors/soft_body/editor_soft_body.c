@@ -46,6 +46,9 @@ bool editor_soft_body_editor_create(EditorSoftBodyEditor *editor,
     *editor = (EditorSoftBodyEditor){.font = font};
 #define CREATE(value, member) \
     if(!editor_mode_text_create(font, value, &editor->member)) goto fail
+    CREATE("Mixed Motion", motion_mixed_label);
+    CREATE("Dynamic", motion_dynamic_label); CREATE("Static", motion_static_label);
+    CREATE("Kinematic", motion_kinematic_label);
     CREATE("Name", name_label); CREATE("X", x_label); CREATE("Y", y_label);
     CREATE("Rotation (deg)", rotation_label); CREATE("Node Color", node_color_label);
     CREATE("Velocity X", velocity_x_label); CREATE("Velocity Y", velocity_y_label);
@@ -83,6 +86,8 @@ fail:
 void editor_soft_body_editor_destroy(EditorSoftBodyEditor *editor) {
     if(editor == NULL) return;
 #define DESTROY(member) rohr_graphics_text_destroy(&editor->member)
+    DESTROY(motion_mixed_label); DESTROY(motion_dynamic_label);
+    DESTROY(motion_static_label); DESTROY(motion_kinematic_label);
     DESTROY(name_label); DESTROY(x_label); DESTROY(y_label);
     DESTROY(rotation_label); DESTROY(node_color_label); DESTROY(beam_color_label);
     DESTROY(velocity_x_label); DESTROY(velocity_y_label);
@@ -276,13 +281,31 @@ bool editor_soft_body_editor_draw(EditorSoftBodyEditor *editor,
             editor_mode_accordion_layout_nested_section(&accordion,
                 &editor->transform_section,
                 "editor.soft_body.section.transform", transform_groups, 1);
-        const float physics_rows[] = {26,26,26,26};
+        const float physics_rows[] = {28,26,26,26,26};
         EditorModeAccordionLayoutResult physics = editor_mode_accordion_layout_section(
             &accordion, &editor->physics_section, "editor.soft_body.section.physics",
-            physics_rows, 4, 6);
-        if(physics.expanded) field_active |= editor_soft_center_of_mass_editor_draw(
-            &editor->mass_properties, context, object, body,
-            editor_mode_accordion_layout_row_y(&physics, physics_rows, 0, 6));
+            physics_rows, 5, 6);
+        if(physics.expanded) {
+            const TextAsset *options[] = {&editor->motion_mixed_label,
+                &editor->motion_dynamic_label, &editor->motion_static_label,
+                &editor->motion_kinematic_label};
+            EditorMotionMode mode = editor_soft_body_motion_get(body);
+            UIDropdownResult motion = editor_mode_dropdown("editor.soft_body.motion", options, 4,
+                mode == EDITOR_MOTION_MIXED ? 0 : (size_t)mode + 1,
+                (UIRect){context->x + 10,
+                    editor_mode_accordion_layout_row_y(&physics, physics_rows, 0, 6),
+                    context->width - 20, 28}, NULL);
+            if(motion.changed && motion.selected_index > 0) {
+                EditorCommand command = {.type = EDITOR_COMMAND_PROPERTY_SET,
+                    .data.property_set = {EDITOR_ITEM_SOFT_BODY, object->id, 0, body->id, 0,
+                        EDITOR_PROPERTY_MOTION, EDITOR_PROPERTY_VALUE_UINT,
+                        {.integer = (uint32_t)motion.selected_index - 1}}};
+                (void)editor_command_execute(context->project, &command);
+            }
+            field_active |= editor_soft_center_of_mass_editor_draw(
+                &editor->mass_properties, context, object, body,
+                editor_mode_accordion_layout_row_y(&physics, physics_rows, 1, 6));
+        }
         EditorModeAccordionLayoutResult appearance =
             editor_mode_accordion_layout_section(&accordion,
                 &editor->initial_motion_section,

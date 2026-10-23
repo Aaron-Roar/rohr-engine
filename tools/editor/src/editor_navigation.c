@@ -887,12 +887,14 @@ bool editor_navigation_selection_visibility_get(EditorProject *project,
     if(ref.kind == EDITOR_SELECTION_OBJECT) { *visible = object->visible; return true; }
     if(ref.kind == EDITOR_SELECTION_RIGID_BODY || ref.kind == EDITOR_SELECTION_PARTICLE) {
         EditorRigidBody *item = editor_project_rigid_body_get(object, ref.item);
-        if(item == NULL) return false; *visible = item->visible; return true;
+        if(item == NULL) return false;
+        *visible = item->visible; return true;
     }
     if(ref.kind == EDITOR_SELECTION_HITBOX) {
         EditorRigidBody *body = editor_project_rigid_body_get(object, ref.parent);
         EditorHitbox *item = editor_project_hitbox_get(body, ref.item);
-        if(item == NULL) return false; *visible = item->visible; return true;
+        if(item == NULL) return false;
+        *visible = item->visible; return true;
     }
 #define EDITOR_VISIBILITY_FIND(items, count) do { \
     for(size_t i = 0; i < (count); i += 1) if((items)[i].id == ref.item) { \

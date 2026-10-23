@@ -46,6 +46,8 @@ bool editor_particle_editor_create(EditorParticleEditor *editor,
     CREATE("Gravity", gravity_label);
     CREATE("Dynamic", dynamic_label);
     CREATE("Static", static_label);
+    CREATE("Kinematic", kinematic_label);
+    CREATE("Zero mass: behaves kinematically.", zero_mass_label);
     CREATE("", x_field);
     CREATE("", y_field);
     CREATE("", velocity_x_field);
@@ -116,6 +118,8 @@ void editor_particle_editor_destroy(EditorParticleEditor *editor) {
     rohr_graphics_text_destroy(&editor->gravity_label);
     rohr_graphics_text_destroy(&editor->dynamic_label);
     rohr_graphics_text_destroy(&editor->static_label);
+    rohr_graphics_text_destroy(&editor->kinematic_label);
+    rohr_graphics_text_destroy(&editor->zero_mass_label);
     rohr_graphics_text_destroy(&editor->x_field);
     rohr_graphics_text_destroy(&editor->y_field);
     rohr_graphics_text_destroy(&editor->velocity_x_field);
@@ -211,7 +215,8 @@ bool editor_particle_editor_draw(EditorParticleEditor *editor,
         body->graphics_layer, NULL);
     const float transform_rows[] = {26, 26};
     const float motion_rows[] = {26, 26, 26, 26};
-    const float physics_rows[] = {28, 26, 28, EDITOR_COM_ROW_COUNT * EDITOR_COM_ROW_HEIGHT};
+    bool zero_mass = !body->static_body && !body->kinematic_driven && body->mass_value == 0;
+    const float physics_rows[] = {zero_mass ? 58 : 28, 26, 28, EDITOR_COM_ROW_COUNT * EDITOR_COM_ROW_HEIGHT};
     const float material_rows[] = {26, 26};
     const float collision_rows[] = {editor_collision_controls_height_get(
         &editor->collision, context->project, true)};
@@ -298,14 +303,22 @@ bool editor_particle_editor_draw(EditorParticleEditor *editor,
     }
     if(physics_layout.expanded) {
         float row = physics_layout.content_y;
-        const TextAsset *options[] = {&editor->dynamic_label, &editor->static_label};
+        const TextAsset *options[] = {&editor->dynamic_label, &editor->static_label, &editor->kinematic_label};
         UIButtonStyle style = editor_mode_section_field_style_get();
         UIDropdownResult motion = editor_mode_dropdown("editor.particle.motion", options,
-            2, body->static_body ? 1 : 0, (UIRect){x + 10, row, width - 20, 28}, &style);
+            3, body->static_body ? EDITOR_MOTION_STATIC :
+                body->kinematic_driven ? EDITOR_MOTION_KINEMATIC : EDITOR_MOTION_DYNAMIC, (UIRect){x + 10, row, width - 20, 28}, &style);
         if(motion.changed) {
-            property_bool_set(context->project, object->id, body->id,
-                EDITOR_PROPERTY_STATIC, motion.selected_index == 1);
+            EditorCommand command = {.type = EDITOR_COMMAND_PROPERTY_SET,
+                .data.property_set = {EDITOR_ITEM_RIGID_BODY, object->id, 0, body->id, 0,
+                    EDITOR_PROPERTY_MOTION, EDITOR_PROPERTY_VALUE_UINT,
+                    {.integer = (uint32_t)motion.selected_index}}};
+            (void)editor_command_execute(context->project, &command);
             return true;
+        }
+        if(zero_mass) {
+            rohr_ui_label(&editor->zero_mass_label, (UIRect){x + 10, row + 30, width - 20, 26});
+            row += 30;
         }
         float value = body->mass_value;
         UIFieldResult result = number_field("editor.particle.mass", &editor->mass_label,

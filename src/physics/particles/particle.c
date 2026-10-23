@@ -126,6 +126,9 @@ static EngineResult particle_description_apply(Entity entity, EntityIndex index,
     (void)FrictionPool_store_at(&frictions_pool, index, description.friction);
     (void)RestitutionPool_store_at(&restitutions_pool, index, description.restitution);
     (void)CollisionFilterDescriptionPool_store_at(&collision_filters_pool, index, description.collision_filter);
+    (void)physics_static_set(entity);
+    if(description.kinematic_driven) (void)physics_kinematic_driven_set(entity);
+    else (void)physics_kinematic_driven_remove(entity);
     entity_mask[index] &= ~(ROHR_STATIC | ROHR_DYNAMIC | ROHR_GRAVITY | ROHR_COLLISION);
     entity_mask[index] |= ROHR_MASS | ROHR_COLLISION_FILTER | (description.static_body ? ROHR_STATIC : ROHR_DYNAMIC);
     if(description.gravity_enabled) entity_mask[index] |= ROHR_GRAVITY;
@@ -182,6 +185,7 @@ ParticleDescriptionResult physics_particle_description_get(Entity entity) {
         .friction = frictions_pool.used[index] ? frictions[index] : 0,
         .restitution = restitutions_pool.used[index] ? restitutions[index] : 0,
         .collision_filter = filter.result.value,
+        .kinematic_driven = physics_kinematic_explicit_check(index),
         .static_body = entity_index_components_check(index, ROHR_STATIC),
         .gravity_enabled = entity_index_components_check(index, ROHR_GRAVITY),
         .collision_enabled = entity_index_components_check(index, ROHR_COLLISION)

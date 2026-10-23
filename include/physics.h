@@ -350,6 +350,8 @@ typedef struct ParticleDescription {
     CollisionFilterDescription collision_filter;
     /** Whether to create a static rather than dynamic particle. */
     bool static_body;
+    /** Explicit intent, independent of automatic zero-mass behavior; dormant while static. */
+    bool kinematic_driven;
     /** Whether a dynamic particle receives engine gravity. */
     bool gravity_enabled;
     /** Whether overlaps enter physical collision response. */
@@ -584,6 +586,8 @@ typedef struct SoftBodyNodeDescription {
     Restitution restitution;
     CollisionFilterDescription collision_filter;
     bool static_body;
+    /** Explicit intent, independent of automatic zero-mass behavior; dormant while static. */
+    bool kinematic_driven;
     bool gravity_enabled;
     bool collision_enabled;
     Color draw_color;

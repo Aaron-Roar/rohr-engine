@@ -15,6 +15,28 @@
 #include <string.h>
 #include <limits.h>
 
+static EditorMotionMode editor_motion_get(bool is_static, bool explicit_mode) {
+    return is_static ? EDITOR_MOTION_STATIC :
+        explicit_mode ? EDITOR_MOTION_KINEMATIC : EDITOR_MOTION_DYNAMIC;
+}
+
+EditorMotionMode editor_soft_body_motion_get(const EditorSoftBody *body) {
+    if(body == NULL) return EDITOR_MOTION_MIXED;
+    if(body->node_count == 0) return editor_motion_get(
+        body->node_static_default, body->node_kinematic_driven_default);
+    EditorMotionMode mode = editor_motion_get(body->nodes[0].static_body,
+        body->nodes[0].kinematic_driven);
+    for(size_t i = 1; i < body->node_count; ++i)
+        if(editor_motion_get(body->nodes[i].static_body,
+                body->nodes[i].kinematic_driven) != mode) return EDITOR_MOTION_MIXED;
+    return mode;
+}
+
+static void editor_motion_set(bool *is_static, bool *explicit_mode, EditorMotionMode mode) {
+    *is_static = mode == EDITOR_MOTION_STATIC;
+    if(!*is_static) *explicit_mode = mode == EDITOR_MOTION_KINEMATIC;
+}
+
 static EditorCommandExecuted editor_command_executed_callback;
 static void *editor_command_executed_context;
 static EditorCommandExecuting editor_command_executing_callback;
@@ -1328,9 +1350,16 @@ static EditorCommandResult editor_command_execute_internal(EditorProject *projec
                         set->value_kind == EDITOR_PROPERTY_VALUE_BOOL)
                     body->gravity_enabled = set->value.boolean;
                 else if(set->property == EDITOR_PROPERTY_STATIC &&
-                        set->value_kind == EDITOR_PROPERTY_VALUE_BOOL)
+                        set->value_kind == EDITOR_PROPERTY_VALUE_BOOL) {
                     body->static_body = set->value.boolean;
-                else if(set->property == EDITOR_PROPERTY_ROTATION_LOCKED &&
+                    if(!set->value.boolean) body->kinematic_driven = false;
+                } else if(set->property == EDITOR_PROPERTY_MOTION &&
+                        set->value_kind == EDITOR_PROPERTY_VALUE_UINT &&
+                        set->value.integer <= EDITOR_MOTION_KINEMATIC) {
+                    body->static_body = set->value.integer == EDITOR_MOTION_STATIC;
+                    if(!body->static_body)
+                        body->kinematic_driven = set->value.integer == EDITOR_MOTION_KINEMATIC;
+                } else if(set->property == EDITOR_PROPERTY_ROTATION_LOCKED &&
                         set->value_kind == EDITOR_PROPERTY_VALUE_BOOL)
                     body->rotation_locked = set->value.boolean;
                 else if(set->property == EDITOR_PROPERTY_COLLISION &&
@@ -1426,7 +1455,20 @@ static EditorCommandResult editor_command_execute_internal(EditorProject *projec
             } else if(set->kind == EDITOR_ITEM_SOFT_BODY) {
                 EditorSoftBody *body = editor_command_soft_body_get(object, set->item);
                 if(body == NULL) return editor_command_not_found("soft body", set->item);
-                if(set->property == EDITOR_PROPERTY_MASS &&
+                if((set->property == EDITOR_PROPERTY_MOTION &&
+                        set->value_kind == EDITOR_PROPERTY_VALUE_UINT &&
+                        set->value.integer <= EDITOR_MOTION_KINEMATIC) ||
+                        (set->property == EDITOR_PROPERTY_STATIC &&
+                        set->value_kind == EDITOR_PROPERTY_VALUE_BOOL)) {
+                    EditorMotionMode mode = set->property == EDITOR_PROPERTY_MOTION ?
+                        (EditorMotionMode)set->value.integer :
+                        set->value.boolean ? EDITOR_MOTION_STATIC : EDITOR_MOTION_DYNAMIC;
+                    editor_motion_set(&body->node_static_default,
+                        &body->node_kinematic_driven_default, mode);
+                    for(size_t i = 0; i < body->node_count; ++i)
+                        editor_motion_set(&body->nodes[i].static_body,
+                            &body->nodes[i].kinematic_driven, mode);
+                } else if(set->property == EDITOR_PROPERTY_MASS &&
                         set->value_kind == EDITOR_PROPERTY_VALUE_FLOAT) {
                     if(!editor_soft_mass_values_set(body, false, set->value.number,
                             (Position){0})) goto property_invalid;
@@ -1582,8 +1624,16 @@ static EditorCommandResult editor_command_execute_internal(EditorProject *projec
                         set->value_kind == EDITOR_PROPERTY_VALUE_BOOL)
                     node->initial_motion_inherited = set->value.boolean;
                 else if(set->property == EDITOR_PROPERTY_STATIC &&
-                        set->value_kind == EDITOR_PROPERTY_VALUE_BOOL)
+                        set->value_kind == EDITOR_PROPERTY_VALUE_BOOL) {
                     node->static_body = set->value.boolean;
+                    if(!set->value.boolean) node->kinematic_driven = false;
+                } else if(set->property == EDITOR_PROPERTY_MOTION &&
+                        set->value_kind == EDITOR_PROPERTY_VALUE_UINT &&
+                        set->value.integer <= EDITOR_MOTION_KINEMATIC) {
+                    node->static_body = set->value.integer == EDITOR_MOTION_STATIC;
+                    if(!node->static_body)
+                        node->kinematic_driven = set->value.integer == EDITOR_MOTION_KINEMATIC;
+                }
                 else goto property_invalid;
             } else if(set->kind == EDITOR_ITEM_SOFT_BEAM) {
                 EditorSoftBody *body = editor_command_soft_body_get(object, set->parent);
@@ -2776,6 +2826,7 @@ static bool editor_command_property_parse(const char *name,
         EDITOR_PROPERTY_INITIAL_ANGULAR_VELOCITY)
     EDITOR_BOOL_PROPERTY("gravity", EDITOR_PROPERTY_GRAVITY)
     EDITOR_BOOL_PROPERTY("static", EDITOR_PROPERTY_STATIC)
+    EDITOR_UINT_PROPERTY("motion", EDITOR_PROPERTY_MOTION)
     EDITOR_BOOL_PROPERTY("rest-length-explicit", EDITOR_PROPERTY_REST_LENGTH_EXPLICIT)
     EDITOR_BOOL_PROPERTY("follow-position", EDITOR_PROPERTY_FOLLOW_POSITION)
     EDITOR_BOOL_PROPERTY("pause-with-engine", EDITOR_PROPERTY_PAUSE_WITH_ENGINE)
@@ -2829,6 +2880,7 @@ static const char *editor_command_property_name_get(EditorPropertyKind property)
         case EDITOR_PROPERTY_RESTITUTION: return "restitution";
         case EDITOR_PROPERTY_GRAVITY: return "gravity";
         case EDITOR_PROPERTY_STATIC: return "static";
+        case EDITOR_PROPERTY_MOTION: return "motion";
         case EDITOR_PROPERTY_ROTATION_LOCKED: return "rotation-locked";
         case EDITOR_PROPERTY_COLLISION: return "collision";
         case EDITOR_PROPERTY_PARTICLE: return "particle";
@@ -3480,7 +3532,11 @@ collision_filter_invalid:
             if(!editor_command_entity_setting_value_parse(arguments[value_index], set))
                 goto property_parse_invalid;
         } else {
-            if(editor_command_property_color_check(set->property)) {
+            if(set->property == EDITOR_PROPERTY_MOTION) {
+                const char *modes[] = {"dynamic", "static", "kinematic"};
+                if(!editor_command_named_uint_parse(arguments[value_index], modes, 3,
+                        &set->value.integer)) goto property_parse_invalid;
+            } else if(editor_command_property_color_check(set->property)) {
                 if(!editor_command_color_parse(arguments[value_index],
                         &set->value.integer)) goto property_parse_invalid;
             } else if(set->property == EDITOR_PROPERTY_TEXT_WRAP_WIDTH ||
@@ -4622,6 +4678,10 @@ EditorResult editor_command_cli_write(const EditorCommand *command,
                     snprintf(value, sizeof(value), "explicit %.9g %.9g",
                         set->value.center_of_mass.offset.x, set->value.center_of_mass.offset.y);
                 else snprintf(value, sizeof(value), "automatic");
+            } else if(set->property == EDITOR_PROPERTY_MOTION) {
+                const char *modes[] = {"dynamic", "static", "kinematic"};
+                if(set->value.integer > EDITOR_MOTION_KINEMATIC) goto capacity_error;
+                snprintf(value, sizeof(value), "%s", modes[set->value.integer]);
             } else if(set->value_kind == EDITOR_PROPERTY_VALUE_FLOAT)
                 snprintf(value, sizeof(value), "%.9g", set->value.number);
             else if(set->value_kind == EDITOR_PROPERTY_VALUE_BOOL) {

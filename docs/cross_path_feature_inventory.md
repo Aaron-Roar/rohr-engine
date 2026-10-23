@@ -466,7 +466,7 @@ returning. The original failed fixture remains available for comparison.
 | 2. Visuals and visibility | Inspect `push_marker`, `spin_marker`, pin/weld/spring, the mirrored sprite, playing animations and `empty_animation`. Spring endpoints have different colors/scales/offsets. Toggle editor eyes separately from Visible in App, including the parent; rebuild and verify only app visibility affects runtime drawing and hidden bodies still simulate. Restore parent visibility without changing child settings. Empty animation must not prevent rendering. | Pending |
 | 3. Editor interaction | Select geometry, drag from the selecting press, use child-selection and rotation handles, and undo/redo each gesture. Pick force targets/references from menus and the viewport, checking hover highlights. Scroll a long selector; check modal menus do not move underlying items. Drag the slider thumb without moving its parent. Rename via Enter/Escape and confirm subsequent keyboard navigation works. | User-reported failures: oversized force/torque picking, persistent/overlapping child panels, first-element activation, object/joint scrolling, and delayed joint clamping. C6 panel lifecycle/scrolling and C8 source picking complete with user acceptance; C14 and broader interaction retests pending. |
 | 4. Input and audio | Exercise the starter's configured logical input actions and text entry without unintended gameplay input while editing. Run the installed-SDK `audio` example: Play Water Splash produces sound; music play/pause/resume and track switching work; Quit/escape shuts down. Review window size/aspect settings. Muted description defaults and queued/applied audio state retain their automated fixture evidence; silent startup alone is not proof of muted playback. | Pending |
-| 5. Project lifecycle and delivery | Build/run the application and Simulate Scene. The application includes direct-API extras; scene simulation contains authored objects. Verify run/pause/stop, return to Editor, close/reopen/reorder tabs through View, rebuild a visible edit and replay. Close/switch a project during an active build and verify cancellation; terminal interrupt reaches the subprocess. Launch installed-SDK artifacts outside their source directories. | User-reported failures: relocation, repeat builds, missing CMake recovery, generation diagnostics, and incomplete-joint generation. Startup error 21 reproduced in rohr-project-1. C1 diagnostics, C2 relocation/repeat builds, C3 missing CMake recovery, C4 partial-spawn startup, and C5 incomplete joints complete with verification below; C6 panel lifecycle/scrolling and C8 source picking also complete; C7 complete with its manual checks explicitly deferred; C9 complete with the additional panel check explicitly skipped; C10 directional response and C11 explicit migration complete; C12–C14 and broader interactive retests pending. |
+| 5. Project lifecycle and delivery | Build/run the application and Simulate Scene. The application includes direct-API extras; scene simulation contains authored objects. Verify run/pause/stop, return to Editor, close/reopen/reorder tabs through View, rebuild a visible edit and replay. Close/switch a project during an active build and verify cancellation; terminal interrupt reaches the subprocess. Launch installed-SDK artifacts outside their source directories. | User-reported failures: relocation, repeat builds, missing CMake recovery, generation diagnostics, and incomplete-joint generation. Startup error 21 reproduced in rohr-project-1. C1 diagnostics, C2 relocation/repeat builds, C3 missing CMake recovery, C4 partial-spawn startup, and C5 incomplete joints complete with verification below; C6 panel lifecycle/scrolling and C8 source picking also complete; C7 complete with its manual checks explicitly deferred; C9 complete with the additional panel check explicitly skipped; C10 directional response and C11 explicit migration complete; C12 explicit motion authoring complete (including whole-body motion added at final review); C13–C14 and broader interactive retests pending. |
 
 Preparation evidence (2026-10-21): full Linux build and **111/111 CTest tests
 pass**, including the installed-SDK comparisons and scene/build lifecycle
@@ -935,7 +935,7 @@ compiler warnings. Both migration tests then passed again
 (`/tmp/c11_audit_sanitizer_tests.log`) and the Windows cross-build
 (`/tmp/c11_audit_windows_build.log`). No rendering behavior changed or new manual visual
 gate was introduced. C7/C9's explicit review exceptions remain unchanged.
-C12–C14 remain unstarted.
+C12 implementation and verification follow; remaining C13–C14 work is deferred.
 
 ## Frozen fixture plan
 
@@ -2307,3 +2307,93 @@ interactive verification were performed for this documentation goal. Source and
 fixture presence do not imply those checks passed. Goal 1 is complete when this
 inventory is reconciled; milestone 4 remains incomplete until goals 2–5 close the
 applicable gaps with behavioral and platform evidence.
+
+
+**C12 complete — explicit motion authoring and requested whole-body control:**
+
+Rigid bodies, standalone particles, and individual soft nodes expose Dynamic /
+Static / Kinematic. Applicable homogeneous and mixed bulk selections show their
+current mode or mixed state and use the shared undo transaction. Static keeps
+stored mass, motion, gravity, response masks, and dormant explicit intent;
+selecting Dynamic clears explicit intent. Zero-mass Dynamic rigid bodies and
+particles remain automatically kinematic and display “Zero mass: behaves
+kinematically.” Positive mass restores automatic dynamic simulation. Explicit
+Kinematic survives mass changes. Soft-node authoring/creation still requires
+positive mass. At final review the user requested whole-soft-body motion and
+accepted C12 conditional on that addition. The body Physics selector now applies
+motion to all existing nodes and stores defaults for newly added nodes. Individual
+node overrides produce Mixed Motion; later body edits affect only motion mode.
+Empty bodies show their default. Whole-body collision and gravity remain C13.
+
+`kinematic_driven` is part of authored bodies/nodes, object descriptions, particle
+and node full descriptions, catalogs, and generated constructors. Description
+getters report explicit intent, including while Static, rather than the effective
+zero-mass mode. Full replacement can clear intent at zero mass by using the
+existing low-level Static/removal/Dynamic transitions; those low-level APIs and
+the physics pipeline retain their semantics. Generated direct rigid constructors
+now retain stored Static mass, motion, gravity, and rotation-lock settings.
+Mode changes do not modify directional response masks.
+
+Project format 13 writes the boolean flag; format 12 accepts it optionally and
+validates supplied values as booleans. Missing intent defaults false. Editor-only
+soft-body `node_static_default` and `node_kinematic_driven_default` also persist as
+validated optional booleans; missing defaults are false in formats 12/13. Runtime
+construction uses resolved node values, without adding runtime container modes. C11 still
+migrates project 11 → 12, after which ordinary loading/saving writes 13. Runtime
+format remains 10 with its existing explicit-intent storage. Developer-owned
+`main.c` files were not changed. The three bundled generated examples were
+refreshed from their authored data.
+
+Acceptance evidence (2026-10-23):
+
+1. **Authoring/history:** `editor_motion_authoring` exercises each selector through
+   pointer input, all three entity types plus whole soft bodies, mixed bulk display and editing,
+   undo/redo, duplication, and preservation of stored values. The zero-mass notice
+   adds measured layout space and disappears when mass becomes positive. Whole-body
+   tests cover all three selectors, mixed nodes, empty bodies, defaults for new
+   nodes, Static's per-node dormant intent, subsequent body overwrite, duplication,
+   saved defaults, and exact preservation of unrelated node settings.
+2. **Automatic/explicit:** full description replacement, getters, mass edits,
+   Static/dynamic restoration, zero-mass particles, and independent spawned
+   instances distinguish inferred behavior from explicit intent.
+3. **Physics:** all three collider types move with prescribed velocity, ignore
+   gravity/contact impulses while Kinematic, influence responding dynamic peers,
+   remain fixed while Static, and regain dynamic contact response after clearing
+   intent with positive mass. Existing collision-response regressions also pass.
+4. **Cross-path parity:** CLI mode/static commands and serialization, project
+   12/13 defaults and malformed flags, save/reload, runtime snapshot restoration,
+   runtime project import, catalogs, and repeated spawning pass. Published CLI
+   whole-body mode/static commands also preserve saved node values and defaults.
+   The installed-SDK
+   `editor_motion_generated` consumer executes direct generated constructors,
+   generated catalogs, and file-loaded objects, including nodes configured by a
+   whole-body motion command. Migration regressions pass.
+5. **Delivery:** all 125 Linux tests passed after the whole-body addition. The
+   existing soft-mass pointer test was adjusted for the new Motion row and passed
+   with its mass/history assertions intact. Six ASan/UBSan suites passed with leak
+   detection: motion authoring, particle authoring, collision migration, runtime
+   persistence, collision response, and object instances. The Windows engine,
+   editor, CLI, focused tests, and generated fixture cross-built without compiler
+   warnings. COM, player-controller, and soft-body examples independently built
+   against Linux/Windows SDKs; Linux startup and interrupt checks ran from `/tmp`.
+   Native Windows execution was not performed. User editor review accepted the
+   result conditional on adding whole-body motion; that addition is now complete
+   with pointer/state regression coverage. No image analysis was used.
+
+Reproduce the focused fixture with
+`build/tests/editor_motion_authoring_test /tmp/c12_editor_review` using a new
+or empty destination and dummy SDL video/audio drivers for fixture generation.
+The generated test is `ctest --test-dir build -R editor_motion_generated` with an
+up-to-date `ROHR_SDK_INSTALL_PREFIX`. The review editor is open on that fixture.
+Open `Motion`; `body_0`/`particle_0`/`node_0` are Dynamic, suffix `_1` is explicit
+Kinematic, `_2` is Static with dormant intent, and `_3` is zero-mass Dynamic for
+bodies/particles (positive-mass Dynamic for nodes).
+
+The user reviewed `/tmp/c12_editor_review` and requested the missing whole-body
+motion control: “Just that functionality then PASS.” The rebuilt editor exposes
+it under the soft body's Physics accordion. The existing review window must be
+restarted to use the rebuilt executable. Reproduced fixtures also include
+`driven_soft`, whose nodes receive explicit Kinematic through the body command.
+
+C12 is complete. C7/C9's earlier manual review exceptions remain unchanged.
+Remaining C13 collision/gravity controls and C14 have not started.

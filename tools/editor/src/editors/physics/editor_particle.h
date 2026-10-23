@@ -27,6 +27,7 @@ typedef struct EditorParticleEditor {
     TextAsset gravity_label;
     TextAsset dynamic_label;
     TextAsset static_label;
+    TextAsset kinematic_label, zero_mass_label;
     TextAsset x_field;
     TextAsset y_field;
     TextAsset velocity_x_field;

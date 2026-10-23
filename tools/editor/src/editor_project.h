@@ -33,7 +33,7 @@
 #define EDITOR_COLLISION_MASK_MAX 64
 /* Version 12 uses directional response masks. Version 11 requires explicit
  * collision migration; older structural formats are unsupported. */
-#define EDITOR_PROJECT_FORMAT_VERSION 12
+#define EDITOR_PROJECT_FORMAT_VERSION 13
 #define EDITOR_NAVIGATION_MODE_MAX 33
 #define EDITOR_NAVIGATION_SELECTION_MAX 30
 
@@ -183,6 +183,8 @@ typedef struct EditorRigidBody {
     float friction;
     float restitution;
     bool static_body;
+    /** Explicit intent, independent of automatic zero-mass behavior; dormant while static. */
+    bool kinematic_driven;
     bool rotation_locked;
     bool gravity_enabled;
     bool collision_enabled;
@@ -276,6 +278,8 @@ typedef struct EditorSoftNode {
     Acceleration initial_acceleration;
     bool initial_motion_inherited;
     bool static_body;
+    /** Explicit intent, independent of automatic zero-mass behavior; dormant while static. */
+    bool kinematic_driven;
     float node_mass;
     float radius;
     float friction;
@@ -373,6 +377,9 @@ typedef struct EditorSoftBody {
     bool visible;
     uint32_t node_color;
     uint32_t beam_color;
+    /** Authored defaults for new nodes; existing nodes keep independent modes. */
+    bool node_static_default;
+    bool node_kinematic_driven_default;
     EditorSoftNode *nodes;
     size_t node_count;
     size_t node_capacity;
