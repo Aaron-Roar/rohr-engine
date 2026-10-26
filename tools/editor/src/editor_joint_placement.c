@@ -4,6 +4,7 @@
 #include "editor_project.h"
 #include <math.h>
 #include <stdlib.h>
+#include <stdio.h>
 
 typedef struct EditorPlacementPose {
     ObjectEntityReference reference;
@@ -68,13 +69,11 @@ static size_t anchor_owner(const EditorObject *object, const EditorPlacementPose
     return owner;
 }
 
-bool editor_project_joint_place(EditorObject *object, EditorJoint *joint) {
-    if(!object || !joint) return false;
+static EditorPlacementPose *placement_poses_create(EditorObject *object, size_t *amount) {
     size_t count = 1 + object->rigid_body_count + object->soft_body_count + object->anchor_count;
     for(size_t i = 0; i < object->soft_body_count; ++i) count += object->soft_body_items[i].node_count;
     EditorPlacementPose *poses = calloc(count, sizeof(*poses));
-    if(!poses) return false;
-    bool result = false;
+    if(!poses) return NULL;
     size_t cursor = 0;
 #define ADD(kind_value, id_value, parent_value, point, rotation, setting, group_value, fixed_value, locked_value) \
     poses[cursor++] = (EditorPlacementPose){.reference = {kind_value, id_value, parent_value}, \
@@ -84,7 +83,7 @@ bool editor_project_joint_place(EditorObject *object, EditorJoint *joint) {
     for(size_t i = 0; i < object->rigid_body_count; ++i) {
         EditorRigidBody *body = &object->rigid_bodies[i];
         ADD(OBJECT_BODY, body->id, 0, body->position, body->rotation,
-            &body->entity_settings, SIZE_MAX, body->static_body, body->rotation_locked || body->standalone_particle);
+            &body->entity_settings, SIZE_MAX, false, body->rotation_locked || body->standalone_particle);
     }
     for(size_t i = 0; i < object->soft_body_count; ++i) {
         EditorSoftBody *body = &object->soft_body_items[i];
@@ -95,7 +94,7 @@ bool editor_project_joint_place(EditorObject *object, EditorJoint *joint) {
             EditorSoftNode *node = &body->nodes[n];
             Position position = offset_position(body->position, node->position, body->rotation);
             ADD(OBJECT_NODE, node->id, body->id, position, body->rotation,
-                &node->entity_settings, group, node->static_body, false);
+                &node->entity_settings, group, false, false);
         }
     }
     for(size_t i = 0; i < object->anchor_count; ++i) {
@@ -112,6 +111,16 @@ bool editor_project_joint_place(EditorObject *object, EditorJoint *joint) {
         poses[cursor - 1].attachment = owner;
     }
 #undef ADD
+    *amount = count;
+    return poses;
+}
+
+bool editor_project_joint_place(EditorObject *object, EditorJoint *joint) {
+    if(!object || !joint) return false;
+    size_t count;
+    EditorPlacementPose *poses = placement_poses_create(object, &count);
+    if(!poses) return false;
+    bool result = false;
     Position point_a, point_b;
     size_t a = anchor_owner(object, poses, count, joint->anchor_a, &point_a);
     size_t b = anchor_owner(object, poses, count, joint->anchor_b, &point_b);
@@ -238,4 +247,306 @@ bool editor_project_joint_place(EditorObject *object, EditorJoint *joint) {
 done:
     free(poses);
     return result;
+}
+
+/* Automatic authoring placement. Scratch poses are committed only after the
+ * entire affected component has been resolved and checked. */
+static size_t placement_root(const EditorPlacementPose *poses, size_t index) {
+    while(poses[index].attachment != SIZE_MAX) index = poses[index].attachment;
+    return poses[index].group == SIZE_MAX ? index : poses[index].group;
+}
+static void placement_group_resolve(EditorPlacementPose *poses, size_t count, size_t root) {
+    for(size_t i = 0; i < count; ++i)
+        if(placement_root(poses, i) == root) poses[i].selected = true;
+}
+static void placement_group_move(EditorObject *object, EditorPlacementPose *poses,
+        size_t count, size_t root, Position pivot, Position destination, float rotation) {
+    for(size_t i = 0; i < count; ++i) if(placement_root(poses, i) == root) {
+        Position offset = {poses[i].position.x - pivot.x, poses[i].position.y - pivot.y};
+        poses[i].position = offset_position(destination, offset, rotation);
+        poses[i].angle += rotation;
+        if(poses[i].attachment != SIZE_MAX) {
+            EditorAnchor *anchor = editor_project_anchor_get(object, poses[i].reference.id);
+            if(anchor && !anchor->rotation_follows_body) poses[i].angle = poses[i].before_angle;
+        }
+        poses[i].selected = true;
+    }
+}
+static bool placement_edge_satisfied_check(const EditorJoint *joint,
+        Position a, Position b, float angle_a, float angle_b) {
+    if(joint->kind == EDITOR_JOINT_SPRING)
+        return fabs(hypot((double)a.x-b.x, (double)a.y-b.y)-joint->rest_length) <= .0001;
+    return same_position(a,b) && (joint->kind != EDITOR_JOINT_WELD ||
+        same_angle(angle_b-angle_a, joint->rest_angle));
+}
+
+void editor_project_placement_poses_restore(EditorObject *object, const EditorObject *before) {
+    object->position = before->position;
+    for(size_t i=0;i<object->rigid_body_count;++i) {
+        object->rigid_bodies[i].position=before->rigid_bodies[i].position;
+        object->rigid_bodies[i].rotation=before->rigid_bodies[i].rotation;
+    }
+    for(size_t i=0;i<object->soft_body_count;++i) {
+        EditorSoftBody *body=&object->soft_body_items[i];
+        const EditorSoftBody *old=&before->soft_body_items[i];
+        body->position=old->position; body->rotation=old->rotation;
+        for(size_t n=0;n<body->node_count;++n) body->nodes[n].position=old->nodes[n].position;
+    }
+    for(size_t i=0;i<object->anchor_count;++i) {
+        object->anchors[i].position=before->anchors[i].position;
+        object->anchors[i].rotation=before->anchors[i].rotation;
+    }
+}
+
+/* Find the closest shared translation satisfying the axis lines in each
+ * connected component. This preserves pin/weld/rest-length relationships while
+ * retaining the allowed component of a diagonal pointer movement. */
+static bool placement_drag_project_check(EditorObject *object,
+        EditorPlacementPose *poses, size_t count) {
+    size_t *components = malloc(count * sizeof(*components));
+    if(!components) return false;
+    for(size_t i = 0; i < count; ++i) components[i] = placement_root(poses, i);
+    for(size_t j = 0; j < object->joint_count; ++j) {
+        const EditorJoint *edge = &object->joint_items[j];
+        if(edge->kind == EDITOR_JOINT_SPRING && !edge->editor_rest_length_locked) continue;
+        Position a, b;
+        size_t ia = anchor_owner(object, poses, count, edge->anchor_a, &a);
+        size_t ib = anchor_owner(object, poses, count, edge->anchor_b, &b);
+        if(ia == SIZE_MAX || ib == SIZE_MAX || !poses[ia].selected || !poses[ib].selected) continue;
+        size_t from = components[ib], to = components[ia];
+        for(size_t i = 0; i < count; ++i) if(components[i] == from) components[i] = to;
+    }
+    bool valid = true;
+    for(size_t component = 0; component < count && valid; ++component) {
+        double nx = 0, ny = 0, offset = 0, dx = 0, dy = 0;
+        unsigned rank = 0;
+        for(size_t i = 0; i < count && valid; ++i) {
+            const EditorPlacementPose *pose = &poses[i];
+            const ObjectEntitySettings *settings = pose->settings;
+            if(!pose->selected || components[i] != component || !settings->axis_lock_enabled) continue;
+            Axis axis = settings->axis_lock.axis;
+            double length = hypot((double)axis.x, (double)axis.y);
+            if(!isfinite(length) || length == 0) { valid = false; break; }
+            double x = -axis.y / length, y = axis.x / length;
+            Position point = settings->axis_lock.point_on_axis;
+            if(settings->axis_lock_world_fixed) {
+                point.x -= object->position.x; point.y -= object->position.y;
+            }
+            double distance = x * ((double)point.x - pose->position.x) +
+                y * ((double)point.y - pose->position.y);
+            if(!rank) {
+                nx = x; ny = y; offset = distance;
+                dx = x * distance; dy = y * distance; rank = 1;
+            } else {
+                double determinant = nx * y - ny * x;
+                if(rank == 1 && fabs(determinant) > 1e-8) {
+                    dx = (offset * y - ny * distance) / determinant;
+                    dy = (nx * distance - offset * x) / determinant;
+                    rank = 2;
+                } else if(fabs(x * dx + y * dy - distance) > .0001) valid = false;
+            }
+        }
+        if(!valid) break;
+        for(size_t i = 0; i < count; ++i) if(poses[i].selected && components[i] == component) {
+            poses[i].position.x += (float)dx;
+            poses[i].position.y += (float)dy;
+        }
+    }
+    free(components);
+    return valid;
+}
+
+EditorJointPlacementResult editor_project_joints_resolve(EditorObject *object,
+        const EditorObject *before, const ObjectEntityReference *drivers, size_t driver_count,
+        EditorJointId configured_joint, bool project_axes) {
+    EditorJointPlacementResult result={0};
+    if(!object || !before) return result;
+    size_t count=0, old_count=0;
+    EditorPlacementPose *poses=placement_poses_create(object,&count);
+    EditorPlacementPose *old=placement_poses_create((EditorObject *)before,&old_count);
+    if(!poses || !old || count!=old_count) {
+        result.blocked=true; snprintf(result.reason,sizeof(result.reason),"unable to allocate placement poses");
+        goto done;
+    }
+    for(size_t i=0;i<count;++i) {
+        poses[i].before=old[i].position; poses[i].before_angle=old[i].angle;
+    }
+    if(configured_joint) {
+        for(size_t j=0;j<object->joint_count;++j) if(object->joint_items[j].id==configured_joint) {
+            EditorJoint *edge=&object->joint_items[j]; Position a,b;
+            if(edge->kind==EDITOR_JOINT_SPRING && !edge->editor_rest_length_locked) goto done;
+            size_t ia=anchor_owner(object,poses,count,edge->anchor_a,&a);
+            size_t ib=anchor_owner(object,poses,count,edge->anchor_b,&b);
+            if(ia==SIZE_MAX || ib==SIZE_MAX) goto done;
+            placement_group_resolve(poses,count,placement_root(poses,ib));
+        }
+    } else for(size_t i=0;i<driver_count;++i) {
+        size_t index=pose_find(poses,count,drivers[i]);
+        if(index!=SIZE_MAX) placement_group_resolve(poses,count,placement_root(poses,index));
+    }
+    bool progress, affected=false;
+    do {
+        progress=false;
+        for(size_t j=0;j<object->joint_count;++j) {
+            EditorJoint *edge=&object->joint_items[j];
+            if(edge->kind==EDITOR_JOINT_SPRING && !edge->editor_rest_length_locked) continue;
+            Position a,b;
+            size_t ia=anchor_owner(object,poses,count,edge->anchor_a,&a);
+            size_t ib=anchor_owner(object,poses,count,edge->anchor_b,&b);
+            if(ia==SIZE_MAX || ib==SIZE_MAX || (!poses[ia].selected && !poses[ib].selected)) continue;
+            affected=true;
+            result.joint=edge->id;
+            if(poses[ia].selected && poses[ib].selected) {
+                if(!placement_edge_satisfied_check(edge,a,b,poses[ia].angle,poses[ib].angle)) {
+                    snprintf(result.reason,sizeof(result.reason),"conflicting connected joint poses"); goto blocked;
+                }
+                continue;
+            }
+            bool a_drives=poses[ia].selected;
+            size_t driven=a_drives?ib:ia, driver=a_drives?ia:ib;
+            Position pivot=a_drives?b:a, destination=a_drives?a:b;
+            float rotation=0;
+            if(edge->kind==EDITOR_JOINT_WELD)
+                rotation=(float)remainder((double)poses[driver].angle+
+                    (a_drives?edge->rest_angle:-edge->rest_angle)-poses[driven].angle,360);
+            if(edge->kind==EDITOR_JOINT_SPRING) {
+                double dx=(double)pivot.x-destination.x,dy=(double)pivot.y-destination.y;
+                double length=hypot(dx,dy);
+                if(length<=.000001) { dx=0;dy=a_drives?-1:1;length=1; }
+                destination.x+=(float)(dx/length*edge->rest_length);
+                destination.y+=(float)(dy/length*edge->rest_length);
+            }
+            placement_group_move(object,poses,count,placement_root(poses,driven),pivot,destination,rotation);
+            progress=true;
+        }
+    } while(progress);
+    if(!affected && !project_axes) goto done;
+    if(project_axes && !placement_drag_project_check(object, poses, count)) {
+        snprintf(result.reason, sizeof(result.reason), "incompatible axis constraints");
+        goto blocked;
+    }
+    for(size_t i=0;i<count;++i) {
+        EditorPlacementPose *pose=&poses[i];
+        bool moved=!same_position(pose->before,pose->position) || !same_angle(pose->before_angle,pose->angle);
+        if(!pose->selected || !moved) continue;
+        result.blocker=pose->reference;
+        bool directly_edited=false;
+        for(size_t d=0;d<driver_count;++d) {
+            size_t index=pose_find(poses,count,drivers[d]);
+            if(index!=SIZE_MAX && placement_root(poses,index)==placement_root(poses,i)) directly_edited=true;
+        }
+        if(pose->fixed && !directly_edited) {
+            snprintf(result.reason,sizeof(result.reason),"fixed world anchor cannot move"); goto blocked;
+        }
+        if(pose->rotation_locked && !same_angle(pose->angle,pose->before_angle)) {
+            snprintf(result.reason,sizeof(result.reason),"rotation lock prevents placement"); goto blocked;
+        }
+        Position world={object->position.x+pose->position.x,object->position.y+pose->position.y};
+        if(!rohr_physics_world_position_check(world) || !isfinite(pose->angle)) {
+            snprintf(result.reason,sizeof(result.reason),"transform exceeds the supported world range"); goto blocked;
+        }
+        const ObjectEntitySettings *settings=pose->settings;
+        if(settings->axis_lock_enabled) {
+            Position point=settings->axis_lock.point_on_axis;
+            if(!settings->axis_lock_world_fixed) { point.x+=object->position.x;point.y+=object->position.y; }
+            Vec2D axis=settings->axis_lock.axis;double length=hypot(axis.x,axis.y);
+            if(!length || fabs(((double)world.x-point.x)*axis.y-((double)world.y-point.y)*axis.x)/length>.0001) {
+                snprintf(result.reason,sizeof(result.reason),"axis lock prevents placement");goto blocked;
+            }
+        }
+    }
+    for(size_t i=0;i<count;++i) {
+        const ObjectEntitySettings *settings=poses[i].settings;
+        if(!settings->transform_driver.id) continue;
+        size_t driver=pose_find(poses,count,settings->transform_driver);
+        if(driver==SIZE_MAX) {
+            if(poses[i].selected) { snprintf(result.reason,sizeof(result.reason),"transform driver is unavailable");goto blocked; }
+            continue;
+        }
+        if(!poses[i].selected && !poses[driver].selected) continue;
+        if((settings->transform_position && !same_position(poses[i].position,
+                offset_position(poses[driver].position,settings->transform_offset,poses[driver].angle))) ||
+                (settings->transform_orientation && !same_angle(poses[i].angle,poses[driver].angle+settings->transform_angle))) {
+            result.blocker=poses[i].reference;
+            snprintf(result.reason,sizeof(result.reason),"transform-driver lock prevents placement");goto blocked;
+        }
+    }
+#define EXTERNAL(array, amount, owner) \
+    for(size_t i=0;i<(amount);++i) if(!external_lock_check(poses,count,&(array)[i].entity_settings,owner)) { \
+        snprintf(result.reason,sizeof(result.reason),"placement would move an external locked attachment");goto blocked; }
+    ObjectEntityReference root={OBJECT_CONTAINER,object->id,0};
+    EXTERNAL(object->joint_items,object->joint_count,root)
+    EXTERNAL(object->force_items,object->force_count,root)
+    EXTERNAL(object->torque_items,object->torque_count,root)
+    EXTERNAL(object->cameras,object->camera_count,root)
+    EXTERNAL(object->sprites,object->sprite_count,((ObjectEntityReference){OBJECT_BODY,object->sprites[i].rigid_body,0}))
+    EXTERNAL(object->animated_sprite_items,object->animated_sprite_count,((ObjectEntityReference){OBJECT_BODY,object->animated_sprite_items[i].rigid_body,0}))
+    for(size_t b=0;b<object->soft_body_count;++b) {
+        EditorSoftBody *body=&object->soft_body_items[b];ObjectEntityReference owner={OBJECT_SOFT_BODY,body->id,0};
+        EXTERNAL(body->beams,body->beam_count,owner)
+        EXTERNAL(body->areas,body->area_count,owner)
+    }
+#undef EXTERNAL
+    for(size_t i=0;i<object->rigid_body_count;++i) {
+        EditorRigidBody *body=&object->rigid_bodies[i];size_t index=pose_find(poses,count,(ObjectEntityReference){OBJECT_BODY,body->id,0});
+        if(poses[index].selected) {body->position=poses[index].position;body->rotation=poses[index].angle;}
+    }
+    for(size_t i=0;i<object->soft_body_count;++i) {
+        EditorSoftBody *body=&object->soft_body_items[i];size_t index=pose_find(poses,count,(ObjectEntityReference){OBJECT_SOFT_BODY,body->id,0});
+        if(poses[index].selected) {body->position=poses[index].position;body->rotation=poses[index].angle;}
+    }
+    /* Unattached anchors have no parent transform to carry the projection. */
+    for(size_t i=0;i<object->anchor_count;++i) {
+        EditorAnchor *anchor=&object->anchors[i];
+        size_t index=pose_find(poses,count,(ObjectEntityReference){OBJECT_ANCHOR,anchor->id,0});
+        if(poses[index].selected && poses[index].attachment==SIZE_MAX)
+            anchor->position=poses[index].position;
+    }
+    goto done;
+blocked:
+    result.blocked=true;
+done:
+    free(poses);free(old);return result;
+}
+
+EditorSpringGuide editor_project_spring_guide_get(Position a, Position b, float rest_length) {
+    EditorSpringGuide guide={.start=a,.end=b};
+    if(!isfinite(rest_length) || rest_length<0) return guide;
+    double dx=(double)b.x-a.x,dy=(double)b.y-a.y,length=hypot(dx,dy);
+    guide.length=(float)length;
+    if(length<=.000001) {dx=0;dy=1;length=1;}
+    double cx=((double)a.x+b.x)*.5,cy=((double)a.y+b.y)*.5;
+    guide.rest_start=(Position){(float)(cx-dx/length*rest_length*.5),(float)(cy-dy/length*rest_length*.5)};
+    guide.rest_end=(Position){(float)(cx+dx/length*rest_length*.5),(float)(cy+dy/length*rest_length*.5)};
+    guide.stretched=guide.length>rest_length+.0001f;
+    guide.compressed=guide.length<rest_length-.0001f;
+    return guide;
+}
+
+/* Connectivity for choosing one driver per component when rotating selected
+ * bodies about their own handles. Ordinary group transforms retain every driver. */
+bool editor_project_joint_connected_check(EditorObject *object,
+        ObjectEntityReference first, ObjectEntityReference second) {
+    if(!object) return false;
+    size_t count;EditorPlacementPose *poses=placement_poses_create(object,&count);
+    if(!poses) return false;
+    size_t a=pose_find(poses,count,first),b=pose_find(poses,count,second);
+    bool connected=false;
+    if(a==SIZE_MAX || b==SIZE_MAX) goto done;
+    placement_group_resolve(poses,count,placement_root(poses,a));
+    bool changed;
+    do {
+        changed=false;
+        for(size_t j=0;j<object->joint_count;++j) {
+            const EditorJoint *edge=&object->joint_items[j];Position pa,pb;
+            if(edge->kind==EDITOR_JOINT_SPRING && !edge->editor_rest_length_locked) continue;
+            size_t ia=anchor_owner(object,poses,count,edge->anchor_a,&pa);
+            size_t ib=anchor_owner(object,poses,count,edge->anchor_b,&pb);
+            if(ia==SIZE_MAX || ib==SIZE_MAX || poses[ia].selected==poses[ib].selected) continue;
+            placement_group_resolve(poses,count,placement_root(poses,poses[ia].selected?ib:ia));changed=true;
+        }
+    } while(changed);
+    connected=poses[b].selected;
+done:
+    free(poses);return connected;
 }

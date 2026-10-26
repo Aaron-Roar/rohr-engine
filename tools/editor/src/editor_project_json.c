@@ -437,6 +437,7 @@ static yyjson_mut_val *editor_json_joint_write(yyjson_mut_doc *document,
     yyjson_mut_obj_add_real(document, value, "stiffness", joint->stiffness);
     yyjson_mut_obj_add_real(document, value, "damping", joint->damping);
     yyjson_mut_obj_add_real(document, value, "rest_angle", joint->rest_angle);
+    yyjson_mut_obj_add_bool(document, value, "editor_rest_length_locked", joint->editor_rest_length_locked);
     yyjson_mut_obj_add_bool(document, value, "rest_length_explicit", joint->rest_length_explicit);
     yyjson_mut_obj_add_bool(document, value, "rest_angle_explicit", joint->rest_angle_explicit);
     yyjson_mut_obj_add_real(document, value, "visual_size", joint->visual_size);
@@ -1444,6 +1445,8 @@ static bool editor_json_joint_read(yyjson_val *value, EditorJoint *joint,
             !editor_json_graphics_layer_binding_read(value,
                 &joint->graphics_layer)) return false;
     /* Legacy projects already contain resolved rest values; retain them. */
+    if(yyjson_obj_get(value, "editor_rest_length_locked") &&
+            !editor_json_bool(value, "editor_rest_length_locked", &joint->editor_rest_length_locked)) return false;
     joint->rest_length_explicit = joint->rest_angle_explicit = true;
     if((yyjson_obj_get(value, "rest_length_explicit") &&
             !editor_json_bool(value, "rest_length_explicit", &joint->rest_length_explicit)) ||

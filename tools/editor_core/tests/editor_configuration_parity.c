@@ -355,8 +355,9 @@ static void authored_placement(void) {
     o = &p.objects[0]; a = editor_project_rigid_body_get(o, a_id); joint = &o->joint_items[0];
     assert(a->position.x == 2);
     a->static_body = true;
-    assert(!editor_project_joint_place(o, joint));
-    assert(a->position.x == 2 && a->position.y == 3);
+    assert(editor_project_joint_place(o, joint)); /* Static is simulation-only in the editor. */
+    assert(a->position.x == 19 && a->position.y == 30 && a->static_body);
+    a->position = (Position){2,3};
     a->static_body = false;
     a->entity_settings.axis_lock_enabled = true;
     a->entity_settings.axis_lock = (AxisLockDescription){.axis = {1, 0}, .point_on_axis = {0, 3}};

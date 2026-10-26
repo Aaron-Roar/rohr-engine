@@ -8,6 +8,7 @@
 #include "entity/object_visuals.h"
 
 #include <math.h>
+#include <float.h>
 #include <limits.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -23,19 +24,21 @@ bool editor_mode_checkbox_mixed(const char *id, TextAsset *label, UIRect bounds,
     rohr_ui_label(label, (UIRect){bounds.x + 32,bounds.y,bounds.width - 32,bounds.height});
     return result.clicked;
 }
-UIFieldResult editor_mode_mixed_number_field(EditorMixedNumberField *state,
+static UIFieldResult number_commit_field(EditorMixedNumberField *state,
         const char *id, TextAsset *display, UIRect bounds, bool mixed, float *value,
-        float minimum, float maximum) {
+        float minimum, float maximum, bool commit_on_blur) {
     if(state == NULL || value == NULL) return (UIFieldResult){0};
     if(!state->active) {
         if(mixed) snprintf(state->text, sizeof(state->text), "Mixed");
         else snprintf(state->text, sizeof(state->text), "%.9g", (double)*value);
     }
+    bool was_active = state->active;
     UIFieldResult result = editor_mode_field(id, (UIFieldBinding){.kind = UI_FIELD_STRING,
         .string = state->text, .string_capacity = sizeof(state->text)}, display, bounds, NULL);
-    state->active = result.active && !result.submitted;
+    bool cancelled = rohr_ui_key_pressed_check(SDLK_ESCAPE);
+    state->active = result.active && !result.submitted && !cancelled;
     result.changed = false;
-    if(result.submitted) {
+    if(!cancelled && (result.submitted || (commit_on_blur && was_active && !result.active))) {
         char *end = NULL;
         float entered = strtof(state->text, &end);
         if(end != state->text && *end == '\0' && isfinite(entered) &&
@@ -44,6 +47,16 @@ UIFieldResult editor_mode_mixed_number_field(EditorMixedNumberField *state,
         }
     }
     return result;
+}
+
+UIFieldResult editor_mode_mixed_number_field(EditorMixedNumberField *state,
+        const char *id, TextAsset *display, UIRect bounds, bool mixed, float *value,
+        float minimum, float maximum) {
+    return number_commit_field(state,id,display,bounds,mixed,value,minimum,maximum,false);
+}
+UIFieldResult editor_mode_number_blur_field(EditorMixedNumberField *state,
+        const char *id, TextAsset *display, UIRect bounds, float *value) {
+    return number_commit_field(state,id,display,bounds,false,value,-FLT_MAX,FLT_MAX,true);
 }
 
 static float editor_mode_accordion_measured_bottom;

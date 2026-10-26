@@ -68,7 +68,7 @@ static const CliHelpDomain cli_help_domains[] = {
         "auto-shape <shape> <triangle-kind> <width> <height> <radius> <apex-offset>",
         "--body chassis --hitbox chassis_hitbox --property visibility true", 2},
     {"--joint", "joint", "visibility <true|false>, kind <revolute|weld|spring>, "
-        "visual-size <0.25..3>, rest-length <number>, stiffness <number>, "
+        "visual-size <0.25..3>, rest-length <number>, stiffness <number>, lock-editor-restlength <true|false>, "
         "damping <number>, anchor-a <anchor|none>, anchor-b <anchor|none>",
         "--joint suspension --property stiffness 40", 1},
     {"--anchor", "anchor", "position <x> <y>, rotation <degrees>, "
@@ -265,7 +265,8 @@ static void cli_usage_print(void) {
         "  Example: rohr-cli --body chassis --property position 10 20\n"
         "  Entity settings: lifetime-time-enabled, lifetime-time, lifetime-tick,\n"
         "    angular-acceleration, angular-maximum, gameplay-target, axis-lock-enabled,\n"
-        "    transform-driver and transform-position (see docs/description_api_contract.md)\n"
+        "    axis-angle (clockwise from +Y), axis-point-x/y, transform-driver,\n"
+        "    transform-position (see docs/description_api_contract.md)\n"
         "  Explicit placement: rohr-cli joint place <project-file> <object-id> <joint-id>\n"
         "  Audio recipe: rohr-cli audio add <project-file> <music-bool> <name> <asset-path>\n"
         "  Application window: rohr-cli application-window set <project-file>\n"
@@ -628,6 +629,9 @@ static int cli_object_command(int count, char **arguments) {
     if(command_result.kind == ERROR_RESULT_ERROR)
         return cli_error((EditorResult){.kind = ERROR_RESULT_ERROR,
             .result.error = command_result.result.error});
+    if(command_result.placement.blocked)
+        fprintf(stderr,"Joint %u placement blocked; setting retained: %s\n",
+            command_result.placement.joint,command_result.placement.reason);
     if(command.type == EDITOR_COMMAND_OBJECT_ADD)
         printf("added object %u\n", command_result.result.object);
     document.dirty = true;

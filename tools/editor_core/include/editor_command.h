@@ -88,7 +88,8 @@ typedef enum EditorCommandType {
     EDITOR_COMMAND_AUDIO_SET,
     EDITOR_COMMAND_AUDIO_REMOVE,
     EDITOR_COMMAND_JOINT_PLACE,
-    EDITOR_COMMAND_LAYER_SET
+    EDITOR_COMMAND_LAYER_SET,
+    EDITOR_COMMAND_TRANSFORM_BATCH
 } EditorCommandType;
 
 typedef enum EditorItemKind {
@@ -213,6 +214,7 @@ typedef enum EditorPropertyKind {
     EDITOR_PROPERTY_JOINT_KIND,
     EDITOR_PROPERTY_REST_LENGTH,
     EDITOR_PROPERTY_REST_LENGTH_EXPLICIT,
+    EDITOR_PROPERTY_EDITOR_REST_LENGTH_LOCKED,
     EDITOR_PROPERTY_REST_ANGLE,
     EDITOR_PROPERTY_REST_ANGLE_EXPLICIT,
     EDITOR_PROPERTY_FOLLOW_POSITION,
@@ -268,7 +270,8 @@ typedef enum EditorPropertyKind {
     EDITOR_PROPERTY_TEXT_ROTATION,
     EDITOR_PROPERTY_RENDER_SIZE_EXPLICIT,
     EDITOR_PROPERTY_RENDER_WIDTH,
-    EDITOR_PROPERTY_RENDER_HEIGHT
+    EDITOR_PROPERTY_RENDER_HEIGHT,
+    EDITOR_PROPERTY_AXIS_ANGLE
 } EditorPropertyKind;
 
 typedef enum EditorPropertyValueKind {
@@ -368,7 +371,14 @@ typedef struct EditorSourceCommand {
 
 typedef struct EditorCommand {
     EditorCommandType type;
+    /* Pointer transforms project onto axis constraints and fail silently in UI. */
+    bool pointer_transform;
     union {
+        struct {
+            EditorObjectId object;
+            const struct EditorCommand *commands;
+            size_t count;
+        } transform_batch;
         EditorSourceCommand source;
         struct {
             char name[EDITOR_OBJECT_NAME_MAX];
@@ -568,7 +578,11 @@ typedef struct EditorCommand {
     } data;
 } EditorCommand;
 
+EditorObjectId editor_command_placement_target_get(const EditorCommand *command,
+    ObjectEntityReference *driver, EditorJointId *joint, bool *transform);
+
 typedef struct EditorCommandResult {
+    EditorJointPlacementResult placement;
     ErrorResultKind kind;
     union {
         EditorObjectId object;

@@ -18,6 +18,10 @@ UIFieldResult editor_mode_mixed_number_field(EditorMixedNumberField *state,
     const char *id, TextAsset *display, UIRect bounds, bool mixed, float *value,
     float minimum, float maximum);
 
+/** Commit on Enter or focus loss; Escape discards the draft. */
+UIFieldResult editor_mode_number_blur_field(EditorMixedNumberField *state,
+    const char *id, TextAsset *display, UIRect bounds, float *value);
+
 typedef struct EditorModeTextCache {
     TextAsset *labels;
     char (*values)[EDITOR_OBJECT_NAME_MAX];

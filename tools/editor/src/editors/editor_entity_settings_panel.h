@@ -16,6 +16,9 @@ typedef struct EditorEntityReferenceOption {
 typedef struct EditorEntitySettingsPanel {
     FontAsset *font;
     EditorModeAccordionSection sections[5];
+    TextAsset axis_hint;
+    EditorMixedNumberField axis_fields[3];
+    EditorSelectionRef axis_selection;
     TextAsset labels[EDITOR_ENTITY_SETTING_COUNT], fields[EDITOR_ENTITY_SETTING_COUNT];
     EditorEntityReferenceOption *references;
     const TextAsset **options;

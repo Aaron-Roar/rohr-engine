@@ -665,11 +665,23 @@ static void editor_operation_command_finished(const EditorCommand *command,
     if(command != NULL && result != NULL && result->kind == ERROR_RESULT_VALUE &&
             editor_command_named_text_invalidates(command->type))
         editor_mode_named_text_clear_all();
-    if(notifications != NULL && result != NULL &&
-            result->kind == ERROR_RESULT_ERROR) {
-        EditorResult error = {.kind = ERROR_RESULT_ERROR,
-            .result.error = result->result.error};
-        editor_error_notification_failure(notifications, "Editor command", error);
+    static char last_placement_error[256];
+    if(command && command->pointer_transform) return;
+    if(result && result->placement.blocked) {
+        char message[256];
+        snprintf(message,sizeof(message),"%s at joint %u: %s",
+            result->kind==ERROR_RESULT_ERROR?"Transform rejected":"Placement blocked; setting retained",
+            result->placement.joint,result->placement.reason);
+        if(strcmp(last_placement_error,message)!=0) {
+            snprintf(last_placement_error,sizeof(last_placement_error),"%s",message);
+            editor_error_notification_failure(notifications,"Joint placement",
+                editor_result_error(EDITOR_ERROR_INVALID_ARGUMENT,"%s",message));
+        }
+    } else {
+        last_placement_error[0]='\0';
+        if(notifications && result && result->kind==ERROR_RESULT_ERROR)
+            editor_error_notification_failure(notifications,"Editor command",
+                (EditorResult){.kind=ERROR_RESULT_ERROR,.result.error=result->result.error});
     }
 }
 

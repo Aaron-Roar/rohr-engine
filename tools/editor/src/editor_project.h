@@ -257,6 +257,7 @@ typedef struct EditorJoint {
     float damping;
     float rest_angle;
     bool rest_length_explicit, rest_angle_explicit;
+    bool editor_rest_length_locked;
     float visual_size;
     bool visible;
     /** Runtime rendering only; zero initialization means visible in app. */
@@ -956,6 +957,25 @@ void editor_project_anchor_constraints_apply(EditorObject *object, EditorAnchorI
 void editor_project_rigid_body_constraints_apply(EditorObject *object,
     EditorRigidBodyId rigid_body);
 bool editor_project_joint_place(EditorObject *object, EditorJoint *joint);
+typedef struct EditorSpringGuide {
+    Position start, end, rest_start, rest_end;
+    float length;
+    bool stretched, compressed;
+} EditorSpringGuide;
+EditorSpringGuide editor_project_spring_guide_get(Position a, Position b, float rest_length);
+
+typedef struct EditorJointPlacementResult {
+    bool blocked;
+    EditorJointId joint;
+    ObjectEntityReference blocker;
+    char reason[160];
+} EditorJointPlacementResult;
+EditorJointPlacementResult editor_project_joints_resolve(EditorObject *object,
+    const EditorObject *before, const ObjectEntityReference *drivers, size_t driver_count,
+    EditorJointId configured_joint, bool project_axes);
+bool editor_project_joint_connected_check(EditorObject *object,
+    ObjectEntityReference first, ObjectEntityReference second);
+void editor_project_placement_poses_restore(EditorObject *object, const EditorObject *before);
 bool editor_project_joint_remove(EditorObject *object, EditorJointId id);
 EditorAnchor *editor_project_anchor_add(EditorProject *project, EditorObject *object,
     Position position, EditorRigidBodyId rigid_body);

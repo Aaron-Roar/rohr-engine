@@ -5,6 +5,8 @@
 #include "panels/editor_application_settings_panel.h"
 #include "editor_navigation.h"
 #include <assert.h>
+#include <math.h>
+#include <SDL3/SDL.h>
 #include <string.h>
 
 float editor_viewport_width = 1024, editor_window_width = 1280;
@@ -71,6 +73,47 @@ int main(void) {
     assert(editor_history_undo(&history));
     assert(!p.objects[0].entity_settings.lifetime.deadline.time_enabled);
     assert(p.objects[0].rigid_bodies[0].entity_settings.lifetime.deadline.time_enabled);
+    /* The axis UI edits one clockwise angle from +Y, backed by the API vector. */
+    assert(editor_navigation_selected_open(&p, &state));
+    for(size_t i=0;i<5;++i) editor_mode_accordion_section_expanded_set(&entity.sections[i],false);
+    editor_mode_accordion_section_expanded_set(&entity.sections[3],true);
+    body=&p.objects[0].rigid_bodies[0];body->entity_settings.axis_lock_enabled=true;
+    body->entity_settings.axis_lock.axis=(Axis){0,1};
+    body->entity_settings.axis_lock.point_on_axis=(Position){12,34};
+    entity_click(&entity,&context,(Position){220,222});
+    SDL_Event select={.type=SDL_EVENT_KEY_DOWN};select.key.key=SDLK_A;select.key.mod=SDL_KMOD_CTRL;
+    rohr_ui_field_event_add(&select);
+    SDL_Event text={.text={.type=SDL_EVENT_TEXT_INPUT,.text="45"}};rohr_ui_field_event_add(&text);
+    entity_frame(&entity,&context,(Position){220,222},MOUSE_BUTTON_STATE_UP);
+    assert(body->entity_settings.axis_lock.axis.x==0 && body->position.x==0);
+    SDL_Event enter={.type=SDL_EVENT_KEY_DOWN};enter.key.key=SDLK_RETURN;enter.key.mod=SDL_KMOD_NONE;rohr_ui_field_event_add(&enter);
+    entity_frame(&entity,&context,(Position){220,222},MOUSE_BUTTON_STATE_UP);
+    body=&p.objects[0].rigid_bodies[0];
+    assert(fabsf(body->entity_settings.axis_lock.axis.x-.70710678f)<.0001f);
+    assert(fabsf(body->entity_settings.axis_lock.axis.y-.70710678f)<.0001f);
+    assert(body->entity_settings.axis_lock.point_on_axis.x==12 && body->entity_settings.axis_lock.point_on_axis.y==34);
+    assert(fabsf(body->position.x+11)<.0001f && fabsf(body->position.y-11)<.0001f);
+    assert(editor_history_undo(&history));body=&p.objects[0].rigid_bodies[0];
+    assert(body->entity_settings.axis_lock.axis.x==0 && body->entity_settings.axis_lock.axis.y==1);
+    assert(body->position.x==0 && body->position.y==0);
+    assert(editor_history_redo(&history));
+    /* Shift commits on blur; draft typing and Escape do not move geometry. */
+    entity_click(&entity,&context,(Position){220,256});
+    rohr_ui_field_event_add(&select);text.text.text="56";rohr_ui_field_event_add(&text);
+    entity_frame(&entity,&context,(Position){220,256},MOUSE_BUTTON_STATE_UP);
+    body=&p.objects[0].rigid_bodies[0];assert(body->entity_settings.axis_lock.point_on_axis.x==12);
+    entity_click(&entity,&context,(Position){410,350});
+    assert(body->entity_settings.axis_lock.point_on_axis.x==56);
+    assert(fabsf(body->position.x-11)<.0001f && fabsf(body->position.y+11)<.0001f);
+    assert(editor_history_undo(&history));assert(editor_history_redo(&history));
+    body=&p.objects[0].rigid_bodies[0];
+    entity_click(&entity,&context,(Position){220,256});
+    rohr_ui_field_event_add(&select);text.text.text="99";rohr_ui_field_event_add(&text);
+    entity_frame(&entity,&context,(Position){220,256},MOUSE_BUTTON_STATE_UP);
+    SDL_Event escape={.key={.type=SDL_EVENT_KEY_DOWN,.key=SDLK_ESCAPE,.mod=SDL_KMOD_NONE}};
+    rohr_ui_field_event_add(&escape);entity_frame(&entity,&context,(Position){220,256},MOUSE_BUTTON_STATE_UP);
+    entity_click(&entity,&context,(Position){410,350});
+    assert(body->entity_settings.axis_lock.point_on_axis.x==56);
     EditorApplicationSettingsPanel app; assert(editor_application_settings_panel_create(&app, &font));
     app.open = true;
     app_click(&app, &p, (Position){460, 74}); assert(p.application_window_enabled);

@@ -464,9 +464,9 @@ returning. The original failed fixture remains available for comparison.
 |---|---|---|
 | 1. Composition and presentation | The left/right screens have different rotation, placement and resolution. The left screen extends past the viewport edge and clips. The red bar draws over the left screen but under the right; the green panel stays above both. Text wraps, rotates and clips. Resize wider/taller without losing content or distorting aspect. In the viewport editor, move/rotate a screen and change camera zoom/content transforms; placement and content remain independent after rebuilding. | PASS after corrective retests: runtime layering, text wrapping/rotation/clipping, resizing, Sway stability and camera zoom were accepted earlier. The user then confirmed PASS for the corrected camera preview and rotated clipping. Earlier screen-editor failures are resolved. |
 | 2. Visuals and visibility | Inspect `push_marker`, `spin_marker`, pin/weld/spring, the mirrored sprite, playing animations and `empty_animation`. Spring endpoints have different colors/scales/offsets. Toggle editor eyes separately from Visible in App, including the parent; rebuild and verify only app visibility affects runtime drawing and hidden bodies still simulate. Restore parent visibility without changing child settings. Empty animation must not prevent rendering. | Pending |
-| 3. Editor interaction | Select geometry, drag from the selecting press, use child-selection and rotation handles, and undo/redo each gesture. Pick force targets/references from menus and the viewport, checking hover highlights. Scroll a long selector; check modal menus do not move underlying items. Drag the slider thumb without moving its parent. Rename via Enter/Escape and confirm subsequent keyboard navigation works. | User-reported failures: oversized force/torque picking, persistent/overlapping child panels, first-element activation, object/joint scrolling, and delayed joint clamping. C6 panel lifecycle/scrolling and C8 source picking complete with user acceptance; C14 and broader interaction retests pending. |
+| 3. Editor interaction | Select geometry, drag from the selecting press, use child-selection and rotation handles, and undo/redo each gesture. Pick force targets/references from menus and the viewport, checking hover highlights. Scroll a long selector; check modal menus do not move underlying items. Drag the slider thumb without moving its parent. Rename via Enter/Escape and confirm subsequent keyboard navigation works. | User-reported failures: oversized force/torque picking, persistent/overlapping child panels, first-element activation, object/joint scrolling, and delayed joint clamping. C6 panel lifecycle/scrolling and C8 source picking complete with user acceptance; C14 immediate joint/axis placement and spring controls complete with user acceptance; broader interaction retests remain pending. |
 | 4. Input and audio | Exercise the starter's configured logical input actions and text entry without unintended gameplay input while editing. Run the installed-SDK `audio` example: Play Water Splash produces sound; music play/pause/resume and track switching work; Quit/escape shuts down. Review window size/aspect settings. Muted description defaults and queued/applied audio state retain their automated fixture evidence; silent startup alone is not proof of muted playback. | Pending |
-| 5. Project lifecycle and delivery | Build/run the application and Simulate Scene. The application includes direct-API extras; scene simulation contains authored objects. Verify run/pause/stop, return to Editor, close/reopen/reorder tabs through View, rebuild a visible edit and replay. Close/switch a project during an active build and verify cancellation; terminal interrupt reaches the subprocess. Launch installed-SDK artifacts outside their source directories. | User-reported failures: relocation, repeat builds, missing CMake recovery, generation diagnostics, and incomplete-joint generation. Startup error 21 reproduced in rohr-project-1. C1 diagnostics, C2 relocation/repeat builds, C3 missing CMake recovery, C4 partial-spawn startup, and C5 incomplete joints complete with verification below; C6 panel lifecycle/scrolling and C8 source picking also complete; C7 complete with its manual checks explicitly deferred; C9 complete with the additional panel check explicitly skipped; C10 directional response and C11 explicit migration complete; C12 explicit motion authoring complete (including whole-body motion added at final review); C13 whole-body node physics complete; C14 and broader interactive retests pending. |
+| 5. Project lifecycle and delivery | Build/run the application and Simulate Scene. The application includes direct-API extras; scene simulation contains authored objects. Verify run/pause/stop, return to Editor, close/reopen/reorder tabs through View, rebuild a visible edit and replay. Close/switch a project during an active build and verify cancellation; terminal interrupt reaches the subprocess. Launch installed-SDK artifacts outside their source directories. | User-reported failures: relocation, repeat builds, missing CMake recovery, generation diagnostics, and incomplete-joint generation. Startup error 21 reproduced in rohr-project-1. C1 diagnostics, C2 relocation/repeat builds, C3 missing CMake recovery, C4 partial-spawn startup, and C5 incomplete joints complete with verification below; C6 panel lifecycle/scrolling and C8 source picking also complete; C7 complete with its manual checks explicitly deferred; C9 complete with the additional panel check explicitly skipped; C10 directional response and C11 explicit migration complete; C12 explicit motion authoring complete (including whole-body motion added at final review); C13 whole-body node physics complete; C14 complete; C15/C16 and broader interactive retests remain pending. |
 
 Preparation evidence (2026-10-21): full Linux build and **111/111 CTest tests
 pass**, including the installed-SDK comparisons and scene/build lifecycle
@@ -545,7 +545,7 @@ each pursued goal needs its own relevant checks and interactive retest.
 | Soft-body Physics lacks collision, gravity, and motion controls | C12 motion and C13 gravity/collision/materials complete; body edits change only the selected property or mask bit on nodes and new-node defaults; later per-node edits remain available |
 | Other child editors also remain after returning to top level | C6 |
 | Object joint editor does not scroll | C6 |
-| Joint clamping waits for a later movement | C14; update on property edits and continuously during dragging, with one undo step per gesture |
+| Joint clamping waits for a later movement | C14 complete; immediate property/axis commits and connected dragging, atomic constraints, one undo step per gesture, and user acceptance |
 | Render Layer belongs in Appearance, not Transform | C9 |
 | Anchors and other editor visuals lack a layer option | C9 |
 | Opening an element blocks object scrolling and leaves overlaying controls | C6 |
@@ -2464,4 +2464,81 @@ over an in-progress user review project.
 Verification logs are `/tmp/c13_final_tests.log`, `/tmp/c13_launch_retests.log`,
 `/tmp/c13_sanitizer_tests.log`, `/tmp/c13_windows_build.log`,
 `/tmp/c13_generated_windows.log`, and `/tmp/c13_examples.log`.
-C7/C9 review exceptions remain unchanged. C14 remains unimplemented.
+C7/C9 review exceptions remain unchanged. C14 implementation and review follow.
+
+
+**C14 complete — immediate joint placement and spring editing aids:**
+
+Editor and CLI joint configuration commands resolve complete pin/weld and
+explicitly locked spring connections immediately. Physical transforms move
+connected geometry atomically, including soft-body node attachments and selected
+connected groups. Configuration failures retain the setting and report the
+constraint without changing geometry. Impossible pointer steps are silent;
+diagonal dragging retains its allowed projection onto custom shifted axis lines.
+Static has no effect on editor movement. Runtime low-level setters and creation,
+explicit runtime placement restrictions, and simulation behavior remain unchanged.
+
+The spring Parameters panel exposes **Lock Editor Rest Length** (default false),
+with command/history and CLI `lock-editor-restlength`. Project format 13 remains
+current and format 12 remains accepted; the optional boolean
+`editor_rest_length_locked` defaults false and rejects nonboolean input. Runtime
+format stays 10 and has no editor lock. Generated constructors/catalogs and file
+spawns retain saved poses and ordinary spring dynamics. Editor-only guides show a
+solid centered rest segment plus dotted stretched extensions, or a compressed
+spring plus a dotted full-rest ghost. Guides do not enlarge the hit region.
+
+Acceptance evidence (2026-10-26):
+
+1. **Immediate authoring:** `editor_joint_authoring` covers configuration,
+   endpoint completion, incompatible constraints, unchanged geometry on failure,
+   Static editing, body/node/anchor connections, and grouped transforms.
+2. **History and input:** state and pointer tests cover connected dragging,
+   one transaction per gesture, cancellation, undo/redo, rest-lock checkbox,
+   custom-axis projection, and atomic conflict refusal. Existing core/history
+   regressions cover selected connected rotation and unrelated orphan joints.
+3. **Spring behavior:** geometry assertions cover stretched/compressed/coincident
+   and zero-rest-length guides. Unlocked springs remain freely editable; enabling
+   the editor lock places immediately. Object-data duplication and project 12/13
+   round trips retain the flag without changing runtime motion.
+4. **Cross-path delivery:** `editor_joint_generated` builds an installed-SDK
+   application, scene, and assertion consumer. Direct constructors, generated
+   catalogs, and file catalogs spawn the saved rest-distance pose; a zero-stiffness
+   spring then changes length under prescribed velocity, proving the editor lock
+   does not constrain runtime physics. Repeated instances are independent.
+5. **Editor review:** PASS for joint/spring behavior in `/tmp/c14_editor_review_projected`, window
+   “C14 review - projected dragging”. Check JointPins/JointWeld immediate edits,
+   connected dragging and undo/redo; JointStatic editor movement; JointSpring
+   guides, lock, and save/reopen; and JointAxisLocked diagonal projection and
+   silent refusal. No image analysis is used. C15 error presentation and C16
+   numeric property locks are not implemented. Body-relative axis following is
+   explicitly deferred by the user; current arbitrary direction/point controls
+   are retained. The user requested a simpler axis UI after accepting the other
+   checks: Angle clockwise from +Y plus Shift X/Y replaces the vector-component
+   fields. Final review of `/tmp/c14_editor_review_commit` in “C14 final review -
+   axis commits”: **PASS**. Enter and focus loss commit and immediately place
+   connected geometry; typing drafts does not move geometry, and Escape cancels
+   the draft. `editor_configuration_controls` verifies these input paths and
+   undo/redo of both configuration and poses.
+
+Reproduce with `ctest --test-dir build -R '^editor_joint'` and an up-to-date
+installed SDK. Generate a fresh review project using dummy SDL video/audio and
+`build/tests/editor_joint_authoring_test /tmp/c14_editor_review_new`; never
+regenerate over an in-progress user review project.
+
+The final revision passed all 129 Linux tests and seven ASan/UBSan suites with
+leak detection, including the shared numeric controls and soft-body regressions. The Windows editor/CLI/tests and installed-SDK
+application/scene/consumer cross-built without compiler warnings. Four examples
+(COM, player-controller, soft-body, joints) built independently against both SDKs
+and passed Linux startup/interrupt checks outside their source directories.
+The generated Linux application and scene also passed startup/interrupt checks.
+Native Windows execution was not performed. Regeneration preserved developer
+main.c files and produced no tracked example changes; temporary generated
+sidecars were archived under `/tmp/c14_generation_sidecars`.
+
+Logs: `/tmp/c14_final_tests.log`, `/tmp/c14_sanitizer_tests.log`,
+`/tmp/c14_windows_build.log`, `/tmp/c14_generated_windows.log`,
+`/tmp/c14_generated_startup.log`, `/tmp/c14_examples.log`, and
+`/tmp/c14_cli_check.log`. The published CLI also verifies spring locks, Static
+editing, and immediate custom axis/shift placement with saved values. Documentation
+checks and `git diff --check` pass. C14 is complete; C15/C16 remain unstarted and
+C7/C9's existing review exceptions remain unchanged.

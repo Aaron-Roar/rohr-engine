@@ -387,7 +387,7 @@ contracts, and generated examples when a goal changes supported behavior.
     both platforms and passed Linux startup/interrupt checks. Native Windows
     execution was not performed. User review accepted C12 conditional on the
     whole-body motion addition, now implemented and verified without image
-    analysis. See the corrective issue mapping. C13 completion follows; C14 remains planned.
+    analysis. See the corrective issue mapping. C13 and C14 completion follow.
 13. [x] **C13 — Remaining soft-body Physics controls.** Expose Gravity,
     Collision, Category, Responds To, Friction, and Restitution at soft-body level.
     Motion was completed in C12. Each parent edit changes only that property on
@@ -408,12 +408,41 @@ contracts, and generated examples when a goal changes supported behavior.
     duplication UI explicitly deferred to later work. Existing object-data
     duplication is tested. No image analysis or developer-owned main.c changes.
     See the corrective issue mapping for the five acceptance cases and logs.
-14. [ ] **C14 — Immediate joint clamping.** Apply editor joint placement without
-    requiring an unrelated subsequent movement. Respect world/fixed anchors,
-    locks, connected groups, incomplete joints, and a single undo transaction
-    per gesture. Update placement both when joint properties change and
-    continuously while dragging connected geometry. Keep runtime low-level
-    joint creation non-moving unless placement is explicitly requested.
+14. [x] **C14 — Immediate joint clamping and spring editing aids.** Apply
+    editor placement immediately after joint configuration changes and while
+    dragging connected geometry. Preserve the active transform subject to axis
+    projection; connected geometry follows atomically. Static affects simulation
+    only and never prevents editor movement. Honor world anchors and existing
+    transform constraints. Project diagonal pointer movement onto custom axis
+    lines; silently refuse impossible drag steps. A blocked configuration edit
+    retains its setting and reports why placement failed without moving geometry.
+    Keep each gesture in one undo transaction. Springs stretch freely unless
+    their saved, editor-only rest-length lock is enabled. Draw centered solid
+    rest-length segments with dotted stretched extensions, or compressed springs
+    with dotted full-rest-length ghosts. Runtime creation/setters remain
+    non-moving; runtime spring physics and Static semantics remain unchanged.
+    Complete: Angle clockwise from +Y and Shift X/Y replace direction-component
+    fields; Enter/focus loss commits and immediately places geometry, while
+    Escape cancels drafts. CLI, persistence, history, generated construction, and
+    runtime separation pass. All 129 Linux tests and seven ASan/UBSan suites pass
+    with leak detection. Windows editor/CLI/tests and installed-SDK generated
+    application/scene/consumer cross-builds pass without compiler warnings. Four
+    examples build independently on both platforms and pass Linux startup checks.
+    Final user editor review: PASS. Native Windows execution was not performed.
+    No image analysis or developer-owned main.c changes. See the corrective issue
+    mapping for acceptance evidence and logs.
+15. [ ] **C15 — Shared editor error presentation.** Show affected items with
+    red exterior outlines, red column entries, and red borders on affected
+    fields. Reuse shared selection/panel systems and clear errors when resolved.
+    Drag refusals remain silent. Settle remaining details before implementation.
+16. [ ] **C16 — Numeric property locks.** Give every editable numeric field a
+    toggleable editor lock, including X, Y, and angle. Accordion-level locks
+    toggle all numeric children, such as Position locking both X and Y. Locks
+    constrain direct field edits and indirect changes from dragging, joint
+    placement, and other editor transforms; they remain independent of Static
+    simulation mode. Define persistence, mixed/bulk behavior, and history before
+    implementation. Body-relative axis references (origin/COM and following
+    orientation) are deferred; C14 retains the existing direction/point API.
 
 ### 5. Adversarial testing and hardening
 

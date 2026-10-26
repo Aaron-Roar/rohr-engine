@@ -280,6 +280,12 @@ static bool entity_setting_property_set(EditorProject *project,
         if(set->value_kind != EDITOR_PROPERTY_VALUE_##type) return false; \
         next.member = set->value.SETTING_##type; break;
     switch(set->property) {
+        case EDITOR_PROPERTY_AXIS_ANGLE: {
+            if(set->value_kind != EDITOR_PROPERTY_VALUE_FLOAT || !isfinite(set->value.number)) return false;
+            double angle = remainder((double)set->value.number, 360.0) * 0.017453292519943295;
+            next.axis_lock.axis = (Axis){(float)sin(angle), (float)cos(angle)};
+            break;
+        }
         EDITOR_ENTITY_SETTING_PROPERTIES(SETTING)
         default: return false;
     }
@@ -317,6 +323,20 @@ static EditorCommandResult editor_command_execute_internal(EditorProject *projec
             !editor_command_world_position_check(position))
         return editor_command_world_position_error();
     switch(command->type) {
+        case EDITOR_COMMAND_TRANSFORM_BATCH: {
+            if(!command->data.transform_batch.commands || !command->data.transform_batch.count)
+                return editor_command_error(editor_result_error(EDITOR_ERROR_INVALID_ARGUMENT,"Empty transform batch").result.error);
+            for(size_t i=0;i<command->data.transform_batch.count;++i) {
+                ObjectEntityReference driver;EditorJointId joint;bool transform;
+                const EditorCommand *part=&command->data.transform_batch.commands[i];
+                if(part->type==EDITOR_COMMAND_TRANSFORM_BATCH ||
+                        editor_command_placement_target_get(part,&driver,&joint,&transform)!=command->data.transform_batch.object || !transform)
+                    return editor_command_error(editor_result_error(EDITOR_ERROR_INVALID_ARGUMENT,"Invalid transform batch").result.error);
+                EditorCommandResult result=editor_command_execute_internal(project,part);
+                if(result.kind==ERROR_RESULT_ERROR) return result;
+            }
+            return (EditorCommandResult){.kind=ERROR_RESULT_VALUE};
+        }
         case EDITOR_COMMAND_SOURCE: return editor_source_command_execute(project, &command->data.source);
         case EDITOR_COMMAND_OBJECT_DUPLICATE: {
             EditorObject *copy = editor_project_object_duplicate(project, command->data.object_remove.object);
@@ -368,7 +388,7 @@ static EditorCommandResult editor_command_execute_internal(EditorProject *projec
                 return (EditorCommandResult){.kind = ERROR_RESULT_VALUE};
             body->position = command->data.rigid_body_transform.position;
             body->rotation = command->data.rigid_body_transform.rotation;
-            editor_project_rigid_body_constraints_apply(object, body->id);
+
             return (EditorCommandResult){.kind = ERROR_RESULT_VALUE};
         }
         case EDITOR_COMMAND_VERTEX_POSITION: {
@@ -415,7 +435,7 @@ static EditorCommandResult editor_command_execute_internal(EditorProject *projec
                 return (EditorCommandResult){.kind = ERROR_RESULT_VALUE};
             anchor->position = command->data.anchor_transform.position;
             anchor->rotation = command->data.anchor_transform.rotation;
-            editor_project_anchor_constraints_apply(object, anchor->id);
+
             return (EditorCommandResult){.kind = ERROR_RESULT_VALUE};
         }
         case EDITOR_COMMAND_SOFT_BODY_TRANSFORM: {
@@ -1331,8 +1351,9 @@ static EditorCommandResult editor_command_execute_internal(EditorProject *projec
                 } else goto property_invalid;
                 return (EditorCommandResult){.kind = ERROR_RESULT_VALUE};
             }
-            if(set->property >= EDITOR_PROPERTY_LIFETIME_TIME_ENABLED &&
-                    set->property <= EDITOR_PROPERTY_TRANSFORM_VELOCITY) {
+            if((set->property >= EDITOR_PROPERTY_LIFETIME_TIME_ENABLED &&
+                    set->property <= EDITOR_PROPERTY_TRANSFORM_VELOCITY) ||
+                    set->property == EDITOR_PROPERTY_AXIS_ANGLE) {
                 if(entity_setting_property_set(project, set))
                     return (EditorCommandResult){.kind = ERROR_RESULT_VALUE};
                 return editor_command_error(editor_result_error(EDITOR_ERROR_INVALID_ARGUMENT,
@@ -1574,6 +1595,9 @@ static EditorCommandResult editor_command_execute_internal(EditorProject *projec
                         set->value.integer <= (uint32_t)EDITOR_JOINT_SPRING) {
                     if(!editor_project_joint_kind_set(object, joint,
                             (EditorJointKind)set->value.integer)) goto property_invalid;
+                } else if(set->property == EDITOR_PROPERTY_EDITOR_REST_LENGTH_LOCKED &&
+                        set->value_kind == EDITOR_PROPERTY_VALUE_BOOL) {
+                    joint->editor_rest_length_locked = set->value.boolean;
                 } else if(set->property == EDITOR_PROPERTY_REST_LENGTH &&
                         set->value_kind == EDITOR_PROPERTY_VALUE_FLOAT &&
                         isfinite(set->value.number) && set->value.number >= 0.0f) {
@@ -1616,7 +1640,7 @@ static EditorCommandResult editor_command_execute_internal(EditorProject *projec
                     success = editor_project_anchor_rotation_lock_set(object, anchor,
                         set->value.boolean);
                 if(!success) goto property_invalid;
-                editor_project_anchor_constraints_apply(object, anchor->id);
+
             } else if(set->kind == EDITOR_ITEM_SOFT_AREA) {
                 EditorSoftArea *area = editor_soft_area_get(editor_soft_body_get(object, set->parent), set->item);
                 if(area == NULL) return editor_command_not_found("soft area", set->item);
@@ -1759,7 +1783,7 @@ property_invalid:
                     return editor_command_error(editor_result_error(
                         EDITOR_ERROR_INVALID_ARGUMENT,
                         "anchor rigid-body relationship is invalid").result.error);
-                editor_project_anchor_constraints_apply(object, anchor->id);
+
             } else if(set->kind == EDITOR_RELATIONSHIP_SOFT_BEAM_NODE) {
                 EditorSoftBody *body = editor_command_soft_body_get(object, set->parent);
                 EditorSoftBeam *beam = editor_command_soft_beam_get(body, set->item);
@@ -2614,12 +2638,105 @@ bool *editor_command_app_hidden_get(EditorProject *project, EditorItemKind kind,
     return NULL;
 }
 
+static bool axis_property_check(const EditorCommand *command) {
+    if(!command || command->type != EDITOR_COMMAND_PROPERTY_SET) return false;
+    EditorPropertyKind property = command->data.property_set.property;
+    return property == EDITOR_PROPERTY_AXIS_ANGLE ||
+        (property >= EDITOR_PROPERTY_AXIS_LOCK_ENABLED && property <= EDITOR_PROPERTY_AXIS_POINT_Y);
+}
+
+EditorObjectId editor_command_placement_target_get(const EditorCommand *command,
+        ObjectEntityReference *driver, EditorJointId *joint, bool *transform) {
+    if(!command || !driver || !joint || !transform) return 0;
+    *driver=(ObjectEntityReference){0}; *joint=0; *transform=false;
+    switch(command->type) {
+        case EDITOR_COMMAND_TRANSFORM_BATCH:
+            *transform=true; return command->data.transform_batch.object;
+        case EDITOR_COMMAND_RIGID_BODY_TRANSFORM:
+            *transform=true; *driver=(ObjectEntityReference){OBJECT_BODY,command->data.rigid_body_transform.body,0};
+            return command->data.rigid_body_transform.object;
+        case EDITOR_COMMAND_SOFT_BODY_TRANSFORM:
+            *transform=true; *driver=(ObjectEntityReference){OBJECT_SOFT_BODY,command->data.soft_body_transform.body,0};
+            return command->data.soft_body_transform.object;
+        case EDITOR_COMMAND_SOFT_NODE_POSITION:
+            *transform=true; *driver=(ObjectEntityReference){OBJECT_NODE,command->data.soft_node_position.node,command->data.soft_node_position.body};
+            return command->data.soft_node_position.object;
+        case EDITOR_COMMAND_ANCHOR_TRANSFORM:
+            *transform=true; *driver=(ObjectEntityReference){OBJECT_ANCHOR,command->data.anchor_transform.anchor,0};
+            return command->data.anchor_transform.object;
+        case EDITOR_COMMAND_RELATIONSHIP_SET: {
+            const EditorRelationshipSetCommand *set=&command->data.relationship_set;
+            if(set->kind==EDITOR_RELATIONSHIP_JOINT_ANCHOR) *joint=set->item;
+            else if(set->kind==EDITOR_RELATIONSHIP_ANCHOR_RIGID_BODY || set->kind==EDITOR_RELATIONSHIP_ANCHOR_SOFT_NODE)
+                *driver=(ObjectEntityReference){OBJECT_ANCHOR,set->item,0};
+            else return 0;
+            return set->object;
+        }
+        case EDITOR_COMMAND_PROPERTY_SET: {
+            const EditorPropertySetCommand *set=&command->data.property_set;
+            if(set->kind==EDITOR_ITEM_JOINT && (set->property==EDITOR_PROPERTY_JOINT_KIND ||
+                    set->property==EDITOR_PROPERTY_REST_LENGTH || set->property==EDITOR_PROPERTY_REST_ANGLE ||
+                    set->property==EDITOR_PROPERTY_REST_LENGTH_EXPLICIT || set->property==EDITOR_PROPERTY_REST_ANGLE_EXPLICIT ||
+                    set->property==EDITOR_PROPERTY_EDITOR_REST_LENGTH_LOCKED)) *joint=set->item;
+            else if(set->kind==EDITOR_ITEM_ANCHOR && (set->property==EDITOR_PROPERTY_POSITION_FOLLOWS_BODY ||
+                    set->property==EDITOR_PROPERTY_ROTATION_FOLLOWS_BODY))
+                *driver=(ObjectEntityReference){OBJECT_ANCHOR,set->item,0};
+            else if(axis_property_check(command)) {
+                ObjectKind kind;
+                switch(set->kind) {
+                    case EDITOR_ITEM_RIGID_BODY: kind=OBJECT_BODY;break;
+                    case EDITOR_ITEM_SOFT_BODY: kind=OBJECT_SOFT_BODY;break;
+                    case EDITOR_ITEM_SOFT_NODE: kind=OBJECT_NODE;break;
+                    case EDITOR_ITEM_ANCHOR: kind=OBJECT_ANCHOR;break;
+                    default:return 0;
+                }
+                *driver=(ObjectEntityReference){kind,set->item,set->kind==EDITOR_ITEM_SOFT_NODE?set->parent:0};
+            }
+            else return 0;
+            return set->object;
+        }
+        default: return 0;
+    }
+}
+
 EditorCommandResult editor_command_execute(EditorProject *project,
         const EditorCommand *command) {
     if(editor_command_executing_callback != NULL)
         editor_command_executing_callback(project, command,
             editor_command_executing_context);
-    EditorCommandResult result = editor_command_execute_internal(project, command);
+    ObjectEntityReference driver; EditorJointId joint; bool transform;
+    EditorObjectId target=editor_command_placement_target_get(command,&driver,&joint,&transform);
+    EditorObject *object=target?editor_object_query_get(project,target):NULL;
+    EditorObject before={0};
+    bool project_axis=command && (command->pointer_transform || axis_property_check(command));
+    bool placement=object && (object->joint_count || project_axis || command->type==EDITOR_COMMAND_TRANSFORM_BATCH);
+    bool captured=!placement || editor_project_object_clone(&before,object);
+    EditorCommandResult result=captured?editor_command_execute_internal(project,command):
+        editor_command_error(editor_result_error(EDITOR_ERROR_CAPACITY,"Unable to stage joint placement").result.error);
+    if(captured && placement && result.kind==ERROR_RESULT_VALUE) {
+        ObjectEntityReference *drivers=&driver;size_t driver_count=driver.id?1:0;
+        if(command->type==EDITOR_COMMAND_TRANSFORM_BATCH) {
+            driver_count=command->data.transform_batch.count;
+            drivers=calloc(driver_count,sizeof(*drivers));
+            if(drivers) for(size_t i=0;i<driver_count;++i) {
+                EditorJointId unused;bool is_transform;
+                (void)editor_command_placement_target_get(&command->data.transform_batch.commands[i],&drivers[i],&unused,&is_transform);
+            }
+        }
+        if(drivers) result.placement=editor_project_joints_resolve(object,&before,drivers,driver_count,joint,project_axis);
+        else {result.placement.blocked=true;snprintf(result.placement.reason,sizeof(result.placement.reason),"unable to allocate transform drivers");}
+        if(drivers!=&driver) free(drivers);
+        if(result.placement.blocked && transform) {
+            editor_project_placement_poses_restore(object,&before);
+            result.kind=ERROR_RESULT_ERROR;
+            result.result.error=editor_result_error(EDITOR_ERROR_INVALID_ARGUMENT,
+                "Transform rejected at joint %u: %s",result.placement.joint,result.placement.reason).result.error;
+        }
+    }
+    if(placement && captured) {
+        if(transform && result.kind==ERROR_RESULT_ERROR) editor_project_placement_poses_restore(object,&before);
+        editor_project_object_destroy(&before);
+    }
     if(result.kind == ERROR_RESULT_VALUE && command && project &&
             command->type == EDITOR_COMMAND_ITEM_REMOVE)
         for(size_t i = 0; i < project->object_count; ++i)
@@ -2851,6 +2968,7 @@ static bool editor_command_property_parse(const char *name,
 #define EDITOR_UINT_PROPERTY(text, value) \
     if(strcmp(name, text) == 0) { *property = value; \
         *value_kind = EDITOR_PROPERTY_VALUE_UINT; return true; }
+    EDITOR_FLOAT_PROPERTY("axis-angle", EDITOR_PROPERTY_AXIS_ANGLE)
     EDITOR_FLOAT_PROPERTY("mass", EDITOR_PROPERTY_MASS)
     EDITOR_FLOAT_PROPERTY("friction", EDITOR_PROPERTY_FRICTION)
     EDITOR_FLOAT_PROPERTY("restitution", EDITOR_PROPERTY_RESTITUTION)
@@ -2886,6 +3004,7 @@ static bool editor_command_property_parse(const char *name,
     EDITOR_BOOL_PROPERTY("gravity", EDITOR_PROPERTY_GRAVITY)
     EDITOR_BOOL_PROPERTY("static", EDITOR_PROPERTY_STATIC)
     EDITOR_UINT_PROPERTY("motion", EDITOR_PROPERTY_MOTION)
+    EDITOR_BOOL_PROPERTY("lock-editor-restlength", EDITOR_PROPERTY_EDITOR_REST_LENGTH_LOCKED)
     EDITOR_BOOL_PROPERTY("rest-length-explicit", EDITOR_PROPERTY_REST_LENGTH_EXPLICIT)
     EDITOR_BOOL_PROPERTY("follow-position", EDITOR_PROPERTY_FOLLOW_POSITION)
     EDITOR_BOOL_PROPERTY("pause-with-engine", EDITOR_PROPERTY_PAUSE_WITH_ENGINE)
@@ -2933,6 +3052,7 @@ static const char *editor_command_property_name_get(EditorPropertyKind property)
 #define SETTING(symbol, name, label, type, member) case EDITOR_PROPERTY_##symbol: return name;
         EDITOR_ENTITY_SETTING_PROPERTIES(SETTING)
 #undef SETTING
+        case EDITOR_PROPERTY_AXIS_ANGLE: return "axis-angle";
         case EDITOR_PROPERTY_CENTER_OF_MASS: return "center-of-mass";
         case EDITOR_PROPERTY_MASS: return "mass";
         case EDITOR_PROPERTY_FRICTION: return "friction";
@@ -2965,6 +3085,7 @@ static const char *editor_command_property_name_get(EditorPropertyKind property)
         case EDITOR_PROPERTY_RENDER_WIDTH: return "render-width";
         case EDITOR_PROPERTY_RENDER_HEIGHT: return "render-height";
         case EDITOR_PROPERTY_RENDER_SIZE_EXPLICIT: return "render-size-explicit";
+        case EDITOR_PROPERTY_EDITOR_REST_LENGTH_LOCKED: return "lock-editor-restlength";
         case EDITOR_PROPERTY_REST_LENGTH_EXPLICIT: return "rest-length-explicit";
         case EDITOR_PROPERTY_FOLLOW_POSITION: return "follow-position";
         case EDITOR_PROPERTY_PAUSE_WITH_ENGINE: return "pause-with-engine";

@@ -2560,53 +2560,9 @@ static Orientation editor_anchor_owner_rotation_get(EditorObject *object, Editor
     return anchor->rotation;
 }
 
-static bool editor_project_joint_constraint_from_endpoint_apply(
-    EditorObject *object,
-    EditorJoint *joint,
-    uint32_t driver_endpoint
-) {
-    EditorAnchor *driver;
-    EditorAnchor *driven;
-    EditorRigidBody *driver_body;
-    EditorRigidBody *driven_body;
-    Position driver_world;
-    Position driven_world;
-
-    if(object == NULL || joint == NULL || driver_endpoint > 1 ||
-            joint->kind == EDITOR_JOINT_SPRING) return false;
-    driver = editor_project_anchor_get(object,
-        driver_endpoint == 0 ? joint->anchor_a : joint->anchor_b);
-    driven = editor_project_anchor_get(object,
-        driver_endpoint == 0 ? joint->anchor_b : joint->anchor_a);
-    if(driver == NULL || driven == NULL) return false;
-    driver_body = editor_project_rigid_body_get(object, driver->rigid_body);
-    driven_body = editor_project_rigid_body_get(object, driven->rigid_body);
-    if(driven_body == driver_body && driven_body != NULL) return true;
-
-    if(joint->kind == EDITOR_JOINT_WELD && driven_body != NULL) {
-        if(driver_body != NULL) {
-            driven_body->rotation = driver_endpoint == 0 ?
-                driver_body->rotation + joint->rest_angle :
-                driver_body->rotation - joint->rest_angle;
-        }
-    }
-    driver_world = editor_anchor_world_position_get(object, driver);
-    driven_world = editor_anchor_world_position_get(object, driven);
-    if(driven_body != NULL && driven->position_follows_body) {
-        driven_body->position.x += driver_world.x - driven_world.x;
-        driven_body->position.y += driver_world.y - driven_world.y;
-    } else {
-        driven->position = driver_world;
-    }
-    return true;
-}
-
 bool editor_project_joint_constraints_apply(EditorObject *object, EditorJoint *joint) {
-    if(object == NULL || joint == NULL) return false;
-    if(joint->kind == EDITOR_JOINT_SPRING) return true;
-    if(editor_project_anchor_get(object, joint->anchor_a) == NULL ||
-            editor_project_anchor_get(object, joint->anchor_b) == NULL) return true;
-    return editor_project_joint_constraint_from_endpoint_apply(object, joint, 0);
+    if(!object || !joint) return false;
+    return !editor_project_joints_resolve(object,object,NULL,0,joint->id,false).blocked;
 }
 
 bool editor_project_joint_kind_set(EditorObject *object, EditorJoint *joint,
@@ -2620,74 +2576,13 @@ bool editor_project_joint_kind_set(EditorObject *object, EditorJoint *joint,
 }
 
 void editor_project_anchor_constraints_apply(EditorObject *object, EditorAnchorId anchor) {
-    if(object == NULL || anchor == 0) return;
-    for(size_t i = 0; i < object->joint_count; i += 1) {
-        EditorJoint *joint = &object->joint_items[i];
-        if(joint->anchor_a == anchor || joint->anchor_b == anchor) {
-            if(joint->kind != EDITOR_JOINT_SPRING && joint->anchor_a != 0 &&
-                    joint->anchor_b != 0) {
-                (void)editor_project_joint_constraint_from_endpoint_apply(
-                    object, joint, joint->anchor_b == anchor ? 1u : 0u);
-            }
-        }
-    }
+    ObjectEntityReference driver={OBJECT_ANCHOR,anchor,0};
+    (void)editor_project_joints_resolve(object,object,&driver,1,0,false);
 }
 
-void editor_project_rigid_body_constraints_apply(EditorObject *object,
-    EditorRigidBodyId rigid_body) {
-    size_t queue_begin = 0;
-    size_t queue_end = 0;
-    EditorRigidBody *body;
-    bool *resolved;
-    EditorRigidBodyId *queue;
-
-    if(object == NULL || rigid_body == 0) return;
-    body = editor_project_rigid_body_get(object, rigid_body);
-    if(body == NULL) return;
-    resolved = calloc(object->rigid_body_count, sizeof(*resolved));
-    queue = malloc(object->rigid_body_count * sizeof(*queue));
-    if(resolved == NULL || queue == NULL) {
-        free(resolved);
-        free(queue);
-        return;
-    }
-    resolved[(size_t)(body - object->rigid_bodies)] = true;
-    queue[queue_end++] = rigid_body;
-    while(queue_begin < queue_end) {
-        EditorRigidBodyId driver_id = queue[queue_begin++];
-
-        for(size_t i = 0; i < object->joint_count; i += 1) {
-            EditorJoint *joint = &object->joint_items[i];
-            EditorAnchor *a;
-            EditorAnchor *b;
-            EditorRigidBody *driven_body;
-            uint32_t driver_endpoint;
-            size_t driven_index;
-
-            if(joint->kind == EDITOR_JOINT_SPRING) continue;
-            a = editor_project_anchor_get(object, joint->anchor_a);
-            b = editor_project_anchor_get(object, joint->anchor_b);
-            if(a == NULL || b == NULL) continue;
-            if(a->rigid_body == driver_id) driver_endpoint = 0;
-            else if(b->rigid_body == driver_id) driver_endpoint = 1;
-            else continue;
-            driven_body = editor_project_rigid_body_get(object,
-                driver_endpoint == 0 ? b->rigid_body : a->rigid_body);
-            if(driven_body == NULL) {
-                (void)editor_project_joint_constraint_from_endpoint_apply(
-                    object, joint, driver_endpoint == 0 ? 1 : 0);
-                continue;
-            }
-            driven_index = (size_t)(driven_body - object->rigid_bodies);
-            if(resolved[driven_index]) continue;
-            (void)editor_project_joint_constraint_from_endpoint_apply(
-                object, joint, driver_endpoint);
-            resolved[driven_index] = true;
-            queue[queue_end++] = driven_body->id;
-        }
-    }
-    free(resolved);
-    free(queue);
+void editor_project_rigid_body_constraints_apply(EditorObject *object, EditorRigidBodyId body) {
+    ObjectEntityReference driver={OBJECT_BODY,body,0};
+    (void)editor_project_joints_resolve(object,object,&driver,1,0,false);
 }
 
 EditorJoint *editor_project_joint_add(EditorProject *project, EditorObject *object,

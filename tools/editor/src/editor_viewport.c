@@ -908,9 +908,35 @@ static bool editor_joint_symbol_visit(EditorJointKind kind, Position start,
 #undef LINE
 #undef CIRCLE
 }
-static void editor_joint_symbol_draw(EditorJointKind kind, Position start,
+static void editor_viewport_screen_dotted_line_draw(Position first, Position second,
+    Color color, float spacing, float thickness);
+static void editor_spring_dotted_draw(Position a, Position b, float scale, Color color, unsigned segments) {
+    Vec2D delta={b.x-a.x,b.y-a.y};float length=hypotf(delta.x,delta.y);
+    if(length<=.0001f) return;
+    Position previous=a;
+    for(unsigned i=1;i<=segments;++i) {
+        float t=(float)i/segments,offset=i==segments?0:(i%2? -7:7)*scale;
+        Position next={a.x+delta.x*t-delta.y/length*offset,a.y+delta.y*t+delta.x/length*offset};
+        editor_viewport_screen_dotted_line_draw(editor_view_world_to_screen(previous),
+            editor_view_world_to_screen(next),color,5,1.5f);
+        previous=next;
+    }
+}
+static void editor_joint_symbol_draw(const EditorJoint *joint, Position start,
         Position end, float scale, Color color) {
-    (void)editor_joint_symbol_visit(kind,start,end,scale,color,NULL);
+    if(joint->kind!=EDITOR_JOINT_SPRING) {
+        (void)editor_joint_symbol_visit(joint->kind,start,end,scale,color,NULL);return;
+    }
+    EditorSpringGuide guide=editor_project_spring_guide_get(start,end,joint->rest_length);
+    Color faint=color;faint.alpha=85;
+    if(guide.stretched) {
+        (void)editor_joint_symbol_visit(EDITOR_JOINT_SPRING,guide.rest_start,guide.rest_end,scale,color,NULL);
+        editor_spring_dotted_draw(start,guide.rest_start,scale,faint,3);
+        editor_spring_dotted_draw(guide.rest_end,end,scale,faint,3);
+    } else {
+        (void)editor_joint_symbol_visit(EDITOR_JOINT_SPRING,start,end,scale,color,NULL);
+        if(guide.compressed) editor_spring_dotted_draw(guide.rest_start,guide.rest_end,scale,faint,9);
+    }
 }
 
 static int editor_joint_pick_layer_get(const EditorObject *object,const EditorJoint *joint,Position pointer) {
@@ -2896,7 +2922,7 @@ static void editor_viewport_screen_dotted_line_draw(Position first,
     Vec2D delta = {second.x - first.x, second.y - first.y};
     float length = sqrtf(delta.x * delta.x + delta.y * delta.y);
     if(length <= 0.0f) return;
-    spacing = fmaxf(thickness, spacing);
+    spacing = fmaxf(fmaxf(thickness, spacing), length / 4096.0f);
     for(float distance = 0.0f; distance <= length; distance += spacing) {
         float ratio = distance / length;
         (void)rohr_graphics_screen_rect_draw(first.x + delta.x * ratio -
@@ -3452,80 +3478,13 @@ static Position editor_group_rotate_point(Position point, Position pivot,
         pivot.y + local.x * sine + local.y * cosine};
 }
 
-static bool editor_group_rigid_bodies_connected_check(EditorObject *object,
-        EditorRigidBodyId first, EditorRigidBodyId second) {
-    size_t queue_begin = 0;
-    size_t queue_end = 0;
-    EditorRigidBody *body;
-    EditorRigidBodyId *queue;
-    bool *visited;
-    bool found = false;
-
-    if(object == NULL || first == 0 || second == 0) return false;
-    if(first == second) return true;
-    body = editor_project_rigid_body_get(object, first);
-    if(body == NULL) return false;
-    queue = malloc(object->rigid_body_count * sizeof(*queue));
-    visited = calloc(object->rigid_body_count, sizeof(*visited));
-    if(queue == NULL || visited == NULL) goto finish;
-    visited[(size_t)(body - object->rigid_bodies)] = true;
-    queue[queue_end++] = first;
-    while(queue_begin < queue_end) {
-        EditorRigidBodyId current = queue[queue_begin++];
-        for(size_t i = 0; i < object->joint_count; i += 1) {
-            EditorJoint *joint = &object->joint_items[i];
-            EditorAnchor *a;
-            EditorAnchor *b;
-            EditorRigidBodyId connected;
-            EditorRigidBody *connected_body;
-            size_t connected_index;
-
-            if(joint->kind == EDITOR_JOINT_SPRING) continue;
-            a = editor_project_anchor_get(object, joint->anchor_a);
-            b = editor_project_anchor_get(object, joint->anchor_b);
-            if(a == NULL || b == NULL) continue;
-            if(a->rigid_body == current) connected = b->rigid_body;
-            else if(b->rigid_body == current) connected = a->rigid_body;
-            else continue;
-            if(connected == second) {
-                found = true;
-                goto finish;
-            }
-            connected_body = editor_project_rigid_body_get(object, connected);
-            if(connected_body == NULL) continue;
-            connected_index = (size_t)(connected_body - object->rigid_bodies);
-            if(visited[connected_index]) continue;
-            visited[connected_index] = true;
-            queue[queue_end++] = connected;
-        }
-    }
-finish:
-    free(queue);
-    free(visited);
-    return found;
-}
-
-static bool editor_group_rigid_body_already_driven(EditorProject *project,
-        const EditorViewportState *state, size_t selected_index,
-        EditorSelectionRef ref) {
-    EditorObject *object = editor_group_object_get(project, ref.object);
-    if(object == NULL) return false;
-    for(size_t i = 0; i < selected_index; i += 1) {
-        EditorSelectionRef previous = state->selected_items[i];
-        if((previous.kind != EDITOR_SELECTION_RIGID_BODY &&
-                previous.kind != EDITOR_SELECTION_PARTICLE) ||
-                previous.object != ref.object ||
-                editor_group_parent_selected(project, state, previous)) continue;
-        if(editor_group_rigid_bodies_connected_check(object,
-                previous.item, ref.item)) return true;
-    }
-    return false;
-}
-
 static bool editor_group_transform_apply(EditorProject *project,
         const EditorViewportState *state, Vec2D translation, float angle,
         bool rotate_about_group_pivot) {
     bool changed = false;
+    EditorCommand *pending=calloc(state->selected_item_count,sizeof(*pending));
+    if(!pending) return false;
+    size_t pending_count=0;
     /* Resolve selected forces before moving their reference geometry, then
      * reconstruct offsets afterwards. Selection order cannot double a move. */
     typedef struct ForcePose { Position point; float angle; bool position_valid, angle_valid; } ForcePose;
@@ -3533,7 +3492,7 @@ static bool editor_group_transform_apply(EditorProject *project,
     for(size_t i=0;i<state->selected_item_count;++i)
         if((state->selected_items[i].kind==EDITOR_SELECTION_FORCE || state->selected_items[i].kind==EDITOR_SELECTION_TORQUE)) has_forces=true;
     ForcePose *poses=has_forces?calloc(state->selected_item_count,sizeof(*poses)):NULL;
-    if(has_forces && !poses) return false;
+    if(has_forces && !poses) { free(pending); return false; }
     for(size_t i=0;poses && i<state->selected_item_count;++i) {
         EditorSelectionRef ref=state->selected_items[i];
         EditorObject *object=editor_group_object_get(project,ref.object);
@@ -3602,17 +3561,16 @@ static bool editor_group_transform_apply(EditorProject *project,
         } else if(ref.kind == EDITOR_SELECTION_RIGID_BODY ||
                 ref.kind == EDITOR_SELECTION_PARTICLE) {
             EditorRigidBody *body = editor_project_rigid_body_get(object, ref.item);
-            if(body == NULL || editor_group_rigid_body_already_driven(
-                    project, state, i, ref))
+            if(body == NULL)
                 continue;
-            command = (EditorCommand){.type = EDITOR_COMMAND_RIGID_BODY_TRANSFORM,
+            command = (EditorCommand){.type = EDITOR_COMMAND_RIGID_BODY_TRANSFORM, .pointer_transform = true,
                 .data.rigid_body_transform = {object->id, body->id,
                     {desired.x - object->position.x, desired.y - object->position.y},
                     body->rotation + angle}};
         } else if(ref.kind == EDITOR_SELECTION_SOFT_BODY) {
             EditorSoftBody *body = editor_group_soft_body_get(object, ref.item);
             if(body == NULL) continue;
-            command = (EditorCommand){.type = EDITOR_COMMAND_SOFT_BODY_TRANSFORM,
+            command = (EditorCommand){.type = EDITOR_COMMAND_SOFT_BODY_TRANSFORM, .pointer_transform = true,
                 .data.soft_body_transform = {object->id, body->id,
                     {desired.x - object->position.x, desired.y - object->position.y},
                     body->rotation + angle}};
@@ -3683,7 +3641,7 @@ static bool editor_group_transform_apply(EditorProject *project,
             EditorRigidBody *body = anchor == NULL ? NULL :
                 editor_project_rigid_body_get(object, anchor->rigid_body);
             if(anchor == NULL) continue;
-            command = (EditorCommand){.type = EDITOR_COMMAND_ANCHOR_TRANSFORM,
+            command = (EditorCommand){.type = EDITOR_COMMAND_ANCHOR_TRANSFORM, .pointer_transform = true,
                 .data.anchor_transform = {object->id, anchor->id,
                     editor_anchor_world_local_get(object, anchor, body, desired),
                     anchor->rotation + angle}};
@@ -3691,7 +3649,7 @@ static bool editor_group_transform_apply(EditorProject *project,
             EditorSoftBody *body = editor_group_soft_body_get(object, ref.parent);
             EditorSoftNode *node = editor_group_soft_node_get(body, ref.item);
             if(body == NULL || node == NULL) continue;
-            command = (EditorCommand){.type = EDITOR_COMMAND_SOFT_NODE_POSITION,
+            command = (EditorCommand){.type = EDITOR_COMMAND_SOFT_NODE_POSITION, .pointer_transform = true,
                 .data.soft_node_position = {object->id, body->id, node->id,
                     editor_auto_shape_soft_local_get(object, body, desired)}};
         } else if(ref.kind == EDITOR_SELECTION_VERTEX) {
@@ -3713,9 +3671,51 @@ static bool editor_group_transform_apply(EditorProject *project,
                     vertex->id, {local.x * cosine - local.y * sine,
                         local.x * sine + local.y * cosine}}};
         } else continue;
-        changed = editor_command_execute(project, &command).kind ==
-            ERROR_RESULT_VALUE || changed;
+        ObjectEntityReference driver;EditorJointId joint;bool transform;
+        if(editor_command_placement_target_get(&command,&driver,&joint,&transform) && transform)
+            pending[pending_count++]=command;
+        else changed = editor_command_execute(project, &command).kind == ERROR_RESULT_VALUE || changed;
     }
+    for(size_t o=0;o<project->object_count;++o) {
+        EditorObjectId object=project->objects[o].id;
+        EditorCommand *parts=calloc(pending_count?pending_count:1,sizeof(*parts));size_t count=0;
+        if(!parts) { free(pending);free(poses);return changed; }
+        for(size_t i=0;i<pending_count;++i) {
+            ObjectEntityReference driver;EditorJointId joint;bool transform;
+            if(editor_command_placement_target_get(&pending[i],&driver,&joint,&transform)==object) parts[count++]=pending[i];
+        }
+        if(count && angle!=0 && !rotate_about_group_pivot) {
+            /* Preserve the handle's active body, letting connected peers follow. */
+            for(size_t i=0;i<count;++i) {
+                ObjectEntityReference driver;EditorJointId joint;bool transform;
+                (void)editor_command_placement_target_get(&parts[i],&driver,&joint,&transform);
+                if((state->rotated_body && driver.kind==OBJECT_BODY && driver.id==state->selected_rigid_body) ||
+                        (state->rotated_soft_body && driver.kind==OBJECT_SOFT_BODY && driver.id==state->selected_soft_body)) {
+                    EditorCommand swap=parts[0];parts[0]=parts[i];parts[i]=swap;break;
+                }
+            }
+            size_t used=0;
+            for(size_t i=0;i<count;++i) {
+                ObjectEntityReference candidate;EditorJointId joint;bool transform;bool duplicate=false;
+                (void)editor_command_placement_target_get(&parts[i],&candidate,&joint,&transform);
+                for(size_t previous=0;previous<used;++previous) {
+                    ObjectEntityReference driver;
+                    (void)editor_command_placement_target_get(&parts[previous],&driver,&joint,&transform);
+                    duplicate |= editor_project_joint_connected_check(&project->objects[o],driver,candidate);
+                }
+                if(!duplicate) parts[used++]=parts[i];
+            }
+            count=used;
+        }
+        if(count) {
+            EditorCommand batch={.type=EDITOR_COMMAND_TRANSFORM_BATCH,.pointer_transform=true,.data.transform_batch={object,parts,count}};
+            EditorCommandResult result=editor_command_execute(project,&batch);
+            if(result.kind==ERROR_RESULT_ERROR) {free(parts);free(pending);free(poses);return changed;}
+            changed=true;
+        }
+        free(parts);
+    }
+    free(pending);
     for(size_t i=0;poses && i<state->selected_item_count;++i) {
         EditorSelectionRef ref=state->selected_items[i];
         if(!poses[i].position_valid) continue;
@@ -5329,7 +5329,7 @@ bool editor_viewport_update(EditorViewportState *state, EditorProject *project,
             Position position = editor_anchor_world_local_get(object, anchor, anchor_body,
                 (Position){pointer.x - state->drag_offset.x,
                     pointer.y - state->drag_offset.y});
-            EditorCommand command = {.type = EDITOR_COMMAND_ANCHOR_TRANSFORM,
+            EditorCommand command = {.type = EDITOR_COMMAND_ANCHOR_TRANSFORM, .pointer_transform = true,
                 .data.anchor_transform = {object->id, anchor->id,
                     position, anchor->rotation}};
             (void)editor_command_execute(project, &command);
@@ -5360,7 +5360,7 @@ bool editor_viewport_update(EditorViewportState *state, EditorProject *project,
                     local.x * cosine - local.y * sine,
                     local.x * sine + local.y * cosine
                 };
-                EditorCommand command = {.type = EDITOR_COMMAND_SOFT_NODE_POSITION,
+                EditorCommand command = {.type = EDITOR_COMMAND_SOFT_NODE_POSITION, .pointer_transform = true,
                     .data.soft_node_position = {object->id, soft_body->id,
                         soft_body->nodes[i].id, position}};
                 (void)editor_command_execute(project, &command);
@@ -5380,7 +5380,7 @@ bool editor_viewport_update(EditorViewportState *state, EditorProject *project,
                 pointer.y - object->position.y - state->drag_offset.y
             };
 
-            EditorCommand command = {.type = EDITOR_COMMAND_SOFT_BODY_TRANSFORM,
+            EditorCommand command = {.type = EDITOR_COMMAND_SOFT_BODY_TRANSFORM, .pointer_transform = true,
                 .data.soft_body_transform = {object->id, soft_body->id,
                     position, soft_body->rotation}};
             (void)editor_command_execute(project, &command);
@@ -5455,7 +5455,7 @@ bool editor_viewport_update(EditorViewportState *state, EditorProject *project,
                         (Vec2D){0}, delta, false);
                 return true;
             }
-            EditorCommand command = {.type = EDITOR_COMMAND_SOFT_BODY_TRANSFORM,
+            EditorCommand command = {.type = EDITOR_COMMAND_SOFT_BODY_TRANSFORM, .pointer_transform = true,
                 .data.soft_body_transform = {object->id, soft_body->id,
                     soft_body->position, rotation}};
             (void)editor_command_execute(project, &command);
@@ -5480,7 +5480,7 @@ bool editor_viewport_update(EditorViewportState *state, EditorProject *project,
     }
     if(body != NULL && state->dragged_body && (primary_button == MOUSE_BUTTON_STATE_DOWN ||
             primary_button == MOUSE_BUTTON_STATE_PRESSED)) {
-        EditorCommand command = {.type = EDITOR_COMMAND_RIGID_BODY_TRANSFORM,
+        EditorCommand command = {.type = EDITOR_COMMAND_RIGID_BODY_TRANSFORM, .pointer_transform = true,
             .data.rigid_body_transform = {object->id, body->id,
                 {pointer.x - object->position.x - state->drag_offset.x,
                     pointer.y - object->position.y - state->drag_offset.y},
@@ -5503,7 +5503,7 @@ bool editor_viewport_update(EditorViewportState *state, EditorProject *project,
                     (Vec2D){0}, delta, false);
             return true;
         }
-        EditorCommand command = {.type = EDITOR_COMMAND_RIGID_BODY_TRANSFORM,
+        EditorCommand command = {.type = EDITOR_COMMAND_RIGID_BODY_TRANSFORM, .pointer_transform = true,
             .data.rigid_body_transform = {object->id, body->id, body->position,
                 rotation}};
         (void)editor_command_execute(project, &command);
@@ -7097,7 +7097,7 @@ static void editor_viewport_object_draw(const EditorObject *object,
             if(object->anchors[i].id == joint->anchor_a) a = &object->anchors[i];
             if(object->anchors[i].id == joint->anchor_b) b = &object->anchors[i];
         }
-        if(a != NULL && b != NULL) editor_joint_symbol_draw(joint->kind,
+        if(a != NULL && b != NULL) editor_joint_symbol_draw(joint,
             editor_anchor_world_get(object, a), editor_anchor_world_get(object, b),
             fmaxf(0.1f, joint->visual_size),
             object_highlighted || (state->selection == EDITOR_SELECTION_JOINT &&
@@ -7866,7 +7866,7 @@ bool editor_viewport_selection_nudge(EditorViewportState *state,
     body = editor_selected_body_get(object, state);
     if((state->selection == EDITOR_SELECTION_RIGID_BODY ||
             state->selection == EDITOR_SELECTION_PARTICLE) && body != NULL) {
-        EditorCommand command = {.type = EDITOR_COMMAND_RIGID_BODY_TRANSFORM,
+        EditorCommand command = {.type = EDITOR_COMMAND_RIGID_BODY_TRANSFORM, .pointer_transform = true,
             .data.rigid_body_transform = {object->id, body->id,
                 {body->position.x + screen_delta.x,
                     body->position.y + screen_delta.y}, body->rotation}};
@@ -7917,7 +7917,7 @@ bool editor_viewport_selection_nudge(EditorViewportState *state,
         {
             Position position = editor_anchor_world_local_get(
                 object, anchor, anchor_body, world);
-            EditorCommand command = {.type = EDITOR_COMMAND_ANCHOR_TRANSFORM,
+            EditorCommand command = {.type = EDITOR_COMMAND_ANCHOR_TRANSFORM, .pointer_transform = true,
                 .data.anchor_transform = {object->id, anchor->id,
                     position, anchor->rotation}};
             return editor_command_execute(project, &command).kind == ERROR_RESULT_VALUE;
@@ -7931,7 +7931,7 @@ bool editor_viewport_selection_nudge(EditorViewportState *state,
                 EditorSoftNode *node = &soft_body->nodes[node_index];
                 if(node->id != state->selected_soft_node) continue;
                 {
-                    EditorCommand command = {.type = EDITOR_COMMAND_SOFT_NODE_POSITION,
+                    EditorCommand command = {.type = EDITOR_COMMAND_SOFT_NODE_POSITION, .pointer_transform = true,
                         .data.soft_node_position = {object->id, soft_body->id, node->id,
                             {node->position.x + screen_delta.x,
                                 node->position.y + screen_delta.y}}};

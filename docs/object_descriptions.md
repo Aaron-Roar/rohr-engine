@@ -160,6 +160,15 @@ skipped with a warning. Completing its `JointDescription` activates the same
 entity; there is no need to spawn a replacement joint. Anchors attached to soft
 nodes are created after those nodes and exposed by generated instance bindings.
 
+Editor joint commands resolve authored placement before saving. Static bodies
+remain movable in the editor. Optional project boolean
+`editor_rest_length_locked` enables automatic spring rest-distance placement in
+the editor; missing values default false in project formats 12/13. It is not a
+runtime description property. Catalogs, constructors, and repeated spawns use
+the resolved saved poses and ordinary spring physics. Runtime configuration APIs
+still do not implicitly place bodies. See the
+[joint placement contract](description_api_contract.md#joint-placement).
+
 ## Restoration and failure
 
 Runtime saves preserve ownership, member identities, incomplete topology, and

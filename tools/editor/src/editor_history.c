@@ -511,6 +511,9 @@ static EditorHistoryAggregateChange *editor_history_command_aggregate_capture(
     EditorObjectId object;
     uint32_t parent;
     if(project == NULL || command == NULL) return NULL;
+    ObjectEntityReference driver; EditorJointId joint; bool transform;
+    EditorObjectId placement=editor_command_placement_target_get(command,&driver,&joint,&transform);
+    if(placement) return editor_history_aggregate_capture(project,EDITOR_ITEM_OBJECT,placement,0);
     switch(command->type) {
         case EDITOR_COMMAND_SOURCE:
             return editor_history_aggregate_capture(project, EDITOR_ITEM_OBJECT, command->data.source.object, 0);

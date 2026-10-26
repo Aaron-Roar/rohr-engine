@@ -4,6 +4,7 @@
 #include "editor_entity_settings_panel.h"
 #include "editor_navigation.h"
 #include <stddef.h>
+#include <math.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
@@ -34,8 +35,10 @@ bool editor_entity_settings_panel_create(EditorEntitySettingsPanel *p, FontAsset
     for(size_t i = 0; i < 5; ++i)
         if(!editor_mode_accordion_section_create(&p->sections[i], font, sections[i], false)) goto fail;
     for(size_t i = 0; i < EDITOR_ENTITY_SETTING_COUNT; ++i)
-        if(!editor_mode_text_create(font, setting_fields[i].label, &p->labels[i]) ||
+        if(!editor_mode_text_create(font, setting_fields[i].property == EDITOR_PROPERTY_AXIS_X ?
+                "Angle CW (deg)" : setting_fields[i].label, &p->labels[i]) ||
                 !editor_mode_text_create(font, "", &p->fields[i])) goto fail;
+    if(!editor_mode_text_create(font, "0 deg: vertical; 90 deg: horizontal", &p->axis_hint)) goto fail;
     return true;
 fail:
     editor_entity_settings_panel_destroy(p); return false;
@@ -48,6 +51,7 @@ void editor_entity_settings_panel_destroy(EditorEntitySettingsPanel *p) {
     }
     if(p->references) for(size_t i = 0; i < MAX_ENTITIES; ++i)
         rohr_graphics_text_destroy(&p->references[i].text);
+    rohr_graphics_text_destroy(&p->axis_hint);
     free(p->references); free(p->options); free(p->selections);
     *p = (EditorEntitySettingsPanel){0};
 }
@@ -129,6 +133,10 @@ bool editor_entity_settings_panel_draw(EditorEntitySettingsPanel *p,
         kind, selected.object, selected.parent, selected.item);
     EditorObject *object = editor_object_query_get(context->project, selected.object);
     if(!settings || !object) return false;
+    if(p->axis_selection.kind != selected.kind || p->axis_selection.object != selected.object ||
+            p->axis_selection.parent != selected.parent || p->axis_selection.item != selected.item) {
+        memset(p->axis_fields,0,sizeof(p->axis_fields));p->axis_selection=selected;
+    }
     bool active = false;
     const size_t starts[] = {0, 6, 9, 10, 16}, counts[] = {6, 3, 1, 6, 7};
     const float heights[] = {28, 28, 28, 28, 28, 28, 28};
@@ -145,8 +153,17 @@ bool editor_entity_settings_panel_draw(EditorEntitySettingsPanel *p,
         if(!layout.expanded) continue;
         size_t reference_count = section == 2 || section == 4 ? references_get(p, object) : 0;
         for(size_t row = 0; row < counts[section]; ++row) {
-            size_t i = starts[section] + row;
+            if(section == 3 && row == 5) {
+                rohr_ui_label(&p->axis_hint, (UIRect){context->x + 8,
+                    editor_mode_accordion_layout_row_y(&layout, heights, row, 6), context->width - 16, 28});
+                continue;
+            }
+            size_t i = starts[section] + row + (section == 3 && row >= 3 ? 1 : 0);
             SettingField field = setting_fields[i];
+            if(field.property == EDITOR_PROPERTY_AXIS_X) {
+                field.property = EDITOR_PROPERTY_AXIS_ANGLE;
+                field.name = "axis-angle";
+            }
             EditorCommand command = {.type = EDITOR_COMMAND_PROPERTY_SET,
                 .data.property_set = {.kind = kind, .object = selected.object,
                     .parent = selected.parent, .item = selected.item,
@@ -178,10 +195,13 @@ bool editor_entity_settings_panel_draw(EditorEntitySettingsPanel *p,
                         changed = true;
                     }
                 } else if(field.type == EDITOR_PROPERTY_VALUE_FLOAT) {
-                    set->value.number = *(float *)value;
-                    UIFieldResult result = editor_mode_field(id,
-                        (UIFieldBinding){.kind = UI_FIELD_FLOAT, .number = &set->value.number},
-                        &p->fields[i], bounds, NULL);
+                    set->value.number = field.property == EDITOR_PROPERTY_AXIS_ANGLE ?
+                        (float)(atan2((double)settings->axis_lock.axis.x,
+                            (double)settings->axis_lock.axis.y) * 57.29577951308232) : *(float *)value;
+                    UIFieldResult result = section == 3 ?
+                        editor_mode_number_blur_field(&p->axis_fields[row-2],id,&p->fields[i],bounds,&set->value.number) :
+                        editor_mode_field(id, (UIFieldBinding){.kind = UI_FIELD_FLOAT, .number = &set->value.number},
+                            &p->fields[i], bounds, NULL);
                     changed = result.changed; active |= result.active;
                 } else {
                     char text[64];

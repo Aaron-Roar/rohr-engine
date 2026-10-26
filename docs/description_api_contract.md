@@ -1724,22 +1724,48 @@ options retain their relative-offset semantics.
 
 ### Joint placement
 
-Creating/reconfiguring a joint, changing its type, or selecting endpoints does
-not place bodies. Use the joint editor's **Place A Relative to B**, the CLI
-`joint place <project-file> <object-id> <joint-id>`, or
-`rohr_physics_joint_place(joint)` explicitly.
+Runtime joint creation and full/focused configuration setters do not place
+bodies. Explicit runtime placement remains `rohr_physics_joint_place(joint)`:
+it moves A's pin/weld-connected group toward B, retaining B, and rejects fixed
+world anchors, static/held members, incompatible locks, or another path back to
+B. Welds satisfy their rest angle; springs use rest distance along B-to-A (+Y
+when coincident). Soft bodies move as a whole, and validation precedes commit.
 
-Placement translates the first anchor's pin/weld-connected group toward the
-second. Welds also satisfy the stored rest angle; springs use their rest distance
-along B-to-A (world +Y when coincident). A soft body moves as a whole. The selected
-joint is excluded from graph expansion; a second path back to B, a fixed world
-anchor, a static/held member, or an incompatible lock rejects the entire change.
-An already satisfied placement succeeds without mutation. Owned attachment
-helpers follow their driver; unrelated locked entities cannot be displaced by
-this action. B stays fixed. Geometry, rest values, motion, ownership, and
-connections are preserved. Scratch allocation and all validation precede commit.
-Editor placement is one undoable object edit. World-anchor proxies are explicitly
-static in both catalog and legacy generated construction.
+Editor and CLI authoring commands now resolve complete pin/weld joints
+immediately after endpoint/type/rest-setting edits and during physical transforms.
+The actively edited transform drives connected geometry. Configuration changes
+that cannot be placed retain their settings, leave geometry unchanged, and report
+the blocking constraint. Rejected exact transforms retain their prior poses.
+Pointer movement projects onto applicable axis lines; remaining conflicts silently
+refuse the whole step. Static does not lock editor geometry, including explicit
+**Place A Relative to B** / `joint place <project-file> <object-id> <joint-id>`.
+Existing axis, rotation, transform-driver, and world-anchor constraints still
+apply. Individual numeric field/accordion locks are future C16 work.
+
+Springs are unconstrained in automatic editor placement unless **Lock Editor
+Rest Length** is enabled (`lock-editor-restlength` in CLI). Project JSON stores
+optional boolean `editor_rest_length_locked`, default false, in formats 12/13;
+saves remain format 13. The lock and rest-length guides are editor-only and do
+not enter runtime descriptions, snapshots (format 10), or generated constructors.
+Generated/spawned objects retain the resolved authored poses and physical spring
+settings. Unlocked spring rest edits do not move bodies. Incomplete joints remain
+editable and become active when both endpoints are supplied. Explicit placement
+can still place an unlocked spring on request.
+
+History stores the configuration and all affected poses together. One pointer
+gesture produces one undo entry, and cancellation restores its initial state.
+Neither placement path changes stored velocity, gravity, materials, geometry,
+ownership, or connections. World-anchor proxies remain explicitly static in
+catalog and generated construction. Body-relative axis following is deferred;
+current axes use an arbitrary direction and a point, world-fixed or relative to
+the containing object's placement. The editor exposes Angle clockwise from +Y
+(0 degrees vertical, 90 degrees horizontal) and Shift X/Y for the point. CLI
+`axis-angle` writes the same direction vector; existing `axis-x` / `axis-y` and
+`axis-point-x` / `axis-point-y` remain supported. No angle is stored separately.
+Angle and Shift fields commit on Enter or focus loss; Escape discards a draft.
+A committed axis configuration immediately projects the connected geometry onto
+the line. Incompatible constraints keep the setting and prior geometry, with a
+diagnostic. Draft typing does not move geometry.
 
 A node-attached anchor with zero local offset plus a pin joint expresses
 `SoftBodyNodeAnchorPinDescription`: the node owns its anchor, and the selected

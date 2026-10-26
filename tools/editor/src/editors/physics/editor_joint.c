@@ -65,6 +65,7 @@ bool editor_joint_editor_create(EditorJointEditor *editor, FontAsset *font) {
     if(!editor_visual_controls_create(&editor->visuals,font)) goto fail;
 #define CREATE(value, member) \
     if(!editor_mode_text_create(font, value, &editor->member)) goto fail
+    CREATE("Lock Editor Rest Length", editor_lock_label);
     CREATE("Name", name_label); CREATE("Editor Symbol Size", visual_size_label);
     CREATE("Revolute", revolute_label); CREATE("Weld", weld_label);
     CREATE("Spring", spring_label); CREATE("Anchor A", anchor_a_label);
@@ -94,6 +95,7 @@ void editor_joint_editor_destroy(EditorJointEditor *editor) {
     if(editor == NULL) return;
     editor_visual_controls_destroy(&editor->visuals);
 #define DESTROY(member) rohr_graphics_text_destroy(&editor->member)
+    DESTROY(editor_lock_label);
     DESTROY(name_label); DESTROY(visual_size_label); DESTROY(revolute_label);
     DESTROY(weld_label); DESTROY(spring_label); DESTROY(anchor_a_label);
     DESTROY(anchor_b_label); DESTROY(none_label); DESTROY(add_anchor_label);
@@ -113,8 +115,7 @@ void editor_joint_editor_destroy(EditorJointEditor *editor) {
     *editor = (EditorJointEditor){0};
 }
 
-static bool nonnegative_field(EditorJointEditor *editor,
-        const EditorModeContext *context, EditorObjectId object,
+static bool nonnegative_field(const EditorModeContext *context, EditorObjectId object,
         EditorJointId joint, const char *id, const TextAsset *label,
         TextAsset *field, float y, float label_width,
         EditorPropertyKind property, float source) {
@@ -190,7 +191,7 @@ bool editor_joint_editor_draw(EditorJointEditor *editor,
     for(size_t i = 0; i < shown_anchors; i += 1)
         connection_rows[i + 4] = i + 1 == shown_anchors ? 23.0f : 21.0f;
     const float revolute_rows[] = {26.0f};
-    const float spring_rows[] = {26.0f, 26.0f, 26.0f, 26.0f};
+    const float spring_rows[] = {26.0f, 26.0f, 26.0f, 26.0f, 26.0f};
     const float weld_rows[] = {26, 26};
     EditorModeAccordionLayoutResult configuration =
         editor_mode_accordion_layout_section(&accordion,
@@ -204,7 +205,7 @@ bool editor_joint_editor_draw(EditorJointEditor *editor,
         editor_mode_accordion_layout_section(&accordion,
             &editor->parameters_section, "editor.joint.section.parameters",
             joint->kind == EDITOR_JOINT_SPRING ? spring_rows : joint->kind == EDITOR_JOINT_WELD ? weld_rows : revolute_rows,
-            joint->kind == EDITOR_JOINT_SPRING ? 4 : joint->kind == EDITOR_JOINT_WELD ? 2 : 1, 6.0f);
+            joint->kind == EDITOR_JOINT_SPRING ? 5 : joint->kind == EDITOR_JOINT_WELD ? 2 : 1, 6.0f);
     configuration_open = configuration.expanded;
     configuration_y = configuration.content_y;
     connections_open = connections.expanded; connections_y = connections.content_y;
@@ -374,22 +375,31 @@ bool editor_joint_editor_draw(EditorJointEditor *editor,
         }
     }
     if(joint->kind == EDITOR_JOINT_REVOLUTE)
-        field_active = nonnegative_field(editor, context, object->id, joint->id,
+        field_active = nonnegative_field(context, object->id, joint->id,
             "editor.joint.revolute.damping", &editor->damping_label,
             &editor->damping_field, parameters_y, 76.0f, EDITOR_PROPERTY_DAMPING,
             joint->damping) || field_active;
     else if(joint->kind == EDITOR_JOINT_SPRING) {
-        field_active = nonnegative_field(editor, context, object->id, joint->id,
+        bool locked = joint->editor_rest_length_locked;
+        if(editor_mode_checkbox_left("editor.joint.rest_locked", &editor->editor_lock_label,
+                (UIRect){context->x + 10, parameters_y + 96, context->width - 20, 26}, &locked)) {
+            EditorCommand command = {.type = EDITOR_COMMAND_PROPERTY_SET, .data.property_set = {
+                .kind = EDITOR_ITEM_JOINT, .object = object->id, .item = joint->id,
+                .property = EDITOR_PROPERTY_EDITOR_REST_LENGTH_LOCKED,
+                .value_kind = EDITOR_PROPERTY_VALUE_BOOL, .value.boolean = locked}};
+            (void)editor_command_execute(context->project, &command);
+        }
+        field_active = nonnegative_field(context, object->id, joint->id,
             "editor.joint.spring.rest_length", &editor->rest_length_label,
             &editor->rest_length_field, parameters_y, 96.0f,
             EDITOR_PROPERTY_REST_LENGTH,
             joint->rest_length) || field_active;
-        field_active = nonnegative_field(editor, context, object->id, joint->id,
+        field_active = nonnegative_field(context, object->id, joint->id,
             "editor.joint.spring.stiffness", &editor->stiffness_label,
             &editor->stiffness_field, parameters_y + 32.0f, 90.0f,
             EDITOR_PROPERTY_STIFFNESS,
             joint->stiffness) || field_active;
-        field_active = nonnegative_field(editor, context, object->id, joint->id,
+        field_active = nonnegative_field(context, object->id, joint->id,
             "editor.joint.spring.damping", &editor->damping_label,
             &editor->damping_field, parameters_y + 64.0f, 76.0f,
             EDITOR_PROPERTY_DAMPING,

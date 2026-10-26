@@ -21,8 +21,8 @@
     X(AXIS_WORLD_FIXED, "axis-world-fixed", "World Fixed Axis", BOOL, axis_lock_world_fixed) \
     X(AXIS_X, "axis-x", "Axis X", FLOAT, axis_lock.axis.x) \
     X(AXIS_Y, "axis-y", "Axis Y", FLOAT, axis_lock.axis.y) \
-    X(AXIS_POINT_X, "axis-point-x", "Point X", FLOAT, axis_lock.point_on_axis.x) \
-    X(AXIS_POINT_Y, "axis-point-y", "Point Y", FLOAT, axis_lock.point_on_axis.y) \
+    X(AXIS_POINT_X, "axis-point-x", "Shift X", FLOAT, axis_lock.point_on_axis.x) \
+    X(AXIS_POINT_Y, "axis-point-y", "Shift Y", FLOAT, axis_lock.point_on_axis.y) \
     X(TRANSFORM_DRIVER, "transform-driver", "Transform Driver", REFERENCE, transform_driver) \
     X(TRANSFORM_OFFSET_X, "transform-offset-x", "Driver Offset X", FLOAT, transform_offset.x) \
     X(TRANSFORM_OFFSET_Y, "transform-offset-y", "Driver Offset Y", FLOAT, transform_offset.y) \
