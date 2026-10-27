@@ -32,6 +32,8 @@ typedef struct EditorHistory {
     bool pending_command_valid;
     bool command_ui_owned;
     bool restoring;
+    EditorNumericLock *pending_numeric_locks;
+    size_t pending_numeric_lock_count;
     bool last_restore_ui;
     EditorCommand pending_forward;
     EditorCommand pending_inverse;

@@ -6,6 +6,7 @@
 #include "editor_mode_controls.h"
 #include "editor_layout.h"
 #include "entity/object_visuals.h"
+#include "editor_numeric.h"
 
 #include <math.h>
 #include <float.h>
@@ -19,6 +20,289 @@ static EditorModeFieldRejected editor_field_rejected;
 static void *editor_field_rejected_context;
 static EditorSelectionRef editor_mode_diagnostic_target;
 static const EditorDiagnostics *editor_mode_diagnostics;
+static EditorProject *numeric_project;
+static EditorViewportState *numeric_viewport;
+static EditorNumericTarget numeric_explicit_target;
+static const char *numeric_explicit_key;
+static bool numeric_last_locked;
+void editor_mode_numeric_context_set(EditorProject *project,EditorViewportState *viewport) {
+    numeric_project=project;numeric_viewport=viewport;numeric_explicit_key=NULL;
+}
+void editor_mode_numeric_field_bind(EditorNumericTarget target,const char *property) {
+    numeric_explicit_target=target;numeric_explicit_key=property;
+}
+EditorNumericTarget editor_mode_numeric_target_get(EditorSelectionRef s) {
+    EditorNumericTarget t={.object=s.object,.parent=s.parent,.container=s.container,.item=s.item};
+    switch(s.kind) {
+#define KIND(S,K) case EDITOR_SELECTION_##S:t.kind=EDITOR_ITEM_##K;break
+        KIND(OBJECT,OBJECT);KIND(RIGID_BODY,RIGID_BODY);KIND(PARTICLE,RIGID_BODY);
+        KIND(ANCHOR,ANCHOR);KIND(JOINT,JOINT);KIND(SOFT_BODY,SOFT_BODY);KIND(SOFT_NODE,SOFT_NODE);
+        KIND(SOFT_BEAM,SOFT_BEAM);KIND(SOFT_AREA,SOFT_AREA);KIND(SPRITE,SPRITE);KIND(ANIMATED_SPRITE,ANIMATED_SPRITE);
+        KIND(ANIMATION_FRAME,ANIMATION_FRAME);KIND(CAMERA,CAMERA);KIND(LAYOUT_VIEWPORT,LAYOUT_VIEWPORT);
+        KIND(UI_SHAPE,VIEWPORT_UI);KIND(UI_TEXT,VIEWPORT_UI);KIND(UI_SLIDER,VIEWPORT_UI);
+        KIND(FORCE,FORCE);KIND(TORQUE,TORQUE);KIND(INPUT_BINDING,INPUT_BINDING);KIND(VERTEX,VERTEX);KIND(LINE,LINE);
+#undef KIND
+        case EDITOR_SELECTION_CENTER_OF_MASS:
+            t.kind=s.item?EDITOR_ITEM_RIGID_BODY:EDITOR_ITEM_SOFT_BODY;
+            if(!s.item) {t.item=s.parent;t.parent=0;}break;
+        case EDITOR_SELECTION_ORIGIN:
+            if(numeric_viewport) {
+                t.kind=numeric_viewport->selected_origin_kind==EDITOR_ORIGIN_SOFT_BODY?EDITOR_ITEM_SOFT_BODY:EDITOR_ITEM_RIGID_BODY;
+                t.item=t.kind==EDITOR_ITEM_SOFT_BODY?numeric_viewport->selected_soft_body:numeric_viewport->selected_rigid_body;t.parent=t.container=0;
+            }break;
+        default:t.kind=EDITOR_ITEM_PROJECT;t.object=t.parent=t.container=t.item=0;break;
+    }
+    if(s.kind==EDITOR_SELECTION_OBJECT) t.item=s.object;
+    if(s.kind==EDITOR_SELECTION_LAYOUT_VIEWPORT) {
+        t=s.parent?(EditorNumericTarget){.kind=EDITOR_ITEM_VIEWPORT_CAMERA,.parent=s.object,.item=s.item}:
+            (EditorNumericTarget){.kind=EDITOR_ITEM_LAYOUT_VIEWPORT,.item=s.item};
+    }
+    if(s.kind==EDITOR_SELECTION_INPUT_BINDING)
+        t=(EditorNumericTarget){.kind=EDITOR_ITEM_INPUT_BINDING,.object=s.parent,.parent=s.container,.item=s.item};
+    if(t.kind==EDITOR_ITEM_VIEWPORT_UI) {t.parent=s.object;t.object=0;}
+    if((s.kind==EDITOR_SELECTION_UI_VERTEX || s.kind==EDITOR_SELECTION_UI_LINE) && numeric_project) {
+        EditorNumericTarget mount={.kind=EDITOR_ITEM_VIEWPORT_UI,.parent=s.object,.item=s.parent};
+        EditorViewportUiItem *item=editor_numeric_target_get(numeric_project,mount);
+        if(item) t=(EditorNumericTarget){.kind=s.kind==EDITOR_SELECTION_UI_VERTEX?EDITOR_ITEM_UI_VERTEX:EDITOR_ITEM_UI_LINE,
+            .parent=item->definition,.item=s.item};
+    }
+    if((t.kind==EDITOR_ITEM_VERTEX || t.kind==EDITOR_ITEM_LINE) && numeric_project) {
+        EditorObject *o=editor_object_query_get(numeric_project,t.object);
+        EditorRigidBody *b=o?editor_project_rigid_body_get(o,t.parent):NULL;
+        if(b) for(size_t h=0;h<b->hitbox_count;++h) if(b->hitboxes[h].id==t.container && t.item<b->hitboxes[h].vertex_count)
+            t.item=b->hitboxes[h].vertices[t.item].id;
+    }
+    return t;
+}
+static EditorNumericTarget numeric_control_target_get(const char *id,EditorNumericTarget target) {
+    if(!id || !numeric_viewport || !numeric_project) return target;
+    if(strstr(id,"editor.layout.camera.") || strstr(id,"editor.layout.camera_editor.") || strstr(id,"editor.layout.screen."))
+        return (EditorNumericTarget){.kind=EDITOR_ITEM_VIEWPORT_CAMERA,.parent=numeric_viewport->selected_layout_viewport,.item=numeric_viewport->selected_viewport_camera_item};
+    if(strstr(id,"editor.layout.ui.") || strstr(id,"editor.ui_")) {
+        EditorNumericTarget ui={.kind=EDITOR_ITEM_VIEWPORT_UI,.parent=numeric_viewport->selected_layout_viewport,.item=numeric_viewport->selected_viewport_ui_item};
+        EditorViewportUiItem *item=editor_numeric_target_get(numeric_project,ui);
+        if(!item) return target;
+        if(strstr(id,"editor.ui_vertex.")) return (EditorNumericTarget){.kind=EDITOR_ITEM_UI_VERTEX,.parent=item->definition,.item=numeric_viewport->selected_vertex+1};
+        if(strstr(id,"editor.ui_line.")) return (EditorNumericTarget){.kind=EDITOR_ITEM_UI_LINE,.parent=item->definition,.item=numeric_viewport->selected_line+1};
+        if(strstr(id,"editor.ui_text.point_size")) {
+            EditorViewportUiText *text=item->kind==EDITOR_VIEWPORT_UI_SHAPE?&item->value.shape.text:&item->value.text;
+            return (EditorNumericTarget){.kind=EDITOR_ITEM_UI_FONT,.item=text->font};
+        }
+        if(strstr(id,"editor.ui_text.") || strstr(id,"editor.ui_text_child.") || strstr(id,"editor.ui_slider.") ||
+            strstr(id,".border_") || strstr(id,".hash_spacing") || strstr(id,".corner_radius") ||
+            (strstr(id,".rotation") && item->kind==EDITOR_VIEWPORT_UI_SHAPE))
+            return (EditorNumericTarget){.kind=EDITOR_ITEM_UI_DEFINITION,.item=item->definition};
+        return ui;
+    }
+    return target;
+}
+bool editor_mode_numeric_address_get(const void *address,EditorNumericType type,
+        EditorNumericTarget *target,const char **key) {
+    if(!numeric_project || !address || !target || !key) return false;
+    EditorNumericTarget candidates[]={editor_mode_numeric_target_get(editor_mode_diagnostic_target),
+        {.kind=EDITOR_ITEM_PROJECT},
+        {.kind=EDITOR_ITEM_LAYOUT_VIEWPORT,.item=numeric_viewport?numeric_viewport->selected_layout_viewport:0},
+        {.kind=EDITOR_ITEM_VIEWPORT_UI,.parent=numeric_viewport?numeric_viewport->selected_layout_viewport:0,
+            .item=numeric_viewport?numeric_viewport->selected_viewport_ui_item:0}};
+    size_t count;const EditorNumericProperty *properties=editor_numeric_properties_get(&count);
+    for(size_t c=0;c<sizeof(candidates)/sizeof(*candidates);++c) {
+        unsigned char *base=editor_numeric_target_get(numeric_project,candidates[c]);
+        if(!base) continue;
+        for(size_t i=0;i<count;++i) {
+            const EditorNumericProperty *p=&properties[i];EditorNumericValue value;
+            if(p->kind==candidates[c].kind && p->type==type && base+p->offset==address &&
+                    editor_numeric_value_get(numeric_project,candidates[c],p->key,&value)) {
+                *target=candidates[c];*key=p->key;return true;
+            }
+        }
+        if(candidates[c].kind!=EDITOR_ITEM_VIEWPORT_UI) continue;
+        EditorViewportUiItem *item=(void *)base;
+        EditorNumericTarget definition={.kind=EDITOR_ITEM_UI_DEFINITION,.item=item->definition};
+        for(size_t i=0;i<count;++i) {
+            const EditorNumericProperty *p=&properties[i];EditorNumericValue value;
+            if(p->kind!=EDITOR_ITEM_UI_DEFINITION || p->type!=type) continue;
+            size_t offset=p->offset>=offsetof(EditorViewportUiDefinition,value)?
+                p->offset - offsetof(EditorViewportUiDefinition,value)+offsetof(EditorViewportUiItem,value):
+                p->offset - offsetof(EditorViewportUiDefinition,border_enabled)+offsetof(EditorViewportUiItem,border_enabled);
+            if(base+offset==address && editor_numeric_value_get(numeric_project,definition,p->key,&value)) {
+                *target=definition;*key=p->key;return true;
+            }
+        }
+    }
+    return false;
+}
+const char *editor_mode_numeric_property_key_get(EditorNumericTarget target,const char *control) {
+    if(!control) return NULL;
+    if(strstr(control,"editor.input.binding.key.")) return "input.key";
+    if(strstr(control,"editor.input.binding.modifiers.")) return "modifiers";
+    char suffix[128];snprintf(suffix,sizeof(suffix),"%s",control);
+    size_t length=strlen(suffix);
+    if(length>6 && !strcmp(suffix+length-6,".field")) suffix[length-6]='\0';
+    const char *name=strrchr(suffix,'.');name=name?name+1:suffix;
+    char canonical[256];unsigned part,number;
+    if(sscanf(control,"editor.visuals.%u.%u",&part,&number)==2 && part<3 && number>=2 && number<8) {
+        const char *parts[]={"main","endpoint_a","endpoint_b"};
+        const char *members[]={"border_thickness","scale.x","scale.y","offset.x","offset.y","rotation"};
+        snprintf(canonical,sizeof(canonical),"visuals.%s.%s",parts[part],members[number-2]);
+        const EditorNumericProperty *visual=editor_numeric_property_get(target,canonical);if(visual) return visual->key;
+    }
+    if(target.kind==EDITOR_ITEM_FORCE || target.kind==EDITOR_ITEM_TORQUE) {
+        const char *member=!strcmp(name,"X offset")||!strcmp(name,"Along")?"offset.x":
+            !strcmp(name,"Y offset")||!strcmp(name,"Left offset")?"offset.y":!strcmp(name,"Fraction")?"fraction":NULL;
+        if(!strcmp(name,"Magnitude")) snprintf(canonical,sizeof(canonical),"description.magnitude");
+        else if(strstr(control,".marker.") && member) snprintf(canonical,sizeof(canonical),"marker_%s",member);
+        else if(member) snprintf(canonical,sizeof(canonical),"description.%s.%s",
+            strstr(control,".from.")?"orientation.from":strstr(control,".to.")?"orientation.to":"location",member);
+        else if(strstr(control,".orientation.") || strstr(control,".direction.")) snprintf(canonical,sizeof(canonical),"description.orientation.offset");
+        else canonical[0]='\0';
+        const EditorNumericProperty *source=editor_numeric_property_get(target,canonical);if(source) return source->key;
+    }
+    if(strstr(control,"editor.com.") && (!strcmp(name,"x") || !strcmp(name,"y"))) {
+        snprintf(canonical,sizeof(canonical),"%s.%s",target.kind==EDITOR_ITEM_SOFT_BODY?"center_of_mass":"center_of_mass_offset",name);
+        const EditorNumericProperty *com=editor_numeric_property_get(target,canonical);if(com) return com->key;
+    }
+    if(target.kind==EDITOR_ITEM_UI_DEFINITION && numeric_project) {
+        EditorViewportUiDefinition *definition=editor_numeric_target_get(numeric_project,target);
+        if(definition) {
+            const char *prefix=strstr(control,"editor.ui_text.")?(definition->kind==EDITOR_VIEWPORT_UI_SHAPE?"value.shape.text":"value.text"):
+                strstr(control,"editor.ui_slider.")?"value.slider":NULL;
+            const char *member=!strcmp(name,"offset_x")?"offset.x":!strcmp(name,"offset_y")?"offset.y":
+                !strcmp(name,"wrap")?"wrap_width":!strcmp(name,"min")?"minimum":!strcmp(name,"max")?"maximum":name;
+            if(prefix) snprintf(canonical,sizeof(canonical),"%s.%s",prefix,member);
+            else snprintf(canonical,sizeof(canonical),"%s",!strcmp(name,"rotation")?"value.shape.rotation":name);
+            const EditorNumericProperty *ui=editor_numeric_property_get(target,canonical);if(ui) return ui->key;
+        }
+    }
+    struct {const char *name,*key;} aliases[]={
+        {"x","position.x"},{"y","position.y"},{"angle","rotation"},{"mass","mass_value"},
+        {"mass","node_mass"},{"radius","particle_radius"},{"radius","radius"},{"rigid_vertices","particle_rigid_vertices"},
+        {"origin_x","particle_origin.x"},{"origin_y","particle_origin.y"},
+        {"initial_velocity_x","initial_velocity.x"},{"initial_velocity_y","initial_velocity.y"},
+        {"initial_acceleration_x","initial_acceleration.x"},{"initial_acceleration_y","initial_acceleration.y"},
+        {"width","dimensions.x"},{"height","dimensions.y"},{"width","size.x"},{"height","size.y"},
+        {"scale_x","scale.x"},{"scale_y","scale.y"},{"offset_x","offset.x"},{"offset_y","offset.y"},
+        {"x","editor_position.x"},{"y","editor_position.y"},{"rotation","editor_rotation"},
+        {"x","offset.x"},{"y","offset.y"},{"x","config.rectangle.x"},{"y","config.rectangle.y"},
+        {"width","config.rectangle.width"},{"height","config.rectangle.height"},
+        {"x","placement.rectangle.x"},{"y","placement.rectangle.y"},
+        {"width","placement.rectangle.width"},{"height","placement.rectangle.height"},{"rotation","placement.orientation"},
+        {"layer","graphics_layer.value"},{"value","graphics_layer.value"},
+        {"magnitude","description.magnitude"},{"friction","node_friction_default"},{"restitution","node_restitution_default"},
+        {"lifetime-time","entity_settings.lifetime.deadline.expiry_time"},{"lifetime-tick","entity_settings.lifetime.deadline.expiry_tick"},
+        {"angular-acceleration","entity_settings.angular_acceleration"},{"angular-maximum","entity_settings.angular_velocity_maximum"},
+        {"axis-point-x","entity_settings.axis_lock.point_on_axis.x"},{"axis-point-y","entity_settings.axis_lock.point_on_axis.y"},
+        {"transform-offset-x","entity_settings.transform_offset.x"},{"transform-offset-y","entity_settings.transform_offset.y"},
+        {"transform-angle","entity_settings.transform_angle"},
+        {"engine_dt","engine_time_per_tick"},{"physics_dt","physics_dt_per_tick"},{"substeps","physics_substeps"},
+        {"gravity_x","physics_gravity.x"},{"gravity_y","physics_gravity.y"},{"solver_iterations","physics_solver_iterations"},
+        {"direction_x","direction.x"},{"direction_y","direction.y"}
+        ,{"ticks","ticks_per_frame"},{"seconds","time_per_frame"},{"start","starting_frame"},
+        {"thickness","collision_thickness"},
+        {"scale","scale.x"},{"wrap","value.text.wrap_width"},{"corner_radius","border_corner_radius"},
+        {"hash_spacing","border_hash_spacing"},{"content_width","content_scale.x"},{"content_height","content_scale.y"},
+        {"content_x","content_offset.x"},{"content_y","content_offset.y"}
+    };
+    const EditorNumericProperty *p=editor_numeric_property_get(target,name);
+    if(p) return p->key;
+    for(size_t i=0;i<sizeof(aliases)/sizeof(*aliases);++i) if(!strcmp(name,aliases[i].name)) {
+        p=editor_numeric_property_get(target,aliases[i].key);if(p) return p->key;
+    }
+    return NULL;
+}
+static bool numeric_lock_button(const char *id,UIRect bounds,EditorNumericTarget target,const char *key) {
+    if(!numeric_project || !key) return false;
+    bool all=true,any=false,found=false;
+    EditorNumericTarget *lock_targets=NULL;size_t count=1;
+    if(numeric_viewport && numeric_viewport->selected_item_count>1 && !strncmp(id,"editor.bulk.",12)) {
+        count=numeric_viewport->selected_item_count;lock_targets=malloc(count*sizeof(*lock_targets));
+        if(!lock_targets) return false;
+        for(size_t i=0;i<count;++i) lock_targets[i]=editor_mode_numeric_target_get(numeric_viewport->selected_items[i]);
+    } else if(key[0]=='@' && (target.kind==EDITOR_ITEM_VIEWPORT_UI || target.kind==EDITOR_ITEM_UI_DEFINITION) && numeric_viewport) {
+        EditorNumericTarget ui={.kind=EDITOR_ITEM_VIEWPORT_UI,.parent=numeric_viewport->selected_layout_viewport,.item=numeric_viewport->selected_viewport_ui_item};
+        EditorViewportUiItem *item=editor_numeric_target_get(numeric_project,ui);
+        if(item) {
+            lock_targets=malloc(3*sizeof(*lock_targets));
+            if(!lock_targets) return false;
+            count=2;lock_targets[0]=ui;lock_targets[1]=(EditorNumericTarget){.kind=EDITOR_ITEM_UI_DEFINITION,.item=item->definition};
+            if(!strcmp(key,"@text-content") && item->kind!=EDITOR_VIEWPORT_UI_SLIDER) {
+                EditorViewportUiText *text=item->kind==EDITOR_VIEWPORT_UI_SHAPE?&item->value.shape.text:&item->value.text;
+                if(text->font) lock_targets[count++]=(EditorNumericTarget){.kind=EDITOR_ITEM_UI_FONT,.item=text->font};
+            }
+        }
+    }
+    size_t n;const EditorNumericProperty *properties=editor_numeric_properties_get(&n);
+    for(size_t t=0;t<count;++t) for(size_t i=0;i<n;++i) {
+        EditorNumericTarget current=lock_targets?lock_targets[t]:target;
+        const char *compatible_key=editor_numeric_compatible_key_get(current,key);
+        if(properties[i].kind!=current.kind || (key[0]=='@'?!editor_numeric_section_check(&properties[i],key+1):strcmp(compatible_key,properties[i].key)!=0)) continue;
+        EditorNumericValue current_value;
+        if(!editor_numeric_value_get(numeric_project,current,properties[i].key,&current_value)) continue;
+        bool locked=editor_numeric_lock_check(numeric_project,current,properties[i].key);
+        any|=locked;all&=locked;found=true;
+        if(current.kind==EDITOR_ITEM_SOFT_BODY && (!strcmp(properties[i].key,"node_friction_default") || !strcmp(properties[i].key,"node_restitution_default"))) {
+            EditorSoftBody *body=editor_numeric_target_get(numeric_project,current);
+            const char *node_key=!strcmp(properties[i].key,"node_friction_default")?"friction":"restitution";
+            for(size_t node=0;body && node<body->node_count;++node) {
+                EditorNumericTarget child={.kind=EDITOR_ITEM_SOFT_NODE,.object=current.object,.parent=body->id,.item=body->nodes[node].id};
+                locked=editor_numeric_lock_check(numeric_project,child,node_key);any|=locked;all&=locked;
+            }
+        }
+    }
+    if(!found) {free(lock_targets);return false;}
+    char lock_id[160];snprintf(lock_id,sizeof(lock_id),"%s.numeric_lock",id);
+    UIButtonResult button=rohr_ui_interaction(lock_id,bounds);
+    Color color=all?(Color){245,190,80,255}:any?(Color){225,205,140,255}:(Color){170,182,199,255};
+    rohr_ui_surface(bounds,button.hovered?(Color){72,80,94,255}:(Color){38,43,52,255});
+    float x=bounds.x+bounds.width/2,y=bounds.y+bounds.height/2;
+    rohr_ui_border((UIRect){x-6,y-1,12,9},1.5f,color);
+    rohr_ui_border((UIRect){x-4+(all?0:4),y-8,8,8},1.5f,color);
+    if(any&&!all) rohr_ui_surface((UIRect){x-3,y+3,6,2},color);
+    if(button.clicked) {
+        EditorCommand command={.type=EDITOR_COMMAND_NUMERIC_LOCK};
+        command.data.numeric_lock.target=target;command.data.numeric_lock.lock_targets=lock_targets;
+        command.data.numeric_lock.target_count=lock_targets?count:0;command.data.numeric_lock.locked=!all;
+        snprintf(command.data.numeric_lock.property,sizeof(command.data.numeric_lock.property),"%s",key);
+        (void)editor_command_execute(numeric_project,&command);
+        all=!all;
+    }
+    free(lock_targets);return all;
+}
+UISliderResult editor_mode_slider(const char *id,float value,const UISliderConfig *config) {
+    UISliderConfig slider=config?*config:rohr_ui_slider_config_default_get();
+    EditorNumericTarget target=numeric_explicit_key?numeric_explicit_target:
+        editor_mode_numeric_target_get(editor_mode_diagnostic_target);
+    const char *key=numeric_explicit_key?numeric_explicit_key:editor_mode_numeric_property_key_get(target,id);
+    numeric_explicit_key=NULL;
+    if(numeric_project && key) {
+        UIRect lock_bounds={slider.center.x+slider.length*0.5f-25,slider.center.y-13,25,26};
+        slider.read_only|=numeric_lock_button(id,lock_bounds,target,key);
+        slider.center.x-=14;
+        slider.length=fmaxf(1,slider.length-28);
+    }
+    return rohr_ui_slider(id,value,&slider);
+}
+static const char *numeric_section_get(const char *id) {
+    if(!id) return NULL;
+    if(!strcmp(id,"editor.mode.properties")) return "all";
+    if(!strcmp(id,"editor.visuals")) return "appearance";
+    unsigned visual_part;
+    if(sscanf(id,"editor.visuals.part.%u",&visual_part)==1 && visual_part<3) {
+        const char *parts[]={"visuals.main.","visuals.endpoint_a.","visuals.endpoint_b."};
+        return parts[visual_part];
+    }
+    if(strstr(id,"editor.ui_slider.section.content")) return "slider-content";
+    if(strstr(id,"editor.ui_slider.section.appearance")) return "slider-appearance";
+    if(strstr(id,"editor.ui_text") && strstr(id,".section.content")) return "text-content";
+    if(strstr(id,"editor.input.binding.section.x_axis")) return "input-x";
+    if(strstr(id,"editor.input.binding.section.y_axis")) return "input-y";
+    if(strstr(id,"editor.input.binding.section.axis")) return "input-x";
+    const char *p=strstr(id,"entity_settings.section.");
+    if(p) {
+        const char *sections[]={"lifetime","angular",NULL,"axis","driver"};
+        unsigned n=(unsigned)strtoul(p+strlen("entity_settings.section."),NULL,10);return n<5?sections[n]:NULL;
+    }
+    p=strrchr(id,'.');return p?p+1:id;
+}
 void editor_mode_field_rejected_callback_set(EditorModeFieldRejected callback, void *context) {
     editor_numeric_draft_id[0] = '\0';
     editor_field_rejected = callback; editor_field_rejected_context = context;
@@ -48,6 +332,7 @@ static UIFieldResult number_commit_field(EditorMixedNumberField *state,
     bool was_active = state->active;
     UIFieldResult result = editor_mode_field(id, (UIFieldBinding){.kind = UI_FIELD_STRING,
         .string = state->text, .string_capacity = sizeof(state->text)}, display, bounds, NULL);
+    if(numeric_last_locked) {state->active=false;return result;}
     bool cancelled = rohr_ui_key_pressed_check(SDLK_ESCAPE);
     state->active = result.active && !result.submitted && !cancelled;
     result.changed = false;
@@ -166,6 +451,14 @@ bool editor_mode_accordion_section_draw(EditorModeAccordionSection *section,
     if(section == NULL || id == NULL ||
             !rohr_graphics_text_valid_check(section->label)) return false;
     bool error = editor_diagnostics_section_check(editor_mode_diagnostics, editor_mode_diagnostic_target, id);
+    EditorNumericTarget numeric_target=editor_mode_numeric_target_get(editor_mode_diagnostic_target);
+    numeric_target=numeric_control_target_get(id,numeric_target);
+    if(strstr(id,"editor.settings.physics.")) numeric_target=(EditorNumericTarget){.kind=EDITOR_ITEM_PROJECT};
+    const char *numeric_section=numeric_section_get(id);
+    size_t numeric_count;const EditorNumericProperty *numeric_properties=editor_numeric_properties_get(&numeric_count);
+    bool has_numeric=false;
+    for(size_t i=0;i<numeric_count;++i) if(numeric_properties[i].kind==numeric_target.kind &&
+        editor_numeric_section_check(&numeric_properties[i],numeric_section)) {has_numeric=true;break;}
     if(content_height < 0.0f) content_height = 0.0f;
     if(section->expanded) {
         UIRect panel = {bounds.x, bounds.y, bounds.width,
@@ -183,7 +476,13 @@ bool editor_mode_accordion_section_draw(EditorModeAccordionSection *section,
         style.hovered = (Color){132, 55, 61, 255};
         style.pressed = (Color){85, 34, 39, 255};
     }
-    result = rohr_ui_button(id, &section->label, bounds, &style);
+    UIRect label_bounds=bounds;
+    if(has_numeric && numeric_project) {
+        char group[96];snprintf(group,sizeof(group),"@%s",numeric_section);
+        (void)numeric_lock_button(id,(UIRect){bounds.x+bounds.width-28,bounds.y,28,bounds.height},numeric_target,group);
+        label_bounds.width-=30;
+    }
+    result = rohr_ui_button(id, &section->label, label_bounds, &style);
     rohr_ui_border(bounds, error ? 2.0f : 1.0f, error ? EDITOR_DIAGNOSTIC_COLOR : section->expanded ?
         (Color){184, 190, 202, 255} : (Color){92, 98, 110, 255});
     if(result.clicked) {
@@ -683,6 +982,20 @@ void editor_mode_external_name_set(const char *id) { editor_mode_external_name =
 UIFieldResult editor_mode_field(const char *id, UIFieldBinding binding,
         TextAsset *display, UIRect bounds, const UIButtonStyle *style) {
     UIButtonStyle baseline;
+    EditorNumericTarget numeric_target=numeric_explicit_key?numeric_explicit_target:
+        editor_mode_numeric_target_get(editor_mode_diagnostic_target);
+    if(!numeric_explicit_key) numeric_target=numeric_control_target_get(id,numeric_target);
+    if(id && strstr(id,"editor.settings.physics.")) numeric_target=(EditorNumericTarget){.kind=EDITOR_ITEM_PROJECT};
+    const char *numeric_key=numeric_explicit_key?numeric_explicit_key:editor_mode_numeric_property_key_get(numeric_target,id);
+    if(!numeric_explicit_key && binding.kind==UI_FIELD_FLOAT)
+        (void)editor_mode_numeric_address_get(binding.number,EDITOR_NUMERIC_FLOAT,&numeric_target,&numeric_key);
+    numeric_explicit_key=NULL;
+    bool locked=false;
+    if(numeric_project && numeric_key) {
+        locked=numeric_lock_button(id,(UIRect){bounds.x+bounds.width-25,bounds.y,25,bounds.height},numeric_target,numeric_key);
+        bounds.width-=28;binding.read_only=locked;
+    }
+    numeric_last_locked=locked;
     char *draft_id = editor_numeric_draft_id, *draft = editor_numeric_draft;
     bool had_draft = id && !strcmp(id, draft_id);
     if(id && editor_mode_external_name && !strcmp(id, editor_mode_external_name)) return (UIFieldResult){0};
@@ -696,6 +1009,7 @@ UIFieldResult editor_mode_field(const char *id, UIFieldBinding binding,
         style = &baseline;
     }
     UIFieldResult result = rohr_ui_field(id, binding, display, bounds, style);
+    if(locked) {result.changed=false;result.submitted=false;}
     if(binding.kind == UI_FIELD_FLOAT && id) {
         if(had_draft && (result.submitted || !result.active) && !rohr_ui_key_pressed_check(SDLK_ESCAPE)) {
             char *end = NULL; float value = strtof(draft, &end);
@@ -1140,7 +1454,8 @@ bool editor_mode_layer_control_draw(EditorModeLayerControl *control,
                 .string_capacity = sizeof(control->edited_name)},
             &control->name_field, (UIRect){x + 10.0f, y, name_width, 28.0f},
             &field_style);
-        UIFieldResult edit_value = rohr_ui_field(value_id,
+        if(!control->adding) editor_mode_numeric_field_bind((EditorNumericTarget){.kind=EDITOR_ITEM_GRAPHICS_LAYER,.item=control->edited_layer},"value");
+        UIFieldResult edit_value = editor_mode_field(value_id,
             (UIFieldBinding){.kind = UI_FIELD_FLOAT,
                 .number = &control->edited_value}, &control->value_field,
             (UIRect){x + 10.0f + name_width, y, value_width, 28.0f},
@@ -1213,7 +1528,9 @@ bool editor_mode_layer_control_draw(EditorModeLayerControl *control,
         rohr_ui_label(&control->direct_label,
             (UIRect){x + 8.0f, y, 92.0f, 28.0f});
         snprintf(value_id, sizeof(value_id), "%s.layer_value", id_prefix);
-        UIFieldResult result = rohr_ui_field(value_id,
+        EditorNumericTarget numeric_target=numeric_control_target_get(id_prefix,editor_mode_numeric_target_get(editor_mode_diagnostic_target));
+        editor_mode_numeric_field_bind(numeric_target,numeric_target.kind==EDITOR_ITEM_VIEWPORT_CAMERA?"placement.layer":numeric_target.kind==EDITOR_ITEM_VIEWPORT_UI?"layer":"graphics_layer.value");
+        UIFieldResult result = editor_mode_field(value_id,
             (UIFieldBinding){.kind = UI_FIELD_FLOAT, .number = &value},
             &control->value_field,
             (UIRect){x + 104.0f, y, width - 114.0f, 28.0f}, &field_style);

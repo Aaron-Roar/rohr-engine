@@ -191,6 +191,8 @@ typedef struct EditorColorPicker {
     float saturation;
     float value;
     float opacity;
+    EditorNumericTarget opacity_target;
+    const char *opacity_key;
     char hex[10];
 } EditorColorPicker;
 
@@ -701,6 +703,42 @@ static void editor_operation_field_rejected(EditorSelectionRef target, const cha
     if(notifications) editor_notification_panel_push(notifications, "Field edit - FAIL", detail);
 }
 
+static struct {
+    char changed[1024], blocked[2048];
+    size_t blocked_count;
+} editor_numeric_notice;
+static void editor_numeric_notice_flush(EditorNotificationPanel *notifications,bool cancelled) {
+    if(!cancelled && editor_numeric_notice.blocked_count) {
+        char detail[3300];
+        snprintf(detail,sizeof(detail),"Changed: %s. Could not change: %s.%s",
+            editor_numeric_notice.changed[0]?editor_numeric_notice.changed:"none",
+            editor_numeric_notice.blocked,editor_numeric_notice.changed[0]?" Undo restores the changes in one step.":"");
+        editor_log_error("Numeric locks","%s",detail);
+        if(notifications) editor_notification_panel_push(notifications,"Numeric locks - restricted edit",detail);
+    }
+    memset(&editor_numeric_notice,0,sizeof(editor_numeric_notice));
+}
+static void editor_numeric_notice_add(const EditorCommand *command,const EditorCommandResult *result) {
+    if(!command || !result) return;
+    if(result->numeric_blocked) {
+        editor_numeric_notice.blocked_count+=result->numeric_blocked;
+        if(!strstr(editor_numeric_notice.blocked,result->numeric_reason)) {
+            size_t used=strlen(editor_numeric_notice.blocked);
+            snprintf(editor_numeric_notice.blocked+used,sizeof(editor_numeric_notice.blocked)-used,"%s%s",used?"; ":"",result->numeric_reason);
+        }
+    }
+    if(result->kind==ERROR_RESULT_VALUE && !result->numeric_no_change) {
+        EditorSelectionRef target=editor_diagnostic_command_target_get(command);
+        char name[EDITOR_OBJECT_NAME_MAX]={0},entry[128];
+        (void)editor_navigation_selection_name_get((EditorProject *)editor_operation_project,target,name,sizeof(name));
+        snprintf(entry,sizeof(entry),"%s (object %u, item %u)",name[0]?name:"project properties",target.object,target.item);
+        const char *changed=result->numeric_changed[0]?result->numeric_changed:entry;
+        if(!strstr(editor_numeric_notice.changed,changed)) {
+            size_t used=strlen(editor_numeric_notice.changed);
+            snprintf(editor_numeric_notice.changed+used,sizeof(editor_numeric_notice.changed)-used,"%s%s",used?", ":"",changed);
+        }
+    }
+}
 static void editor_operation_command_finished(const EditorCommand *command,
         const EditorCommandResult *result, void *context) {
     EditorNotificationPanel *notifications = context;
@@ -711,6 +749,12 @@ static void editor_operation_command_finished(const EditorCommand *command,
     if(command != NULL && result != NULL && result->kind == ERROR_RESULT_VALUE &&
             editor_command_named_text_invalidates(command->type))
         editor_mode_named_text_clear_all();
+    bool grouped=command && (command->pointer_transform || (editor_operation_history && editor_operation_history->transaction_active));
+    if(result && (result->numeric_blocked || grouped)) {
+        editor_numeric_notice_add(command,result);
+        if(!grouped) editor_numeric_notice_flush(notifications,false);
+        if(result->numeric_blocked) return;
+    }
     if(!result || (command && command->pointer_transform)) return;
     if(!result->placement.blocked && result->kind != ERROR_RESULT_ERROR) return;
     EditorSelectionRef target = editor_diagnostic_command_target_get(command);
@@ -832,11 +876,16 @@ static uint64_t editor_project_hash_get(const EditorProject *project) {
     uint64_t hash = UINT64_C(1469598103934665603);
 
     if(project == NULL) return 0;
-    for(size_t i = 0; i < sizeof(*project); i += 1) {
+    /* Lock allocation and history replay counters are transient. Hash only
+     * authored lock entries below, so undo can return to the saved state. */
+    for(size_t i = offsetof(EditorProject, application_window_enabled); i < sizeof(*project); i += 1) {
         hash ^= bytes[i];
         hash *= UINT64_C(1099511628211);
     }
     bytes = (const unsigned char *)project->audio_definitions;
+    for(size_t i=0;i<project->numeric_lock_count*sizeof(*project->numeric_locks);++i) {
+        hash^=((const unsigned char *)project->numeric_locks)[i];hash*=UINT64_C(1099511628211);
+    }
     for(size_t i = 0; i < project->audio_definition_count * sizeof(*project->audio_definitions); ++i) {
         hash ^= bytes[i]; hash *= UINT64_C(1099511628211);
     }
@@ -1245,6 +1294,16 @@ static void editor_color_picker_open(EditorColorPicker *picker, uint32_t *target
     picker->property = property;
     picker->bulk_state = NULL;
     picker->bulk_history = NULL;
+    picker->opacity_key=NULL;
+    (void)editor_mode_numeric_address_get(target,EDITOR_NUMERIC_ALPHA,&picker->opacity_target,&picker->opacity_key);
+    if(!picker->opacity_key && project) {
+        const char *key=editor_numeric_command_property_key_get(kind,property);
+        EditorNumericTarget numeric_target={.kind=kind,.object=object,.parent=parent,.item=item};
+        const EditorNumericProperty *numeric_property=editor_numeric_property_get(numeric_target,key);
+        if(numeric_property && numeric_property->type==EDITOR_NUMERIC_ALPHA) {
+            picker->opacity_target=numeric_target;picker->opacity_key=key;
+        }
+    }
     editor_color_rgb_to_hsv(*target, &picker->hue, &picker->saturation, &picker->value);
     picker->opacity = (float)(*target & 0xff) * 100.0f / 255.0f;
     editor_hex_color_format(picker->hex, *target);
@@ -1265,6 +1324,15 @@ static void editor_bulk_color_picker_open(void *context, uint32_t *color,
         EDITOR_ITEM_OBJECT, 0, 0, 0, property);
     bulk->picker->bulk_state = bulk->state;
     bulk->picker->bulk_history = bulk->history;
+    if(bulk->state && bulk->state->selected_item_count) {
+        EditorNumericTarget target=editor_mode_numeric_target_get(bulk->state->selected_items[0]);
+        const char *key=editor_numeric_command_property_key_get(target.kind,property);
+        const EditorNumericProperty *numeric_property=editor_numeric_property_get(target,key);
+        if(numeric_property && numeric_property->type==EDITOR_NUMERIC_ALPHA) {
+            bulk->picker->opacity_target=target;
+            bulk->picker->opacity_key=key;
+        }
+    }
 }
 
 static void editor_mode_color_picker_open(void *context,
@@ -1394,7 +1462,8 @@ static bool editor_color_picker_draw(EditorColorPicker *picker,
     rohr_ui_border((UIRect){hue.x - 3.0f,
         hue.y + picker->hue * hue.height - 2.0f, hue.width + 6.0f, 4.0f},
         1.0f, (Color){255, 255, 255, 255});
-    opacity_result = rohr_ui_field("editor.color_picker.opacity", (UIFieldBinding){
+    if(picker->opacity_key) editor_mode_numeric_field_bind(picker->opacity_target,picker->opacity_key);
+    opacity_result = editor_mode_field(picker->bulk_state?"editor.bulk.color_picker.opacity":"editor.color_picker.opacity", (UIFieldBinding){
         .kind = UI_FIELD_FLOAT, .number = &picker->opacity}, opacity_display,
         opacity, NULL);
     rohr_ui_label(opacity_label,
@@ -1684,6 +1753,8 @@ static bool editor_single_selected_delete(
             viewport_state->selected_vertex :
             (viewport_state->selected_line + 1) % item->value.shape.vertex_count;
         if(index >= item->value.shape.vertex_count) return false;
+        bool removed_vertices[EDITOR_HITBOX_VERTEX_MAX]={false};removed_vertices[index]=true;
+        editor_numeric_ui_vertices_remap(project,item->definition,item->value.shape.vertex_count,removed_vertices,0);
         memmove(&item->value.shape.vertices[index],
             &item->value.shape.vertices[index + 1],
             (item->value.shape.vertex_count - index - 1) *
@@ -2051,6 +2122,7 @@ static bool editor_selected_delete(EditorProject *project,
             remove_count += 1;
         }
         if(item->value.shape.vertex_count - remove_count < 3) return false;
+        editor_numeric_ui_vertices_remap(project,item->definition,item->value.shape.vertex_count,remove,0);
         for(size_t read = 0, write = 0; read < item->value.shape.vertex_count;
                 read += 1) if(!remove[read])
             item->value.shape.vertices[write++] = item->value.shape.vertices[read];
@@ -2358,6 +2430,7 @@ int main(int argc, char **argv) {
     TextAsset panel_name = {0};
     TextAsset panel_errors = {0};
     EditorDiagnostics diagnostics = {0}, previous_diagnostics = {0};
+    EditorNumericGuard numeric_guard={0};
     TextAsset back_label = {0};
     TextAsset close_project_label = {0};
     TextAsset exit_label = {0};
@@ -3060,6 +3133,12 @@ int main(int argc, char **argv) {
             &diagnostics, &previous_diagnostics);
         viewport_state.diagnostics = &diagnostics;
         editor_mode_diagnostics_set(&diagnostics, panel_draw_key.item);
+        editor_mode_numeric_context_set(workspace.open?&project:NULL,&viewport_state);
+        if(!editor_numeric_guard_begin(&numeric_guard,&project)) {
+            editor_notification_panel_push(&notification_panel,"Numeric locks - FAIL","Unable to allocate numeric lock guard; editor interaction cancelled");
+            ui_interaction_cancel();
+            continue;
+        }
         bool delete_footer = editor_panel_delete_footer_check(&viewport_state);
         float panel_footer_height = workspace.open && delete_footer ? 54.0f : 0.0f;
         bool mode_accordion_applies = viewport_state.selected_item_count <= 1 &&
@@ -4929,6 +5008,20 @@ int main(int argc, char **argv) {
         }
         (void)editor_project_ui_definition_sync_from_item(&project,
             viewport_state.selected_viewport_ui_item);
+        char numeric_reason[2048];
+        size_t numeric_blocked=editor_numeric_guard_finish(&numeric_guard,&project,numeric_reason,sizeof(numeric_reason));
+        editor_numeric_locks_prune(&project);
+        if(numeric_blocked) {
+            editor_numeric_notice.blocked_count+=numeric_blocked;
+            size_t used=strlen(editor_numeric_notice.blocked);
+            if(!strstr(editor_numeric_notice.blocked,numeric_reason))
+                snprintf(editor_numeric_notice.blocked+used,sizeof(editor_numeric_notice.blocked)-used,"%s%s",used?"; ":"",numeric_reason);
+            (void)editor_project_ui_definitions_refresh(&project);
+        }
+        if(rohr_ui_key_pressed_check(SDLK_ESCAPE)) editor_numeric_notice_flush(&notification_panel,true);
+        else if(pointer_state.button_states[MOUSE_BUTTON_LEFT]!=MOUSE_BUTTON_STATE_DOWN &&
+                pointer_state.button_states[MOUSE_BUTTON_LEFT]!=MOUSE_BUTTON_STATE_PRESSED && !history.transaction_active)
+            editor_numeric_notice_flush(&notification_panel,false);
         if(ui_history_capturing)
             (void)editor_history_ui_change_finish(&history);
         editor_history_continuous_set(&history, field_editing ||
@@ -5026,8 +5119,10 @@ int main(int argc, char **argv) {
     rohr_graphics_text_destroy(&unsaved_changes_label);
     rohr_graphics_text_destroy(&close_label);
     editor_mode_diagnostics_set(NULL, (EditorSelectionRef){0});
+    editor_mode_numeric_context_set(NULL,NULL);
     editor_diagnostics_destroy(&diagnostics);
     editor_diagnostics_destroy(&previous_diagnostics);
+    editor_numeric_guard_destroy(&numeric_guard);
     rohr_graphics_text_destroy(&panel_errors);
     rohr_graphics_text_destroy(&panel_name);
     rohr_graphics_text_destroy(&back_label);
@@ -5070,6 +5165,8 @@ int main(int argc, char **argv) {
     return 0;
 
 fail:
+    editor_mode_numeric_context_set(NULL,NULL);
+    editor_numeric_guard_destroy(&numeric_guard);
     editor_startup_failure_report(startup_stage, editor_mode_text_error_get());
     editor_mode_named_text_clear_all();
     editor_viewport_assets_destroy();

@@ -447,7 +447,7 @@ contracts, and generated examples when a goal changes supported behavior.
     recurring error logging. No image analysis, developer-owned main.c changes,
     persistence format changes, or simulation changes. Native Windows execution
     was not performed. See the corrective issue mapping for evidence and logs.
-16. [ ] **C16 — Numeric property locks.** Give every editable numeric field a
+16. [x] **C16 — Numeric property locks.** Give every editable numeric field a
     toggleable editor lock, including X, Y, and angle. Accordion-level locks
     toggle all numeric children, such as Position locking both X and Y. Locks
     constrain direct field edits and indirect changes from dragging, joint
@@ -455,6 +455,22 @@ contracts, and generated examples when a goal changes supported behavior.
     simulation mode. Define persistence, mixed/bulk behavior, and history before
     implementation. Body-relative axis references (origin/COM and following
     orientation) are deferred; C14 retains the existing direction/point API.
+    **Complete:** locks are project-owned metadata (format 14; reads 12/13/14),
+    protect shown/local values, and participate in history and existing duplication.
+    Mixed group toggles lock all first. GUI and CLI preserve locked values while
+    applying independent changes; connected placement remains constrained, and
+    drag restrictions are summarized once on release. Runtime APIs ignore these
+    authoring locks. Temporary tool inputs and read-only displays are excluded.
+    The user accepted the five manual review checks and the final symbol-size/
+    bulk-opacity control review. Accordion locks cover their displayed numeric
+    children, including camera dimensions, force settings, and shared font size.
+    All 132 Linux tests and 114 ASan/UBSan tests pass with leak detection.
+    Windows editor/CLI/tests and the installed-SDK generated application, scene,
+    and probe cross-build without compiler warnings. The UI example builds
+    independently against both SDKs and passes Linux startup/interrupt checks
+    outside its source directory. Native Windows execution was not performed.
+    Evidence and review projects are under ignored `sandbox/milestone_1/c16/`;
+    see the corrective issue mapping. Broader goal 5 acceptance remains pending.
 
 ### 5. Adversarial testing and hardening
 

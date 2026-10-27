@@ -3,6 +3,8 @@
  */
 #include "editor_project.h"
 #include "editor_array.h"
+#include "editor_numeric.h"
+#include "editor_command.h"
 #include "entity/object_internal.h"
 #include <string.h>
 #include <stdio.h>
@@ -124,6 +126,8 @@ void editor_sources_reference_remove(EditorObject *o, ObjectSourceReference r) {
 
 EditorObject *editor_project_object_duplicate(EditorProject *p, uint32_t id) {
     if(!p) return NULL;
+    size_t lock_count=p->numeric_lock_count;
+    if(lock_count>SIZE_MAX/2 || !EDITOR_ARRAY_RESERVE(p->numeric_locks,p->numeric_lock_capacity,lock_count*2)) return NULL;
     EditorObject copy={0}; bool found=false;
     for(size_t i=0;i<p->object_count;++i) if(p->objects[i].id==id) {
         if(!editor_project_object_clone(&copy,&p->objects[i])) return NULL;
@@ -159,6 +163,19 @@ EditorObject *editor_project_object_duplicate(EditorProject *p, uint32_t id) {
         for(size_t h=0;h<added->hierarchy_count;++h)
             if(added->hierarchy[h].kind==EDITOR_HIERARCHY_TORQUE && added->hierarchy[h].id==old)
                 added->hierarchy[h].id=id;
+    }
+    const EditorObject *original=NULL;
+    for(size_t i=0;i<p->object_count;++i) if(p->objects[i].id==id) original=&p->objects[i];
+    for(size_t i=0;original && i<lock_count;++i) {
+        EditorNumericLock lock=p->numeric_locks[i];
+        if(lock.target.object!=id || lock.target.kind==EDITOR_ITEM_INPUT_BINDING) continue;
+        lock.target.object=new_id;
+        if(lock.target.kind==EDITOR_ITEM_OBJECT) lock.target.item=new_id;
+        if(lock.target.kind==EDITOR_ITEM_FORCE)
+            for(size_t n=0;n<original->force_count;++n) if(original->force_items[n].id==lock.target.item) {lock.target.item=added->force_items[n].id;break;}
+        if(lock.target.kind==EDITOR_ITEM_TORQUE)
+            for(size_t n=0;n<original->torque_count;++n) if(original->torque_items[n].id==lock.target.item) {lock.target.item=added->torque_items[n].id;break;}
+        p->numeric_locks[p->numeric_lock_count++]=lock;
     }
     return added;
 }

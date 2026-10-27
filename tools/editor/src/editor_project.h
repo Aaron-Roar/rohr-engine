@@ -33,7 +33,7 @@
 #define EDITOR_COLLISION_MASK_MAX 64
 /* Version 12 uses directional response masks. Version 11 requires explicit
  * collision migration; older structural formats are unsupported. */
-#define EDITOR_PROJECT_FORMAT_VERSION 13
+#define EDITOR_PROJECT_FORMAT_VERSION 14
 #define EDITOR_NAVIGATION_MODE_MAX 33
 #define EDITOR_NAVIGATION_SELECTION_MAX 30
 
@@ -721,7 +721,21 @@ typedef struct EditorNavigationState {
     uint32_t origin_kind;
 } EditorNavigationState;
 
+/* Editor-only canonical numeric property identity. Kind uses EditorItemKind;
+ * object/parent/container/item identify the owning record, never a UI widget. */
+typedef struct EditorNumericTarget {
+    uint32_t kind, object, parent, container, item, index;
+} EditorNumericTarget;
+typedef struct EditorNumericLock {
+    EditorNumericTarget target;
+    char property[96];
+} EditorNumericLock;
+
 typedef struct EditorProject {
+    EditorNumericLock *numeric_locks;
+    size_t numeric_lock_count, numeric_lock_capacity;
+    bool numeric_locks_restoring; /* transient history replay only */
+    uint64_t numeric_history_revision; /* invalidates in-flight UI guard on undo */
     bool application_window_enabled;
     WindowPresentationDescription application_window;
     EditorAudioDefinition *audio_definitions;
@@ -976,6 +990,9 @@ EditorJointPlacementResult editor_project_joint_status_get(EditorObject *object,
 EditorJointPlacementResult editor_project_joints_resolve(EditorObject *object,
     const EditorObject *before, const ObjectEntityReference *drivers, size_t driver_count,
     EditorJointId configured_joint, bool project_axes);
+EditorJointPlacementResult editor_project_joints_resolve_locked(EditorObject *object,
+    const EditorObject *before, const ObjectEntityReference *drivers, size_t driver_count,
+    EditorJointId configured_joint, bool project_axes, const EditorProject *lock_project);
 bool editor_project_joint_connected_check(EditorObject *object,
     ObjectEntityReference first, ObjectEntityReference second);
 void editor_project_placement_poses_restore(EditorObject *object, const EditorObject *before);

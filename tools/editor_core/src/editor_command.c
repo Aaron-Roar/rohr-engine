@@ -5,6 +5,7 @@
 #include "entity/object_visuals.h"
 #include "entity/object_internal.h"
 #include "editor_command.h"
+#include "editor_numeric.h"
 #include "editor_mass_properties.h"
 #include "editor_soft_area.h"
 
@@ -14,6 +15,17 @@
 #include <stdlib.h>
 #include <string.h>
 #include <limits.h>
+
+static void numeric_blocked_append(EditorCommandResult *result, const EditorNumericLock *lock);
+static bool numeric_authored_lock_set(EditorProject *project,EditorNumericTarget target,const char *key,bool locked) {
+    if(!editor_numeric_lock_set(project,target,key,locked)) return false;
+    if(target.kind!=EDITOR_ITEM_SOFT_BODY || (strcmp(key,"node_friction_default") && strcmp(key,"node_restitution_default"))) return true;
+    EditorSoftBody *body=editor_numeric_target_get(project,target);
+    const char *node_key=!strcmp(key,"node_friction_default")?"friction":"restitution";
+    for(size_t i=0;body && i<body->node_count;++i)
+        if(!editor_numeric_lock_set(project,(EditorNumericTarget){.kind=EDITOR_ITEM_SOFT_NODE,.object=target.object,.parent=body->id,.item=body->nodes[i].id},node_key,locked)) return false;
+    return true;
+}
 
 EditorSoftBodyPhysicsValues editor_soft_body_physics_get(const EditorSoftBody *body) {
     if(body == NULL) return (EditorSoftBodyPhysicsValues){0};
@@ -323,6 +335,36 @@ static EditorCommandResult editor_command_execute_internal(EditorProject *projec
             !editor_command_world_position_check(position))
         return editor_command_world_position_error();
     switch(command->type) {
+        case EDITOR_COMMAND_NUMERIC_LOCK: {
+            if(command->data.numeric_lock.query) return (EditorCommandResult){.kind=ERROR_RESULT_VALUE,.numeric_no_change=true};
+            const EditorNumericTarget *lock_targets=command->data.numeric_lock.target_count?command->data.numeric_lock.lock_targets:&command->data.numeric_lock.target;
+            size_t count=command->data.numeric_lock.target_count?command->data.numeric_lock.target_count:1;
+            if(!lock_targets) return editor_command_error((EditorError){EDITOR_ERROR_INVALID_ARGUMENT,"Missing numeric lock lock_targets"});
+            /* Stage metadata only so a group toggle either succeeds in full or changes nothing. */
+            EditorProject staged=*project;
+            staged.numeric_locks=NULL;staged.numeric_lock_count=staged.numeric_lock_capacity=0;
+            bool valid=editor_numeric_locks_copy(&staged,project),found=false;
+            const char *key=command->data.numeric_lock.property;
+            for(size_t t=0;t<count && valid;++t) {
+                if(key[0]=='@') {
+                    size_t property_count;const EditorNumericProperty *properties=editor_numeric_properties_get(&property_count);
+                    for(size_t i=0;i<property_count && valid;++i) {
+                        if(properties[i].kind!=lock_targets[t].kind || !editor_numeric_section_check(&properties[i],key+1)) continue;
+                        EditorNumericValue current;
+                        if(!editor_numeric_value_get(project,lock_targets[t],properties[i].key,&current)) continue;
+                        found=true;valid=numeric_authored_lock_set(&staged,lock_targets[t],properties[i].key,command->data.numeric_lock.locked);
+                    }
+                } else {found=true;valid=numeric_authored_lock_set(&staged,lock_targets[t],
+                    editor_numeric_compatible_key_get(lock_targets[t],key),command->data.numeric_lock.locked);}
+            }
+            if(valid && found) {
+                free(project->numeric_locks);project->numeric_locks=staged.numeric_locks;
+                project->numeric_lock_count=staged.numeric_lock_count;project->numeric_lock_capacity=staged.numeric_lock_capacity;
+                return (EditorCommandResult){.kind=ERROR_RESULT_VALUE};
+            }
+            free(staged.numeric_locks);
+            return editor_command_error((EditorError){EDITOR_ERROR_INVALID_ARGUMENT,"Unknown numeric property or unavailable lock storage"});
+        }
         case EDITOR_COMMAND_TRANSFORM_BATCH: {
             if(!command->data.transform_batch.commands || !command->data.transform_batch.count)
                 return editor_command_error(editor_result_error(EDITOR_ERROR_INVALID_ARGUMENT,"Empty transform batch").result.error);
@@ -1528,12 +1570,24 @@ static EditorCommandResult editor_command_execute_internal(EditorProject *projec
                         isfinite(set->value.number) && set->value.number >= 0 &&
                         (set->property == EDITOR_PROPERTY_FRICTION || set->value.number <= 1)) {
                     bool friction = set->property == EDITOR_PROPERTY_FRICTION;
-                    if(friction) body->node_friction_default = set->value.number;
-                    else body->node_restitution_default = set->value.number;
-                    for(size_t i = 0; i < body->node_count; ++i) {
-                        if(friction) body->nodes[i].friction = set->value.number;
-                        else body->nodes[i].restitution = set->value.number;
+                    EditorCommandResult material={.kind=ERROR_RESULT_VALUE,.numeric_no_change=true};
+                    EditorNumericTarget target={.kind=EDITOR_ITEM_SOFT_BODY,.object=set->object,.item=set->item};
+                    const char *key=friction?"node_friction_default":"node_restitution_default";
+                    float *stored=friction?&body->node_friction_default:&body->node_restitution_default;
+                    if(*stored!=set->value.number) {
+                        if(!project->numeric_locks_restoring && editor_numeric_lock_check(project,target,key)) {
+                            EditorNumericLock lock={.target=target};snprintf(lock.property,sizeof(lock.property),"%s",key);numeric_blocked_append(&material,&lock);
+                        } else {*stored=set->value.number;material.numeric_no_change=false;}
                     }
+                    for(size_t i = 0; i < body->node_count; ++i) {
+                        target=(EditorNumericTarget){.kind=EDITOR_ITEM_SOFT_NODE,.object=set->object,.parent=body->id,.item=body->nodes[i].id};
+                        key=friction?"friction":"restitution";stored=friction?&body->nodes[i].friction:&body->nodes[i].restitution;
+                        if(*stored==set->value.number) continue;
+                        if(!project->numeric_locks_restoring && editor_numeric_lock_check(project,target,key)) {
+                            EditorNumericLock lock={.target=target};snprintf(lock.property,sizeof(lock.property),"%s",key);numeric_blocked_append(&material,&lock);
+                        } else {*stored=set->value.number;material.numeric_no_change=false;}
+                    }
+                    return material;
                 } else if(set->property == EDITOR_PROPERTY_MASS &&
                         set->value_kind == EDITOR_PROPERTY_VALUE_FLOAT) {
                     if(!editor_soft_mass_values_set(body, false, set->value.number,
@@ -2699,17 +2753,14 @@ EditorObjectId editor_command_placement_target_get(const EditorCommand *command,
     }
 }
 
-EditorCommandResult editor_command_execute(EditorProject *project,
+static EditorCommandResult editor_command_apply(EditorProject *project,
         const EditorCommand *command) {
-    if(editor_command_executing_callback != NULL)
-        editor_command_executing_callback(project, command,
-            editor_command_executing_context);
     ObjectEntityReference driver; EditorJointId joint; bool transform;
     EditorObjectId target=editor_command_placement_target_get(command,&driver,&joint,&transform);
     EditorObject *object=target?editor_object_query_get(project,target):NULL;
     EditorObject before={0};
     bool project_axis=command && (command->pointer_transform || axis_property_check(command));
-    bool placement=object && (object->joint_count || project_axis || command->type==EDITOR_COMMAND_TRANSFORM_BATCH);
+    bool placement=object && (object->joint_count || project_axis || project->numeric_lock_count || command->type==EDITOR_COMMAND_TRANSFORM_BATCH);
     bool captured=!placement || editor_project_object_clone(&before,object);
     EditorCommandResult result=captured?editor_command_execute_internal(project,command):
         editor_command_error(editor_result_error(EDITOR_ERROR_CAPACITY,"Unable to stage joint placement").result.error);
@@ -2723,7 +2774,8 @@ EditorCommandResult editor_command_execute(EditorProject *project,
                 (void)editor_command_placement_target_get(&command->data.transform_batch.commands[i],&drivers[i],&unused,&is_transform);
             }
         }
-        if(drivers) result.placement=editor_project_joints_resolve(object,&before,drivers,driver_count,joint,project_axis);
+        if(drivers) result.placement=editor_project_joints_resolve_locked(object,&before,drivers,driver_count,joint,project_axis,
+            project->numeric_locks_restoring?NULL:project);
         else {result.placement.blocked=true;snprintf(result.placement.reason,sizeof(result.placement.reason),"unable to allocate transform drivers");}
         if(drivers!=&driver) free(drivers);
         if(result.placement.blocked && transform) {
@@ -2741,12 +2793,342 @@ EditorCommandResult editor_command_execute(EditorProject *project,
             command->type == EDITOR_COMMAND_ITEM_REMOVE)
         for(size_t i = 0; i < project->object_count; ++i)
             editor_project_entity_references_prune(&project->objects[i]);
-    if(result.kind == ERROR_RESULT_VALUE && editor_command_executed_callback != NULL)
-        editor_command_executed_callback(command, &result,
-            editor_command_executed_context);
-    if(editor_command_finished_callback != NULL)
-        editor_command_finished_callback(command, &result,
-            editor_command_finished_context);
+    return result;
+}
+
+const char *editor_numeric_command_property_key_get(EditorItemKind kind,EditorPropertyKind property) {
+    if(property==EDITOR_PROPERTY_MASS) return kind==EDITOR_ITEM_SOFT_NODE?"node_mass":kind==EDITOR_ITEM_SOFT_BODY?"mass":"mass_value";
+    if(property==EDITOR_PROPERTY_FRICTION) return kind==EDITOR_ITEM_SOFT_BODY?"node_friction_default":"friction";
+    if(property==EDITOR_PROPERTY_RESTITUTION) return kind==EDITOR_ITEM_SOFT_BODY?"node_restitution_default":"restitution";
+    if(property>=EDITOR_PROPERTY_VISUAL_FILL_COLOR && property<=EDITOR_PROPERTY_VISUAL_B_ROTATION) {
+        static const char *keys[]={
+            "visuals.main.fill_color.alpha","visuals.main.border_color.alpha","visuals.main.border_thickness","visuals.main.scale.x","visuals.main.scale.y","visuals.main.offset.x","visuals.main.offset.y","visuals.main.rotation",
+            "visuals.endpoint_a.fill_color.alpha","visuals.endpoint_a.border_color.alpha","visuals.endpoint_a.border_thickness","visuals.endpoint_a.scale.x","visuals.endpoint_a.scale.y","visuals.endpoint_a.offset.x","visuals.endpoint_a.offset.y","visuals.endpoint_a.rotation",
+            "visuals.endpoint_b.fill_color.alpha","visuals.endpoint_b.border_color.alpha","visuals.endpoint_b.border_thickness","visuals.endpoint_b.scale.x","visuals.endpoint_b.scale.y","visuals.endpoint_b.offset.x","visuals.endpoint_b.offset.y","visuals.endpoint_b.rotation"};
+        return keys[property-EDITOR_PROPERTY_VISUAL_FILL_COLOR];
+    }
+    switch(property) {
+#define KEY(P,K) case EDITOR_PROPERTY_##P:return K
+        KEY(OUTLINE_COLOR,"border_color.alpha");KEY(SURFACE_COLOR,"surface_color.alpha");
+        KEY(PARTICLE_RING_COLOR,"particle_ring_color.alpha");KEY(PARTICLE_FILL_COLOR,"particle_fill_color.alpha");
+        KEY(NODE_COLOR,"node_color.alpha");KEY(BEAM_COLOR,"beam_color.alpha");KEY(COLOR,"color.alpha");
+        KEY(PARTICLE_RADIUS,"particle_radius");KEY(PARTICLE_RIGID_VERTICES,"particle_rigid_vertices");
+        KEY(PARTICLE_ORIGIN_X,"particle_origin.x");KEY(PARTICLE_ORIGIN_Y,"particle_origin.y");KEY(NODE_RADIUS,"radius");
+        KEY(VISUAL_SIZE,"visual_size");KEY(REST_LENGTH,"rest_length");KEY(REST_ANGLE,"rest_angle");
+        KEY(STIFFNESS,"stiffness");KEY(DAMPING,"damping");KEY(BEAM_COLLISION_THICKNESS,"collision_thickness");KEY(LINE_LENGTH,"length");
+        KEY(INITIAL_VELOCITY_X,"initial_velocity.x");KEY(INITIAL_VELOCITY_Y,"initial_velocity.y");
+        KEY(INITIAL_ACCELERATION_X,"initial_acceleration.x");KEY(INITIAL_ACCELERATION_Y,"initial_acceleration.y");KEY(INITIAL_ANGULAR_VELOCITY,"initial_angular_velocity");
+        KEY(AXIS_ANGLE,"axis-angle");KEY(AXIS_POINT_X,"entity_settings.axis_lock.point_on_axis.x");KEY(AXIS_POINT_Y,"entity_settings.axis_lock.point_on_axis.y");
+        KEY(LIFETIME_TIME,"entity_settings.lifetime.deadline.expiry_time");KEY(LIFETIME_TICK,"entity_settings.lifetime.deadline.expiry_tick");
+        KEY(ANGULAR_ACCELERATION,"entity_settings.angular_acceleration");KEY(ANGULAR_MAXIMUM,"entity_settings.angular_velocity_maximum");
+        KEY(TRANSFORM_OFFSET_X,"entity_settings.transform_offset.x");KEY(TRANSFORM_OFFSET_Y,"entity_settings.transform_offset.y");KEY(TRANSFORM_ANGLE,"entity_settings.transform_angle");
+        KEY(FONT_POINT_SIZE,"point_size");KEY(RENDER_WIDTH,"render_width");KEY(RENDER_HEIGHT,"render_height");
+#undef KEY
+        default:return NULL;
+    }
+}
+
+static void numeric_blocked_append(EditorCommandResult *result, const EditorNumericLock *lock) {
+    ++result->numeric_blocked;
+    size_t used=strlen(result->numeric_reason);
+    if(used<sizeof(result->numeric_reason)-1) {
+        int written=snprintf(result->numeric_reason+used,sizeof(result->numeric_reason)-used,
+            "%s%s %u (object %u): %s locked",used?"; ":"",editor_numeric_kind_name_get(lock->target.kind),
+            lock->target.item,lock->target.object,lock->property);
+        if(written>=(int)(sizeof(result->numeric_reason)-used)) {
+            const char suffix[]=" ... (more omitted)";
+            memcpy(result->numeric_reason+sizeof(result->numeric_reason)-sizeof(suffix),suffix,sizeof(suffix));
+        }
+    }
+}
+
+static void numeric_member_filter(EditorProject *project, EditorNumericTarget target,
+        const char *key, void *requested, size_t bytes, EditorCommandResult *result) {
+    const EditorNumericProperty *property=editor_numeric_property_get(target,key);
+    const unsigned char *stored=editor_numeric_target_get(project,target);
+    if(!property || !stored || !editor_numeric_lock_check(project,target,key)) return;
+    stored+=property->offset;
+    if(!memcmp(stored,requested,bytes)) return;
+    EditorNumericLock lock={.target=target};snprintf(lock.property,sizeof(lock.property),"%s",key);
+    numeric_blocked_append(result,&lock);
+    memcpy(requested,stored,bytes);
+}
+
+/* Full-configuration setters retain locked members while accepting independent
+ * members. Validation still runs after filtering the requested configuration. */
+static void numeric_configuration_filter(EditorProject *project, EditorCommand *command, EditorCommandResult *result) {
+    EditorNumericTarget target={.kind=EDITOR_ITEM_PROJECT};
+#define MEMBER(KEY,M) numeric_member_filter(project,target,KEY,&command->data.M,sizeof(command->data.M),result)
+    switch(command->type) {
+        case EDITOR_COMMAND_PROPERTY_SET: {
+            EditorPropertySetCommand *set=&command->data.property_set;
+            target=(EditorNumericTarget){.kind=set->kind,.object=set->object,.parent=set->parent,.item=set->item};
+            const char *key=editor_numeric_command_property_key_get(set->kind,set->property);
+            const EditorNumericProperty *property=editor_numeric_property_get(target,key);
+            const unsigned char *base=editor_numeric_target_get(project,target);
+            if(property && property->type==EDITOR_NUMERIC_ALPHA && base && set->value_kind==EDITOR_PROPERTY_VALUE_UINT && editor_numeric_lock_check(project,target,key)) {
+                uint32_t original;memcpy(&original,base+property->offset,sizeof(original));
+                if((original&255)!=(set->value.integer&255)) {
+                    EditorNumericLock lock={.target=target};snprintf(lock.property,sizeof(lock.property),"%s",key);
+                    numeric_blocked_append(result,&lock);set->value.integer=(set->value.integer&UINT32_C(0xffffff00))|(original&255);
+                }
+            }
+            break;
+        }
+        case EDITOR_COMMAND_PROJECT_PHYSICS_SETTINGS_SET:
+#define PHYSICS(M) MEMBER(#M,project_physics_settings_set.M)
+            PHYSICS(engine_time_per_tick);PHYSICS(physics_dt_per_tick);PHYSICS(physics_substeps);
+            PHYSICS(physics_gravity.x);PHYSICS(physics_gravity.y);PHYSICS(physics_solver_iterations);
+#undef PHYSICS
+            break;
+        case EDITOR_COMMAND_APPLICATION_WINDOW_SET:
+#define WINDOW(M) MEMBER("application_window." #M,application_window.description.M)
+            WINDOW(window_width);WINDOW(window_height);WINDOW(logical_width);WINDOW(logical_height);
+#undef WINDOW
+            break;
+        case EDITOR_COMMAND_AUDIO_SET:
+            target=(EditorNumericTarget){.kind=EDITOR_ITEM_AUDIO,.item=command->data.audio.id};
+            MEMBER("volume",audio.volume);MEMBER("pan",audio.pan);MEMBER("playback_rate",audio.playback_rate);break;
+        case EDITOR_COMMAND_INPUT_BINDING_SET:
+            target=(EditorNumericTarget){.kind=EDITOR_ITEM_INPUT_BINDING,.object=command->data.input_binding.controller,
+                .parent=command->data.input_binding.action,.item=command->data.input_binding.binding_id};
+            MEMBER("scale.x",input_binding.binding.scale.x);MEMBER("scale.y",input_binding.binding.scale.y);
+            MEMBER("direction.x",input_binding.binding.direction.x);MEMBER("direction.y",input_binding.binding.direction.y);
+            MEMBER("input.key",input_binding.binding.input.key);MEMBER("modifiers",input_binding.binding.modifiers);break;
+        case EDITOR_COMMAND_CAMERA_DIMENSIONS_SET:
+            target=(EditorNumericTarget){.kind=EDITOR_ITEM_CAMERA,.object=command->data.camera_dimensions_set.object,.item=command->data.camera_dimensions_set.camera};
+            MEMBER("dimensions.x",camera_dimensions_set.dimensions.x);MEMBER("dimensions.y",camera_dimensions_set.dimensions.y);break;
+        case EDITOR_COMMAND_SPRITE_SIZE_SET:
+            target=(EditorNumericTarget){.kind=EDITOR_ITEM_SPRITE,.object=command->data.sprite_size_set.object,.item=command->data.sprite_size_set.sprite};
+            MEMBER("size.x",sprite_size_set.size.x);MEMBER("size.y",sprite_size_set.size.y);break;
+        case EDITOR_COMMAND_ANIMATED_SPRITE_POSITION_SET:
+            target=(EditorNumericTarget){.kind=EDITOR_ITEM_ANIMATED_SPRITE,.object=command->data.animated_sprite_position_set.object,.item=command->data.animated_sprite_position_set.sprite};
+            MEMBER("editor_position.x",animated_sprite_position_set.position.x);MEMBER("editor_position.y",animated_sprite_position_set.position.y);break;
+        case EDITOR_COMMAND_ANIMATED_SPRITE_SCALE_SET:
+            target=(EditorNumericTarget){.kind=EDITOR_ITEM_ANIMATED_SPRITE,.object=command->data.animated_sprite_scale_set.object,.item=command->data.animated_sprite_scale_set.sprite};
+            MEMBER("scale.x",animated_sprite_scale_set.scale.x);MEMBER("scale.y",animated_sprite_scale_set.scale.y);break;
+        case EDITOR_COMMAND_ANIMATED_SPRITE_TIMING_SET:
+            target=(EditorNumericTarget){.kind=EDITOR_ITEM_ANIMATED_SPRITE,.object=command->data.animated_sprite_timing_set.object,.item=command->data.animated_sprite_timing_set.sprite};
+            MEMBER("ticks_per_frame",animated_sprite_timing_set.ticks);MEMBER("time_per_frame",animated_sprite_timing_set.time);break;
+        case EDITOR_COMMAND_ANIMATION_FRAME_TRANSFORM_SET:
+        case EDITOR_COMMAND_ANIMATION_FRAME_SCALE_SET: {
+            bool transform=command->type==EDITOR_COMMAND_ANIMATION_FRAME_TRANSFORM_SET;
+            uint32_t object_id=transform?command->data.animation_frame_transform_set.object:command->data.animation_frame_scale_set.object;
+            uint32_t animation_id=transform?command->data.animation_frame_transform_set.sprite:command->data.animation_frame_scale_set.sprite;
+            size_t index=transform?command->data.animation_frame_transform_set.index:command->data.animation_frame_scale_set.index;
+            EditorObject *object=editor_object_query_get(project,object_id);
+            EditorAnimatedSprite *animation=editor_project_animated_sprite_get(object,animation_id);
+            if(!animation || index>=animation->frame_count) break;
+            target=(EditorNumericTarget){.kind=EDITOR_ITEM_ANIMATION_FRAME,.object=object_id,.parent=animation_id,.item=animation->frames[index].id};
+            if(transform) {
+                MEMBER("offset.x",animation_frame_transform_set.offset.x);MEMBER("offset.y",animation_frame_transform_set.offset.y);
+                MEMBER("rotation",animation_frame_transform_set.rotation);
+            } else {MEMBER("scale.x",animation_frame_scale_set.scale.x);MEMBER("scale.y",animation_frame_scale_set.scale.y);}
+            break;
+        }
+        case EDITOR_COMMAND_SOURCE:
+            target=(EditorNumericTarget){.kind=command->data.source.torque?EDITOR_ITEM_TORQUE:EDITOR_ITEM_FORCE,
+                .object=command->data.source.object,.item=command->data.source.id};
+            if(command->data.source.operation==EDITOR_SOURCE_SET) {
+                if(command->data.source.torque) {MEMBER("description.magnitude",source.torque_description.magnitude);}
+                else {
+#define FORCE(M) MEMBER("description." #M,source.force.M)
+                    FORCE(magnitude);FORCE(location.offset.x);FORCE(location.offset.y);FORCE(location.fraction);
+                    FORCE(orientation.offset);FORCE(orientation.from.offset.x);FORCE(orientation.from.offset.y);FORCE(orientation.from.fraction);
+                    FORCE(orientation.to.offset.x);FORCE(orientation.to.offset.y);FORCE(orientation.to.fraction);
+#undef FORCE
+                }
+            } else if(command->data.source.operation==EDITOR_SOURCE_MARKER_SET) {
+                MEMBER("marker_offset.x",source.marker_offset.x);MEMBER("marker_offset.y",source.marker_offset.y);
+            }
+            break;
+        default:break;
+    }
+#undef MEMBER
+}
+
+/* Filter compound transform requests before placement, retaining every allowed
+ * component. Non-transform mutations are preflighted below against all locks. */
+static void numeric_transform_filter(EditorProject *project, EditorCommand *command, EditorCommandResult *result) {
+    EditorNumericTarget target={0};Position *position=NULL;float *angle=NULL;
+    const char *px="position.x",*py="position.y",*rotation="rotation";
+    switch(command->type) {
+#define POSE(C,K,M,I) case C:target=(EditorNumericTarget){.kind=K,.object=command->data.M.object,.item=command->data.M.I};position=&command->data.M.position;break
+        POSE(EDITOR_COMMAND_OBJECT_POSITION,EDITOR_ITEM_OBJECT,object_position,object);
+        POSE(EDITOR_COMMAND_RIGID_BODY_TRANSFORM,EDITOR_ITEM_RIGID_BODY,rigid_body_transform,body);
+        POSE(EDITOR_COMMAND_SOFT_BODY_TRANSFORM,EDITOR_ITEM_SOFT_BODY,soft_body_transform,body);
+        POSE(EDITOR_COMMAND_ANCHOR_TRANSFORM,EDITOR_ITEM_ANCHOR,anchor_transform,anchor);
+        POSE(EDITOR_COMMAND_CAMERA_TRANSFORM,EDITOR_ITEM_CAMERA,camera_transform,camera);
+        POSE(EDITOR_COMMAND_SOFT_NODE_POSITION,EDITOR_ITEM_SOFT_NODE,soft_node_position,node);
+        POSE(EDITOR_COMMAND_VERTEX_POSITION,EDITOR_ITEM_VERTEX,vertex_position,vertex);
+        POSE(EDITOR_COMMAND_SPRITE_POSITION_SET,EDITOR_ITEM_SPRITE,sprite_position_set,sprite);
+#undef POSE
+        default:return;
+    }
+    if(command->type==EDITOR_COMMAND_RIGID_BODY_TRANSFORM) angle=&command->data.rigid_body_transform.rotation;
+    if(command->type==EDITOR_COMMAND_SOFT_BODY_TRANSFORM) angle=&command->data.soft_body_transform.rotation;
+    if(command->type==EDITOR_COMMAND_ANCHOR_TRANSFORM) angle=&command->data.anchor_transform.rotation;
+    if(command->type==EDITOR_COMMAND_CAMERA_TRANSFORM) angle=&command->data.camera_transform.rotation;
+    if(command->type==EDITOR_COMMAND_SOFT_NODE_POSITION) target.parent=command->data.soft_node_position.body;
+    if(command->type==EDITOR_COMMAND_VERTEX_POSITION) {target.parent=command->data.vertex_position.body;target.container=command->data.vertex_position.hitbox;}
+    float *components[]={position?&position->x:NULL,position?&position->y:NULL,angle};
+    const char *keys[]={px,py,rotation};
+    bool changed=false;
+    for(size_t i=0;i<3;++i) {
+        EditorNumericValue value;
+        if(!components[i] || !editor_numeric_value_get(project,target,keys[i],&value)) continue;
+        if(*components[i]!=value.number && editor_numeric_lock_check(project,target,keys[i])) {
+            EditorNumericLock lock={.target=target};snprintf(lock.property,sizeof(lock.property),"%s",keys[i]);
+            numeric_blocked_append(result,&lock);*components[i]=value.number;
+        }
+        changed|=*components[i]!=value.number;
+    }
+    result->numeric_no_change=result->numeric_blocked && !changed;
+}
+
+static void numeric_projection_report(EditorProject *preview,const EditorCommand *command,EditorCommandResult *result) {
+    if(!command->pointer_transform) return;
+    Position requested;ObjectEntityReference driver;EditorJointId joint;bool transform;
+    EditorObjectId object_id=editor_command_placement_target_get(command,&driver,&joint,&transform);
+    if(!transform || !driver.id || !editor_command_world_position_get(command,&requested)) return;
+    EditorNumericTarget target={.object=object_id,.item=(uint32_t)driver.id,.parent=(uint32_t)driver.soft_body};
+    switch(driver.kind) {
+        case OBJECT_BODY:target.kind=EDITOR_ITEM_RIGID_BODY;break;
+        case OBJECT_SOFT_BODY:target.kind=EDITOR_ITEM_SOFT_BODY;break;
+        case OBJECT_NODE:target.kind=EDITOR_ITEM_SOFT_NODE;break;
+        case OBJECT_ANCHOR:target.kind=EDITOR_ITEM_ANCHOR;break;
+        default:return;
+    }
+    EditorNumericValue x,y;
+    if(!editor_numeric_value_get(preview,target,"position.x",&x) || !editor_numeric_value_get(preview,target,"position.y",&y) ||
+        (fabsf(x.number-requested.x)<.0001f && fabsf(y.number-requested.y)<.0001f)) return;
+    EditorObject *object=editor_object_query_get(preview,object_id);
+    for(size_t i=0;i<preview->numeric_lock_count;++i) {
+        const EditorNumericLock *lock=&preview->numeric_locks[i];
+        if(lock->target.object!=object_id || (strcmp(lock->property,"position.x") && strcmp(lock->property,"position.y"))) continue;
+        ObjectKind kind=lock->target.kind==EDITOR_ITEM_RIGID_BODY?OBJECT_BODY:lock->target.kind==EDITOR_ITEM_SOFT_BODY?OBJECT_SOFT_BODY:
+            lock->target.kind==EDITOR_ITEM_SOFT_NODE?OBJECT_NODE:lock->target.kind==EDITOR_ITEM_ANCHOR?OBJECT_ANCHOR:OBJECT_CONTAINER;
+        if(kind!=OBJECT_CONTAINER && editor_project_joint_connected_check(object,driver,(ObjectEntityReference){kind,lock->target.item,lock->target.parent}))
+            numeric_blocked_append(result,lock);
+    }
+}
+
+static EditorCommandResult editor_command_guarded(EditorProject *project, const EditorCommand *command,bool partitioned) {
+    if(!project || !command) return editor_command_apply(project,command);
+    if(command->type==EDITOR_COMMAND_TRANSFORM_BATCH && project->numeric_lock_count && !partitioned && !project->numeric_locks_restoring) {
+        size_t count=command->data.transform_batch.count;
+        const EditorCommand *parts=command->data.transform_batch.commands;
+        EditorObject *object=editor_object_query_get(project,command->data.transform_batch.object);
+        if(!parts || !count || !object) return editor_command_apply(project,command);
+        size_t *groups=malloc(count*sizeof(*groups));
+        ObjectEntityReference *drivers=malloc(count*sizeof(*drivers));
+        EditorCommand *group_commands=malloc(count*sizeof(*group_commands));
+        if(!groups || !drivers || !group_commands) {
+            free(groups);free(drivers);free(group_commands);
+            return editor_command_error((EditorError){EDITOR_ERROR_CAPACITY,"Unable to stage independent transform groups"});
+        }
+        for(size_t i=0;i<count;++i) {
+            EditorJointId joint;bool transform;groups[i]=i;
+            (void)editor_command_placement_target_get(&parts[i],&drivers[i],&joint,&transform);
+        }
+        for(size_t i=0;i<count;++i) for(size_t j=0;j<i;++j) {
+            if(groups[i]==groups[j] || !editor_project_joint_connected_check(object,drivers[i],drivers[j])) continue;
+            size_t from=groups[i],to=groups[j];for(size_t n=0;n<count;++n) if(groups[n]==from) groups[n]=to;
+        }
+        EditorCommandResult aggregate={.kind=ERROR_RESULT_VALUE,.numeric_no_change=true};
+        for(size_t group=0;group<count;++group) {
+            size_t n=0;EditorCommandResult filtered={0};
+            for(size_t i=0;i<count;++i) if(groups[i]==group) {
+                group_commands[n]=parts[i];numeric_transform_filter(project,&group_commands[n],&filtered);++n;
+            }
+            if(!n) continue;
+            EditorCommand batch=*command;batch.data.transform_batch.commands=group_commands;batch.data.transform_batch.count=n;
+            EditorCommandResult part=editor_command_guarded(project,&batch,true);
+            aggregate.numeric_blocked+=part.numeric_blocked+filtered.numeric_blocked;
+            size_t used=strlen(aggregate.numeric_reason);
+            snprintf(aggregate.numeric_reason+used,sizeof(aggregate.numeric_reason)-used,"%s%s%s%s",
+                used?"; ":"",filtered.numeric_reason,filtered.numeric_reason[0]&&part.numeric_reason[0]?"; ":"",part.numeric_reason);
+            if(part.kind==ERROR_RESULT_VALUE && !part.numeric_no_change && !filtered.numeric_no_change) {
+                aggregate.numeric_no_change=false;
+                for(size_t i=0;i<count;++i) if(groups[i]==group) {
+                    size_t used_changed=strlen(aggregate.numeric_changed);
+                    snprintf(aggregate.numeric_changed+used_changed,sizeof(aggregate.numeric_changed)-used_changed,
+                        "%sentity %u in object %u",used_changed?", ":"",(uint32_t)drivers[i].id,command->data.transform_batch.object);
+                }
+            }
+            if(part.kind==ERROR_RESULT_ERROR && !part.numeric_blocked) {aggregate.kind=part.kind;aggregate.result=part.result;break;}
+        }
+        free(groups);free(drivers);free(group_commands);return aggregate;
+    }
+    EditorCommand filtered=*command;
+    EditorCommandResult restriction={0},result={0};
+    bool guarded=project->numeric_lock_count && !project->numeric_locks_restoring && command->type!=EDITOR_COMMAND_NUMERIC_LOCK;
+    if(guarded) numeric_transform_filter(project,&filtered,&restriction);
+    if(guarded) {
+        EditorProject preview={0};
+        if(!editor_project_clone(&preview,project)) {
+            result=editor_command_error((EditorError){EDITOR_ERROR_CAPACITY,"Unable to stage numeric lock validation"});goto finished;
+        }
+        EditorCommandResult trial=editor_command_apply(&preview,&filtered);
+        for(size_t i=0;i<project->numeric_lock_count;++i) {
+            const EditorNumericLock *lock=&project->numeric_locks[i];EditorNumericValue a,b;
+            if(!editor_numeric_value_get(project,lock->target,lock->property,&a) ||
+                !editor_numeric_value_get(&preview,lock->target,lock->property,&b)) continue;
+            if(!editor_numeric_value_equal_check(editor_numeric_property_get(lock->target,lock->property),a,b))
+                numeric_blocked_append(&restriction,lock);
+        }
+        EditorCommandResult projection={0};
+        if(trial.kind==ERROR_RESULT_VALUE) numeric_projection_report(&preview,&filtered,&projection);
+        editor_project_destroy(&preview);
+        if(restriction.numeric_blocked && !restriction.numeric_no_change && trial.kind==ERROR_RESULT_ERROR) {
+            result=trial;goto finished;
+        }
+        /* A residual change would violate a lock through an indirect path. */
+        EditorCommandResult direct={0};EditorCommand original=*command;
+        numeric_transform_filter(project,&original,&direct);
+        if(restriction.numeric_blocked>direct.numeric_blocked) {
+            result=editor_command_error((EditorError){EDITOR_ERROR_INVALID_ARGUMENT,"Edit blocked by numeric property locks"});
+            restriction.numeric_no_change=true;goto finished;
+        }
+        if(projection.numeric_blocked) {
+            restriction.numeric_blocked+=projection.numeric_blocked;
+            size_t used=strlen(restriction.numeric_reason);
+            snprintf(restriction.numeric_reason+used,sizeof(restriction.numeric_reason)-used,"%s%s",used?"; ":"",projection.numeric_reason);
+        }
+        if(trial.placement.blocked && strstr(trial.placement.reason,"numeric property lock")) {
+            restriction.numeric_blocked++;
+            snprintf(restriction.numeric_reason,sizeof(restriction.numeric_reason),"%s (joint %u)",trial.placement.reason,trial.placement.joint);
+        }
+    }
+    result=editor_command_apply(project,&filtered);
+    if(result.kind==ERROR_RESULT_VALUE && !project->numeric_locks_restoring) editor_numeric_locks_prune(project);
+finished:
+    result.numeric_blocked+=restriction.numeric_blocked;
+    result.numeric_no_change|=restriction.numeric_no_change;
+    if(restriction.numeric_reason[0]) {
+        size_t used=strlen(result.numeric_reason);
+        snprintf(result.numeric_reason+used,sizeof(result.numeric_reason)-used,"%s%s",used?"; ":"",restriction.numeric_reason);
+    }
+    return result;
+}
+
+EditorCommandResult editor_command_execute(EditorProject *project,const EditorCommand *command) {
+    if(!command || !project) return editor_command_guarded(project,command,false);
+    EditorCommand filtered=*command;EditorCommandResult restriction={0};
+    if(project->numeric_lock_count && !project->numeric_locks_restoring) {
+        numeric_transform_filter(project,&filtered,&restriction);
+        numeric_configuration_filter(project,&filtered,&restriction);
+    }
+    if(editor_command_executing_callback) editor_command_executing_callback(project,&filtered,editor_command_executing_context);
+    EditorCommandResult result=editor_command_guarded(project,&filtered,false);
+    result.numeric_blocked+=restriction.numeric_blocked;
+    result.numeric_no_change|=restriction.numeric_no_change;
+    if(restriction.numeric_reason[0]) {
+        size_t used=strlen(result.numeric_reason);
+        snprintf(result.numeric_reason+used,sizeof(result.numeric_reason)-used,"%s%s",used?"; ":"",restriction.numeric_reason);
+    }
+    if(result.kind==ERROR_RESULT_VALUE && editor_command_executed_callback) editor_command_executed_callback(&filtered,&result,editor_command_executed_context);
+    if(editor_command_finished_callback) editor_command_finished_callback(&filtered,&result,editor_command_finished_context);
     return result;
 }
 
@@ -3126,6 +3508,22 @@ EditorResult editor_command_cli_parse(int count, char **arguments,
             "expected an editor mutation command");
     domain = arguments[1];
     action = arguments[2];
+    if(!strcmp(domain,"numeric-lock")) {
+        *document_path=arguments[3];
+        *command=(EditorCommand){.type=EDITOR_COMMAND_NUMERIC_LOCK};
+        EditorNumericTarget *t=&command->data.numeric_lock.target;
+        bool query=!strcmp(action,"get");
+        command->data.numeric_lock.query=query;
+        if((query?count!=11:count!=12) || (!query && strcmp(action,"set")) || !editor_numeric_kind_parse(arguments[4],&t->kind) ||
+            !editor_command_uint_parse(arguments[5],&t->object) || !editor_command_uint_parse(arguments[6],&t->parent) ||
+            !editor_command_uint_parse(arguments[7],&t->container) || !editor_command_uint_parse(arguments[8],&t->item) ||
+            !editor_command_uint_parse(arguments[9],&t->index) ||
+            strlen(arguments[10])>=sizeof(command->data.numeric_lock.property) ||
+            (!query && !editor_command_bool_parse(arguments[11],&command->data.numeric_lock.locked)))
+            return editor_result_error(EDITOR_ERROR_INVALID_ARGUMENT,"numeric-lock set requires kind object parent container item index property true|false");
+        snprintf(command->data.numeric_lock.property,sizeof(command->data.numeric_lock.property),"%s",arguments[10]);
+        return editor_result_value(true);
+    }
     if(!strcmp(domain, "joint") && !strcmp(action, "place")) {
         *document_path = arguments[3];
         if(count == 6 && editor_command_uint_parse(arguments[4], &command->data.joint_place.object) &&
@@ -4186,6 +4584,16 @@ EditorResult editor_command_cli_write(const EditorCommand *command,
         return editor_result_error(EDITOR_ERROR_INVALID_ARGUMENT,
             "command serialization requires a command, path, and output buffer");
     output[0] = '\0';
+    if(command->type==EDITOR_COMMAND_NUMERIC_LOCK) {
+        const EditorNumericTarget *t=&command->data.numeric_lock.target;
+        if(!editor_command_text_append(output,output_capacity,&used,command->data.numeric_lock.query?"rohr-cli numeric-lock get ":"rohr-cli numeric-lock set ") ||
+            !editor_command_shell_text_append(output,output_capacity,&used,document_path)) goto capacity_error;
+        snprintf(values,sizeof(values)," %s %u %u %u %u %u %s%s%s",editor_numeric_kind_name_get(t->kind),
+            t->object,t->parent,t->container,t->item,t->index,command->data.numeric_lock.property,
+            command->data.numeric_lock.query?"":" ",command->data.numeric_lock.query?"":command->data.numeric_lock.locked?"true":"false");
+        if(!editor_command_text_append(output,output_capacity,&used,values)) goto capacity_error;
+        return editor_result_value(true);
+    }
     if(command->type == EDITOR_COMMAND_LAYER_SET)
         return editor_command_cli_standard_write(NULL, command, NULL, document_path, output, output_capacity);
     if(command->type >= EDITOR_COMMAND_SPRITE_ADD &&

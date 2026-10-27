@@ -5,6 +5,7 @@
 #include "editor_project.h"
 #include "editor_soft_area.h"
 #include "editor_array.h"
+#include "editor_numeric.h"
 
 #include <math.h>
 #include <ctype.h>
@@ -719,6 +720,7 @@ bool editor_project_object_copy_set(EditorObject *destination,
 
 void editor_project_destroy(EditorProject *project) {
     if(project == NULL) return;
+    free(project->numeric_locks);
     free(project->audio_definitions);
     for(size_t i = 0; i < project->object_count; i += 1)
         editor_project_object_destroy(&project->objects[i]);
@@ -743,6 +745,8 @@ bool editor_project_clone(EditorProject *destination,
         const EditorProject *source) {
     if(destination == NULL || source == NULL) return false;
     *destination = *source;
+    destination->numeric_locks = NULL;
+    destination->numeric_lock_count = destination->numeric_lock_capacity = 0;
     destination->audio_definitions = NULL;
     destination->audio_definition_count = 0;
     destination->audio_definition_capacity = 0;
@@ -770,6 +774,7 @@ bool editor_project_clone(EditorProject *destination,
     destination->ui_definition_capacity = 0;
     destination->input_controller_count = 0;
     destination->input_controller_capacity = 0;
+    if(!editor_numeric_locks_copy(destination, source)) goto fail;
     if(!EDITOR_ARRAY_RESERVE(destination->audio_definitions,
             destination->audio_definition_capacity, source->audio_definition_count) ||
             !EDITOR_ARRAY_RESERVE(destination->collision_masks,

@@ -220,7 +220,7 @@ bool editor_joint_editor_draw(EditorJointEditor *editor,
             (context->width + 40.0f) * 0.5f, configuration_y + 30.0f};
         slider.length = context->width - 60.0f;
         slider.min_value = 0.25f; slider.max_value = 3.0f;
-        UISliderResult result = rohr_ui_slider("editor.joint.visual_size",
+        UISliderResult result = editor_mode_slider("editor.joint.visual_size",
             joint->visual_size, &slider);
         if(result.changed) property_float_set(context->project, object->id,
             joint->id, EDITOR_PROPERTY_VISUAL_SIZE, result.value);

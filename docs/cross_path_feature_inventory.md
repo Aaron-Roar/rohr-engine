@@ -466,7 +466,7 @@ returning. The original failed fixture remains available for comparison.
 | 2. Visuals and visibility | Inspect `push_marker`, `spin_marker`, pin/weld/spring, the mirrored sprite, playing animations and `empty_animation`. Spring endpoints have different colors/scales/offsets. Toggle editor eyes separately from Visible in App, including the parent; rebuild and verify only app visibility affects runtime drawing and hidden bodies still simulate. Restore parent visibility without changing child settings. Empty animation must not prevent rendering. | Pending |
 | 3. Editor interaction | Select geometry, drag from the selecting press, use child-selection and rotation handles, and undo/redo each gesture. Pick force targets/references from menus and the viewport, checking hover highlights. Scroll a long selector; check modal menus do not move underlying items. Drag the slider thumb without moving its parent. Rename via Enter/Escape and confirm subsequent keyboard navigation works. | User-reported failures: oversized force/torque picking, persistent/overlapping child panels, first-element activation, object/joint scrolling, and delayed joint clamping. C6 panel lifecycle/scrolling and C8 source picking complete with user acceptance; C14 immediate joint/axis placement and spring controls complete with user acceptance; broader interaction retests remain pending. |
 | 4. Input and audio | Exercise the starter's configured logical input actions and text entry without unintended gameplay input while editing. Run the installed-SDK `audio` example: Play Water Splash produces sound; music play/pause/resume and track switching work; Quit/escape shuts down. Review window size/aspect settings. Muted description defaults and queued/applied audio state retain their automated fixture evidence; silent startup alone is not proof of muted playback. | Pending |
-| 5. Project lifecycle and delivery | Build/run the application and Simulate Scene. The application includes direct-API extras; scene simulation contains authored objects. Verify run/pause/stop, return to Editor, close/reopen/reorder tabs through View, rebuild a visible edit and replay. Close/switch a project during an active build and verify cancellation; terminal interrupt reaches the subprocess. Launch installed-SDK artifacts outside their source directories. | User-reported failures: relocation, repeat builds, missing CMake recovery, generation diagnostics, and incomplete-joint generation. Startup error 21 reproduced in rohr-project-1. C1 diagnostics, C2 relocation/repeat builds, C3 missing CMake recovery, C4 partial-spawn startup, and C5 incomplete joints complete with verification below; C6 panel lifecycle/scrolling and C8 source picking also complete; C7 complete with its manual checks explicitly deferred; C9 complete with the additional panel check explicitly skipped; C10 directional response and C11 explicit migration complete; C12 explicit motion authoring complete (including whole-body motion added at final review); C13 whole-body node physics complete; C14 and C15 complete; C16 and broader interactive retests remain pending. |
+| 5. Project lifecycle and delivery | Build/run the application and Simulate Scene. The application includes direct-API extras; scene simulation contains authored objects. Verify run/pause/stop, return to Editor, close/reopen/reorder tabs through View, rebuild a visible edit and replay. Close/switch a project during an active build and verify cancellation; terminal interrupt reaches the subprocess. Launch installed-SDK artifacts outside their source directories. | User-reported failures: relocation, repeat builds, missing CMake recovery, generation diagnostics, and incomplete-joint generation. Startup error 21 reproduced in rohr-project-1. C1 diagnostics, C2 relocation/repeat builds, C3 missing CMake recovery, C4 partial-spawn startup, and C5 incomplete joints complete with verification below; C6 panel lifecycle/scrolling and C8 source picking also complete; C7 complete with its manual checks explicitly deferred; C9 complete with the additional panel check explicitly skipped; C10 directional response and C11 explicit migration complete; C12 explicit motion authoring complete (including whole-body motion added at final review); C13 whole-body node physics complete; C14, C15, and C16 complete; broader interactive retests remain pending. |
 
 Preparation evidence (2026-10-21): full Linux build and **111/111 CTest tests
 pass**, including the installed-SDK comparisons and scene/build lifecycle
@@ -2607,3 +2607,76 @@ Verification logs are retained in ignored `build/c15_delivery/`: the
 delivery. Project format 13 (accepting 12), runtime format 10, CLI/generation,
 runtime physics, and developer-owned `main.c` are unchanged. C15 is complete;
 C16 and broader goal 5 acceptance remain pending. C7/C9 review exceptions remain.
+
+**C16 complete — numeric property locks:**
+
+Numeric locks are sparse, project-owned authoring metadata. The canonical
+registry covers object/entity transforms and settings, soft-body children,
+geometry, forces/torques, sprites/animation, camera/layout/UI controls, shared
+fonts, layers, input bindings, audio, application window, and project physics.
+Temporary tool inputs, editor preferences, and read-only derived displays are
+excluded. Field and accordion padlocks use the same command/history path;
+mixed groups lock all before unlocking all. Symbol-size sliders and bulk color
+opacity share those controls. Locked field text remains selectable/copyable.
+
+Locks protect local/stored values, independently of Static or runtime motion
+mode. Parent movement can carry a child without changing its locked local
+coordinates. Direct GUI/CLI edits retain locked members of compound settings;
+connected joint placement is validated together, while independent selection
+groups can still change. Pointer drags project onto permitted directions and
+summarize changed/blocked items on release. Deletion remains permitted;
+duplication and undo/redo retain lock metadata. UI vertex insertion/removal
+remaps surviving child locks. Shared UI definitions/fonts retain shared identity.
+
+Project format **14** writes `numeric_locks`; formats **12/13/14** load, with
+missing metadata defaulting to no locks. Invalid targets/properties, malformed
+entries, and duplicates reject the document. C11's migration still emits 12,
+which subsequently saves as 14. Runtime format remains **10**. Constructors,
+catalogs, spawning, runtime setters, and simulation do not enforce authoring
+locks. Developer-owned generated-project `main.c` is unchanged.
+
+Verification sources:
+
+1. `editor_numeric_locks` covers projected single/connected movement, partial
+   independent transforms, compound settings, local child coordinates,
+   whole-body material edits retaining node overrides, UI range invariants,
+   topology remapping, history, duplication, persistence, and accordion scope.
+2. `editor_configuration_controls`, `ui_field_selection`, and `ui_reports`
+   cover pointer-operated field/group/slider locks, mixed bulk opacity locks,
+   history, selectable/copyable locked fields, and sliders refusing input and
+   snapping. The reusable UI defaults remain editable.
+3. `editor_cli_numeric_locks` executes the CLI, covering positional dispatch,
+   selector ordering, rejection without file changes, unlock/edit, formats
+   12/13/14, and malformed metadata. Additional installed-CLI checks cover
+   exact uint64 lifetime values and independent RGB edits with locked opacity.
+4. `editor_motion_generated` authors position/mass locks, then exercises
+   constructors, catalogs, and object-file spawning against the installed SDK.
+   Runtime mass and position setters remain unrestricted. Windows builds the
+   same generated application, scene, and probe against its installed SDK.
+5. User manual review of the five C16 checks: **PASS** (2026-10-27).
+   Review project: `sandbox/milestone_1/c16/project/`; checklist beside it.
+   Final added-control review: **PASS**, covering symbol-size and Configuration
+   accordion locks, undo/redo, and mixed bulk Outline Color opacity locks.
+
+Final delivery results (2026-10-27): all **132 Linux tests** and **114 ASan/UBSan
+tests** pass, with leak detection and halt-on-error enabled. Windows
+editor/CLI/tests and the installed-SDK generated application, scene, and probe
+cross-build successfully. The UI example builds independently against both
+installed SDKs and passes Linux startup/interrupt checks from outside its source
+directory. Final builds have no compiler warnings or sanitizer findings. Native
+Windows execution was not performed. No screenshot analysis was used.
+
+Local evidence is organized under ignored `sandbox/milestone_1/c16/`:
+`project/` and `checklist.md` hold manual review, `automated/` holds disposable
+checks/generated consumers, and `logs/` holds verification output. Existing
+configured build trees and installed SDKs remain under `build/`; the sandbox
+links to them. Never regenerate over an active manual review project.
+
+The `logs/final_linux_tests.log`, `logs/final_sanitizer_tests.log`,
+`logs/final_*incremental.log`, `logs/generated_windows.log`,
+`logs/final_cli_checks.log`, and `logs/*user_interface*.log` files retain the
+results. `verification.txt` indexes the completed checks. Reproduce the shared
+lock and CLI regressions with
+`ctest --test-dir build --output-on-failure -R 'editor_numeric_locks|editor_cli_numeric_locks|editor_configuration_controls|ui_field_selection|ui_reports'`.
+C16 is complete; broader goal 5 acceptance and the existing C7/C9 review
+exceptions remain separate. No subsequent goal was started.

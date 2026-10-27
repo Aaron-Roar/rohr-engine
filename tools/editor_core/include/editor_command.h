@@ -89,7 +89,8 @@ typedef enum EditorCommandType {
     EDITOR_COMMAND_AUDIO_REMOVE,
     EDITOR_COMMAND_JOINT_PLACE,
     EDITOR_COMMAND_LAYER_SET,
-    EDITOR_COMMAND_TRANSFORM_BATCH
+    EDITOR_COMMAND_TRANSFORM_BATCH,
+    EDITOR_COMMAND_NUMERIC_LOCK
 } EditorCommandType;
 
 typedef enum EditorItemKind {
@@ -115,7 +116,8 @@ typedef enum EditorItemKind {
     EDITOR_ITEM_SOFT_AREA,
     EDITOR_ITEM_SOFT_HOLE,
     EDITOR_ITEM_FORCE, EDITOR_ITEM_TORQUE, EDITOR_ITEM_VIEWPORT_UI,
-    EDITOR_ITEM_UI_FONT, EDITOR_ITEM_UI_DEFINITION
+    EDITOR_ITEM_UI_FONT, EDITOR_ITEM_UI_DEFINITION,
+    EDITOR_ITEM_PROJECT, EDITOR_ITEM_AUDIO, EDITOR_ITEM_GRAPHICS_LAYER, EDITOR_ITEM_UI_VERTEX, EDITOR_ITEM_UI_LINE
 } EditorItemKind;
 
 typedef struct EditorInputControllerCommand {
@@ -371,9 +373,18 @@ typedef struct EditorSourceCommand {
 
 typedef struct EditorCommand {
     EditorCommandType type;
-    /* Pointer transforms project onto axis constraints and fail silently in UI. */
+    /* Pointer transforms project onto constraints. Numeric restrictions are
+     * accumulated by the editor and reported once at the end of a drag. */
     bool pointer_transform;
     union {
+        struct {
+            EditorNumericTarget target;
+            char property[96];
+            bool locked;
+            bool query;
+            const EditorNumericTarget *lock_targets; /* borrowed for this execution */
+            size_t target_count;
+        } numeric_lock;
         struct {
             EditorObjectId object;
             const struct EditorCommand *commands;
@@ -583,6 +594,10 @@ EditorObjectId editor_command_placement_target_get(const EditorCommand *command,
 
 typedef struct EditorCommandResult {
     EditorJointPlacementResult placement;
+    size_t numeric_blocked;
+    bool numeric_no_change;
+    char numeric_reason[1024];
+    char numeric_changed[1024];
     ErrorResultKind kind;
     union {
         EditorObjectId object;
@@ -608,6 +623,7 @@ typedef void (*EditorCommandFinished)(const EditorCommand *command,
 
 EditorCommandResult editor_command_execute(EditorProject *project,
     const EditorCommand *command);
+const char *editor_numeric_command_property_key_get(EditorItemKind kind, EditorPropertyKind property);
 void editor_command_executed_callback_set(EditorCommandExecuted callback,
     void *context);
 void editor_command_executing_callback_set(EditorCommandExecuting callback,

@@ -74,6 +74,12 @@ static bool options_sync(EditorApplicationSettingsPanel *p, const EditorProject 
 static UIFieldResult field(EditorApplicationSettingsPanel *p, size_t index,
         UIFieldBinding binding, UIRect row) {
     char id[64]; snprintf(id, sizeof(id), "editor.application.field.%zu", index);
+    const char *window_keys[]={"application_window.window_width","application_window.window_height",
+        "application_window.logical_width","application_window.logical_height"};
+    if(index>=2 && index<=5) editor_mode_numeric_field_bind((EditorNumericTarget){.kind=EDITOR_ITEM_PROJECT},window_keys[index-2]);
+    if(p->selected && (index==11 || index==12 || index==14))
+        editor_mode_numeric_field_bind((EditorNumericTarget){.kind=EDITOR_ITEM_AUDIO,.item=p->selected},
+            index==11?"volume":index==12?"pan":"playback_rate");
     rohr_ui_label(&p->labels[index], (UIRect){row.x, row.y, 170, 28});
     return editor_mode_field(id, binding, &p->fields[index],
         (UIRect){row.x + 180, row.y, row.width - 180, 28}, NULL);

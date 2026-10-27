@@ -2,6 +2,8 @@
  * SPDX-License-Identifier: LGPL-3.0-only
  */
 #include "editor_project.h"
+#include "editor_numeric.h"
+#include "editor_command.h"
 #include <math.h>
 #include <stdlib.h>
 #include <stdio.h>
@@ -13,6 +15,8 @@ typedef struct EditorPlacementPose {
     const ObjectEntitySettings *settings;
     size_t group, attachment;
     bool selected, fixed, rotation_locked;
+    bool numeric_x, numeric_y, numeric_rotation;
+    float numeric_frame_angle;
 } EditorPlacementPose;
 
 static bool same_position(Position a, Position b) {
@@ -323,13 +327,18 @@ static bool placement_drag_project_check(EditorObject *object,
         for(size_t i = 0; i < count && valid; ++i) {
             const EditorPlacementPose *pose = &poses[i];
             const ObjectEntitySettings *settings = pose->settings;
-            if(!pose->selected || components[i] != component || !settings->axis_lock_enabled) continue;
-            Axis axis = settings->axis_lock.axis;
+            if(!pose->selected || components[i] != component) continue;
+            for(unsigned constraint=0;constraint<3 && valid;++constraint) {
+            if(constraint==0 && !settings->axis_lock_enabled) continue;
+            if(constraint==1 && !pose->numeric_x) continue;
+            if(constraint==2 && !pose->numeric_y) continue;
+            Axis axis = constraint==1?(Axis){0,1}:constraint==2?(Axis){1,0}:settings->axis_lock.axis;
+            if(constraint) axis=math_vector_rotate(axis,pose->numeric_frame_angle);
             double length = hypot((double)axis.x, (double)axis.y);
             if(!isfinite(length) || length == 0) { valid = false; break; }
             double x = -axis.y / length, y = axis.x / length;
-            Position point = settings->axis_lock.point_on_axis;
-            if(settings->axis_lock_world_fixed) {
+            Position point = constraint?pose->before:settings->axis_lock.point_on_axis;
+            if(!constraint && settings->axis_lock_world_fixed) {
                 point.x -= object->position.x; point.y -= object->position.y;
             }
             double distance = x * ((double)point.x - pose->position.x) +
@@ -345,6 +354,7 @@ static bool placement_drag_project_check(EditorObject *object,
                     rank = 2;
                 } else if(fabs(x * dx + y * dy - distance) > .0001) valid = false;
             }
+            }
         }
         if(!valid) break;
         for(size_t i = 0; i < count; ++i) if(poses[i].selected && components[i] == component) {
@@ -354,6 +364,12 @@ static bool placement_drag_project_check(EditorObject *object,
     }
     free(components);
     return valid;
+}
+
+EditorJointPlacementResult editor_project_joints_resolve(EditorObject *object,
+        const EditorObject *before, const ObjectEntityReference *drivers, size_t driver_count,
+        EditorJointId configured_joint, bool project_axes) {
+    return editor_project_joints_resolve_locked(object,before,drivers,driver_count,configured_joint,project_axes,NULL);
 }
 
 /* Same endpoint ownership as anchor_owner, without allocating solver scratch
@@ -407,9 +423,9 @@ EditorJointPlacementResult editor_project_joint_status_get(EditorObject *object,
     return result;
 }
 
-EditorJointPlacementResult editor_project_joints_resolve(EditorObject *object,
+EditorJointPlacementResult editor_project_joints_resolve_locked(EditorObject *object,
         const EditorObject *before, const ObjectEntityReference *drivers, size_t driver_count,
-        EditorJointId configured_joint, bool project_axes) {
+        EditorJointId configured_joint, bool project_axes, const EditorProject *lock_project) {
     EditorJointPlacementResult result={0};
     if(!object || !before) return result;
     size_t count=0, old_count=0;
@@ -421,6 +437,20 @@ EditorJointPlacementResult editor_project_joints_resolve(EditorObject *object,
     }
     for(size_t i=0;i<count;++i) {
         poses[i].before=old[i].position; poses[i].before_angle=old[i].angle;
+        EditorNumericTarget target={.object=object->id,.item=(uint32_t)poses[i].reference.id,
+            .parent=(uint32_t)poses[i].reference.soft_body};
+        switch(poses[i].reference.kind) {
+            case OBJECT_BODY:target.kind=EDITOR_ITEM_RIGID_BODY;break;
+            case OBJECT_SOFT_BODY:target.kind=EDITOR_ITEM_SOFT_BODY;break;
+            case OBJECT_NODE:target.kind=EDITOR_ITEM_SOFT_NODE;break;
+            case OBJECT_ANCHOR:target.kind=EDITOR_ITEM_ANCHOR;break;
+            default:continue;
+        }
+        poses[i].numeric_x=editor_numeric_lock_check(lock_project,target,"position.x");
+        poses[i].numeric_y=editor_numeric_lock_check(lock_project,target,"position.y");
+        poses[i].numeric_rotation=editor_numeric_lock_check(lock_project,target,"rotation");
+        size_t numeric_owner=poses[i].reference.kind==OBJECT_NODE?poses[i].group:poses[i].attachment;
+        if(numeric_owner!=SIZE_MAX && numeric_owner!=i) poses[i].numeric_frame_angle=old[numeric_owner].angle;
     }
     if(configured_joint) {
         for(size_t j=0;j<object->joint_count;++j) if(object->joint_items[j].id==configured_joint) {
@@ -472,6 +502,12 @@ EditorJointPlacementResult editor_project_joints_resolve(EditorObject *object,
         }
     } while(progress);
     if(!affected && !project_axes) goto done;
+    /* Local node/attachment values stay unchanged when their owner carries them. */
+    for(size_t i=0;i<count;++i) {
+        size_t owner=poses[i].reference.kind==OBJECT_NODE?poses[i].group:poses[i].attachment;
+        if(owner!=SIZE_MAX && owner!=i && poses[owner].selected)
+            poses[i].numeric_x=poses[i].numeric_y=poses[i].numeric_rotation=false;
+    }
     if(project_axes && !placement_drag_project_check(object, poses, count)) {
         snprintf(result.reason, sizeof(result.reason), "incompatible axis constraints");
         goto blocked;
@@ -491,6 +527,12 @@ EditorJointPlacementResult editor_project_joints_resolve(EditorObject *object,
         }
         if(pose->rotation_locked && !same_angle(pose->angle,pose->before_angle)) {
             snprintf(result.reason,sizeof(result.reason),"rotation lock prevents placement"); goto blocked;
+        }
+        Position numeric_delta=math_vector_rotate((Position){pose->position.x-pose->before.x,pose->position.y-pose->before.y},-pose->numeric_frame_angle);
+        if((pose->numeric_x && fabs(numeric_delta.x)>.0001) ||
+           (pose->numeric_y && fabs(numeric_delta.y)>.0001) ||
+           (pose->numeric_rotation && !same_angle(pose->angle,pose->before_angle))) {
+            snprintf(result.reason,sizeof(result.reason),"numeric property lock prevents placement");goto blocked;
         }
         Position world={object->position.x+pose->position.x,object->position.y+pose->position.y};
         if(!rohr_physics_world_position_check(world) || !isfinite(pose->angle)) {

@@ -10,6 +10,7 @@
 #endif
 
 #include "editor_command.h"
+#include "editor_numeric.h"
 #include "editor_collision_migration.h"
 #include "editor_config.h"
 #include "editor_build.h"
@@ -254,6 +255,9 @@ static void cli_usage_print(void) {
         "  Selectors are order-independent and precede the operation.\n"
         "  Properties: --property <name> <values...>\n"
         "  Structure: add, delete, or rename [new-name]\n"
+        "  Numeric locks: <selectors> lock|unlock|lock-get <canonical-property>\n"
+        "  Numeric lock list: rohr-cli numeric-lock list <project-file>\n"
+        "  Numeric lock IDs: rohr-cli numeric-lock set|get <project-file> <kind> <object> <parent> <container> <item> <index> <property> [true|false]\n"
         "  Project: rohr-cli [--project <project-directory>] "
             "<operation>\n"
         "  Project operations: create, validate, generate-c, compile, build\n"
@@ -608,6 +612,14 @@ static int cli_object_command(int count, char **arguments) {
     if(editor_result_check(result)) return cli_error(result);
     if(strcmp(action, "list") == 0) {
         const EditorProject *project = editor_document_project_const_get(&document);
+        if(!strcmp(arguments[1],"numeric-lock")) {
+            for(size_t i=0;i<project->numeric_lock_count;++i) {
+                const EditorNumericLock *lock=&project->numeric_locks[i];
+                printf("%s %u %u %u %u %u %s\n",editor_numeric_kind_name_get(lock->target.kind),lock->target.object,
+                    lock->target.parent,lock->target.container,lock->target.item,lock->target.index,lock->property);
+            }
+            editor_document_destroy(&document);return 0;
+        }
         for(size_t i = 0; i < project->object_count; i += 1)
             printf("%u\t%s\n", project->objects[i].id, project->objects[i].name);
         return 0;
@@ -617,6 +629,13 @@ static int cli_object_command(int count, char **arguments) {
         editor_command_cli_named_parse(document.project, count, arguments,
             &path, &command);
     if(editor_result_check(result)) return cli_error(result);
+    if(command.type==EDITOR_COMMAND_NUMERIC_LOCK && command.data.numeric_lock.query) {
+        EditorNumericValue value;
+        if(!editor_numeric_value_get(document.project,command.data.numeric_lock.target,command.data.numeric_lock.property,&value))
+            return cli_error(editor_result_error(EDITOR_ERROR_INVALID_ARGUMENT,"Unknown numeric property"));
+        puts(editor_numeric_lock_check(document.project,command.data.numeric_lock.target,command.data.numeric_lock.property)?"locked":"unlocked");
+        editor_document_destroy(&document);return 0;
+    }
     if(command.type == EDITOR_COMMAND_SOURCE &&
             (command.data.source.operation == EDITOR_SOURCE_GET || command.data.source.operation == EDITOR_SOURCE_LIST)) {
         char *json = editor_source_query_json(document.project, &command.data.source);
@@ -626,6 +645,9 @@ static int cli_object_command(int count, char **arguments) {
         return 0;
     }
     command_result = editor_command_execute(document.project, &command);
+    if(command_result.numeric_blocked)
+        fprintf(stderr,"Numeric locks: %s. %s\n",command_result.numeric_reason,
+            command_result.kind==ERROR_RESULT_ERROR || command_result.numeric_no_change?"No changes applied":"Allowed changes applied; locked values retained");
     if(command_result.kind == ERROR_RESULT_ERROR)
         return cli_error((EditorResult){.kind = ERROR_RESULT_ERROR,
             .result.error = command_result.result.error});
@@ -667,6 +689,8 @@ int main(int count, char **arguments) {
         return cli_scene_action_command(count, arguments);
     if(cli_workspace_action_check(count, arguments))
         return cli_workspace_action_command(count, arguments);
+    if(count >= 2 && !strcmp(arguments[1],"numeric-lock"))
+        return cli_object_command(count,arguments);
     if(cli_workspace_arguments_check(count, arguments))
         return cli_error(editor_result_error(EDITOR_ERROR_INVALID_ARGUMENT,
             "Unknown project operation: %s", arguments[count - 1]));

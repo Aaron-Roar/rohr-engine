@@ -39,6 +39,10 @@ if(ROHR_ENABLE_SANITIZERS)
 endif()
 
 if(ROHR_BUILD_TESTS)
+    add_executable(editor_numeric_locks_test
+        ${PROJECT_SOURCE_DIR}/tools/editor/tests/editor_numeric_locks.c
+        ${PROJECT_SOURCE_DIR}/tools/editor/src/editor_history.c)
+    add_test(NAME editor_numeric_locks COMMAND editor_numeric_locks_test)
     add_executable(editor_collision_migration_test tests/editor_collision_migration.c)
     add_test(NAME editor_collision_migration COMMAND editor_collision_migration_test)
     set_tests_properties(editor_collision_migration PROPERTIES
@@ -58,7 +62,7 @@ if(ROHR_BUILD_TESTS)
     add_executable(editor_workspace_paths_test tests/editor_workspace_paths.c)
     add_test(NAME editor_workspace_paths COMMAND editor_workspace_paths_test "${CMAKE_CURRENT_BINARY_DIR}/path fixtures")
     add_executable(editor_scene_generation_test tests/editor_scene_generation.c)
-    foreach(scene_target editor_collision_migration_test editor_workspace_paths_test scene_child_test editor_scene_session_test editor_build_test editor_scene_generation_test editor_configuration_parity_test editor_construction_parity_test editor_incomplete_joints_test editor_interaction_fixture)
+    foreach(scene_target editor_numeric_locks_test editor_collision_migration_test editor_workspace_paths_test scene_child_test editor_scene_session_test editor_build_test editor_scene_generation_test editor_configuration_parity_test editor_construction_parity_test editor_incomplete_joints_test editor_interaction_fixture)
         target_include_directories(${scene_target} PRIVATE ${PROJECT_SOURCE_DIR}/src)
         target_link_libraries(${scene_target} PRIVATE rohr_editor_core)
         if(NOT MSVC)

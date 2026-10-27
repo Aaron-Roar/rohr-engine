@@ -4,6 +4,7 @@
 
 #include "editor_history.h"
 #include "editor_array.h"
+#include "editor_numeric.h"
 
 #include <math.h>
 #include <stdio.h>
@@ -58,6 +59,8 @@ typedef struct EditorHistoryLayerBinding {
 } EditorHistoryLayerBinding;
 
 struct EditorHistoryUiChange {
+    EditorNumericLock *numeric_locks;
+    size_t numeric_lock_count;
     EditorGraphicsLayer *graphics_layers;
     size_t graphics_layer_count;
     EditorGraphicsLayerId next_graphics_layer_id;
@@ -168,6 +171,7 @@ static void editor_history_ui_destroy(EditorHistoryUiChange *change) {
     free(change->audio);
     free(change->graphics_layers);
     free(change->layer_bindings);
+    free(change->numeric_locks);
     free(change);
 }
 
@@ -232,6 +236,12 @@ static EditorHistoryUiChange *editor_history_ui_capture(
     change = calloc(1, sizeof(*change));
     if(change == NULL) return NULL;
     if(!editor_history_layers_capture(change, project)) goto fail;
+    change->numeric_lock_count=project->numeric_lock_count;
+    if(change->numeric_lock_count) {
+        change->numeric_locks=malloc(change->numeric_lock_count*sizeof(*change->numeric_locks));
+        if(!change->numeric_locks) goto fail;
+        memcpy(change->numeric_locks,project->numeric_locks,change->numeric_lock_count*sizeof(*change->numeric_locks));
+    }
     change->application_window_enabled = project->application_window_enabled;
     change->application_window = project->application_window;
     change->audio_count = project->audio_definition_count;
@@ -310,11 +320,13 @@ static bool editor_history_ui_equal(const EditorHistoryUiChange *first,
             first->viewport_count != second->viewport_count ||
             first->definition_count != second->definition_count ||
             first->font_count != second->font_count ||
+            first->numeric_lock_count != second->numeric_lock_count ||
             first->next_viewport_id != second->next_viewport_id ||
             first->next_camera_item_id != second->next_camera_item_id ||
             first->next_ui_item_id != second->next_ui_item_id ||
             first->next_definition_id != second->next_definition_id ||
             first->next_font_id != second->next_font_id) return false;
+    if(first->numeric_lock_count && memcmp(first->numeric_locks,second->numeric_locks,first->numeric_lock_count*sizeof(*first->numeric_locks))) return false;
     if(first->graphics_layer_count && memcmp(first->graphics_layers, second->graphics_layers,
             first->graphics_layer_count * sizeof(*first->graphics_layers))) return false;
     for(size_t i = 0; i < first->layer_binding_count; ++i) {
@@ -403,6 +415,9 @@ typedef struct EditorHistoryCommandPair {
 } EditorHistoryCommandPair;
 
 struct EditorHistoryEntry {
+    EditorNumericLock *locks_before, *locks_after;
+    size_t locks_before_count, locks_after_count;
+    bool locks_captured;
     size_t memory;
     EditorHistoryCommandPair *commands;
     size_t command_count;
@@ -748,6 +763,7 @@ static EditorHistoryAggregateChange *editor_history_object_aggregate_create(
 
 static void editor_history_entry_destroy(EditorHistoryEntry *entry) {
     if(entry == NULL) return;
+    free(entry->locks_before); free(entry->locks_after);
     for(size_t i = 0; i < entry->command_count; i += 1) {
             if(entry->commands[i].forward.kind == EDITOR_HISTORY_ACTION_OBJECT)
                 editor_history_object_change_destroy(
@@ -895,6 +911,8 @@ static void editor_history_action_apply(EditorProject *project,
             if(binding) *binding = entry->binding;
             if(inherited) *inherited = entry->inherited;
         }
+        EditorProject numeric_snapshot={.numeric_locks=change->numeric_locks,.numeric_lock_count=change->numeric_lock_count};
+        if(!editor_numeric_locks_copy(project,&numeric_snapshot)) goto ui_fail;
         free(project->audio_definitions);
         project->audio_definitions = audio;
         project->audio_definition_count = project->audio_definition_capacity = change->audio_count;
@@ -1078,6 +1096,8 @@ static void editor_history_entry_apply(EditorProject *project,
         const EditorHistoryEntry *entry, bool forward, EditorHistory *history) {
     if(project == NULL || entry == NULL) return;
     if(history != NULL) history->restoring = true;
+    project->numeric_locks_restoring = true;
+    ++project->numeric_history_revision;
     if(forward) {
         for(size_t i = 0; i < entry->command_count; i += 1)
             editor_history_action_apply(project, &entry->commands[i].forward);
@@ -1085,6 +1105,12 @@ static void editor_history_entry_apply(EditorProject *project,
         for(size_t i = entry->command_count; i > 0; i -= 1)
             editor_history_action_apply(project, &entry->commands[i - 1].inverse);
     }
+    if(entry->locks_captured) {
+        EditorProject snapshot = {.numeric_locks=forward?entry->locks_after:entry->locks_before,
+            .numeric_lock_count=forward?entry->locks_after_count:entry->locks_before_count};
+        (void)editor_numeric_locks_copy(project, &snapshot);
+    }
+    project->numeric_locks_restoring = false;
     if(history != NULL) history->restoring = false;
 }
 
@@ -1562,6 +1588,7 @@ bool editor_history_init(EditorHistory *history, EditorProject *project) {
 }
 
 void editor_history_destroy(EditorHistory *history) {
+    if(history) { free(history->pending_numeric_locks); history->pending_numeric_locks=NULL; }
     if(history == NULL) return;
     editor_history_stack_clear(history->undo, &history->undo_count);
     editor_history_stack_clear(history->redo, &history->redo_count);
@@ -1577,6 +1604,9 @@ void editor_history_destroy(EditorHistory *history) {
 
 void editor_history_reset(EditorHistory *history) {
     if(history == NULL || history->project == NULL) return;
+    free(history->pending_numeric_locks);
+    history->pending_numeric_locks=NULL;
+    history->pending_numeric_lock_count=0;
     editor_history_stack_clear(history->undo, &history->undo_count);
     editor_history_stack_clear(history->redo, &history->redo_count);
     editor_history_object_change_destroy(history->pending_object);
@@ -1613,6 +1643,14 @@ static bool editor_history_presentation_command_check(const EditorCommand *comma
 void editor_history_command_begin(EditorHistory *history,
         const EditorProject *project, const EditorCommand *command) {
     if(history == NULL || history->restoring) return;
+    free(history->pending_numeric_locks); history->pending_numeric_locks=NULL;
+    history->pending_numeric_lock_count=project?project->numeric_lock_count:0;
+    if(history->pending_numeric_lock_count) {
+        history->pending_numeric_locks=malloc(history->pending_numeric_lock_count*sizeof(EditorNumericLock));
+        if(history->pending_numeric_locks) memcpy(history->pending_numeric_locks,project->numeric_locks,
+            history->pending_numeric_lock_count*sizeof(EditorNumericLock));
+        else history->pending_numeric_lock_count=0;
+    }
     editor_history_object_change_destroy(history->pending_object);
     history->pending_object = NULL;
     editor_history_aggregate_destroy(history->pending_aggregate);
@@ -1711,7 +1749,7 @@ void editor_history_command_begin(EditorHistory *history,
     }
 }
 
-void editor_history_command_finish(EditorHistory *history,
+static void editor_history_command_finish_internal(EditorHistory *history,
         const EditorCommand *command, const EditorCommandResult *result) {
     EditorHistoryEntry *entry = NULL;
     if(history == NULL || history->project == NULL || history->restoring) return;
@@ -1910,6 +1948,50 @@ finish:
     history->pending_command_valid = false;
 }
 
+static bool numeric_snapshot_capture(EditorHistoryEntry *entry, const EditorNumericLock *before,
+        size_t before_count, const EditorProject *project) {
+    if(!entry || !project) return false;
+    EditorNumericLock *after=NULL, *initial=NULL;
+    if(project->numeric_lock_count) {
+        after=malloc(project->numeric_lock_count*sizeof(*after));
+        if(!after) return false;
+        memcpy(after,project->numeric_locks,project->numeric_lock_count*sizeof(*after));
+    }
+    if(!entry->locks_captured && before_count) {
+        initial=malloc(before_count*sizeof(*initial));
+        if(!initial) {free(after);return false;}
+        memcpy(initial,before,before_count*sizeof(*initial));
+    }
+    if(!entry->locks_captured) {
+        entry->locks_before=initial;entry->locks_before_count=before_count;
+        entry->locks_captured=true;
+    }
+    free(entry->locks_after);entry->locks_after=after;entry->locks_after_count=project->numeric_lock_count;
+    return true;
+}
+
+void editor_history_command_finish(EditorHistory *history,
+        const EditorCommand *command, const EditorCommandResult *result) {
+    if(!history || !history->project || history->restoring) return;
+    size_t undo_count=history->undo_count;
+    EditorHistoryEntry *previous=undo_count?history->undo[undo_count-1]:NULL;
+    if(!result || !result->numeric_no_change) editor_history_command_finish_internal(history,command,result);
+    bool locks_changed=history->pending_numeric_lock_count!=history->project->numeric_lock_count ||
+        (history->pending_numeric_lock_count && memcmp(history->pending_numeric_locks,history->project->numeric_locks,
+            history->pending_numeric_lock_count*sizeof(EditorNumericLock)));
+    EditorHistoryEntry *entry=history->transaction_active?history->transaction_commands:
+        history->undo_count?history->undo[history->undo_count-1]:NULL;
+    if(locks_changed && !history->transaction_active && (entry==previous && undo_count==history->undo_count)) {
+        entry=calloc(1,sizeof(*entry));
+        if(entry) {entry->memory=sizeof(*entry);editor_history_stack_push(history->undo,&history->undo_count,entry);
+            editor_history_stack_clear(history->redo,&history->redo_count);}
+    }
+    if(entry && (history->transaction_active || locks_changed || entry!=previous ||
+            (history->continuous && result && result->kind==ERROR_RESULT_VALUE)))
+        (void)numeric_snapshot_capture(entry,history->pending_numeric_locks,history->pending_numeric_lock_count,history->project);
+    free(history->pending_numeric_locks);history->pending_numeric_locks=NULL;history->pending_numeric_lock_count=0;
+}
+
 void editor_history_continuous_set(EditorHistory *history, bool continuous) {
     if(history == NULL) return;
     if(!history->continuous && continuous &&
@@ -2014,6 +2096,10 @@ bool editor_history_transaction_begin(EditorHistory *history) {
     if(history->transaction_commands == NULL) return false;
     history->transaction_commands->memory =
         sizeof(*history->transaction_commands);
+    if(!numeric_snapshot_capture(history->transaction_commands,history->project->numeric_locks,
+            history->project->numeric_lock_count,history->project)) {
+        editor_history_entry_destroy(history->transaction_commands);history->transaction_commands=NULL;return false;
+    }
     history->transaction_active = true;
     history->transaction_commands_suppressed = false;
     return true;
@@ -2260,11 +2346,14 @@ bool editor_history_transaction_end(EditorHistory *history) {
             !history->transaction_active || history->transaction_commands == NULL)
         return false;
     if(!editor_history_transaction_tracks_finalize(history)) return false;
+    if(!numeric_snapshot_capture(history->transaction_commands,NULL,0,history->project)) return false;
     entry = history->transaction_commands;
     history->transaction_commands = NULL;
     history->transaction_active = false;
     history->transaction_commands_suppressed = false;
-    if(entry->command_count == 0) {
+    bool locks_changed=entry->locks_before_count!=entry->locks_after_count ||
+        (entry->locks_before_count && memcmp(entry->locks_before,entry->locks_after,entry->locks_before_count*sizeof(EditorNumericLock)));
+    if(entry->command_count == 0 && !locks_changed) {
         editor_history_entry_destroy(entry);
         return true;
     }

@@ -5,6 +5,7 @@
 #ifndef ROHR_EDITOR_MODE_CONTROLS_H
 #define ROHR_EDITOR_MODE_CONTROLS_H
 #include "editor_diagnostics.h"
+#include "editor_numeric.h"
 
 #include "editors/editor_mode_context.h"
 
@@ -145,10 +146,19 @@ typedef void (*EditorModeFieldRejected)(EditorSelectionRef target, const char *f
     const char *reason, void *context);
 void editor_mode_field_rejected_callback_set(EditorModeFieldRejected callback, void *context);
 void editor_mode_diagnostics_set(const EditorDiagnostics *diagnostics, EditorSelectionRef target);
+void editor_mode_numeric_context_set(EditorProject *project, EditorViewportState *viewport);
+/* Explicit canonical binding for controls with generated IDs or project targets. */
+void editor_mode_numeric_field_bind(EditorNumericTarget target, const char *property);
+bool editor_mode_numeric_address_get(const void *address, EditorNumericType type,
+    EditorNumericTarget *target, const char **key);
+EditorNumericTarget editor_mode_numeric_target_get(EditorSelectionRef selection);
+const char *editor_mode_numeric_property_key_get(EditorNumericTarget target, const char *control);
 void editor_mode_error_border_draw(const char *id, UIRect bounds);
 void editor_mode_error_row_draw(EditorSelectionRef target, UIRect bounds);
 UIFieldResult editor_mode_field(const char *id, UIFieldBinding binding,
     TextAsset *display, UIRect bounds, const UIButtonStyle *style);
+/* Horizontal authored sliders share the field padlock and canonical binding. */
+UISliderResult editor_mode_slider(const char *id, float value, const UISliderConfig *config);
 UIDropdownResult editor_mode_dropdown(const char *id,
     const TextAsset *const *options, size_t option_count,
     size_t selected_index, UIRect bounds, const UIButtonStyle *style);

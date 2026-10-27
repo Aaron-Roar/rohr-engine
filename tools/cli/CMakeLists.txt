@@ -42,4 +42,11 @@ if(BUILD_TESTING AND NOT CMAKE_CROSSCOMPILING)
             -DMOCK=$<TARGET_FILE:editor_cli_mock_build>
             -DTEST_ROOT=${CMAKE_CURRENT_BINARY_DIR}/config-override-project
             -P ${CMAKE_CURRENT_SOURCE_DIR}/tests/config_override.cmake)
+    if(TARGET editor_numeric_locks_test)
+        add_test(NAME editor_cli_numeric_locks COMMAND ${CMAKE_COMMAND}
+            -DCLI=$<TARGET_FILE:rohr_editor_cli>
+            -DFIXTURE_TOOL=$<TARGET_FILE:editor_numeric_locks_test>
+            -DTEST_ROOT=${CMAKE_CURRENT_BINARY_DIR}/numeric_locks
+            -P ${CMAKE_CURRENT_SOURCE_DIR}/tests/numeric_locks.cmake)
+    endif()
 endif()

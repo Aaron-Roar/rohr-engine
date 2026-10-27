@@ -7,6 +7,7 @@
 #include "editor_project.h"
 #include "editor_soft_area.h"
 #include "editor_array.h"
+#include "editor_numeric.h"
 
 #include "yyjson/yyjson.h"
 
@@ -840,6 +841,22 @@ bool editor_project_save(const EditorProject *project, const char *path) {
     yyjson_mut_doc_set_root(document, root);
     editor_json_presentation_write(document, root, project);
     yyjson_mut_obj_add_uint(document, root, "format_version", EDITOR_PROJECT_FORMAT_VERSION);
+    {
+        yyjson_mut_val *locks = yyjson_mut_arr(document);
+        for(size_t i = 0; i < project->numeric_lock_count; ++i) {
+            const EditorNumericLock *lock = &project->numeric_locks[i];
+            yyjson_mut_val *value = yyjson_mut_obj(document);
+            yyjson_mut_obj_add_strcpy(document, value, "kind", editor_numeric_kind_name_get(lock->target.kind));
+            yyjson_mut_obj_add_uint(document, value, "object", lock->target.object);
+            yyjson_mut_obj_add_uint(document, value, "parent", lock->target.parent);
+            yyjson_mut_obj_add_uint(document, value, "container", lock->target.container);
+            yyjson_mut_obj_add_uint(document, value, "item", lock->target.item);
+            yyjson_mut_obj_add_uint(document, value, "index", lock->target.index);
+            yyjson_mut_obj_add_strcpy(document, value, "property", lock->property);
+            yyjson_mut_arr_add_val(locks, value);
+        }
+        yyjson_mut_obj_add_val(document, root, "numeric_locks", locks);
+    }
     yyjson_mut_obj_add_uint(document, root, "simulation_viewport", project->simulation_viewport);
     {
         yyjson_mut_val *physics = yyjson_mut_obj(document);
@@ -2220,7 +2237,7 @@ EditorResult editor_project_load(EditorProject *project, const char *path) {
             path, EDITOR_PROJECT_FORMAT_VERSION);
         goto done;
     }
-    if(version != 12 && version != EDITOR_PROJECT_FORMAT_VERSION) {
+    if(version != 12 && version != 13 && version != EDITOR_PROJECT_FORMAT_VERSION) {
         result = editor_result_error(EDITOR_ERROR_SCHEMA_VERSION,
             version < EDITOR_PROJECT_FORMAT_VERSION
                 ? "Project editor state '%s' uses format_version %u; collision response migration required before loading as version %u (use rohr-cli migrate-collisions preview|apply with all interacting legacy JSON files)"
@@ -3037,6 +3054,25 @@ EditorResult editor_project_load(EditorProject *project, const char *path) {
             "Project editor state '%s' contains an invalid entity, joint, beam, or collision-mask reference",
             path);
         goto done;
+    }
+    {
+        yyjson_val *locks = yyjson_obj_get(root, "numeric_locks");
+        if(locks && !yyjson_is_arr(locks)) goto done;
+        size_t i, count; yyjson_val *value;
+        yyjson_arr_foreach(locks, i, count, value) {
+            EditorNumericTarget target = {0};
+            const char *kind = yyjson_get_str(yyjson_obj_get(value, "kind"));
+            const char *property = yyjson_get_str(yyjson_obj_get(value, "property"));
+            if(!editor_numeric_kind_parse(kind, &target.kind) || !property ||
+                strlen(property) >= sizeof(((EditorNumericLock *)0)->property) ||
+                !editor_json_uint(value, "object", &target.object) ||
+                !editor_json_uint(value, "parent", &target.parent) ||
+                !editor_json_uint(value, "container", &target.container) ||
+                !editor_json_uint(value, "item", &target.item) ||
+                !editor_json_uint(value, "index", &target.index) ||
+                editor_numeric_lock_check(&loaded, target, property) ||
+                !editor_numeric_lock_set(&loaded, target, property, true)) goto done;
+        }
     }
     editor_project_destroy(project);
     *project = loaded;

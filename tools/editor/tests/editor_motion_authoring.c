@@ -149,7 +149,7 @@ static void cli_check(EditorProject *p) {
 static void formats(EditorProject *p) {
     assert(editor_project_save(p,"motion.json"));
     yyjson_doc *doc=yyjson_read_file("motion.json",0,NULL,NULL); assert(doc);
-    assert(yyjson_get_uint(yyjson_obj_get(yyjson_doc_get_root(doc),"format_version"))==13);
+    assert(yyjson_get_uint(yyjson_obj_get(yyjson_doc_get_root(doc),"format_version"))==EDITOR_PROJECT_FORMAT_VERSION);
     for(unsigned variant=0;variant<13;++variant) {
         yyjson_mut_doc *m=yyjson_doc_mut_copy(doc,NULL); assert(m);
         yyjson_mut_val *root=yyjson_mut_doc_get_root(m);
@@ -367,6 +367,17 @@ int main(int argc,char **argv) {
     if(argc==2) { EditorWorkspace w={0}; static EditorProject starter;
         MOTION_OK(editor_workspace_create(&w,&starter,argv[1])); author_append(&starter);
         starter.selected=starter.objects[starter.object_count-1].id;
+        /* Authoring locks must not constrain spawned runtime objects. */
+        EditorObject *locked=&starter.objects[starter.object_count-1];
+        for(size_t i=0;i<locked->rigid_body_count;++i) {
+            EditorNumericTarget target={.kind=EDITOR_ITEM_RIGID_BODY,.object=locked->id,.item=locked->rigid_bodies[i].id};
+            assert(editor_numeric_lock_set(&starter,target,"position.x",true));
+            assert(editor_numeric_lock_set(&starter,target,"mass_value",true));
+        }
+        EditorSoftBody *soft_locked=&locked->soft_body_items[0];
+        for(size_t i=0;i<soft_locked->node_count;++i)
+            assert(editor_numeric_lock_set(&starter,(EditorNumericTarget){.kind=EDITOR_ITEM_SOFT_NODE,
+                .object=locked->id,.parent=soft_locked->id,.item=soft_locked->nodes[i].id},"position.x",true));
         assert(editor_workspace_save(&w,&starter)); assert(editor_workspace_c_generate(&w,&starter));
         editor_project_destroy(&starter); }
     editor_project_destroy(&p); remove("motion.json"); rohr_engine_stop();

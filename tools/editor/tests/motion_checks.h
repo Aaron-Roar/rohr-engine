@@ -52,6 +52,13 @@ static void motion_entity_check(Entity e, unsigned kind, unsigned mode) {
     } else MOTION_OK(rohr_physics_kinematic_driven_remove(e));
     MOTION_OK(rohr_physics_mass_set(e, 11));
     assert(!rohr_physics_kinematic_driven_check(e));
+    /* Authored numeric locks never restrict direct runtime setters. */
+    PositionResult original = rohr_physics_position_get(e); MOTION_OK(original);
+    Position moved = original.result.value; moved.x += 17;
+    MOTION_OK(rohr_physics_position_set(e, moved));
+    PositionResult after = rohr_physics_position_get(e); MOTION_OK(after);
+    assert(fabsf(after.result.value.x - moved.x) < 0.001f);
+    MOTION_OK(rohr_physics_position_set(e, original.result.value));
 }
 static void motion_instance_check(Entity root) {
     Entity driven = motion_member(root, "driven_soft");

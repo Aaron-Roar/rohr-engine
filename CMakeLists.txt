@@ -201,6 +201,7 @@ set(ROHR_ENGINE_SOURCES
     src/graphics/marker_geometry.c
     # Shared checked editor-document model used by runtime object loading.
     tools/editor/src/editor_project.c
+    tools/editor/src/editor_numeric.c
     tools/editor/src/editor_entity_settings.c
     tools/editor/src/editor_presentation.c
     tools/editor/src/editor_joint_placement.c

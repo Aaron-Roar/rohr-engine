@@ -1414,6 +1414,7 @@ bool editor_ui_line_editor_draw(EditorLayoutViewportEditor *editor,
         Position inserted = {(first->x + second->x) * 0.5f,
             (first->y + second->y) * 0.5f};
         size_t insertion = line + 1;
+        editor_numeric_ui_vertices_remap(context->project,item->definition,item->value.shape.vertex_count,NULL,insertion);
         memmove(&item->value.shape.vertices[insertion + 1],
             &item->value.shape.vertices[insertion],
             (item->value.shape.vertex_count - insertion) *

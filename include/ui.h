@@ -134,6 +134,8 @@ typedef struct UIFieldBinding {
     char *string;
     size_t string_capacity;
     float *number;
+    /** Selectable text with mutation disabled. Defaults to editable. */
+    bool read_only;
 } UIFieldBinding;
 
 typedef struct UIFieldResult {
@@ -202,6 +204,8 @@ typedef struct UISliderConfig {
     /** Zero gives continuous movement; a positive value enables snapping. */
     float step;
     UISliderStyle style;
+    /** Draw the stored value without accepting input or snapping it. */
+    bool read_only;
 } UISliderConfig;
 
 /** Optional, caller-owned text drawn with a slider. */

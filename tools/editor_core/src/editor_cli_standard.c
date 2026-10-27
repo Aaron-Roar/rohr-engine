@@ -3,6 +3,7 @@
  */
 
 #include "editor_command.h"
+#include "editor_numeric.h"
 
 #include <errno.h>
 #include <limits.h>
@@ -1596,6 +1597,64 @@ EditorResult editor_command_cli_standard_parse(const EditorProject *project,
     const char *operation;
     const char *property = NULL;
     const char *domain;
+    for(int operation_index=1;operation_index<count;++operation_index) {
+        if(arguments[operation_index][0]=='-' && operation_index+1<count) {++operation_index;continue;}
+        bool enable=!strcmp(arguments[operation_index],"lock"),disable=!strcmp(arguments[operation_index],"unlock"),query=!strcmp(arguments[operation_index],"lock-get");
+        if(!enable && !disable && !query) break;
+        if(operation_index+2!=count) return editor_result_error(EDITOR_ERROR_INVALID_ARGUMENT,"lock|unlock|lock-get requires one canonical numeric property key");
+        EditorNumericTarget target={.kind=EDITOR_ITEM_PROJECT};
+        const EditorObject *owner=NULL;const char *project_path=NULL;
+        for(int pass=0;pass<4;++pass) for(int i=1;i<operation_index;i+=2) {
+            if(i+1>=operation_index) return editor_result_error(EDITOR_ERROR_INVALID_ARGUMENT,"Numeric lock selectors require values");
+            const char *flag=arguments[i],*value=arguments[i+1];int64_t id;
+            int rank=!strcmp(flag,"--project")?0:
+                (!strcmp(flag,"--object") || !strcmp(flag,"--object-id"))?1:
+                (!strcmp(flag,"--soft-body") || !strcmp(flag,"--soft-body-id") || !strcmp(flag,"--viewport-id"))?2:3;
+            if(rank!=pass) continue;
+            if(!strcmp(flag,"--project")) {project_path=value;continue;}
+            if(!strcmp(flag,"--object") || !strcmp(flag,"--object-id")) {
+                uint32_t object_id=0;
+                if(!strcmp(flag,"--object-id")) {
+                    if(!cli_layer_integer(value,1,UINT32_MAX,&id)) goto numeric_invalid;
+                    object_id=(uint32_t)id;
+                } else for(size_t o=0;o<project->object_count;++o) if(!strcmp(project->objects[o].name,value)) {
+                    if(object_id) goto numeric_invalid;
+                    object_id=project->objects[o].id;
+                }
+                owner=editor_object_query_const_get(project,object_id);if(!owner) goto numeric_invalid;
+                target=(EditorNumericTarget){.kind=EDITOR_ITEM_OBJECT,.object=object_id,.item=object_id};continue;
+            }
+            bool found=false;
+            for(size_t k=0;k<sizeof(cli_layer_kinds)/sizeof(*cli_layer_kinds);++k) {
+                char named[48],numbered[48];snprintf(named,sizeof(named),"--%s",cli_layer_kinds[k].name);snprintf(numbered,sizeof(numbered),"--%s-id",cli_layer_kinds[k].name);
+                bool by_id=!strcmp(flag,numbered);
+                if(!by_id && strcmp(flag,named)) continue;
+                if(!owner) goto numeric_invalid;
+                uint32_t parent=target.kind==EDITOR_ITEM_SOFT_BODY?target.item:0;
+                uint32_t item;
+                if(by_id) {if(!cli_layer_integer(value,1,UINT32_MAX,&id)) goto numeric_invalid;item=(uint32_t)id;}
+                else item=cli_layer_item_id(owner,cli_layer_kinds[k].kind,parent,value);
+                target=(EditorNumericTarget){.kind=cli_layer_kinds[k].kind,.object=owner->id,.parent=parent,.item=item};found=true;break;
+            }
+            if(!found) {
+                uint32_t kind;
+                const char *names[]={"--viewport-id","--screen-id","--ui-id","--font-id","--ui-definition-id","--audio-id","--layer-id"};
+                const uint32_t kinds[]={EDITOR_ITEM_LAYOUT_VIEWPORT,EDITOR_ITEM_VIEWPORT_CAMERA,EDITOR_ITEM_VIEWPORT_UI,EDITOR_ITEM_UI_FONT,EDITOR_ITEM_UI_DEFINITION,EDITOR_ITEM_AUDIO,EDITOR_ITEM_GRAPHICS_LAYER};
+                for(kind=0;kind<sizeof(kinds)/sizeof(*kinds);++kind) if(!strcmp(flag,names[kind])) break;
+                if(kind==sizeof(kinds)/sizeof(*kinds) || !cli_layer_integer(value,1,UINT32_MAX,&id)) goto numeric_invalid;
+                uint32_t parent=target.kind==EDITOR_ITEM_LAYOUT_VIEWPORT?target.item:0;
+                target=(EditorNumericTarget){.kind=kinds[kind],.parent=parent,.item=(uint32_t)id};
+            }
+        }
+        if(!project_path || !editor_numeric_target_get((EditorProject *)project,target)) goto numeric_invalid;
+        *path=project_path;*command=(EditorCommand){.type=EDITOR_COMMAND_NUMERIC_LOCK};
+        command->data.numeric_lock.target=target;command->data.numeric_lock.locked=enable;command->data.numeric_lock.query=query;
+        if(strlen(arguments[operation_index+1])>=sizeof(command->data.numeric_lock.property)) goto numeric_invalid;
+        snprintf(command->data.numeric_lock.property,sizeof(command->data.numeric_lock.property),"%s",arguments[operation_index+1]);
+        return editor_result_value(true);
+numeric_invalid:
+        return editor_result_error(EDITOR_ERROR_INVALID_ARGUMENT,"Invalid numeric lock target or property; positional numeric-lock also accepts full target IDs");
+    }
     if(count == 6 && !strcmp(arguments[1], "--project") && !strcmp(arguments[3], "--object-id") && !strcmp(arguments[5], "duplicate")) {
         char *end; unsigned long id = strtoul(arguments[4], &end, 10);
         if(*end || !id || id > UINT32_MAX) return editor_result_error(EDITOR_ERROR_INVALID_ARGUMENT, "Invalid object ID");

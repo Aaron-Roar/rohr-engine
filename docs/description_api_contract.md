@@ -275,8 +275,8 @@ dynamic particle retains the engine's existing automatic kinematic behavior.
 Explicit `kinematic_driven` survives mass changes and stays dormant while Static.
 Replacing the description with `kinematic_driven = false` clears explicit intent,
 including at zero mass; the low-level removal API retains its existing mass
-precondition. Runtime format remains 10; authored project saves now use format 13
-and accept format 12 with missing intent defaulted to false.
+precondition. Runtime format remains 10; authored project saves now use format 14
+and accept formats 12/13 with missing intent defaulted to false.
 
 Changing radius, local origin, or polygon quality rebuilds the active circular
 polygon and particle-circle metadata together. Focused radius/origin setters do
@@ -1822,3 +1822,70 @@ ID then mount ID. Audio `set` replaces the complete recipe in the order
 Use the shared property definitions in `editor_entity_settings.h` for the full
 entity-property spelling list. Audio triggers, runtime snapshot extensions, and
 named-layer registry restoration remain separate roadmap work.
+
+
+### Numeric authoring locks (C16)
+
+Project format 14 writes a sparse `numeric_locks` array. Formats 12 and 13
+remain readable; a missing array means no numeric locks. C11 migration still
+produces format 12, which loads normally and saves subsequently as format 14.
+Every entry names an existing target and canonical numeric property. Invalid
+kinds, properties, target IDs, duplicate entries, or a non-array value reject
+the document. Lock metadata is editor-owned; runtime format remains 10 and
+generated constructors/catalogs do not contain these restrictions.
+
+A lock protects the stored value represented by its control. Position locks
+protect local coordinates: moving a parent may carry its children without
+changing their locked local values. Numeric locks are independent of Static,
+kinematic intent, runtime constraints, and collision filters. Simulation and
+direct runtime APIs remain free to change runtime values.
+
+Field padlocks toggle individual properties. Accordion padlocks operate on their
+numeric children, including collapsed sections. A mixed group locks all on its
+first click; a fully locked group unlocks all. Locked fields remain selectable
+and copyable. Numeric sliders use the same padlock and retain their stored value
+without input or snapping while locked. Bulk color opacity has the same mixed
+selection behavior. Accordion membership follows the displayed controls: for
+example, camera Transform includes dimensions, force Direction includes its
+from/to offsets, and text Content includes the shared font's point size.
+Existing duplication carries locks, deletion is permitted, and
+undo/redo restores values and lock metadata. Insertion/removal of UI vertices
+remaps locks on surviving vertices; replacing an edge removes its edge lock.
+
+GUI and CLI command execution share enforcement. Independent unlocked values
+and selected items can change when other values are locked. Connected joint
+placement is checked as a group. Pointer movement projects onto allowed axes;
+the notification log summarizes restrictions once when the drag ends. A
+transaction retains one undo step for its accepted changes. Shared UI
+properties use definition identity, so locks apply to every mount. Slider range
+changes that would alter a locked bound or value restore the original valid
+range. Whole-soft-body material edits preserve locked node overrides.
+
+The registry in `tools/editor/src/editor_numeric.c` defines canonical property
+keys. Typical keys are `position.x`, `rotation`, `mass_value` (rigid bodies and
+particles), `node_mass`, `axis-angle`, `initial_velocity.x`, and
+`entity_settings.lifetime.deadline.expiry_tick`. Color opacity uses a `.alpha`
+suffix and retains the original alpha byte when RGB is edited. Temporary tool
+inputs, personal editor preferences, and read-only derived displays have no
+numeric locks.
+
+The reusable UI field and slider bindings expose an opt-in `read_only` flag.
+Its default is false; ordinary engine applications retain editable controls.
+These are source-level additions to public configuration structs, so consumers
+must rebuild against matching headers and libraries.
+
+```sh
+rohr-cli --project objects/project.rohr.json --object car --body chassis lock position.x
+rohr-cli --project objects/project.rohr.json --object car --body chassis lock-get position.x
+rohr-cli --project objects/project.rohr.json --object car --body chassis unlock position.x
+rohr-cli numeric-lock list objects/project.rohr.json
+rohr-cli numeric-lock set objects/project.rohr.json body 1 0 0 2 0 @position true
+```
+
+The positional target order is `kind object parent container item index`.
+Unused IDs and the reserved index are zero. Body targets use object/item;
+soft nodes use object/soft-body/item; rigid vertices use
+object/body/hitbox/vertex; UI vertices and lines use definition as parent and a
+one-based item index. Project settings use `project 0 0 0 0 0`. The `get` form
+omits the final boolean. Group keys use `@section`, such as `@position` or
+`@transform`, with the same mixed-toggle behavior implemented by GUI controls.

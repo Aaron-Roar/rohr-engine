@@ -1,4 +1,5 @@
 build/
+/sandbox/
 dist/
 a.out
 *.o

@@ -753,6 +753,7 @@ bool editor_bulk_property_set(EditorProject *project, EditorViewportState *state
         command = (EditorCommand){.type = EDITOR_COMMAND_PROPERTY_SET,
             .data.property_set = set};
         result = editor_command_execute(project, &command);
+        if(result.numeric_blocked && result.kind==ERROR_RESULT_ERROR) continue;
         if(result.kind == ERROR_RESULT_ERROR) {
             editor_history_transaction_cancel(history);
             return false;
@@ -807,6 +808,7 @@ static bool editor_bulk_apply(EditorProject *project, EditorViewportState *state
             return false;
         }
         result = editor_command_execute(project, &command);
+        if(result.numeric_blocked && result.kind==ERROR_RESULT_ERROR) continue;
         if(result.kind == ERROR_RESULT_ERROR) {
             editor_history_transaction_cancel(history);
             return false;
@@ -992,6 +994,17 @@ bool editor_bulk_panel_draw(EditorBulkPanel *panel, EditorProject *project,
         float y = 84.0f + (float)i * 36.0f;
         UIRect control = {x + 126.0f, y, width - 136.0f, 26.0f};
         snprintf(id, sizeof(id), "editor.bulk.%u.%zu", (unsigned)panel->kind, i);
+        EditorNumericTarget numeric_target=editor_mode_numeric_target_get(state->selected_items[0]);
+        const char *numeric_key=NULL;
+        if(properties[i].target==EDITOR_BULK_PROPERTY)
+            numeric_key=editor_numeric_command_property_key_get(numeric_target.kind,properties[i].property);
+        else if(properties[i].target==EDITOR_BULK_POSITION_X) numeric_key=editor_mode_numeric_property_key_get(numeric_target,"x");
+        else if(properties[i].target==EDITOR_BULK_POSITION_Y) numeric_key=editor_mode_numeric_property_key_get(numeric_target,"y");
+        else if(properties[i].target==EDITOR_BULK_ROTATION) numeric_key=editor_mode_numeric_property_key_get(numeric_target,"rotation");
+        else if(properties[i].target==EDITOR_BULK_FRAME_WIDTH) numeric_key="scale.x";
+        else if(properties[i].target==EDITOR_BULK_FRAME_HEIGHT) numeric_key="scale.y";
+        else if(properties[i].target==EDITOR_BULK_FORCE_MAGNITUDE) numeric_key="description.magnitude";
+        editor_mode_numeric_field_bind(numeric_target,numeric_key);
         rohr_ui_label(&panel->labels[i],
             (UIRect){x + 10.0f, y, 112.0f, 26.0f});
         if(properties[i].target == EDITOR_BULK_APP_VISIBILITY) {
@@ -1104,7 +1117,7 @@ bool editor_bulk_panel_draw(EditorBulkPanel *panel, EditorProject *project,
             slider.length = control.width;
             slider.min_value = 0.25f;
             slider.max_value = 3.0f;
-            result = rohr_ui_slider(id, panel->slider_values[i], &slider);
+            result = editor_mode_slider(id, panel->slider_values[i], &slider);
             if(result.changed) {
                 char value[32];
                 panel->slider_values[i] = result.value;
@@ -1160,6 +1173,7 @@ bool editor_bulk_panel_draw(EditorBulkPanel *panel, EditorProject *project,
             }
         }
     }
+    editor_mode_numeric_field_bind((EditorNumericTarget){0},NULL);
     float footer_y = 96.0f + (float)property_count * 36.0f;
     if(collision_supported) {
         EditorCollisionDrawResult collision = editor_collision_controls_draw(&panel->collision,

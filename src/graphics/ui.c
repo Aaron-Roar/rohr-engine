@@ -1168,7 +1168,7 @@ static UIFieldResult ui_field_draw(const char *id, UIFieldBinding binding,
                 char text[UI_FIELD_EDIT_MAX];
                 memcpy(text, ui_context.field_text + event.offset, event.length);
                 text[event.length] = '\0';
-                if(binding.kind == UI_FIELD_STRING && ui_field_replace(binding, text)) {
+                if(!binding.read_only && binding.kind == UI_FIELD_STRING && ui_field_replace(binding, text)) {
                     if(ui_field_binding_store(binding)) result.changed = true;
                     follow_caret = true;
                 }
@@ -1182,6 +1182,13 @@ static UIFieldResult ui_field_draw(const char *id, UIFieldBinding binding,
             if((modifiers & SDL_KMOD_CTRL) && key == SDLK_A) {
                 ui_context.field_anchor = 0;
                 ui_context.field_cursor = length;
+            } else if((modifiers & SDL_KMOD_CTRL) && key == SDLK_C) {
+                char copied[UI_FIELD_EDIT_MAX];
+                size_t count=end-start;
+                if(count && count<sizeof(copied)) {
+                    memcpy(copied,ui_context.field_edit+start,count);copied[count]='\0';
+                    (void)SDL_SetClipboardText(copied);
+                }
             } else if((key == SDLK_RETURN || key == SDLK_KP_ENTER) && !multiline) {
                 if(interaction.keyboard_activated) continue;
                 result.submitted = true;
@@ -1191,7 +1198,7 @@ static UIFieldResult ui_field_draw(const char *id, UIFieldBinding binding,
                 ui_field_binding_display_set(binding, display);
                 ui_field_focus_clear();
                 break;
-            } else if((key == SDLK_RETURN || key == SDLK_KP_ENTER) && multiline) {
+            } else if(!binding.read_only && (key == SDLK_RETURN || key == SDLK_KP_ENTER) && multiline) {
                 edited = ui_field_character_add(binding, '\n', true);
             } else if(key == SDLK_LEFT || key == SDLK_RIGHT || key == SDLK_UP ||
                     key == SDLK_DOWN || key == SDLK_HOME || key == SDLK_END) {
@@ -1203,13 +1210,13 @@ static UIFieldResult ui_field_draw(const char *id, UIFieldBinding binding,
                 else ui_context.field_cursor = length;
                 ui_context.field_anchor = ui_context.field_cursor;
                 follow_caret = true;
-            } else if(key == SDLK_BACKSPACE || key == SDLK_DELETE) {
+            } else if(!binding.read_only && (key == SDLK_BACKSPACE || key == SDLK_DELETE)) {
                 size_t saved_anchor = ui_context.field_anchor;
                 if(start == end) ui_context.field_anchor = key == SDLK_BACKSPACE ?
                     ui_field_previous_get(start) : ui_field_next_get(end);
                 edited = ui_field_replace(binding, "");
                 if(!edited) ui_context.field_anchor = saved_anchor;
-            } else if(binding.kind == UI_FIELD_FLOAT &&
+            } else if(!binding.read_only && binding.kind == UI_FIELD_FLOAT &&
                     !(modifiers & SDL_KMOD_CTRL) && key >= 0 && key <= 127) {
                 edited = ui_field_character_add(binding, (char)key, multiline);
             }
@@ -1637,7 +1644,7 @@ UISliderResult ui_slider_with_text(
     Position step_centers[2];
     bool step_hovered[2] = {false, false};
     bool step_pressed[2] = {false, false};
-    UIButtonResult slider_interaction;
+    UIButtonResult slider_interaction = {0};
     int step_index;
 
     resolved.center.y += ui_context.translation_y;
@@ -1672,10 +1679,10 @@ UISliderResult ui_slider_with_text(
     amount = ui_clamp_unit(
         (value - resolved.min_value) / (resolved.max_value - resolved.min_value)
     );
-    result.value = ui_slider_snap(resolved.min_value
+    if(!resolved.read_only) result.value = ui_slider_snap(resolved.min_value
         + amount * (resolved.max_value - resolved.min_value), &resolved);
     result.changed = result.value != value;
-    if(resolved.step > 0.0f && resolved.style.step_button_size > 0.0f) {
+    if(!resolved.read_only && resolved.step > 0.0f && resolved.style.step_button_size > 0.0f) {
         for(step_index = 0; step_index < 2; step_index += 1) {
             uint64_t step_id = slider_id ^ (step_index == 0
                 ? UINT64_C(0x9e3779b97f4a7c15) : UINT64_C(0xc2b2ae3d27d4eb4f));
@@ -1703,9 +1710,11 @@ UISliderResult ui_slider_with_text(
     }
     contains_pointer = ui_point_in_slider(ui_context.input.pointer, &resolved) &&
         ui_point_in_scroll_clip(ui_context.input.pointer);
-    ui_navigation_item_register(slider_id, (UIRect){resolved.center.x - 0.5f,
-        resolved.center.y - 0.5f, 1.0f, 1.0f});
-    slider_interaction = ui_interaction_id(slider_id, contains_pointer);
+    if(!resolved.read_only) {
+        ui_navigation_item_register(slider_id, (UIRect){resolved.center.x - 0.5f,
+            resolved.center.y - 0.5f, 1.0f, 1.0f});
+        slider_interaction = ui_interaction_id(slider_id, contains_pointer);
+    }
     result.hovered = result.hovered || slider_interaction.hovered;
     result.pressed = result.pressed || slider_interaction.pressed;
     if(slider_interaction.pressed || slider_interaction.clicked) {

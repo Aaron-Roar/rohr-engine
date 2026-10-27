@@ -121,6 +121,21 @@ static void lifecycle(void) {
     drag = ui_slider("drag", held_value, &slider); assert(drag.value == 1.0f);
     clean(ui_update());
 
+    slider.read_only = true;
+    slider.step = 0.25f;
+    slider.style.step_button_size = 20;
+    const Position locked_points[] = {{140,100},{30,100},{170,100}};
+    for(size_t i = 0; i < sizeof(locked_points) / sizeof(*locked_points); ++i) {
+        ui_input_set((UIInput){locked_points[i], MOUSE_BUTTON_STATE_PRESSED});
+        drag = ui_slider("locked", 0.33f, &slider);
+        assert(drag.value == 0.33f && !drag.changed && !drag.pressed);
+        clean(ui_update());
+        ui_input_set((UIInput){locked_points[i], MOUSE_BUTTON_STATE_RELEASED});
+        drag = ui_slider("locked", 0.33f, &slider);
+        assert(drag.value == 0.33f && !drag.changed && !drag.pressed);
+        clean(ui_update());
+    }
+
     SDL_Event wheel = {.type = SDL_EVENT_MOUSE_WHEEL}; wheel.wheel.y = -1;
     ui_event_add(&wheel); input(MOUSE_BUTTON_STATE_UP);
     UIScrollRegionResult scroll = ui_scroll_region_begin("wheel", bounds, 100, 0, 10);

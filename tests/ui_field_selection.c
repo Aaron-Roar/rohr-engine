@@ -393,6 +393,22 @@ static bool keyboard_and_field_transfer_check(void) {
     return true;
 }
 
+static bool read_only_check(void) {
+    FieldFixture f;
+    CHECK(fixture_start(&f,"locked value",false));f.binding.read_only=true;
+    CHECK(select_range(&f,0,6));
+    key(SDLK_C,SDL_KMOD_CTRL);
+    CHECK(!frame(&f,(Position){0},MOUSE_BUTTON_STATE_UP).changed);
+    char *copied=SDL_GetClipboardText();CHECK(copied && !strcmp(copied,"locked"));SDL_free(copied);
+    text_input("replacement");key(SDLK_BACKSPACE,SDL_KMOD_NONE);key(SDLK_DELETE,SDL_KMOD_NONE);
+    CHECK(!frame(&f,(Position){0},MOUSE_BUTTON_STATE_UP).changed);
+    CHECK(!strcmp(f.value,"locked value"));fixture_stop(&f);
+    CHECK(fixture_start(&f,"42",false));f.number=42;
+    f.binding=(UIFieldBinding){.kind=UI_FIELD_FLOAT,.number=&f.number,.read_only=true};
+    CHECK(select_range(&f,0,2));key(SDLK_9,SDL_KMOD_NONE);
+    CHECK(!frame(&f,(Position){0},MOUSE_BUTTON_STATE_UP).changed && f.number==42);
+    fixture_stop(&f);return true;
+}
 int main(void) {
     EngineResult result=rohr_engine_start();
     if(rohr_error_check(result)) return 1;
@@ -409,7 +425,7 @@ int main(void) {
     bool passed=editing_check() && clicks_check() && rejection_check() &&
         capture_check() && multiline_check() && overflow_and_translation_check() &&
         explicit_focus_and_empty_check() && text_input_focus_check() &&
-        keyboard_and_field_transfer_check();
+        keyboard_and_field_transfer_check() && read_only_check();
     rohr_ui_field_focus_clear();
     (void)rohr_graphics_font_release(&test_font);
     rohr_graphics_stop();
