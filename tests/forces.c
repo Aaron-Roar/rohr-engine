@@ -49,10 +49,20 @@ static bool body_create(Entity *body, EntityIndex *index) {
     return true;
 }
 
-static bool sources_check(const ForceApi *api, unsigned substeps) {
+static bool sources_check(const ForceApi *api, unsigned substeps, bool adaptive) {
     Entity body;
     EntityIndex index;
     CHECK(body_create(&body, &index));
+    if(adaptive) {
+        /* A distant enabled collider selects adaptive timing without adding
+         * contact impulses to the analytic force/torque expectations. */
+        EntityResult other = rohr_entity_add(); OK(other);
+        OK(rohr_physics_hitbox_set(other.result.value, rohr_math_square_create(2, 2)));
+        OK(rohr_physics_position_set(other.result.value, (Position){1000, 1000}));
+        OK(rohr_physics_static_set(other.result.value));
+        OK(rohr_entity_components_add(other.result.value, ROHR_COLLISION));
+        OK(rohr_entity_components_add(body, ROHR_COLLISION));
+    }
     OK(rohr_physics_substeps_set(substeps));
     OK(rohr_engine_time_per_tick_set(0.001));
     rohr_engine_clock_reset();
@@ -74,7 +84,16 @@ static bool sources_check(const ForceApi *api, unsigned substeps) {
     OK(api->force_apply(vector_description(body, (Force){0,24})));
     OK(api->torque_apply((TorqueDescription){.target = body, .magnitude = 20}));
     OK(api->torque_apply((TorqueDescription){.target = body, .magnitude = -10}));
-    CHECK((rohr_system_physics_update(0.1)).header.status != ROHR_REPORT_FAILED);
+    Report first = rohr_system_physics_update(0.1);
+    CHECK(first.header.status != ROHR_REPORT_FAILED);
+    if(adaptive) {
+        uint64_t completed = 0;
+        for(size_t i = 0; i < first.statistic_count; ++i)
+            if(first.statistics[i].report_id == ROHR_PHYSICS_REPORT_ID &&
+                    first.statistics[i].metric_id == ROHR_REPORT_SUBSTEPS_COMPLETED_COUNT)
+                completed = first.statistics[i].value;
+        CHECK(completed > substeps);
+    }
     CHECK(near(velocities[index].x, 0.3f) && near(velocities[index].y, 0.2f));
     CHECK(near(rohr_math_degrees_to_radians(angular_velocities[index]), 0.25f));
     /* Direct physics updates do not advance engine tick lifetimes. */
@@ -381,7 +400,7 @@ int main(void) {
     for(size_t api = 0; api < sizeof(apis) / sizeof(apis[0]); api += 1) {
         for(unsigned substeps = 1; substeps <= 4; substeps += 3) {
             if(rohr_error_check(rohr_engine_start())) return 1;
-            bool passed = sources_check(&apis[api], substeps) && impulses_check(&apis[api]);
+            bool passed = sources_check(&apis[api], substeps, false) && impulses_check(&apis[api]);
             rohr_engine_stop();
             if(!passed) return 1;
             if(rohr_error_check(rohr_engine_start())) return 1;
@@ -393,6 +412,10 @@ int main(void) {
             rohr_engine_stop();
             if(!passed) return 1;
         }
+        if(rohr_error_check(rohr_engine_start())) return 1;
+        bool adaptive_passed = sources_check(&apis[api], 1, true);
+        rohr_engine_stop();
+        if(!adaptive_passed) return 1;
         if(rohr_error_check(rohr_engine_start())) return 1;
         bool passed = persistence_check(&apis[api]);
         rohr_engine_stop();

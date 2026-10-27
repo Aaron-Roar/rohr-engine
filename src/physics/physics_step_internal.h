@@ -15,6 +15,9 @@ extern AABBTree physics_broadphase_tree;
 /** Internal collection helpers; NULL is allowed for legacy report-free helpers. */
 Report physics_report_create(ReportId id);
 Report physics_pipeline_update_internal(double dt, bool publish);
+/* Internal synchronous verification hook. Caller owns context, must unregister
+ * before releasing it, and must not mutate physics from the callback. */
+void physics_substep_observer_set(void (*observer)(double, void *), void *context);
 void physics_report_context_set(bool active, uint32_t substep);
 void physics_report_counter_add(Report *report, ReportMetricId metric, uint64_t value);
 void physics_report_issue_add(Report *report, uint32_t stage, ReportSeverity severity,
@@ -53,10 +56,22 @@ void physics_pipeline_contact_constraints_finalize(
 void physics_pipeline_joint_constraints_solve(void *context);
 
 EngineResult physics_rigid_integrate(double dt, Report *report);
+void physics_rigid_motion_integrate(double dt, Report *report);
+double physics_rigid_integrate_adaptive(double dt, Report *report);
+double physics_rigid_sweep_duration_get(double dt, Report *report);
+Report physics_pipeline_integrate_adaptive(double *dt);
 void physics_rigid_transform_constraints_apply(Report *report);
 void physics_rigid_accelerations_clear(void);
 void physics_rigid_gravity_apply(Acceleration gravity, Report *report);
 void physics_rigid_constraints_gather(Report *report);
+float physics_rigid_contact_slop_get(EntityIndex first, EntityIndex second, Vec2D normal);
+bool physics_rigid_contact_block_solve_check(ContactConstraintList *list,
+    Report *report);
+Vec2D system_friction_impulse_apply(Entity first, Entity second, OverlapInfo overlap,
+    Vec2D first_offset, Vec2D second_offset, float normal_impulse,
+    float inverse_mass_first, float inverse_mass_second,
+    float inverse_inertia_first, float inverse_inertia_second,
+    Vec2D previous_impulse, Report *report);
 void physics_rigid_contact_constraint_solve(
     SystemContactConstraint *constraint,
     float position_fraction, Report *report

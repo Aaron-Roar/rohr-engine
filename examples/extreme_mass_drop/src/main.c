@@ -3,6 +3,7 @@
  */
 #include "drop_fixture.h"
 
+#include <math.h>
 #include <stdio.h>
 #include <string.h>
 
@@ -63,7 +64,7 @@ static bool text_set(DropDemo *demo, size_t index, const char *value) {
 static bool display_update(DropDemo *demo) {
     char line[512];
     DropFixture *f = &demo->fixture;
-    snprintf(line, sizeof(line), "%s | CASE %u | %u Hz | t=%.6f s | %u completed substeps | peak depth %.9g (limit 0.0001)",
+    snprintf(line, sizeof(line), "%s | CASE %u | %u Hz | t=%.6f s | %u updates | peak sampled depth %.9g (limit 0.0001)",
         f->halted ? "HALTED - R to restart" : demo->paused ? "PAUSED" : "RUNNING",
         f->case_index + 1, f->rate, f->time, f->steps, f->maximum_depth);
     if(!text_set(demo, 2, line)) return false;
@@ -92,10 +93,10 @@ static bool presentation_create(DropDemo *demo) {
         "CONTACT VIEW - width 0.08, height 0.05 world units",
         "", "", "", "", "", "",
         "Space: pause/run   N: one update while paused   R: restart   Esc: exit",
-        "1: centered   2: +0.0025 offset   3: -0.0025 offset   F1: 30 Hz   F2: 60 Hz   F3: 120 Hz",
-        "Case/rate selection restarts paused. Yellow: tiny body. Blue: large body. Gray: static floor.",
-        "Gravity -9.8 | friction 0.8 | restitution 0 | 1 substep | 8 solver iterations | no settling/freezing rule",
-        "Settling limits await user review. Samples cannot establish swept collision or performance acceptance."
+        "1: centered   2/3: +/-0.0025   4/5: +/-0.01 tipping   Floor width: 0.01 in all cases",
+        "F1/F2/F3: 30/60/120 Hz (restarts paused). Yellow: tiny body. Blue: large body. Gray: floor.",
+        "Gravity -9.8 | friction 0.8 | restitution 0 | adaptive substeps | 8 solver iterations | unrestricted motion",
+        "Centered: settle within 2 s of impact; hold 10 s | speed <=0.0001 units/s, spin <=0.0001 deg/s"
     };
     for(size_t i = 0; i < TEXT_COUNT; ++i) {
         TextDescription description = rohr_graphics_text_description_default_get();
@@ -167,7 +168,7 @@ static void events_process(DropDemo *demo) {
             (void)drop_fixture_step(&demo->fixture);
         else if(key == SDL_SCANCODE_R)
             restart(demo, demo->fixture.case_index, demo->fixture.rate);
-        else if(key >= SDL_SCANCODE_1 && key <= SDL_SCANCODE_3)
+        else if(key >= SDL_SCANCODE_1 && key <= SDL_SCANCODE_5)
             restart(demo, (unsigned)(key - SDL_SCANCODE_1), demo->fixture.rate);
         else if(key >= SDL_SCANCODE_F1 && key <= SDL_SCANCODE_F3)
             restart(demo, demo->fixture.case_index, rates[key - SDL_SCANCODE_F1]);
@@ -219,7 +220,7 @@ static bool key_send(DropDemo *demo, SDL_Scancode key) {
 
 static bool controls_verify(DropDemo *demo) {
     /* Exercise actual SDL event dispatch and the same frame/step path as the UI. */
-    for(unsigned c = 0; c < 3; ++c) {
+    for(unsigned c = 0; c < DROP_CASE_COUNT; ++c) {
         for(unsigned r = 0; r < 3; ++r) {
             if(!key_send(demo, (SDL_Scancode)(SDL_SCANCODE_1 + c)) ||
                     !key_send(demo, (SDL_Scancode)(SDL_SCANCODE_F1 + r)) ||
@@ -236,6 +237,23 @@ static bool controls_verify(DropDemo *demo) {
     }
     for(size_t i = 0; i < 3; ++i)
         if(demo->render_counts[i] == 0) return false;
+    /* Background/return events must not discard a delayed running interval. */
+    if(!key_send(demo, SDL_SCANCODE_F2) || !key_send(demo, SDL_SCANCODE_SPACE)) return false;
+    SDL_Event focus;
+    SDL_zero(focus);
+    focus.type = SDL_EVENT_WINDOW_FOCUS_LOST;
+    if(!SDL_PushEvent(&focus)) return false;
+    events_process(demo);
+    events_process(demo);
+    if(!frame_run(demo, 0.1)) return false;
+    focus.type = SDL_EVENT_WINDOW_FOCUS_GAINED;
+    if(!SDL_PushEvent(&focus)) return false;
+    events_process(demo);
+    events_process(demo);
+    if(!frame_run(demo, 1.0) || demo->paused || demo->fixture.halted ||
+            fabs(demo->fixture.time + demo->pending - 1.1) > 1e-9 ||
+            demo->fixture.maximum_depth > DROP_PENETRATION_LIMIT ||
+            demo->fixture.floor_moved || !key_send(demo, SDL_SCANCODE_R)) return false;
     /* Force an invalid duration through the real step path. The public pipeline
      * rejects it; the demo must retain the last snapshot and require restart. */
     demo->fixture.rate = 0;
@@ -246,7 +264,7 @@ static bool controls_verify(DropDemo *demo) {
             demo->fixture.steps != 0 || !frame_run(demo, 0) ||
             !key_send(demo, SDL_SCANCODE_R) || demo->fixture.halted ||
             !key_send(demo, SDL_SCANCODE_ESCAPE) || !demo->quit) return false;
-    puts("PASS: SDL controls, restart, pause/step, all cases/rates, three composed views, halted-state recovery, exit.");
+    puts("PASS: SDL controls, focus events and delayed catch-up, restart, pause/step, all cases/rates, three composed views, halted-state recovery, exit.");
     return true;
 }
 
@@ -270,8 +288,9 @@ int main(int argc, char **argv) {
     graphics_started = true;
     if(!drop_result_check(rohr_graphics_frame_limit_set(smoke ? 0 : 60)) ||
             !drop_fixture_reset(&demo.fixture, 0, 60) || !presentation_create(&demo)) goto done;
-    puts("Extreme mass/size drop: visual review preparation; solver unchanged.");
-    puts("Space pause/run | N single step | R restart | 1/2/3 centered/+0.0025/-0.0025 | F1/F2/F3 30/60/120 Hz | Esc exit");
+    puts("Extreme mass/size drop: user-reviewed motion; centered settling limits accepted.");
+    puts("Space pause/run | N single step | R restart | 1 centered | 2/3 +/-0.0025 | 4/5 +/-0.01 tipping | F1/F2/F3 30/60/120 Hz | Esc exit");
+    puts("All five cases use a 0.01-wide static floor, matching the yellow body.");
     puts("All cases start paused. Penetration violations persist until restart; no automatic settling/freezing.");
     drop_fixture_print(&demo.fixture);
     if(smoke) { status = controls_verify(&demo) ? 0 : 1; goto done; }

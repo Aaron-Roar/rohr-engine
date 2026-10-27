@@ -16,6 +16,7 @@ static uint32_t physics_solver_iterations = PHYSICS_SOLVER_ITERATIONS_DEFAULT;
 static uint32_t physics_substeps = PHYSICS_SUBSTEPS_DEFAULT;
 
 void physics_config_init(void) {
+    physics_substep_observer_set(NULL, NULL);
     physics_dt_per_tick = 0.0;
     physics_dt_overwritten = false;
     physics_solver_iterations = PHYSICS_SOLVER_ITERATIONS_DEFAULT;

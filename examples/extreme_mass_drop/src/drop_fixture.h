@@ -8,6 +8,7 @@
 
 #define DROP_BODY_COUNT 3
 #define DROP_PAIR_COUNT 3
+#define DROP_CASE_COUNT 5
 #define DROP_PENETRATION_LIMIT 0.0001
 
 typedef struct DropBody {
@@ -38,6 +39,7 @@ bool drop_result_check(EngineResult result);
 void drop_fixture_destroy(DropFixture *fixture);
 bool drop_fixture_reset(DropFixture *fixture, unsigned case_index, unsigned rate);
 bool drop_fixture_step(DropFixture *fixture);
+bool drop_fixture_observe(DropFixture *fixture);
 void drop_fixture_print(const DropFixture *fixture);
 double drop_rect_depth_get(const DropBody *a, const DropBody *b);
 bool drop_fixture_verify(void);

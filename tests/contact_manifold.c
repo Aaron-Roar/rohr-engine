@@ -128,6 +128,18 @@ static void maximum_face_test(void) {
 }
 
 int main(void) {
+    /* A tilted face needs each endpoint's signed penetration, rather than
+     * applying the deepest endpoint's correction to the whole face. */
+    Shape tilted = transformed(math_square_create(2, 2), 0, false, .02f,
+        (Vec2D){0, .9999f});
+    Shape plane = transformed(math_square_create(10, 2), 0, false, 0,
+        (Vec2D){0, -1});
+    ContactManifoldSet tilted_set = contact_manifold_set_polygon_get(plane, tilted);
+    assert(tilted_set.count == 1 && tilted_set.values[0].count == 2);
+    float low = fminf(tilted_set.values[0].point_depths[0], tilted_set.values[0].point_depths[1]);
+    float high = fmaxf(tilted_set.values[0].point_depths[0], tilted_set.values[0].point_depths[1]);
+    assert(fabsf(low - (.0001f - sinf(.02f * 3.14159265359f / 180))) < .000001f);
+    assert(fabsf(high - (.0001f + sinf(.02f * 3.14159265359f / 180))) < .000001f);
     subdivided_faces_test();
     maximum_face_test();
     corner_tolerance_test(40, .00001f, true);

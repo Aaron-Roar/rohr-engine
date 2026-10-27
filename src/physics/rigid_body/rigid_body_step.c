@@ -13,6 +13,7 @@
 #include <math.h>
 
 #define RIGID_CONTACT_PENETRATION_SLOP 0.01f
+#define RIGID_CONTACT_RELATIVE_SLOP 0.0001f
 #define RIGID_CONTACT_POSITION_CORRECTION_MAX 5.0f
 
 static double physics_rigid_elapsed_ms(uint64_t start) {
@@ -187,6 +188,30 @@ static bool system_contact_response_check(EntityIndex first, EntityIndex second)
         physics_operation_entity_get(second));
 }
 
+/* Measure thickness in local space so a distant world origin does not consume
+ * the precision needed by a small collider. The fixed tolerance is an upper
+ * bound, not permission for a thin body to disappear into its support. */
+static float system_contact_thickness_get(EntityIndex entity, Vec2D normal) {
+    if(entity_index_components_check(entity, ROHR_PARTICLE))
+        return 2.0f * physics_particle_radius_by_index_get(entity);
+    Vec2D local_normal = math_vector_rotate(normal, -orientations[entity]);
+    const Shape *shape = &hit_boxes[entity];
+    float low = FLT_MAX, high = -FLT_MAX;
+    for(uint32_t i = 0; i < shape->amount_of_vertices; ++i) {
+        float projection = math_dot_product(shape->vertices[i], local_normal);
+        low = fminf(low, projection);
+        high = fmaxf(high, projection);
+    }
+    return shape->amount_of_vertices ? high - low : 0.0f;
+}
+
+float physics_rigid_contact_slop_get(EntityIndex first, EntityIndex second, Vec2D normal) {
+    return fminf(RIGID_CONTACT_PENETRATION_SLOP,
+        RIGID_CONTACT_RELATIVE_SLOP * fminf(
+            system_contact_thickness_get(first, normal),
+            system_contact_thickness_get(second, normal)));
+}
+
 void system_separate_entities_tuned(
     Entity entity_1,
     Entity entity_2,
@@ -215,8 +240,9 @@ void system_separate_entities_tuned(
         return;
     }
 
+    float slop = physics_rigid_contact_slop_get(entity_1, entity_2, collision.normal);
     float correction_depth = fminf(
-        fmaxf(collision.depth - RIGID_CONTACT_PENETRATION_SLOP, 0.0f),
+        fmaxf(collision.depth - slop, 0.0f),
         RIGID_CONTACT_POSITION_CORRECTION_MAX);
     Vec2D correction;
 
@@ -718,6 +744,14 @@ static bool system_broadphase_pair_apply(Entity target, void *context) {
     if(query == NULL || target <= query->source ||
             !entity_index_get(target, &target_index) ||
             !entity_index_alive_check(target_index)) return true;
+    /* Position correction can introduce another support contact during the
+     * solve. Refresh candidates without duplicating existing constraints or
+     * losing their accumulated impulses. */
+    for(size_t i = 0; i < physics_step_contact_constraints.count; ++i) {
+        const SystemContactConstraint *c = &physics_step_contact_constraints.values[i];
+        if(c->type == SYSTEM_CONTACT_CONSTRAINT_RIGID_PAIR &&
+                c->value.rigid.first == query->source && c->value.rigid.second == target) return true;
+    }
     physics_report_counter_add(query->report, ROHR_REPORT_CANDIDATE_COUNT, 1);
     physics_report_counter_add(query->report, ROHR_REPORT_NARROWPHASE_TEST_COUNT, 1);
     started = SDL_GetPerformanceCounter();
@@ -1187,6 +1221,20 @@ void physics_rigid_transform_constraints_apply(Report *report) {
 EngineResult physics_rigid_integrate(double dt, Report *report) {
     system_loads_apply(report, false);
     system_loads_apply(report, true);
+    physics_rigid_motion_integrate(dt, report);
+    return error_result_value(true);
+}
+
+double physics_rigid_integrate_adaptive(double dt, Report *report) {
+    system_loads_apply(report, false);
+    system_loads_apply(report, true);
+    dt = physics_rigid_sweep_duration_get(dt, report);
+    if(report != NULL && report->has_fatal) return dt;
+    physics_rigid_motion_integrate(dt, report);
+    return dt;
+}
+
+void physics_rigid_motion_integrate(double dt, Report *report) {
     system_velocities_update(dt, report);
     system_angular_velocities_update(dt, report);
     system_angular_velocity_maximums_apply(report);
@@ -1195,7 +1243,6 @@ EngineResult physics_rigid_integrate(double dt, Report *report) {
     system_angle_locks_apply(report);
     system_axis_locks_apply(report);
     system_transform_locks_apply(report);
-    return error_result_value(true);
 }
 
 void physics_rigid_accelerations_clear(void) {
@@ -1204,6 +1251,7 @@ void physics_rigid_accelerations_clear(void) {
 
 void physics_rigid_constraints_gather(Report *report) {
     uint64_t started;
+    physics_step_contact_constraints.rigid_gathered = true;
     started = SDL_GetPerformanceCounter();
     system_broadphase_build(report);
     physics_report_counter_add(report, ROHR_REPORT_BROADPHASE_BUILD_NS,

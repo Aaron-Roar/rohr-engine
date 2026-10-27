@@ -218,6 +218,7 @@ static ContactManifold contact_manifold_convex_get(
             math_vector_subtract(clipped_first[i], reference.first));
 
         if(separation > 0.001f) continue;
+        manifold.point_depths[manifold.count] = -separation;
         manifold.points[manifold.count++] = (Vec2D){
             clipped_first[i].x - reference.normal.x * separation * 0.5f,
             clipped_first[i].y - reference.normal.y * separation * 0.5f
@@ -229,6 +230,7 @@ static ContactManifold contact_manifold_convex_get(
 static void contact_manifold_point_add(
     ContactManifold *manifold,
     Vec2D point,
+    float depth,
     uint32_t feature
 ) {
     Axis tangent;
@@ -240,26 +242,34 @@ static void contact_manifold_point_add(
     projection = math_dot_product(point, tangent);
     for(uint8_t i = 0; i < manifold->count; i += 1) {
         Vec2D delta = math_vector_subtract(point, manifold->points[i]);
-        if(math_dot_product(delta, delta) <= 0.000001f) return;
+        if(math_dot_product(delta, delta) <= 0.000001f) {
+            manifold->point_depths[i] = fmaxf(manifold->point_depths[i], depth);
+            return;
+        }
         projections[i] = math_dot_product(manifold->points[i], tangent);
     }
     if(manifold->count < CONTACT_MANIFOLD_POINT_MAX) {
         manifold->points[manifold->count] = point;
+        manifold->point_depths[manifold->count] = depth;
         manifold->feature_ids[manifold->count] = feature;
         manifold->count += 1;
         return;
     }
     if(projection < projections[0] && projections[0] <= projections[1]) {
         manifold->points[0] = point;
+        manifold->point_depths[0] = depth;
         manifold->feature_ids[0] = feature;
     } else if(projection < projections[1] && projections[1] < projections[0]) {
         manifold->points[1] = point;
+        manifold->point_depths[1] = depth;
         manifold->feature_ids[1] = feature;
     } else if(projection > projections[0] && projections[0] >= projections[1]) {
         manifold->points[0] = point;
+        manifold->point_depths[0] = depth;
         manifold->feature_ids[0] = feature;
     } else if(projection > projections[1] && projections[1] > projections[0]) {
         manifold->points[1] = point;
+        manifold->point_depths[1] = depth;
         manifold->feature_ids[1] = feature;
     }
 }
@@ -305,7 +315,7 @@ ContactManifoldSet contact_manifold_set_polygon_get(Shape first, Shape second) {
                 uint32_t feature = ((uint32_t)first_index << 16) |
                     ((uint32_t)second_index << 8) | (uint32_t)(point + 1);
                 contact_manifold_point_add(
-                    target, candidate.points[point], feature);
+                    target, candidate.points[point], candidate.point_depths[point], feature);
             }
         }
     }
@@ -322,6 +332,7 @@ ContactManifold contact_manifold_polygon_get(
     Position maximum_point = {0};
     uint32_t minimum_feature = 0;
     uint32_t maximum_feature = 0;
+    float minimum_depth = 0, maximum_depth = 0;
     Axis tangent = {-normal.y, normal.x};
     float minimum_projection = FLT_MAX;
     float maximum_projection = -FLT_MAX;
@@ -354,11 +365,13 @@ ContactManifold contact_manifold_polygon_get(
                     minimum_projection = projection;
                     minimum_point = candidate.points[point];
                     minimum_feature = feature;
+                    minimum_depth = candidate.point_depths[point];
                 }
                 if(projection > maximum_projection) {
                     maximum_projection = projection;
                     maximum_point = candidate.points[point];
                     maximum_feature = feature;
+                    maximum_depth = candidate.point_depths[point];
                 }
             }
         }
@@ -366,9 +379,11 @@ ContactManifold contact_manifold_polygon_get(
     if(minimum_projection == FLT_MAX) return merged;
     merged.points[merged.count++] = minimum_point;
     merged.feature_ids[0] = minimum_feature;
+    merged.point_depths[0] = minimum_depth;
     if(maximum_projection - minimum_projection > 0.0001f) {
         merged.points[merged.count++] = maximum_point;
         merged.feature_ids[1] = maximum_feature;
+        merged.point_depths[1] = maximum_depth;
     }
     return merged;
 }

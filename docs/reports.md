@@ -481,7 +481,11 @@ then solve and check that report. Merge both returned reports if desired. Do not
 solve partially gathered constraints after a fatal gather. Call `step_begin()`
 when this pass should also start a new interaction-history boundary.
 
-The full update records attempted/completed substep counts. A contained rejection
+The full update records actual attempted/completed substep counts, including
+collision-driven subdivisions beyond the configured minimum. Swept broadphase
+preparation belongs to integration; allocation failure there stops motion before
+integration. Contact refresh during constraint solving belongs to the constraint
+report. Explicit standalone substeps remain caller-sized. A contained rejection
 is a warning with `ROHR_REPORT_CONTRIBUTION_SKIPPED`; the pipeline remains COMPLETE
 when its scheduled work finishes. Diagnostics identify the operation through a
 `PhysicsReportStage`, preserve source/target handles, and aggregate repeated

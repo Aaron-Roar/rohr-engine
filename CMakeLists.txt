@@ -242,6 +242,8 @@ set(ROHR_ENGINE_SOURCES
     src/physics/collision/overlap_geometry.c
     src/physics/collision/shape_decomposition.c
     src/physics/constraints/constraint_solver.c
+    src/physics/rigid_body/contact_block.c
+    src/physics/rigid_body/rigid_sweep.c
     src/physics/constraints/transform_lock.c
     src/physics/joints/joint_constraint.c
     src/physics/joints/joint.c
@@ -1215,6 +1217,32 @@ if(ROHR_BUILD_TESTS)
         RUNTIME_OUTPUT_DIRECTORY ${ROHR_BUILD_OUTPUT_DIRECTORY}/tests)
     add_test(NAME rigid_contact_stability COMMAND rigid_contact_stability_test)
 
+    add_executable(extreme_mass_drop_test tests/extreme_mass_drop.c
+        examples/extreme_mass_drop/src/drop_fixture.c)
+    target_include_directories(extreme_mass_drop_test PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/src
+        ${CMAKE_CURRENT_SOURCE_DIR}/examples/extreme_mass_drop/src)
+    target_link_libraries(extreme_mass_drop_test PRIVATE rohr_engine)
+    if(ROHR_ENABLE_SANITIZERS)
+        target_compile_options(extreme_mass_drop_test PRIVATE ${ROHR_SANITIZER_COMPILE_OPTIONS})
+    endif()
+    if(WIN32)
+        set(drop_test_platform windows)
+    elseif(ROHR_ENABLE_SANITIZERS)
+        set(drop_test_platform sanitizers)
+    else()
+        set(drop_test_platform linux)
+    endif()
+    set_target_properties(extreme_mass_drop_test PROPERTIES RUNTIME_OUTPUT_DIRECTORY
+        ${CMAKE_SOURCE_DIR}/sandbox/milestone_6/goal_1/bin/${drop_test_platform})
+    if(ROHR_EXAMPLE_OUTPUT_DIRECTORY)
+        set_target_properties(extreme_mass_drop_test PROPERTIES
+            RUNTIME_OUTPUT_DIRECTORY ${ROHR_EXAMPLE_OUTPUT_DIRECTORY})
+    endif()
+    add_test(NAME extreme_mass_drop COMMAND extreme_mass_drop_test)
+    set_tests_properties(extreme_mass_drop PROPERTIES
+        ENVIRONMENT "SDL_VIDEODRIVER=dummy;SDL_AUDIODRIVER=dummy" TIMEOUT 120)
+
     add_executable(component_registry_test
         tests/component_registry.c
     )
@@ -1329,6 +1357,7 @@ if(ROHR_BUILD_TESTS)
     )
 
     add_custom_target(rohr_tests)
+    add_dependencies(rohr_tests extreme_mass_drop_test)
     add_dependencies(
         rohr_tests
         entity_info_test

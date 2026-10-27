@@ -6,7 +6,16 @@
 #include <SDL3/SDL_timer.h>
 #include <math.h>
 
-Report physics_pipeline_substep(double dt) {
+static void (*substep_observer)(double, void *);
+static void *substep_observer_context;
+
+void physics_substep_observer_set(void (*observer)(double, void *), void *context) {
+    substep_observer = observer;
+    substep_observer_context = context;
+}
+
+static Report physics_pipeline_substep_internal(double *duration, bool adaptive) {
+    double dt = *duration;
     uint64_t started = SDL_GetPerformanceCounter();
     Report report = physics_report_create(ROHR_PHYSICS_SUBSTEP_REPORT_ID);
     Report child;
@@ -22,7 +31,7 @@ Report physics_pipeline_substep(double dt) {
     child = physics_pipeline_forces_apply();
     (void)report_merge(&report, &child);
     if(report.has_fatal) goto done;
-    child = physics_pipeline_integrate(dt);
+    child = adaptive ? physics_pipeline_integrate_adaptive(duration) : physics_pipeline_integrate(dt);
     (void)report_merge(&report, &child);
     if(report.has_fatal) goto done;
     child = physics_pipeline_contacts_gather();
@@ -38,6 +47,10 @@ done:
     return report;
 }
 
+Report physics_pipeline_substep(double dt) {
+    return physics_pipeline_substep_internal(&dt, false);
+}
+
 Report physics_pipeline_update_internal(double dt, bool publish) {
     uint64_t started = SDL_GetPerformanceCounter();
     Report report = physics_report_create(ROHR_PHYSICS_REPORT_ID);
@@ -49,15 +62,30 @@ Report physics_pipeline_update_internal(double dt, bool publish) {
         goto done;
     }
     physics_pipeline_step_begin();
+    uint32_t completed = 0;
     for(uint32_t substep = 0; substep < substeps; substep += 1) {
-        Report child;
-        physics_report_counter_add(&report, ROHR_REPORT_SUBSTEPS_ATTEMPTED_COUNT, 1);
-        physics_report_context_set(true, substep);
-        child = physics_pipeline_substep(dt / (double)substeps);
-        physics_report_context_set(false, 0);
-        (void)report_merge(&report, &child);
-        if(report.has_fatal) break;
-        physics_report_counter_add(&report, ROHR_REPORT_SUBSTEPS_COMPLETED_COUNT, 1);
+        double remaining = dt / (double)substeps;
+        do {
+            double duration = remaining;
+            Report child;
+            physics_report_counter_add(&report, ROHR_REPORT_SUBSTEPS_ATTEMPTED_COUNT, 1);
+            physics_report_context_set(true, completed);
+            child = physics_pipeline_substep_internal(&duration, true);
+            physics_report_context_set(false, 0);
+            (void)report_merge(&report, &child);
+            if(report.has_fatal) goto done;
+            if(remaining > 0 && (!(duration > 0) || duration > remaining ||
+                    remaining - duration == remaining)) {
+                physics_report_issue_add(&report, ROHR_PHYSICS_INTEGRATION, ROHR_REPORT_SEVERITY_FATAL,
+                    ERROR_ENGINE_STATE_INVALID, ROHR_REPORT_UPDATE_ABORTED, 0, 0,
+                    "adaptive substep could not advance simulation time");
+                goto done;
+            }
+            physics_report_counter_add(&report, ROHR_REPORT_SUBSTEPS_COMPLETED_COUNT, 1);
+            ++completed;
+            if(substep_observer != NULL) substep_observer(duration, substep_observer_context);
+            remaining -= duration;
+        } while(remaining > 0);
     }
 done:
     if(publish) physics_report_finish(&report, started);

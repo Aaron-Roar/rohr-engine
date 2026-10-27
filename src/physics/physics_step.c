@@ -196,6 +196,10 @@ void physics_pipeline_contact_constraints_solve(
     float position_fraction,
     void *context
 ) {
+    if(constraints == &physics_step_contact_constraints && constraints->rigid_gathered)
+        physics_rigid_constraints_gather(context);
+    if(context != NULL && ((Report *)context)->has_fatal) return;
+    if(physics_rigid_contact_block_solve_check(constraints, context)) return;
     for(size_t i = 0; i < constraints->count; i += 1) {
         if(context != NULL && ((Report *)context)->has_fatal) break;
         SystemContactConstraint *constraint = &constraints->values[i];

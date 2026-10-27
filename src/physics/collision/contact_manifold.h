@@ -14,6 +14,7 @@ typedef struct ContactManifold {
     Axis normal;
     float depth;
     Vec2D points[CONTACT_MANIFOLD_POINT_MAX];
+    float point_depths[CONTACT_MANIFOLD_POINT_MAX]; /* Signed; negative is a gap. */
     uint32_t feature_ids[CONTACT_MANIFOLD_POINT_MAX];
     uint8_t count;
 } ContactManifold;

@@ -265,8 +265,9 @@ static void subdivided_support_test(bool beam_only, float x, float angle,
         close_to(math_dot_product(velocities[ai], up), 0, .002f);
         Projection node_extent = math_project_shape_on_axis(
             rohr_math_circle_create(10, 8), up);
+        /* Rigid node slop is now 0.0001 of its 20-unit diameter. */
         close_to(math_dot_product(math_vector_subtract(positions[ai], offset), up),
-            67.6931839f + (beam_only ? 1 : -node_extent.min - .01f), .003f);
+            67.6931839f + (beam_only ? 1 : -node_extent.min - .002f), .003f);
         if(beam_only) close_to(math_dot_product(velocities[index_get(b.result.value)], up), 0, .002f);
     } else close_to(math_dot_product(velocities[ai], up), -1, .002f);
     OK(rohr_entity_delete(soft.result.value));

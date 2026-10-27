@@ -54,6 +54,16 @@ Report physics_pipeline_integrate(double dt) {
     return report;
 }
 
+Report physics_pipeline_integrate_adaptive(double *dt) {
+    uint64_t started = SDL_GetPerformanceCounter();
+    Report report = physics_report_create(ROHR_PHYSICS_INTEGRATION_REPORT_ID);
+    physics_soft_body_frames_update(&report);
+    *dt = physics_rigid_integrate_adaptive(*dt, &report);
+    physics_soft_body_frames_update(&report);
+    physics_report_finish(&report, started);
+    return report;
+}
+
 Report physics_pipeline_contacts_gather(void) {
     uint64_t started = SDL_GetPerformanceCounter();
     Report report = physics_report_create(ROHR_PHYSICS_CONTACTS_REPORT_ID);

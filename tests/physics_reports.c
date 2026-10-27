@@ -122,6 +122,7 @@ static void composition_and_joints(void) {
     assert(memcmp(&latest.result.value, &tick, sizeof(tick)) == 0);
     Entity b = body(4, false);
     (void)joint_make(a, b, false);
+    Entity unrelated_first = body(100, true), unrelated_second = body(101, true);
     rohr_physics_pipeline_substep_begin();
     Report joint_report = rohr_physics_pipeline_joints_gather();
     assert(joint_report.header.id == ROHR_PHYSICS_JOINTS_REPORT_ID && joint_report.header.status == ROHR_REPORT_COMPLETE);
@@ -130,6 +131,8 @@ static void composition_and_joints(void) {
     assert(fabsf(position(a).x - position(b).x) < .0001f);
     assert(metric(&joint_report, ROHR_PHYSICS_JOINTS_REPORT_ID, ROHR_REPORT_PROCESSED_COUNT) == 1);
     assert(joint_report.entry_count == 0 && solved.entry_count == 0);
+    assert(position(unrelated_first).x == 100 && position(unrelated_second).x == 101);
+    assert(rohr_physics_contact_count_get(unrelated_first) == 0);
     rohr_engine_stop();
     assert(rohr_report_valid_check(&full) && rohr_report_valid_check(&joint_report));
 }

@@ -44,7 +44,10 @@ void contact_constraint_list_destroy(ContactConstraintList *list) {
 }
 
 void contact_constraint_list_clear(ContactConstraintList *list) {
-    if(list != NULL) list->count = 0;
+    if(list != NULL) {
+        list->count = 0;
+        list->rigid_gathered = false;
+    }
 }
 
 bool contact_constraint_list_append(

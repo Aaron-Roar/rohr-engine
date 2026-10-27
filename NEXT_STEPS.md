@@ -13,7 +13,7 @@ priority order.
 | 2 | Asset and resource ownership | Complete |
 | 3 | COM, inertia, and origin semantics | Complete |
 | 4 | Cross-path feature parity | Complete by user acceptance; recorded verification exceptions remain |
-| 6 | Physics robustness | Next; partially implemented; retain all five scenarios and performance criteria |
+| 6 | Physics robustness | In progress; goal 1 complete, goals 2–5 pending |
 | — | [C game experiment](#c-game-experiment) | Pending; agree concept and completion criteria when starting |
 | 8 | Runtime isolation (global-state assumptions) | Foundations implemented; two independent worlds pending |
 | 5 | Adversarial testing and hardening | Substantial coverage implemented; follows runtime isolation |
@@ -21,10 +21,10 @@ priority order.
 | 7 | Editor implementation scalability | Deferred until after Python unless game development makes it necessary sooner |
 | 10 | End-to-end game | Pending; separate larger game directed by the user |
 
-**Next goal:** pursue only milestone 6 goal 1, **Extreme mass/size drop**, when
-explicitly instructed. Before implementation, freeze its exact fixture and
-resolve the visual-review prerequisite for settling criteria. This roadmap
-update does not start physics or game implementation.
+**Next goal:** milestone 6 goal 2, **Fast objects against thin barriers**, only
+when explicitly instructed. Freeze its exact fixture and resolve its material
+clarifications before implementation. Goal 1 is complete, including the user's
+motion review and accepted centered settling limits. No later goal has started.
 
 Regression checks and relevant sanitizer checks remain mandatory throughout
 physics, the C game experiment, and runtime isolation. Deferring the broader
@@ -516,14 +516,16 @@ restitution checked as no rebound within the fixture's numerical tolerance.
 Freeze exact geometry, offsets, impulses, reference lengths, run lengths, and
 measurement tolerances before implementing the relevant goal.
 
-**Unresolved settling criterion:** review a visual example with the user before
-choosing settling time and residual-motion limits for supported stacks and damped
-soft bodies. No 30-second settling limit or automatic freezing is agreed. This
-review is a prerequisite to completing affected goals; it does not relax
-collision requirements during motion or require undamped pendulums to stop.
+**Settling criteria:** Goal 1's centered stack has user-approved limits: settle
+within 2 simulated seconds after impact, then stay supported for 10 seconds with
+each body's linear speed at most 0.0001 units/s and angular speed at most 0.0001
+degrees/s. Offset cases may move naturally. Settling limits for Goals 3 and 5
+still require their own visual review before completion. No automatic freezing
+is agreed; settling criteria do not relax collision requirements during motion
+or require undamped pendulums to stop.
 
-1. [ ] **Extreme mass/size drop.** Place a 0.01 × 0.01, mass 0.0001 rigid body on
-   a 1,000 × 0.1 static floor whose stored mass is 0.0001. Drop a 100 × 100,
+1. [x] **Extreme mass/size drop.** Place a 0.01 × 0.01, mass 0.0001 rigid body on
+   a 0.01 × 0.1 static floor whose stored mass is 0.0001. Drop a 100 × 100,
    mass 10,000,000 rigid body from rest with a 1,000-unit gap between its bottom
    and the tiny body's top. Use gravity -9.8, restitution 0, and friction 0.8.
    Test centered and slightly offset impacts. Penetration must stay at or below
@@ -532,11 +534,35 @@ collision requirements during motion or require undamped pendulums to stop.
    crushing geometry, sinking, or explosive numerical behavior. Offset impacts
    may tip or slide naturally without artificial locking. Resolve settling via
    the visual review above.
-   Visual-review preparation: the [dedicated C demo](examples/extreme_mass_drop/README.md)
-   provides centered and ±0.0025-unit offsets, 30/60/120 Hz controls, and overview
-   and magnified contact views. Executables and local review evidence belong in
-   ignored `sandbox/milestone_6/goal_1/`. The solver is unchanged; this goal remains
-   open pending user settling review and subsequent robustness implementation.
+   The [dedicated C demo](examples/extreme_mass_drop/README.md)
+   provides centered and ±0.0025-unit offsets, plus user-requested ±0.01-unit
+   tipping comparisons beyond the tiny body's initial support footprint.
+   The user revised the floor width from 1,000 to 0.01 in all five cases,
+   matching the tiny body's width so the overhang has room to tip. Its center
+   remains (0, -0.05); stored mass and the other fixture values are unchanged. These
+   comparisons run for 30 seconds and must rotate at least 1° toward the
+   overhang after impact, with the same penetration and finite-state limits;
+   falling off the narrow floor is allowed for offset cases. The centered stack
+   must remain supported. The demo includes 30/60/120 Hz controls,
+   overview and magnified contact views, and angle readouts.
+   Executables and local review evidence belong in
+   ignored `sandbox/milestone_6/goal_1/`. After observing the tiny body sink in the
+   baseline, the user explicitly chose to fix support and collision first, then
+   review settling from the corrected motion. The implementation adds scaled
+   penetration slop, collision-aware subdivisions, and simultaneous support
+   constraints, with per-substep regression measurements. The tipping review
+   also covers geometric correction and transitions from sticking to sliding.
+   The user accepted the narrow-floor motion and window-switch review and the
+   centered settling limits above. Complete: all twenty 30-second runs pass,
+   including every completed substep during the centered 10-second hold.
+   Maximum penetration is 0.000005958 units; Release normal 60 Hz p95 is at most
+   0.490 ms and delayed updates at most 9.001 ms on the reference laptop on AC.
+   Verification: 21 focused Linux engine regressions, nine ASan/UBSan tests,
+   independent installed-SDK demo builds and two demo checks each on Linux and
+   ASan/UBSan, normal/delayed player-floor probes on both, and Windows engine/test
+   and demo cross-builds. No compiler warnings or sanitizer findings; native
+   Windows execution was not performed and is not a completion gate.
+   Local evidence is recorded in `sandbox/milestone_6/goal_1/collision_verification.txt`.
 2. [ ] **Fast objects against thin barriers.** Fire a 1 × 1 rigid body and a
    radius-0.5 particle at a 0.1-thick static wall at 100, 1,000, and 10,000
    units/second. Cover straight and oblique impacts with restitution 0 and 0.8.

@@ -8,7 +8,7 @@
 #include <stdio.h>
 #include <string.h>
 
-static const float offsets[] = {0.0f, 0.0025f, -0.0025f};
+static const float offsets[DROP_CASE_COUNT] = {0.0f, 0.0025f, -0.0025f, 0.01f, -0.01f};
 static const char *body_names[] = {"floor", "tiny", "large"};
 
 bool drop_result_check(EngineResult result) {
@@ -19,7 +19,8 @@ bool drop_result_check(EngineResult result) {
 
 static bool fixture_halt(DropFixture *fixture, const char *message) {
     fixture->halted = true;
-    snprintf(fixture->failure, sizeof(fixture->failure), "%s", message);
+    snprintf(fixture->failure, sizeof(fixture->failure), "%.*s",
+        (int)sizeof(fixture->failure) - 1, message);
     fprintf(stderr, "HALTED at t=%.9f: %s\n", fixture->time, message);
     return false;
 }
@@ -48,7 +49,7 @@ double drop_rect_depth_get(const DropBody *a, const DropBody *b) {
     return depth;
 }
 
-static bool fixture_observe(DropFixture *fixture) {
+bool drop_fixture_observe(DropFixture *fixture) {
     const EntityInfoFlags flags = ROHR_ENTITY_INFO_PHYSICS_POSITION |
         ROHR_ENTITY_INFO_PHYSICS_ORIENTATION | ROHR_ENTITY_INFO_PHYSICS_VELOCITY |
         ROHR_ENTITY_INFO_PHYSICS_ANGULAR_VELOCITY;
@@ -97,10 +98,10 @@ void drop_fixture_destroy(DropFixture *fixture) {
 }
 
 bool drop_fixture_reset(DropFixture *fixture, unsigned case_index, unsigned rate) {
-    const float widths[] = {1000.0f, 0.01f, 100.0f};
+    const float widths[] = {0.01f, 0.01f, 100.0f};
     const float heights[] = {0.1f, 0.01f, 100.0f};
     const float masses[] = {0.0001f, 0.0001f, 10000000.0f};
-    if(case_index >= 3 || (rate != 30 && rate != 60 && rate != 120)) return false;
+    if(case_index >= DROP_CASE_COUNT || (rate != 30 && rate != 60 && rate != 120)) return false;
     drop_fixture_destroy(fixture);
     *fixture = (DropFixture){.rate = rate, .case_index = case_index,
         .first_violation_time = -1.0};
@@ -133,7 +134,7 @@ bool drop_fixture_reset(DropFixture *fixture, unsigned case_index, unsigned rate
                     rohr_physics_dynamic_set(e)) ||
                 (i != 0 && !drop_result_check(rohr_physics_gravity_enable(e)))) goto fail;
     }
-    return fixture_observe(fixture);
+    return drop_fixture_observe(fixture);
 fail:
     drop_fixture_destroy(fixture);
     return fixture_halt(fixture, "Fixture creation failed");
@@ -152,20 +153,21 @@ bool drop_fixture_step(DropFixture *fixture) {
         if(report.statistics[i].report_id == ROHR_PHYSICS_REPORT_ID &&
                 report.statistics[i].metric_id == ROHR_REPORT_SUBSTEPS_COMPLETED_COUNT)
             completed += report.statistics[i].value;
-    if(completed != 1)
-        return fixture_halt(fixture, "Expected exactly one completed substep per observation");
+    if(completed == 0)
+        return fixture_halt(fixture, "Physics completed no substeps");
     ++fixture->steps;
     fixture->time = (double)fixture->steps / fixture->rate;
-    if(!fixture_observe(fixture)) return false;
+    if(!drop_fixture_observe(fixture)) return false;
     if(fixture->steps % fixture->rate == 0) drop_fixture_print(fixture);
     return true;
 }
 
 void drop_fixture_print(const DropFixture *fixture) {
-    printf("case=%u offset=%+.4f hz=%u t=%.9f steps=%u depth=(%.9g,%.9g,%.9g) peak=%.9g floor_moved=%d\n",
+    printf("case=%u offset=%+.4f hz=%u t=%.9f steps=%u depth=(%.9g,%.9g,%.9g) peak=%.9g floor_moved=%d floor_width=%.9g\n",
         fixture->case_index + 1, offsets[fixture->case_index], fixture->rate,
         fixture->time, fixture->steps, fixture->depths[0], fixture->depths[1],
-        fixture->depths[2], fixture->maximum_depth, fixture->floor_moved);
+        fixture->depths[2], fixture->maximum_depth, fixture->floor_moved,
+        2 * fixture->bodies[0].half_width);
     for(size_t i = 0; i < DROP_BODY_COUNT; ++i) {
         const DropBody *b = &fixture->bodies[i];
         printf("  %s p=(%.9g,%.9g) v=(%.9g,%.9g) angle=%.9g omega=%.9g\n",
@@ -246,12 +248,13 @@ bool drop_fixture_verify(void) {
     DropFixture fixture = {0};
     const unsigned rates[] = {30, 60, 120};
     bool ok = true;
-    for(unsigned c = 0; c < 3 && ok; ++c) {
+    for(unsigned c = 0; c < DROP_CASE_COUNT && ok; ++c) {
         for(size_t r = 0; r < 3 && ok; ++r) {
             ok = drop_fixture_reset(&fixture, c, rates[r]);
             if(!ok) break;
             if(!fixture_configuration_check(&fixture) || fixture.steps != 0 || fixture.time != 0 || fixture.halted ||
                     fixture.maximum_depth > 1e-8 || fixture.floor_moved ||
+                    fixture.bodies[0].half_width != (double)0.01f * 0.5 ||
                     fixture.bodies[2].position.x != offsets[c] ||
                     fixture.bodies[2].position.y != 1050.01f ||
                     fixture.bodies[2].velocity.y != 0 ||
@@ -264,7 +267,7 @@ bool drop_fixture_verify(void) {
         }
     }
     drop_fixture_destroy(&fixture);
-    puts(ok ? "PASS: observer, reset, and nine finite baseline runs; physics acceptance NOT established." :
+    puts(ok ? "PASS: observer, reset, and fifteen finite observation runs; physics acceptance NOT established." :
         "FAIL: observation harness verification");
     return ok;
 }

@@ -154,19 +154,21 @@ origin fixed.
 
 ## Standard pipeline
 
-Each configured substep executes:
+Each completed substep executes:
 
 1. Clear substep contact and joint constraint buffers.
 2. Clear force-derived acceleration from the previous substep.
 3. Apply engine gravity to entities carrying `ROHR_GRAVITY`.
 4. Apply spring and soft-body beam forces.
-5. Integrate velocities, positions, and orientations.
+5. Apply explicit loads, select collision-aware duration, and integrate velocities,
+   positions, and orientations.
 6. Build/query the AABB tree and gather rigid and soft-body contacts.
 7. Gather active pin and weld constraints.
-8. Iterate contact and joint constraints together.
+8. Iterate contact and joint constraints together, refreshing rigid candidates
+   as position corrections introduce additional contacts.
 
 Current/previous interaction state is advanced once for the complete physics
-update, not once per substep. Configure fixed substeps and solver iterations
+update, not once per substep. Configure minimum substeps and solver iterations
 with:
 
 ```c
@@ -177,6 +179,27 @@ rohr_physics_solver_iterations_set(8);
 More substeps improve detection and integration for fast or light bodies but
 repeat broadphase and narrow-phase work. More solver iterations improve contact
 and joint convergence without increasing temporal sampling.
+
+Full updates consume all requested time. Moving rigid collider pairs use swept
+translational projections to shorten steps near impact and bound relative travel
+while touching. Collision steps are at most 1/60 second; isolated motion keeps
+the configured subdivision. Reports count actual subdivisions. The explicit
+`physics_pipeline_substep(dt)` entry point still executes exactly one caller-sized
+step, for manual pipeline composition.
+
+Rigid penetration slop is the smaller of 0.01 units and 0.0001 times the smaller
+collider thickness along the contact normal. Small reciprocal polygon contact
+sets (up to eight pairs and sixteen normal/friction rows) use a mass-weighted QR
+solve for simultaneous support with Coulomb-limited static friction. Sliding
+friction uses each solve's new normal impulse, preserving earlier coupled
+impulses. Geometric penetration correction uses equal translational weights and
+shape-dependent rotational weights, independent of stored mass. It uses signed
+depths at individual contact points and repairs the connected set on each pass;
+later passes gather contacts created by those corrections. This avoids moving a
+light support many body widths to repair a small overlap under a heavy load.
+Stored masses, impulse response, body modes, and freedom to move are unchanged. Larger,
+degenerate, directional, particle, and soft-boundary sets retain the iterative
+solver. These are bounded solver paths, not a guarantee for every extreme scene.
 
 ## Center of mass and inertia
 
@@ -616,8 +639,8 @@ Available diagnostics include:
 Current limitations:
 
 - collision polygons must be simple; collision holes and self-intersections are rejected;
-- collision detection is discrete, without swept collision/CCD;
-- substeps are fixed rather than adaptive;
+- swept timing uses translational polygon projections; arbitrary fast rotation,
+  concave sweep accuracy, and particle/beam continuous collision are not certified;
 - contact reporting exposes one representative manifold even when the solver
   retains several concave surface manifolds;
 - extreme speed, very small geometry, or large mass ratios may require more

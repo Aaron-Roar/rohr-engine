@@ -72,6 +72,8 @@ typedef struct ContactConstraintList {
     SystemContactConstraint *values;
     size_t count;
     size_t capacity;
+    /* Refresh only a rigid contact pass explicitly gathered by the caller. */
+    bool rigid_gathered;
 } ContactConstraintList;
 
 EngineResult contact_constraint_list_init(

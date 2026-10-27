@@ -47,6 +47,8 @@ typedef enum PhysicsReportStage {
 
 EngineResult physics_solver_iterations_set(uint32_t iterations);
 uint32_t physics_solver_iterations_get(void);
+/** Set the minimum subdivision count. Full updates may subdivide further for
+ * collision timing; reports count every attempted/completed subdivision. */
 EngineResult physics_substeps_set(uint32_t substeps);
 uint32_t physics_substeps_get(void);
 
@@ -70,7 +72,8 @@ Report physics_pipeline_joints_gather(void);
 Report physics_pipeline_constraints_solve(uint32_t iterations);
 /** Run one substep; call step_begin first when starting a new interaction update. */
 Report physics_pipeline_substep(double dt);
-/** Run all substeps. Zero dt still solves; negative/nonfinite dt returns FAILED. */
+/** Consume the full duration using configured and collision-aware substeps.
+ * Zero dt still solves; negative/nonfinite dt returns FAILED. */
 Report physics_pipeline_update(double dt);
 /** Result type for functions that return a Shape. */
 ERROR_DECLARE_RESULT_TYPE(ShapeResult, Shape);
@@ -1240,7 +1243,7 @@ EngineResult physics_dt_per_tick_set(Time dt);
 Time physics_dt_per_tick_get(void);
 /** Return physics timing to the engine time-per-tick default. */
 void physics_engine_time_per_tick_use(void);
-/** Advance each elapsed engine tick separately, with configured substeps per
+/** Advance each elapsed engine tick separately, with at least configured substeps per
  * tick. No elapsed ticks are discarded. Interaction queries describe the most
  * recent tick (possibly partial after a fatal error); the report aggregates
  * all attempted ticks. */
