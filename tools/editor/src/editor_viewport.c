@@ -3,6 +3,7 @@
  */
 
 #include "editor_viewport.h"
+#include "editor_diagnostics.h"
 #include "editor_force_geometry.h"
 #include "graphics/marker_geometry.h"
 #include "editor_soft_area.h"
@@ -6836,6 +6837,132 @@ static void editor_reference_preview_draw(const EditorProject *project,
         editor_reference_outline_draw, NULL);
 }
 
+static void editor_error_outline_segment(Position a, Position b, void *context) {
+    (void)context;
+    editor_line_width_draw(a, b, 2.0f, EDITOR_DIAGNOSTIC_COLOR);
+}
+static void editor_error_outlines_draw(const EditorObject *object, const EditorViewportState *state) {
+    if(!object || !object->visible || !state->diagnostics || editor_view_camera_preview) return;
+    rohr_graphics_layer_active_set(EDITOR_GRAPHICS_LAYER_VIEWPORT_CONTROL);
+    for(size_t i = 0; i < state->diagnostics->count; ++i) {
+        EditorSelectionRef ref = state->diagnostics->items[i].target;
+        if(ref.object != object->id) continue;
+        bool repeated = false;
+        for(size_t j = 0; j < i; ++j)
+            repeated |= editor_diagnostic_target_check(state->diagnostics->items[j].target, ref, false);
+        if(repeated) continue;
+        ObjectSourceReference source = {.id = ref.item, .soft_body = ref.parent};
+        switch(ref.kind) {
+            case EDITOR_SELECTION_RIGID_BODY: case EDITOR_SELECTION_PARTICLE: {
+                EditorRigidBody *body = editor_project_rigid_body_get((EditorObject *)object, ref.item);
+                if(!body || !body->visible) continue;
+                if(body->standalone_particle)
+                    editor_reference_ring_visit(editor_particle_center_world_get(object, body), body->particle_radius,
+                        editor_error_outline_segment, NULL);
+                else for(size_t h = 0; h < body->hitbox_count; ++h) {
+                    const EditorHitbox *box = &body->hitboxes[h];
+                    if(!box->visible) continue;
+                    for(size_t v = 0; v < box->vertex_count; ++v)
+                        editor_error_outline_segment(editor_hitbox_vertex_world_get(object, body, box, v),
+                            editor_hitbox_vertex_world_get(object, body, box, (v + 1) % box->vertex_count), NULL);
+                }
+                continue;
+            }
+            case EDITOR_SELECTION_SOFT_NODE: case EDITOR_SELECTION_SOFT_BEAM: case EDITOR_SELECTION_SOFT_BODY: {
+                EditorSoftBody *soft = editor_soft_body_get((EditorObject *)object,
+                    ref.kind == EDITOR_SELECTION_SOFT_BODY ? ref.item : ref.parent);
+                if(!soft || !soft->visible) continue;
+                if(ref.kind == EDITOR_SELECTION_SOFT_NODE) {
+                    bool visible = false;
+                    for(size_t n = 0; n < soft->node_count; ++n) if(soft->nodes[n].id == ref.item) visible = soft->nodes[n].visible;
+                    if(!visible) continue;
+                    source.kind = OBJECT_SOURCE_NODE;
+                } else if(ref.kind == EDITOR_SELECTION_SOFT_BEAM) {
+                    bool visible = false;
+                    for(size_t n = 0; n < soft->beam_count; ++n) if(soft->beams[n].id == ref.item) visible = soft->beams[n].visible;
+                    if(!visible) continue;
+                    source.kind = OBJECT_SOURCE_BEAM;
+                } else source.kind = OBJECT_SOURCE_SOFT_BODY;
+                (void)editor_viewport_reference_outline_visit(object, source, editor_view_scale, editor_error_outline_segment, NULL);
+                continue;
+            }
+            case EDITOR_SELECTION_SOFT_AREA: case EDITOR_SELECTION_SOFT_HOLE: {
+                EditorSoftBody *soft = editor_soft_body_get((EditorObject *)object, ref.parent);
+                EditorSoftArea *area = editor_soft_area_get(soft, ref.kind == EDITOR_SELECTION_SOFT_AREA ? ref.item : ref.container);
+                if(!soft || !soft->visible || !area || !area->visible) continue;
+                EditorSoftHole *hole = ref.kind == EDITOR_SELECTION_SOFT_HOLE ? editor_soft_hole_get(area, ref.item) : NULL;
+                const EditorSoftAreaLoop *loop = hole ? &hole->loop : &area->outer;
+                for(size_t n = 0; n < loop->node_count; ++n) {
+                    const EditorSoftNode *a = NULL, *b = NULL;
+                    for(size_t j = 0; j < soft->node_count; ++j) {
+                        if(soft->nodes[j].id == loop->nodes[n]) a = &soft->nodes[j];
+                        if(soft->nodes[j].id == loop->nodes[(n + 1) % loop->node_count]) b = &soft->nodes[j];
+                    }
+                    if(a && b) editor_error_outline_segment(editor_soft_node_world_get(object, soft, a), editor_soft_node_world_get(object, soft, b), NULL);
+                }
+                continue;
+            }
+            case EDITOR_SELECTION_ANCHOR: {
+                EditorAnchor *a = editor_project_anchor_get((EditorObject *)object, ref.item);
+                if(a && a->visible) editor_quad_draw(editor_anchor_world_get(object, a), 11, 11,
+                    editor_anchor_visual_rotation_get(object, a), EDITOR_DIAGNOSTIC_COLOR);
+                continue;
+            }
+            case EDITOR_SELECTION_JOINT: {
+                for(size_t j = 0; j < object->joint_count; ++j) {
+                    const EditorJoint *joint = &object->joint_items[j];
+                    if(joint->id != ref.item || !joint->visible) continue;
+                    EditorAnchor *a = editor_project_anchor_get((EditorObject *)object, joint->anchor_a);
+                    EditorAnchor *b = editor_project_anchor_get((EditorObject *)object, joint->anchor_b);
+                    if(a && b) editor_joint_symbol_draw(joint, editor_anchor_world_get(object, a), editor_anchor_world_get(object, b),
+                        fmaxf(.1f, joint->visual_size), EDITOR_DIAGNOSTIC_COLOR);
+                    else if(a || b) editor_circle_draw(editor_anchor_world_get(object, a ? a : b), 10 / editor_view_scale, EDITOR_DIAGNOSTIC_COLOR);
+                }
+                continue;
+            }
+            case EDITOR_SELECTION_SPRITE:
+                for(size_t j = 0; j < object->sprite_count; ++j) {
+                    const EditorSprite *sprite = &object->sprites[j];
+                    if(sprite->id == ref.item && sprite->visible) editor_sprite_outline_draw(editor_sprite_world_get(object, sprite),
+                        sprite->size, editor_sprite_world_rotation_get(object, sprite), EDITOR_DIAGNOSTIC_COLOR);
+                }
+                continue;
+            case EDITOR_SELECTION_CAMERA:
+                for(size_t j = 0; j < object->camera_count; ++j) {
+                    const EditorCamera *camera = &object->cameras[j];
+                    if(camera->id != ref.item || !camera->visible) continue;
+                    Orientation rotation; Position center = editor_camera_world_get(object, camera, &rotation);
+                    float zoom = camera->zoom > 0 ? camera->zoom : 1;
+                    editor_sprite_outline_draw(center, (Scale){camera->dimensions.x / zoom, camera->dimensions.y / zoom}, rotation, EDITOR_DIAGNOSTIC_COLOR);
+                }
+                continue;
+            case EDITOR_SELECTION_ANIMATION_FRAME: case EDITOR_SELECTION_ANIMATED_SPRITE:
+                for(size_t j = 0; j < object->animated_sprite_count; ++j) {
+                    const EditorAnimatedSprite *animation = &object->animated_sprite_items[j];
+                    if(animation->id != (ref.kind == EDITOR_SELECTION_ANIMATION_FRAME ? ref.parent : ref.item) ||
+                            !animation->visible || !animation->frame_count) continue;
+                    const EditorAnimationFrame *frame = &animation->frames[editor_animation_preview_frame_get(object, animation, state)];
+                    if(ref.kind == EDITOR_SELECTION_ANIMATION_FRAME && frame->id != ref.item) continue;
+                    Orientation rotation; Position center = editor_animation_frame_world_get(object, animation, frame, &rotation);
+                    Scale size = editor_animation_frame_size_get(frame);
+                    editor_sprite_outline_draw(center, (Scale){size.x * animation->scale.x, size.y * animation->scale.y}, rotation, EDITOR_DIAGNOSTIC_COLOR);
+                }
+                continue;
+            case EDITOR_SELECTION_TORQUE:
+                for(size_t j = 0; j < object->torque_count; ++j) {
+                    const EditorTorque *torque = &object->torque_items[j];
+                    if(torque->id != ref.item || !torque->visible) continue;
+                    Position strokes[EDITOR_TORQUE_MARKER_STROKE_COUNT][2];
+                    if(editor_torque_marker_strokes_get(object, torque, editor_view_scale, strokes))
+                        for(size_t n = 0; n < EDITOR_TORQUE_MARKER_STROKE_COUNT; ++n)
+                            editor_error_outline_segment(strokes[n][0], strokes[n][1], NULL);
+                }
+                continue;
+            default: continue;
+        }
+    }
+}
+
 static void editor_viewport_object_draw(const EditorObject *object,
     const EditorViewportState *state, bool object_selected) {
     bool object_highlighted;
@@ -7444,6 +7571,8 @@ static void editor_viewport_content_draw(const EditorProject *project,
                     state->reference_preview.item == item->camera;
                 Color color = selected || reference_preview ?
                     (Color){255, 210, 70, 255} : (Color){130, 220, 150, 255};
+                if(editor_diagnostics_item_get(state->diagnostics,
+                        (EditorSelectionRef){EDITOR_SELECTION_LAYOUT_VIEWPORT, viewport->id, 1, 0, item->id}, false)) color = EDITOR_DIAGNOSTIC_COLOR;
                 camera.x = rectangle.x + camera.x * zoom;
                 camera.y = rectangle.y + camera.y * zoom;
                 camera.width *= zoom; camera.height *= zoom;
@@ -7490,6 +7619,10 @@ static void editor_viewport_content_draw(const EditorProject *project,
                         state->selection == EDITOR_SELECTION_UI_SLIDER);
                 bool text_selected = item->id == state->selected_viewport_ui_item &&
                     state->selection == EDITOR_SELECTION_UI_TEXT;
+                bool item_error = editor_diagnostics_item_get(state->diagnostics,
+                    (EditorSelectionRef){item->kind == EDITOR_VIEWPORT_UI_SHAPE ? EDITOR_SELECTION_UI_SHAPE :
+                        item->kind == EDITOR_VIEWPORT_UI_TEXT ? EDITOR_SELECTION_UI_TEXT : EDITOR_SELECTION_UI_SLIDER,
+                        viewport->id, 0, 0, item->id}, false) != NULL;
                 uint32_t displayed_border = item->border_color;
                 uint32_t displayed_fill = item->fill_color;
                 ui.x = rectangle.x + ui.x * zoom;
@@ -7508,7 +7641,7 @@ static void editor_viewport_content_draw(const EditorProject *project,
                             item->hover_fill_color;
                     }
                 }
-                Color color = whole_selected ? (Color){255, 210, 70, 255} :
+                Color color = item_error ? EDITOR_DIAGNOSTIC_COLOR : whole_selected ? (Color){255, 210, 70, 255} :
                     rohr_graphics_color_hex_create(displayed_border);
                 if(item->kind == EDITOR_VIEWPORT_UI_SLIDER) {
                     const EditorViewportUiSlider *slider = &item->value.slider;
@@ -7730,7 +7863,7 @@ static void editor_viewport_content_draw(const EditorProject *project,
                         ui.height, rohr_graphics_color_hex_create(displayed_fill));
                 editor_viewport_ui_text_draw(project, item, i, rectangle, zoom,
                     text_selected);
-                if(item->border_enabled || whole_selected) {
+                if(item->border_enabled || whole_selected || item_error) {
                     Position corners[4] = {{ui.x, ui.y}, {ui.x + ui.width, ui.y},
                         {ui.x + ui.width, ui.y + ui.height},
                         {ui.x, ui.y + ui.height}};
@@ -7798,6 +7931,12 @@ static void editor_viewport_content_draw(const EditorProject *project,
     }
     rohr_graphics_layer_active_set(EDITOR_GRAPHICS_LAYER_VIEWPORT_CONTROL);
     editor_reference_preview_draw(project, state);
+    if(state->mode == EDITOR_VIEWPORT_HIERARCHY) {
+        for(size_t i = 0; i < project->object_count; ++i) {
+            EditorObject overview = project->objects[i]; overview.position = overview.overview_position;
+            editor_error_outlines_draw(&overview, state);
+        }
+    } else editor_error_outlines_draw(selected, state);
     if((state->mode == EDITOR_VIEWPORT_FORCE || state->mode == EDITOR_VIEWPORT_TORQUE) && selected != NULL &&
             selected->id == state->preview_reference_object)
         (void)editor_viewport_reference_outline_visit(selected, state->preview_reference,

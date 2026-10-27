@@ -394,6 +394,8 @@ bool editor_layout_viewport_editor_draw(EditorLayoutViewportEditor *editor,
                     &selected_style : NULL);
         editor_mode_element_icon_draw(EDITOR_SELECTION_LAYOUT_VIEWPORT,
             (UIRect){context->x + 46.0f, y + 4.0f, 20.0f, 20.0f});
+        editor_mode_error_row_draw((EditorSelectionRef){EDITOR_SELECTION_LAYOUT_VIEWPORT,
+            viewport->id, 1, 0, item->id}, (UIRect){context->x + 42, y, context->width - 50, 28});
         if(camera_result.clicked) {
             context->viewport->selected_viewport_camera_item = item->id,
             context->viewport->selected_viewport_ui_item = 0;

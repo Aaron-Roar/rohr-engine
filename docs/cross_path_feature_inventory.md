@@ -466,7 +466,7 @@ returning. The original failed fixture remains available for comparison.
 | 2. Visuals and visibility | Inspect `push_marker`, `spin_marker`, pin/weld/spring, the mirrored sprite, playing animations and `empty_animation`. Spring endpoints have different colors/scales/offsets. Toggle editor eyes separately from Visible in App, including the parent; rebuild and verify only app visibility affects runtime drawing and hidden bodies still simulate. Restore parent visibility without changing child settings. Empty animation must not prevent rendering. | Pending |
 | 3. Editor interaction | Select geometry, drag from the selecting press, use child-selection and rotation handles, and undo/redo each gesture. Pick force targets/references from menus and the viewport, checking hover highlights. Scroll a long selector; check modal menus do not move underlying items. Drag the slider thumb without moving its parent. Rename via Enter/Escape and confirm subsequent keyboard navigation works. | User-reported failures: oversized force/torque picking, persistent/overlapping child panels, first-element activation, object/joint scrolling, and delayed joint clamping. C6 panel lifecycle/scrolling and C8 source picking complete with user acceptance; C14 immediate joint/axis placement and spring controls complete with user acceptance; broader interaction retests remain pending. |
 | 4. Input and audio | Exercise the starter's configured logical input actions and text entry without unintended gameplay input while editing. Run the installed-SDK `audio` example: Play Water Splash produces sound; music play/pause/resume and track switching work; Quit/escape shuts down. Review window size/aspect settings. Muted description defaults and queued/applied audio state retain their automated fixture evidence; silent startup alone is not proof of muted playback. | Pending |
-| 5. Project lifecycle and delivery | Build/run the application and Simulate Scene. The application includes direct-API extras; scene simulation contains authored objects. Verify run/pause/stop, return to Editor, close/reopen/reorder tabs through View, rebuild a visible edit and replay. Close/switch a project during an active build and verify cancellation; terminal interrupt reaches the subprocess. Launch installed-SDK artifacts outside their source directories. | User-reported failures: relocation, repeat builds, missing CMake recovery, generation diagnostics, and incomplete-joint generation. Startup error 21 reproduced in rohr-project-1. C1 diagnostics, C2 relocation/repeat builds, C3 missing CMake recovery, C4 partial-spawn startup, and C5 incomplete joints complete with verification below; C6 panel lifecycle/scrolling and C8 source picking also complete; C7 complete with its manual checks explicitly deferred; C9 complete with the additional panel check explicitly skipped; C10 directional response and C11 explicit migration complete; C12 explicit motion authoring complete (including whole-body motion added at final review); C13 whole-body node physics complete; C14 complete; C15/C16 and broader interactive retests remain pending. |
+| 5. Project lifecycle and delivery | Build/run the application and Simulate Scene. The application includes direct-API extras; scene simulation contains authored objects. Verify run/pause/stop, return to Editor, close/reopen/reorder tabs through View, rebuild a visible edit and replay. Close/switch a project during an active build and verify cancellation; terminal interrupt reaches the subprocess. Launch installed-SDK artifacts outside their source directories. | User-reported failures: relocation, repeat builds, missing CMake recovery, generation diagnostics, and incomplete-joint generation. Startup error 21 reproduced in rohr-project-1. C1 diagnostics, C2 relocation/repeat builds, C3 missing CMake recovery, C4 partial-spawn startup, and C5 incomplete joints complete with verification below; C6 panel lifecycle/scrolling and C8 source picking also complete; C7 complete with its manual checks explicitly deferred; C9 complete with the additional panel check explicitly skipped; C10 directional response and C11 explicit migration complete; C12 explicit motion authoring complete (including whole-body motion added at final review); C13 whole-body node physics complete; C14 and C15 complete; C16 and broader interactive retests remain pending. |
 
 Preparation evidence (2026-10-21): full Linux build and **111/111 CTest tests
 pass**, including the installed-SDK comparisons and scene/build lifecycle
@@ -558,6 +558,8 @@ each pursued goal needs its own relevant checks and interactive retest.
 | Preserve old pair behavior by remapping categories/masks into the new system | C11 |
 | Neither side responding must not suppress geometric overlap queries | C10 |
 | One-sided contacts use both bodies' materials | C10 |
+| Current errors need red outlines, rows, fields, and collapsed accordion headers | C15 complete; shared derived diagnostics clear styling after correction |
+| Existing errors must reach the notification log when opening a project | C15 complete; unchanged snapshots are deduplicated, returning errors log again, and history remains visible |
 
 Read-only diagnosis reproduced `error 21: invalid entity` when launching the
 saved rohr-project-1 application with dummy SDL drivers. Its developer-owned
@@ -2540,5 +2542,68 @@ Logs: `/tmp/c14_final_tests.log`, `/tmp/c14_sanitizer_tests.log`,
 `/tmp/c14_generated_startup.log`, `/tmp/c14_examples.log`, and
 `/tmp/c14_cli_check.log`. The published CLI also verifies spring locks, Static
 editing, and immediate custom axis/shift placement with saved values. Documentation
-checks and `git diff --check` pass. C14 is complete; C15/C16 remain unstarted and
-C7/C9's existing review exceptions remain unchanged.
+checks and `git diff --check` pass. At C14 closure, C15/C16 remained unstarted and
+C7/C9's existing review exceptions remained unchanged.
+
+**C15 complete — shared current-error presentation:**
+
+The editor derives diagnostics from the current authored configuration. Affected
+geometry gets red exterior outlines where it can be rendered; affected items and
+ancestor rows, fields, and accordion headers use shared red indicators. Collapsed
+accordions retain the indicator. Reasons appear in the measured, scrollable
+properties panel. Fixing an error clears current styling; historical notifications
+remain in the log. Rejected input that leaves valid stored data unchanged creates
+a contextual notification without persistent red styling. Pointer refusals stay
+silent.
+
+Opening a project logs its existing errors immediately. Unchanged snapshots do
+not generate duplicates; resolution followed by recurrence, including undo, logs
+the returning error. Messages retain project, object/item, and field context;
+joint command failures also identify endpoints and their owners. Diagnostic
+snapshots own their text and are released with the editor. They are derived state,
+not serialized project or runtime data.
+
+Acceptance evidence (2026-10-26):
+
+1. **Current state and recovery:** `editor_error_presentation` covers retained
+   blocked weld configuration, missing references, independent errors,
+   correction, undo/redo, and project round trips. Read-only joint status reuses
+   existing satisfaction rules without moving geometry. Ordinary spring stretch
+   remains valid.
+2. **Shared presentation:** regression checks cover exact and ancestor targets,
+   field/accordion mapping, collapsed/expanded accordion drawing, object/layout
+   ID separation, soft-node/area and camera errors, and viewport drawing. Inline
+   reasons participate in normal content measurement and scrolling.
+3. **Notifications:** tests cover initial population, unchanged-frame deduplication,
+   reopening, correction and recurrence, retained history, contextual rejected
+   numeric commits, and silent pointer rejection. Rejected edits do not falsely
+   mark valid stored properties as errors.
+4. **Delivery:** all 130 Linux tests and five focused ASan/UBSan suites pass with
+   leak detection (`editor_error_presentation`, `editor_panel_lifecycle`,
+   `editor_configuration_controls`, `editor_joint_authoring`, and
+   `editor_reference_picker`). Windows editor, CLI, and affected tests cross-build.
+   The joints example builds independently against both installed SDKs and passes
+   Linux startup/interrupt checks outside its source directory. Final builds have
+   no compiler warnings; native Windows execution was not performed.
+5. **Editor review:** the user reports **PASS** in “C15 review - accordions and
+   error log”, using their sandbox copy of the fixture. The accepted checks
+   include startup log entries without repetition, red collapsed Parameters/
+   Connections headers, clearing on correction, retained log history, and
+   styling/log recurrence through undo. No image analysis was used, and the
+   user's sandbox copy was not overwritten.
+
+Reproduce the focused regression with
+`ctest --test-dir build --output-on-failure -R '^editor_error_presentation$'`.
+Create a fresh manual fixture with dummy SDL video/audio drivers and
+`build/tests/editor_error_presentation_test --fixture <new-project-directory>`;
+never regenerate over an active user review. `BlockedWeld` has an incompatible
+rest angle; setting it to 0 resolves it. `MissingEndpoint` has an unset Anchor B;
+its right body's anchor is `anchor_13` in the original fixture.
+
+Verification logs are retained in ignored `build/c15_delivery/`: the
+`c15_full_build.log`, `c15_full_tests.log`, `c15_sanitizer_*.log`, and
+`c15_windows_*.log` files record the final suites; `linux_joints_build.log`,
+`windows_joints_build.log`, and `linux_joints_run.log` record independent SDK
+delivery. Project format 13 (accepting 12), runtime format 10, CLI/generation,
+runtime physics, and developer-owned `main.c` are unchanged. C15 is complete;
+C16 and broader goal 5 acceptance remain pending. C7/C9 review exceptions remain.

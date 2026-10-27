@@ -57,6 +57,7 @@ UIDropdownResult editor_mode_reference_dropdown(const char *id,
             .pick_exclusion = context->reference_pick_exclusion,
             .pick = editor_reference_pick, .pick_context = &pick},
         bounds, style == NULL ? &baseline : style);
+    editor_mode_error_border_draw(id, bounds);
     state->reference_picker_open |= result.open;
     if(result.hovered_index >= 0 && (size_t)result.hovered_index < option_count) {
         EditorSelectionRef ref = references[result.hovered_index];

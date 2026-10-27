@@ -4,6 +4,7 @@
 
 #ifndef ROHR_EDITOR_MODE_CONTROLS_H
 #define ROHR_EDITOR_MODE_CONTROLS_H
+#include "editor_diagnostics.h"
 
 #include "editors/editor_mode_context.h"
 
@@ -139,6 +140,13 @@ UIButtonResult editor_mode_visibility_button(const char *id, bool visible,
 void editor_mode_element_icon_draw(EditorHierarchySelection kind,
     UIRect bounds);
 UIButtonStyle editor_mode_section_field_style_get(void);
+/* Borrowed frame snapshot; explicitly clear before the owner is destroyed. */
+typedef void (*EditorModeFieldRejected)(EditorSelectionRef target, const char *field,
+    const char *reason, void *context);
+void editor_mode_field_rejected_callback_set(EditorModeFieldRejected callback, void *context);
+void editor_mode_diagnostics_set(const EditorDiagnostics *diagnostics, EditorSelectionRef target);
+void editor_mode_error_border_draw(const char *id, UIRect bounds);
+void editor_mode_error_row_draw(EditorSelectionRef target, UIRect bounds);
 UIFieldResult editor_mode_field(const char *id, UIFieldBinding binding,
     TextAsset *display, UIRect bounds, const UIButtonStyle *style);
 UIDropdownResult editor_mode_dropdown(const char *id,

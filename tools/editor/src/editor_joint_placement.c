@@ -356,6 +356,57 @@ static bool placement_drag_project_check(EditorObject *object,
     return valid;
 }
 
+/* Same endpoint ownership as anchor_owner, without allocating solver scratch
+ * storage or changing the document for a presentation query. */
+static bool status_anchor_pose_get(const EditorObject *object, EditorAnchorId id,
+        Position *position, Orientation *angle) {
+    const EditorAnchor *anchor = NULL;
+    for(size_t i = 0; i < object->anchor_count; ++i)
+        if(object->anchors[i].id == id) anchor = &object->anchors[i];
+    if(!anchor) return false;
+    *position = anchor->position; *angle = anchor->rotation;
+    if(!anchor->position_follows_body) return true;
+    if(anchor->attachment_kind == EDITOR_ANCHOR_ATTACHMENT_SOFT_NODE) {
+        for(size_t i = 0; i < object->soft_body_count; ++i) {
+            const EditorSoftBody *soft = &object->soft_body_items[i];
+            if(soft->id != anchor->attachment_soft_body) continue;
+            for(size_t n = 0; n < soft->node_count; ++n) if(soft->nodes[n].id == anchor->attachment_soft_node) {
+                *angle = soft->rotation;
+                *position = offset_position(offset_position(soft->position, soft->nodes[n].position, *angle), anchor->position, *angle);
+                return true;
+            }
+        }
+        return false;
+    }
+    if(!anchor->rigid_body) return true;
+    for(size_t i = 0; i < object->rigid_body_count; ++i) {
+        const EditorRigidBody *body = &object->rigid_bodies[i];
+        if(body->id == anchor->rigid_body) {
+            *angle = body->rotation;
+            *position = offset_position(body->position, anchor->position, *angle);
+            return true;
+        }
+    }
+    return false;
+}
+EditorJointPlacementResult editor_project_joint_status_get(EditorObject *object,
+        const EditorJoint *joint) {
+    EditorJointPlacementResult result = {0};
+    if(!object || !joint) return result;
+    result.joint = joint->id;
+    Position a, b; Orientation angle_a, angle_b;
+    if(!status_anchor_pose_get(object, joint->anchor_a, &a, &angle_a) ||
+            !status_anchor_pose_get(object, joint->anchor_b, &b, &angle_b)) {
+        result.blocked = true;
+        snprintf(result.reason, sizeof(result.reason), "Incomplete endpoints; joint does not respond");
+    } else if((joint->kind != EDITOR_JOINT_SPRING || joint->editor_rest_length_locked) &&
+            !placement_edge_satisfied_check(joint, a, b, angle_a, angle_b)) {
+        result.blocked = true;
+        snprintf(result.reason, sizeof(result.reason), "Authored placement does not satisfy this joint; check endpoints, rest value and connected constraints");
+    }
+    return result;
+}
+
 EditorJointPlacementResult editor_project_joints_resolve(EditorObject *object,
         const EditorObject *before, const ObjectEntityReference *drivers, size_t driver_count,
         EditorJointId configured_joint, bool project_axes) {

@@ -97,6 +97,7 @@ typedef struct EditorSelectionRef {
 } EditorSelectionRef;
 
 typedef struct EditorViewportState {
+    const struct EditorDiagnostics *diagnostics; /* borrowed current editor snapshot */
     int dragged_vertex;
     bool dragged_body;
     bool dragged_particle_radius;

@@ -970,6 +970,9 @@ typedef struct EditorJointPlacementResult {
     ObjectEntityReference blocker;
     char reason[160];
 } EditorJointPlacementResult;
+/* Read-only current authored constraint status; never places geometry. */
+EditorJointPlacementResult editor_project_joint_status_get(EditorObject *object,
+    const EditorJoint *joint);
 EditorJointPlacementResult editor_project_joints_resolve(EditorObject *object,
     const EditorObject *before, const ObjectEntityReference *drivers, size_t driver_count,
     EditorJointId configured_joint, bool project_axes);

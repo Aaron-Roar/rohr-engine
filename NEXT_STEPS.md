@@ -431,10 +431,22 @@ contracts, and generated examples when a goal changes supported behavior.
     Final user editor review: PASS. Native Windows execution was not performed.
     No image analysis or developer-owned main.c changes. See the corrective issue
     mapping for acceptance evidence and logs.
-15. [ ] **C15 — Shared editor error presentation.** Show affected items with
-    red exterior outlines, red column entries, and red borders on affected
-    fields. Reuse shared selection/panel systems and clear errors when resolved.
-    Drag refusals remain silent. Settle remaining details before implementation.
+15. [x] **C15 — Shared editor error presentation.** Derive current errors from
+    authored state and show red exterior outlines, affected/ancestor rows,
+    field borders, and accordion headers, including collapsed accordions.
+    Show inline reasons and clear styling when the stored error is resolved.
+    Log existing errors when opening a project; unchanged errors do not repeat,
+    while resolved errors that return through edits or undo are logged again.
+    Retain past notifications with object/item context. Rejected input leaves
+    valid stored data unmarked, and drag refusals remain silent.
+    Complete: all 130 Linux tests and five focused ASan/UBSan suites pass with
+    leak detection. Windows editor/CLI/tests cross-build without compiler
+    warnings. The joints example builds independently against both installed
+    SDKs and passes Linux startup/interrupt checks outside its source directory.
+    Final user editor review: PASS, including accordion styling and startup/
+    recurring error logging. No image analysis, developer-owned main.c changes,
+    persistence format changes, or simulation changes. Native Windows execution
+    was not performed. See the corrective issue mapping for evidence and logs.
 16. [ ] **C16 — Numeric property locks.** Give every editable numeric field a
     toggleable editor lock, including X, Y, and angle. Accordion-level locks
     toggle all numeric children, such as Position locking both X and Y. Locks

@@ -1771,6 +1771,27 @@ A node-attached anchor with zero local offset plus a pin joint expresses
 `SoftBodyNodeAnchorPinDescription`: the node owns its anchor, and the selected
 owner owns the joint. A separate editor item is unnecessary.
 
+### Editor current-error presentation
+
+Editor diagnostics are derived from current authored data and are not part of
+full runtime descriptions, generated constructors/catalogs, or saved snapshots.
+C15 does not change project format 13 (which also accepts 12), runtime format 10,
+CLI configuration semantics, or simulation behavior. Incomplete joints remain
+editable and persist as before; a diagnostic does not remove their definition.
+
+Persisting identifiable errors mark affected geometry, item/ancestor rows,
+fields, and accordion headers in red, including collapsed headers. Inline reasons
+belong to the shared scrollable properties panel. Resolving the stored error
+clears those indicators. Rejected input that preserves valid stored state emits
+a contextual notification without leaving persistent error styling. Impossible
+pointer steps remain silent.
+
+Existing errors enter the notification log when a project opens. Unchanged
+diagnostics do not repeat each frame; an error resolved and later restored by an
+edit or undo is logged again. Historical log entries remain after resolution.
+Notifications own their copied context rather than retaining pointers to edited
+items. Numeric property locks remain separate C16 work.
+
 ### CLI configuration examples
 
 The existing selector form accepts shared entity properties, for example:

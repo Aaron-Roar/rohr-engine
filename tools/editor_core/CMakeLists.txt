@@ -12,6 +12,7 @@ add_library(rohr_editor_core STATIC
     src/editor_force_geometry.c
     src/editor_mass_properties.c
     src/editor_source_commands.c
+    src/editor_diagnostics.c
     src/editor_command.c
     src/editor_auto_shape.c
     src/editor_cli_selectors.c

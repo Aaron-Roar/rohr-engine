@@ -14,6 +14,19 @@
 #include <stdlib.h>
 #include <string.h>
 
+static char editor_numeric_draft_id[128], editor_numeric_draft[256];
+static EditorModeFieldRejected editor_field_rejected;
+static void *editor_field_rejected_context;
+static EditorSelectionRef editor_mode_diagnostic_target;
+static const EditorDiagnostics *editor_mode_diagnostics;
+void editor_mode_field_rejected_callback_set(EditorModeFieldRejected callback, void *context) {
+    editor_numeric_draft_id[0] = '\0';
+    editor_field_rejected = callback; editor_field_rejected_context = context;
+}
+static void field_rejected(const char *id, const char *reason) {
+    if(editor_field_rejected) editor_field_rejected(editor_mode_diagnostic_target, id, reason, editor_field_rejected_context);
+}
+
 bool editor_mode_checkbox_mixed(const char *id, TextAsset *label, UIRect bounds, bool all, bool any) {
     UIButtonResult result = rohr_ui_interaction(id, bounds);
     rohr_ui_surface(bounds, result.hovered ? (Color){67,75,90,255} : (Color){48,54,66,255});
@@ -44,6 +57,8 @@ static UIFieldResult number_commit_field(EditorMixedNumberField *state,
         if(end != state->text && *end == '\0' && isfinite(entered) &&
                 entered >= minimum && entered <= maximum) {
             *value = entered; result.changed = true;
+        } else if(!mixed || strcmp(state->text, "Mixed")) {
+            field_rejected(id, "Enter a finite number within the allowed range; stored value retained");
         }
     }
     return result;
@@ -150,20 +165,26 @@ bool editor_mode_accordion_section_draw(EditorModeAccordionSection *section,
     UIButtonResult result;
     if(section == NULL || id == NULL ||
             !rohr_graphics_text_valid_check(section->label)) return false;
+    bool error = editor_diagnostics_section_check(editor_mode_diagnostics, editor_mode_diagnostic_target, id);
     if(content_height < 0.0f) content_height = 0.0f;
     if(section->expanded) {
         UIRect panel = {bounds.x, bounds.y, bounds.width,
             bounds.height + content_height};
         rohr_ui_surface(panel, (Color){62, 66, 74, 255});
-        rohr_ui_border(panel, 1.0f, (Color){184, 190, 202, 255});
+        rohr_ui_border(panel, error ? 2.0f : 1.0f, error ? EDITOR_DIAGNOSTIC_COLOR : (Color){184, 190, 202, 255});
     }
     style = rohr_ui_button_style_default_get();
     style.idle = section->expanded ? (Color){82, 88, 100, 255} :
         (Color){42, 47, 57, 255};
     style.hovered = (Color){96, 103, 117, 255};
     style.pressed = (Color){64, 69, 79, 255};
+    if(error) {
+        style.idle = (Color){105, 43, 48, 255};
+        style.hovered = (Color){132, 55, 61, 255};
+        style.pressed = (Color){85, 34, 39, 255};
+    }
     result = rohr_ui_button(id, &section->label, bounds, &style);
-    rohr_ui_border(bounds, 1.0f, section->expanded ?
+    rohr_ui_border(bounds, error ? 2.0f : 1.0f, error ? EDITOR_DIAGNOSTIC_COLOR : section->expanded ?
         (Color){184, 190, 202, 255} : (Color){92, 98, 110, 255});
     if(result.clicked) {
         section->expanded = !section->expanded;
@@ -640,12 +661,30 @@ UIButtonStyle editor_mode_section_field_style_get(void) {
     };
 }
 
+void editor_mode_diagnostics_set(const EditorDiagnostics *diagnostics, EditorSelectionRef target) {
+    if(!diagnostics || !editor_diagnostic_target_check(editor_mode_diagnostic_target, target, false))
+        editor_numeric_draft_id[0] = '\0';
+    editor_mode_diagnostics = diagnostics;
+    editor_mode_diagnostic_target = target;
+}
+void editor_mode_error_border_draw(const char *id, UIRect bounds) {
+    if(editor_diagnostics_field_check(editor_mode_diagnostics, editor_mode_diagnostic_target, id))
+        rohr_ui_border(bounds, 2, EDITOR_DIAGNOSTIC_COLOR);
+}
+void editor_mode_error_row_draw(EditorSelectionRef target, UIRect bounds) {
+    if(!editor_diagnostics_item_get(editor_mode_diagnostics, target, true)) return;
+    rohr_ui_border(bounds, 2, EDITOR_DIAGNOSTIC_COLOR);
+    rohr_ui_surface((UIRect){bounds.x + bounds.width - 7, bounds.y + 4, 3, bounds.height - 8}, EDITOR_DIAGNOSTIC_COLOR);
+}
+
 static const char *editor_mode_external_name;
 void editor_mode_external_name_set(const char *id) { editor_mode_external_name = id; }
 
 UIFieldResult editor_mode_field(const char *id, UIFieldBinding binding,
         TextAsset *display, UIRect bounds, const UIButtonStyle *style) {
     UIButtonStyle baseline;
+    char *draft_id = editor_numeric_draft_id, *draft = editor_numeric_draft;
+    bool had_draft = id && !strcmp(id, draft_id);
     if(id && editor_mode_external_name && !strcmp(id, editor_mode_external_name)) return (UIFieldResult){0};
     if(id != NULL && editor_mode_pending_field_focus != NULL &&
             strcmp(id, editor_mode_pending_field_focus) == 0) {
@@ -656,7 +695,22 @@ UIFieldResult editor_mode_field(const char *id, UIFieldBinding binding,
         baseline = editor_mode_section_field_style_get();
         style = &baseline;
     }
-    return rohr_ui_field(id, binding, display, bounds, style);
+    UIFieldResult result = rohr_ui_field(id, binding, display, bounds, style);
+    if(binding.kind == UI_FIELD_FLOAT && id) {
+        if(had_draft && (result.submitted || !result.active) && !rohr_ui_key_pressed_check(SDLK_ESCAPE)) {
+            char *end = NULL; float value = strtof(draft, &end);
+            if(end == draft || *end || !isfinite(value)) field_rejected(id, "Invalid number; stored value retained");
+        }
+        if(result.active && !result.submitted && display) {
+            TextDescriptionResult description = rohr_graphics_text_description_get(*display);
+            if(!rohr_error_check(description)) {
+                snprintf(draft_id, sizeof(editor_numeric_draft_id), "%s", id);
+                snprintf(draft, sizeof(editor_numeric_draft), "%s", description.result.value.value);
+            }
+        } else if(had_draft) draft_id[0] = '\0';
+    }
+    editor_mode_error_border_draw(id, bounds);
+    return result;
 }
 
 UIDropdownResult editor_mode_dropdown(const char *id,
@@ -667,11 +721,13 @@ UIDropdownResult editor_mode_dropdown(const char *id,
         baseline = editor_mode_section_field_style_get();
         style = &baseline;
     }
-    return rohr_ui_dropdown(id, options, option_count, selected_index,
+    UIDropdownResult result = rohr_ui_dropdown(id, options, option_count, selected_index,
         (UIDropdownConfig){
             .visible_row_limit = EDITOR_DROPDOWN_VISIBLE_ROW_LIMIT,
             .fit_window = true
         }, bounds, style);
+    editor_mode_error_border_draw(id, bounds);
+    return result;
 }
 
 void editor_mode_numeric_disabled_draw(TextAsset *display,
@@ -709,6 +765,7 @@ bool editor_mode_checkbox_left(const char *id,
             (Color){225, 230, 240, 255});
     rohr_ui_label(label, (UIRect){bounds.x + 4.0f, bounds.y,
         bounds.width - bounds.height - 4.0f, bounds.height});
+    editor_mode_error_border_draw(id, bounds);
     return interaction.clicked;
 }
 

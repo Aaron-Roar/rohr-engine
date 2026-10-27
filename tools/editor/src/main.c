@@ -12,6 +12,7 @@
 #include "editor_log.h"
 #include "rohr.h"
 #include "editor_project.h"
+#include "editor_diagnostics.h"
 #include "editor_workspace.h"
 #include "editor_build.h"
 #include "input/input_internal.h"
@@ -655,6 +656,51 @@ static bool editor_command_named_text_invalidates(EditorCommandType type) {
     }
 }
 
+/* Present newly observed current errors once. Keeping the previous frame's
+ * snapshot separate makes correction/reappearance and undo/redo explicit. */
+static void editor_diagnostic_notifications_update(EditorNotificationPanel *notifications,
+        EditorProject *project, const EditorWorkspace *workspace,
+        const EditorDiagnostics *current, const EditorDiagnostics *previous) {
+    if(!project || !current) return;
+    for(size_t i = 0; i < current->count; ++i) {
+        const EditorDiagnostic *error = &current->items[i];
+        if(editor_diagnostics_contains_check(previous, error)) continue;
+        /* Multiple conditions can share a target, but identical evidence in
+         * this snapshot is emitted only once. */
+        EditorDiagnostics earlier = {.items = current->items, .count = i};
+        if(editor_diagnostics_contains_check(&earlier, error)) continue;
+        EditorSelectionRef target = error->target;
+        bool layout = target.kind == EDITOR_SELECTION_LAYOUT_VIEWPORT || target.kind == EDITOR_SELECTION_UI_SHAPE ||
+            target.kind == EDITOR_SELECTION_UI_TEXT || target.kind == EDITOR_SELECTION_UI_SLIDER;
+        EditorObject *object = layout ? NULL : editor_object_query_get(project, target.object);
+        char name[EDITOR_OBJECT_NAME_MAX] = {0}, summary[EDITOR_NOTIFICATION_SUMMARY_MAX], detail[EDITOR_NOTIFICATION_DETAIL_MAX];
+        (void)editor_navigation_selection_name_get(project, target, name, sizeof(name));
+        snprintf(summary, sizeof(summary), "Current error: %s", name[0] ? name : "project item");
+        snprintf(detail, sizeof(detail), "Project: %s\n%s / %s\nObject/viewport %u, parent %u, container %u, item %u\n\n%s%s%s",
+            workspace && workspace->open ? workspace->directory : "",
+            object ? object->name : layout ? "Viewport" : "Project", name,
+            target.object, target.parent, target.container, target.item, error->reason,
+            error->fields[0] ? "\nAffected fields: " : "", error->fields);
+        editor_log_error("Current editor error", "%s", detail);
+        if(notifications) editor_notification_panel_push(notifications, summary, detail);
+    }
+    if(current->allocation_failed && (!previous || !previous->allocation_failed))
+        editor_error_notification_failure(notifications, "Current error list",
+            editor_result_error(EDITOR_ERROR_CAPACITY, "Unable to allocate the complete current error list"));
+}
+
+static void editor_operation_field_rejected(EditorSelectionRef target, const char *field,
+        const char *reason, void *context) {
+    EditorNotificationPanel *notifications = context;
+    char name[EDITOR_OBJECT_NAME_MAX] = {0}, detail[512];
+    EditorObject *object = editor_object_query_get((EditorProject *)editor_operation_project, target.object);
+    (void)editor_navigation_selection_name_get((EditorProject *)editor_operation_project, target, name, sizeof(name));
+    snprintf(detail, sizeof(detail), "%s / %s (object %u, item %u), %s: %s",
+        object ? object->name : "Project", name, target.object, target.item, field, reason);
+    editor_log_error("Field edit", "%s", detail);
+    if(notifications) editor_notification_panel_push(notifications, "Field edit - FAIL", detail);
+}
+
 static void editor_operation_command_finished(const EditorCommand *command,
         const EditorCommandResult *result, void *context) {
     EditorNotificationPanel *notifications = context;
@@ -665,24 +711,45 @@ static void editor_operation_command_finished(const EditorCommand *command,
     if(command != NULL && result != NULL && result->kind == ERROR_RESULT_VALUE &&
             editor_command_named_text_invalidates(command->type))
         editor_mode_named_text_clear_all();
-    static char last_placement_error[256];
-    if(command && command->pointer_transform) return;
-    if(result && result->placement.blocked) {
-        char message[256];
-        snprintf(message,sizeof(message),"%s at joint %u: %s",
-            result->kind==ERROR_RESULT_ERROR?"Transform rejected":"Placement blocked; setting retained",
-            result->placement.joint,result->placement.reason);
-        if(strcmp(last_placement_error,message)!=0) {
-            snprintf(last_placement_error,sizeof(last_placement_error),"%s",message);
-            editor_error_notification_failure(notifications,"Joint placement",
-                editor_result_error(EDITOR_ERROR_INVALID_ARGUMENT,"%s",message));
-        }
-    } else {
-        last_placement_error[0]='\0';
-        if(notifications && result && result->kind==ERROR_RESULT_ERROR)
-            editor_error_notification_failure(notifications,"Editor command",
-                (EditorResult){.kind=ERROR_RESULT_ERROR,.result.error=result->result.error});
+    if(!result || (command && command->pointer_transform)) return;
+    if(!result->placement.blocked && result->kind != ERROR_RESULT_ERROR) return;
+    EditorSelectionRef target = editor_diagnostic_command_target_get(command);
+    EditorObject *object = editor_object_query_get((EditorProject *)editor_operation_project, target.object);
+    char name[EDITOR_OBJECT_NAME_MAX] = {0}, detail[1024];
+    if(object && target.kind == EDITOR_SELECTION_RIGID_BODY) {
+        EditorRigidBody *body = editor_project_rigid_body_get(object, target.item);
+        if(body && body->standalone_particle) target.kind = EDITOR_SELECTION_PARTICLE;
     }
+    (void)editor_navigation_selection_name_get((EditorProject *)editor_operation_project, target, name, sizeof(name));
+    snprintf(detail, sizeof(detail), "%s%s%s (object %u, item %u): %s",
+        object ? object->name : "Project", name[0] ? " / " : "", name,
+        target.object, target.item, result->placement.blocked ? result->placement.reason : result->result.error.message);
+    if(result->placement.blocked && object) {
+        for(size_t i = 0; i < object->joint_count; ++i) {
+            EditorJoint *joint = &object->joint_items[i];
+            if(joint->id != result->placement.joint) continue;
+            size_t used = strlen(detail);
+            snprintf(detail + used, sizeof(detail) - used, "\nJoint '%s' (%u). %s.", joint->name, joint->id,
+                result->kind == ERROR_RESULT_ERROR ? "Transform rejected" : "Setting retained; placement blocked");
+            EditorAnchor *anchors[2] = {editor_project_anchor_get(object, joint->anchor_a), editor_project_anchor_get(object, joint->anchor_b)};
+            for(size_t a = 0; a < 2; ++a) if(anchors[a]) {
+                EditorAnchor *anchor = anchors[a];
+                EditorSelectionRef owner = editor_diagnostic_entity_get(object,
+                    anchor->attachment_kind == EDITOR_ANCHOR_ATTACHMENT_SOFT_NODE ?
+                    (ObjectEntityReference){OBJECT_NODE, anchor->attachment_soft_node, anchor->attachment_soft_body} :
+                    (ObjectEntityReference){OBJECT_BODY, anchor->rigid_body, 0});
+                char owner_name[EDITOR_OBJECT_NAME_MAX] = {0};
+                (void)editor_navigation_selection_name_get((EditorProject *)editor_operation_project, owner, owner_name, sizeof(owner_name));
+                used = strlen(detail);
+                snprintf(detail + used, sizeof(detail) - used, "\nAnchor %c '%s' (%u), owner '%s' (%u)",
+                    (int)('A' + a), anchor->name, anchor->id, owner_name[0] ? owner_name : "world", owner.item);
+            }
+        }
+    }
+    const char *operation = result->placement.blocked ? "Joint placement" : "Editor command";
+    editor_log_error(operation, "%s", detail);
+    if(notifications) editor_notification_panel_push(notifications,
+        result->placement.blocked ? "Joint placement - FAIL" : "Editor command - FAIL", detail);
 }
 
 static EditorResult editor_workspace_operation_execute(EditorWorkspace *workspace,
@@ -2121,6 +2188,7 @@ static void editor_mode_hierarchy_row(void *opaque,
     EditorModeHierarchyContext *context = opaque;
     UIRect screen_bounds;
     if(context == NULL) return;
+    editor_mode_error_row_draw(selection, bounds);
     screen_bounds = bounds;
     screen_bounds.y += context->content_offset - context->scroll_offset;
     if(context->context_menu != NULL && context->context_menu->renaming &&
@@ -2288,6 +2356,8 @@ int main(int argc, char **argv) {
     TextAsset save_label = {0};
     TextAsset close_label = {0};
     TextAsset panel_name = {0};
+    TextAsset panel_errors = {0};
+    EditorDiagnostics diagnostics = {0}, previous_diagnostics = {0};
     TextAsset back_label = {0};
     TextAsset close_project_label = {0};
     TextAsset exit_label = {0};
@@ -2387,6 +2457,7 @@ int main(int argc, char **argv) {
     editor_command_executed_callback_set(editor_operation_command_write, NULL);
     editor_command_finished_callback_set(editor_operation_command_finished,
         &notification_panel);
+    editor_mode_field_rejected_callback_set(editor_operation_field_rejected, &notification_panel);
     saved_project_hash = editor_project_hash_get(&project);
     editor_viewport_state_init(&viewport_state);
     editor_navigation_state_apply(&project, &viewport_state, &project.navigation);
@@ -2499,6 +2570,7 @@ int main(int argc, char **argv) {
             !editor_text_create(&font, "Save", &save_label) ||
             !editor_text_create(&font, "Close", &close_label) ||
             !editor_text_create(&font, "", &panel_name) ||
+            !editor_mode_text_create_color(&font, "", EDITOR_DIAGNOSTIC_COLOR, &panel_errors) ||
             !editor_text_create(&font, "Back", &back_label) ||
             !editor_text_create(&font, "Close Project", &close_project_label) ||
             !editor_text_create(&font, "Exit", &exit_label) ||
@@ -2980,6 +3052,14 @@ int main(int argc, char **argv) {
             viewport_state.reference_picker_open = viewport_state.reference_picker_hovered = false;
         }
         EditorPanelKey panel_draw_key = panel_lifecycle.current.key;
+        EditorDiagnostics reusable_diagnostics = previous_diagnostics;
+        previous_diagnostics = diagnostics;
+        diagnostics = reusable_diagnostics;
+        editor_diagnostics_refresh(&diagnostics, workspace.open ? &project : NULL, &workspace);
+        editor_diagnostic_notifications_update(&notification_panel, &project, &workspace,
+            &diagnostics, &previous_diagnostics);
+        viewport_state.diagnostics = &diagnostics;
+        editor_mode_diagnostics_set(&diagnostics, panel_draw_key.item);
         bool delete_footer = editor_panel_delete_footer_check(&viewport_state);
         float panel_footer_height = workspace.open && delete_footer ? 54.0f : 0.0f;
         bool mode_accordion_applies = viewport_state.selected_item_count <= 1 &&
@@ -3621,6 +3701,35 @@ int main(int argc, char **argv) {
                 &(EditorModeContext){.history = &history, .project = &project,
                     .viewport = &viewport_state, .x = EDITOR_VIEWPORT_WIDTH,
                     .width = EDITOR_TOOLS_WIDTH}, settings_y);
+        }
+        if(workspace.open) {
+            char errors[2048] = {0}; size_t used = 0;
+            for(size_t i = 0; i < diagnostics.count; ++i) {
+                const EditorDiagnostic *error = &diagnostics.items[i];
+                bool affected = editor_diagnostic_target_check(error->target, panel_draw_key.item, true);
+                if(panel_draw_key.bulk) for(size_t j = 0; j < viewport_state.selected_item_count; ++j)
+                    affected |= editor_diagnostic_target_check(error->target, viewport_state.selected_items[j], true);
+                if(!affected) continue;
+                char name[EDITOR_OBJECT_NAME_MAX] = {0};
+                (void)editor_navigation_selection_name_get(&project, error->target, name, sizeof(name));
+                int n = snprintf(errors + used, sizeof(errors) - used, "%s%s: %s", used ? "\n" : "", name, error->reason);
+                if(n < 0) break;
+                if((size_t)n >= sizeof(errors) - used) {
+                    snprintf(errors + sizeof(errors) - 80, 80, "\nAdditional errors: open affected child items to inspect.");
+                    break;
+                }
+                used += (size_t)n;
+            }
+            if(diagnostics.allocation_failed) snprintf(errors, sizeof(errors), "Unable to allocate the complete current error list");
+            if(errors[0]) {
+                (void)rohr_graphics_text_wrap_width_set(&panel_errors, fmaxf(60, EDITOR_TOOLS_WIDTH - 28));
+                (void)rohr_graphics_text_value_set(&panel_errors, errors);
+                float y = fmaxf(editor_mode_accordion_layout_measure_get(), ui_scroll_content_height_get() + panel_body_top) + 12;
+                UIRect bounds = {EDITOR_VIEWPORT_WIDTH + 10, y, EDITOR_TOOLS_WIDTH - 20, panel_errors.size.y + 12};
+                rohr_ui_border(bounds, 1, EDITOR_DIAGNOSTIC_COLOR);
+                rohr_ui_label(&panel_errors, (UIRect){bounds.x + 4, bounds.y + 6, bounds.width - 8, panel_errors.size.y});
+                editor_mode_accordion_layout_measure_include(bounds.y + bounds.height + 8);
+            }
         }
         editor_mode_external_name_set(NULL);
         field_editing |= header_editing;
@@ -4576,6 +4685,8 @@ int main(int argc, char **argv) {
                         editor_history_reset(&history);
                         force_clipboard.count=0; torque_clipboard.count=0;
                         editor_viewport_state_init(&viewport_state);
+                        diagnostics.count = previous_diagnostics.count = 0;
+                        diagnostics.allocation_failed = previous_diagnostics.allocation_failed = false;
                         if(command.type == EDITOR_WORKSPACE_COMMAND_LOAD) {
                             editor_project_selection_clear(&project);
                             project.navigation = (EditorNavigationState){
@@ -4850,6 +4961,7 @@ int main(int argc, char **argv) {
     editor_command_executed_callback_set(NULL, NULL);
     editor_command_executing_callback_set(NULL, NULL);
     editor_command_finished_callback_set(NULL, NULL);
+    editor_mode_field_rejected_callback_set(NULL, NULL);
     editor_operation_history = NULL;
     editor_mode_named_text_clear_all();
     editor_viewport_state_destroy(&viewport_state);
@@ -4913,6 +5025,10 @@ int main(int argc, char **argv) {
     rohr_graphics_text_destroy(&dont_save_label);
     rohr_graphics_text_destroy(&unsaved_changes_label);
     rohr_graphics_text_destroy(&close_label);
+    editor_mode_diagnostics_set(NULL, (EditorSelectionRef){0});
+    editor_diagnostics_destroy(&diagnostics);
+    editor_diagnostics_destroy(&previous_diagnostics);
+    rohr_graphics_text_destroy(&panel_errors);
     rohr_graphics_text_destroy(&panel_name);
     rohr_graphics_text_destroy(&back_label);
     rohr_graphics_text_destroy(&close_project_label);
@@ -4960,6 +5076,7 @@ fail:
     editor_command_executed_callback_set(NULL, NULL);
     editor_command_executing_callback_set(NULL, NULL);
     editor_command_finished_callback_set(NULL, NULL);
+    editor_mode_field_rejected_callback_set(NULL, NULL);
     editor_operation_history = NULL;
     editor_viewport_state_destroy(&viewport_state);
     editor_history_destroy(&history);
@@ -5021,6 +5138,10 @@ fail:
     rohr_graphics_text_destroy(&dont_save_label);
     rohr_graphics_text_destroy(&unsaved_changes_label);
     rohr_graphics_text_destroy(&close_label);
+    editor_mode_diagnostics_set(NULL, (EditorSelectionRef){0});
+    editor_diagnostics_destroy(&diagnostics);
+    editor_diagnostics_destroy(&previous_diagnostics);
+    rohr_graphics_text_destroy(&panel_errors);
     rohr_graphics_text_destroy(&panel_name);
     rohr_graphics_text_destroy(&back_label);
     rohr_graphics_text_destroy(&close_project_label);
