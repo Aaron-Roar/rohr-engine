@@ -1,0 +1,37 @@
+# Copyright 2026 Aaron Rohrer
+# SPDX-License-Identifier: LGPL-3.0-only
+cmake_minimum_required(VERSION 3.20)
+if(CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
+    project(rohr_extreme_mass_drop LANGUAGES C)
+    include(CTest)
+endif()
+include(${CMAKE_CURRENT_LIST_DIR}/../cmake/rohr_example.cmake)
+rohr_example_bootstrap()
+add_executable(extreme_mass_drop src/main.c src/drop_fixture.c)
+target_link_libraries(extreme_mass_drop PRIVATE ${ROHR_ENGINE_TARGET})
+if(CMAKE_C_COMPILER_ID MATCHES "GNU|Clang")
+    target_compile_options(extreme_mass_drop PRIVATE -Wall -Wextra -Wpedantic)
+endif()
+if(ROHR_ENABLE_SANITIZERS)
+    target_compile_options(extreme_mass_drop PRIVATE ${ROHR_SANITIZER_COMPILE_OPTIONS})
+endif()
+rohr_example_runtime_dir(runtime_dir extreme_mass_drop)
+if(NOT ROHR_EXAMPLE_STANDALONE AND NOT ROHR_EXAMPLE_OUTPUT_DIRECTORY)
+    set(review_platform linux)
+    if(WIN32)
+        set(review_platform windows)
+    elseif(ROHR_ENABLE_SANITIZERS)
+        set(review_platform sanitizers)
+    endif()
+    set(runtime_dir ${CMAKE_SOURCE_DIR}/sandbox/milestone_6/goal_1/bin/${review_platform})
+endif()
+set_target_properties(extreme_mass_drop PROPERTIES
+    RUNTIME_OUTPUT_DIRECTORY "${runtime_dir}/$<0:>")
+# Built-in font and primitive geometry: no assets or staging step required.
+if(BUILD_TESTING AND NOT CMAKE_CROSSCOMPILING)
+    add_test(NAME extreme_mass_drop_observation COMMAND extreme_mass_drop --verify)
+    add_test(NAME extreme_mass_drop_controls COMMAND extreme_mass_drop --smoke)
+    set_tests_properties(extreme_mass_drop_observation extreme_mass_drop_controls PROPERTIES
+        ENVIRONMENT "SDL_VIDEODRIVER=dummy;SDL_AUDIODRIVER=dummy;SDL_RENDER_DRIVER=software"
+        TIMEOUT 60)
+endif()

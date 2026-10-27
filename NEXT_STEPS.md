@@ -532,6 +532,11 @@ collision requirements during motion or require undamped pendulums to stop.
    crushing geometry, sinking, or explosive numerical behavior. Offset impacts
    may tip or slide naturally without artificial locking. Resolve settling via
    the visual review above.
+   Visual-review preparation: the [dedicated C demo](examples/extreme_mass_drop/README.md)
+   provides centered and ±0.0025-unit offsets, 30/60/120 Hz controls, and overview
+   and magnified contact views. Executables and local review evidence belong in
+   ignored `sandbox/milestone_6/goal_1/`. The solver is unchanged; this goal remains
+   open pending user settling review and subsequent robustness implementation.
 2. [ ] **Fast objects against thin barriers.** Fire a 1 × 1 rigid body and a
    radius-0.5 particle at a 0.1-thick static wall at 100, 1,000, and 10,000
    units/second. Cover straight and oblique impacts with restitution 0 and 0.8.
