@@ -2,28 +2,42 @@
 
 ## Roadmap milestones
 
-These ten milestones are the authoritative priority order. The breakdowns below
-retain their scope; the later-features list has no priority order.
+The table and breakdowns follow the authoritative priority order. Milestone
+identifiers remain stable; they no longer indicate execution order. The small
+C game checkpoint is separate from milestone 10. The later-features list has no
+priority order.
 
-| # | Milestone | Status |
+| ID | Milestone / checkpoint | Status |
 |---|---|---|
 | 1 | Audio | Complete |
 | 2 | Asset and resource ownership | Complete |
 | 3 | COM, inertia, and origin semantics | Complete |
-| 4 | Cross-path feature parity | Goals 1–4 verified; platform and interactive acceptance in progress |
-| 5 | Adversarial testing and hardening | Substantial coverage implemented; incomplete |
-| 6 | Physics robustness | Partially implemented |
-| 7 | Editor implementation scalability | Partially implemented |
-| 8 | Global-state assumptions | Foundations implemented; runtime isolation pending |
-| 9 | Python bindings | Pending |
-| 10 | End-to-end game | Pending; demonstrations exist |
+| 4 | Cross-path feature parity | Complete by user acceptance; recorded verification exceptions remain |
+| 6 | Physics robustness | Next; partially implemented; retain all five scenarios and performance criteria |
+| — | [C game experiment](#c-game-experiment) | Pending; agree concept and completion criteria when starting |
+| 8 | Runtime isolation (global-state assumptions) | Foundations implemented; two independent worlds pending |
+| 5 | Adversarial testing and hardening | Substantial coverage implemented; follows runtime isolation |
+| 9 | Python bindings | Pending; bind the stabilized runtime API after isolation and hardening |
+| 7 | Editor implementation scalability | Deferred until after Python unless game development makes it necessary sooner |
+| 10 | End-to-end game | Pending; separate larger game directed by the user |
+
+**Next goal:** pursue only milestone 6 goal 1, **Extreme mass/size drop**, when
+explicitly instructed. Before implementation, freeze its exact fixture and
+resolve the visual-review prerequisite for settling criteria. This roadmap
+update does not start physics or game implementation.
+
+Regression checks and relevant sanitizer checks remain mandatory throughout
+physics, the C game experiment, and runtime isolation. Deferring the broader
+hardening milestone does not defer these checks.
 
 ## Milestone breakdowns
 
-Milestones 1–3 remain complete. Milestones 4–9 each have five acceptance goals;
-the implemented foundations below retain credit without claiming that the new
-acceptance criteria have already been verified. Mark a goal complete only when
-its full criteria have supporting evidence.
+Milestones 1–3 remain complete. Milestone 4 is complete **by user acceptance**,
+with the exceptions recorded below; acceptance does not turn unverified checks
+into passing results. Milestones 4–9 retain their five acceptance goals. For
+future work, implemented foundations retain credit without claiming the new
+acceptance criteria are verified. Mark a goal complete only with supporting
+evidence, or an explicit user acceptance exception recorded as such.
 
 Freeze each milestone's current feature inventory, applicable paths, fixtures,
 and measurement procedure when it begins. Resolve material clarifications before
@@ -138,28 +152,33 @@ examples; installed-SDK Linux execution and Windows cross-build coverage.
    both generators and SDK consumers, Windows cross-builds, and independent
    Linux/Windows builds of the starter and eight examples. Interactive review
    remains goal 5.
-5. [ ] **Verify supported platforms and interaction.** Build affected generated
+5. [x] **Verify supported platforms and interaction.** Build affected generated
    applications and standalone examples against installed SDKs, execute on Linux,
    and cross-build for Windows. Launch examples outside their source directories.
    Complete interactive Linux checks for remaining composition and editing
    behavior; every applicable inventory entry must have passing evidence.
    The [guided review](docs/cross_path_feature_inventory.md#goal-5-platform-and-interactive-review)
-   provides a reproducible project and five acceptance cases. Automated passes
-   do not close this goal until the Linux visual, input and audio results are
-   confirmed.
+   preserves a reproducible project and five acceptance cases.
+   **Complete by user acceptance (2026-10-27), not a claim that all checks passed.**
+   Goals 1–4 and corrective goals C1–C16 retain their recorded evidence. C7's
+   five manual checks remain deferred and unverified; C9's additional panel
+   confirmation remains skipped and unverified. Broader goal 5 cases/retests
+   without recorded confirmation remain unverified exceptions to this closure.
+   Preserve these checks for later review; native Windows execution was not
+   performed and is not a completion gate.
 
 #### Corrective milestone for goal 5
 
 Resolve the issues found during interactive acceptance, make project builds
 reliable, and complete the agreed directional collision-response design across
 all applicable paths. These correction goals belong to milestone 4 goal 5;
-they do not reorder the ten roadmap milestones or reopen verified goals 1–4.
-The five interactive acceptance cases remain the completion gate. The accepted
-camera-preview retest retains credit; rerun affected checks after corrections.
+they do not reopen verified goals 1–4. All C1–C16 corrections are complete.
+The five interactive acceptance cases remain recorded review procedures;
+milestone 4 and goal 5 are closed by user acceptance with the exceptions above.
+The accepted camera-preview retest retains credit.
 
-Unchecked entries are planned work. Pursue one correction goal
-at a time only when requested, and settle its remaining clarifications before
-implementation. The [issue mapping](docs/cross_path_feature_inventory.md#goal-5-corrective-issue-mapping)
+Any later correction requires explicit user instruction and resolution of its
+remaining clarifications before implementation. The [issue mapping](docs/cross_path_feature_inventory.md#goal-5-corrective-issue-mapping)
 accounts for every item in the user's review. Update the applicable inventory,
 contracts, and generated examples when a goal changes supported behavior.
 
@@ -470,42 +489,8 @@ contracts, and generated examples when a goal changes supported behavior.
     independently against both SDKs and passes Linux startup/interrupt checks
     outside its source directory. Native Windows execution was not performed.
     Evidence and review projects are under ignored `sandbox/milestone_1/c16/`;
-    see the corrective issue mapping. Broader goal 5 acceptance remains pending.
-
-### 5. Adversarial testing and hardening
-
-Expose malformed input, resource failures, lifecycle defects, and integration
-regressions within the frozen inventory of first-party loaders and subsystems.
-
-Implemented foundations: Linux ASan/UBSan support; failure-injection and lifecycle
-suites for allocation, capacity, stale handles, ownership, initialization,
-rollback, and recreation; malformed project/configuration/runtime-state fixtures
-and diagnostic recovery coverage; installed-SDK automation, distribution
-workflows, generated scaffolding, and developer-file preservation tests.
-
-1. [ ] **Fuzz malformed input.** Run a sanitizer-enabled one-hour campaign per
-   in-scope first-party loader, including project, runtime-state, and object
-   description loaders where applicable. Use a fixed seed corpus and record
-   reproduction details. Fix discovered crashes and sanitizer findings, retain
-   regression inputs, and finish with a clean campaign for each loader.
-2. [ ] **Verify failure rollback.** Audit existing coverage and exercise remaining
-   allocation/capacity failures, partial initialization, invalid handles and
-   references, degenerate geometry, and extreme values. Each injected failure
-   must preserve documented state, report the failure, and release resources
-   acquired by the failed operation without corrupting surviving owners.
-3. [ ] **Verify lifecycle stress.** Apply the shared 1,000-cycle criterion to
-   in-scope subsystem creation, ownership changes, use, shutdown, and recreation.
-   Cover shared resources, partial initialization, and repeated shutdown with
-   Linux ASan/UBSan and live-resource accounting.
-4. [ ] **Verify diagnostics and recovery.** Invalid input, report overflow, and
-   recoverable failures must produce the documented errors/reports and permit
-   subsequent valid operations. Verify real desktop/audio/input behavior on Linux
-   where headless tests are insufficient; retain recovery regressions.
-5. [ ] **Automate consumer verification.** Cover installed-SDK consumers,
-   generated applications, and examples with Linux execution and Windows
-   cross-builds, including launches outside source directories and preservation
-   of developer-owned files. Enforce first-party/generated snake_case filenames
-   in CI while preserving required ecosystem names.
+    see the corrective issue mapping. Goal 5 is now complete by user acceptance
+    with the recorded verification exceptions above.
 
 ### 6. Physics robustness
 
@@ -576,10 +561,124 @@ changing data structures. If compound contours or holes are needed by a fixture,
 define their ownership and authoring before implementation; do not silently expand
 collision semantics.
 
+### C game experiment
+
+Build a small, playful game in C after physics robustness to discover practical
+engine needs before runtime isolation. This intermediate checkpoint is separate
+from the larger end-to-end game in milestone 10. Agree its concept, scope, and
+completion criteria with the user when starting; do not choose them implicitly
+in this planning update.
+
+1. [ ] Agree the game concept and completion criteria with the user, including
+   the engine features it will exercise and how completion will be verified.
+2. [ ] Implement the agreed C game, recording practical engine needs as they
+   emerge and obtaining direction for changes that affect engine scope.
+3. [ ] Verify the agreed completion criteria, run regression and relevant
+   sanitizer checks, and record findings for runtime isolation and later work.
+
+### 8. Global-state assumptions
+
+Support two independent runtime worlds in one process, including presentation,
+explicit ownership, input routing, and teardown. Complete this milestone after
+the C game experiment and before hardening and Python bindings.
+Multiple OS windows and parallel simulation threads are not required.
+
+Implemented foundations: explicit editor document/session ownership and teardown;
+subprocess-hosted simulation with session-owned controls, frames, and logs;
+independent spawned-object/UI instances, resource lifetime tests, and sequential
+engine recreation. These do not yet establish independent in-process worlds.
+
+1. [ ] **Isolate simulation and clocks.** Inventory globals and define world and
+   subsystem lifetimes before moving state. Run two worlds with independent
+   entities, physics, clocks, pause, and step controls. Mutating, advancing, or
+   pausing one must not alter the other.
+2. [ ] **Isolate presentation.** Render both worlds through their own camera and
+   viewport output. Presentation changes and teardown in one must not change or
+   invalidate the other's output; one OS window may contain both.
+3. [ ] **Route input explicitly.** Route input to the intended world and verify
+   focus/selection changes do not leak events or mutable input state into the
+   other world. Keep tool and simulation dependencies explicit.
+4. [ ] **Share resources with explicit ownership.** Verify independent mutable
+   state and safe sharing of immutable assets across worlds. Releasing one
+   world's references must not invalidate the survivor; release final resources
+   when their final owner is destroyed.
+5. [ ] **Verify teardown and recreation.** Apply the shared 1,000-cycle criterion
+   while repeatedly destroying/recreating one world with the other live. Verify
+   simulation, presentation, input routing, and shared resources remain valid,
+   with no cross-world mutation or accumulating live resources.
+
+### 5. Adversarial testing and hardening
+
+Expose malformed input, resource failures, lifecycle defects, and integration
+regressions within the frozen inventory of all first-party structured-data entry
+points and affected subsystems. Begin after runtime isolation so hardening covers
+the resulting ownership and lifecycle boundaries.
+
+Implemented foundations: Linux ASan/UBSan support; failure-injection and lifecycle
+suites for allocation, capacity, stale handles, ownership, initialization,
+rollback, and recreation; malformed project/configuration/runtime-state fixtures
+and diagnostic recovery coverage; installed-SDK automation, distribution
+workflows, generated scaffolding, and developer-file preservation tests.
+
+1. [ ] **Fuzz malformed input.** Inventory all first-party structured-data entry
+   points and run a sanitizer-enabled one-hour campaign per entry point, including
+   project, runtime-state, object description, and configuration loaders/parsers
+   where applicable. Use a fixed seed corpus and record reproduction details.
+   Fix discovered crashes and sanitizer findings, retain
+   regression inputs, and finish with a clean campaign for each entry point.
+2. [ ] **Verify failure rollback.** Audit existing coverage and exercise remaining
+   allocation/capacity failures, partial initialization, invalid handles and
+   references, degenerate geometry, and extreme values. Each injected failure
+   must preserve documented state, report the failure, and release resources
+   acquired by the failed operation without corrupting surviving owners.
+3. [ ] **Verify lifecycle stress.** Apply the shared 1,000-cycle criterion to
+   in-scope subsystem creation, ownership changes, use, shutdown, and recreation.
+   Cover shared resources, partial initialization, and repeated shutdown with
+   Linux ASan/UBSan and live-resource accounting.
+4. [ ] **Verify diagnostics and recovery.** Invalid input, report overflow, and
+   recoverable failures must produce the documented errors/reports and permit
+   subsequent valid operations. Verify real desktop/audio/input behavior on Linux
+   where headless tests are insufficient; retain recovery regressions.
+5. [ ] **Automate consumer verification.** Cover installed-SDK consumers,
+   generated applications, and examples with Linux execution and Windows
+   cross-builds, including launches outside source directories and preservation
+   of developer-owned files. Enforce first-party/generated snake_case filenames
+   in CI while preserving required ecosystem names.
+
+### 9. Python bindings
+
+Expose the public runtime C API stabilized by runtime isolation and hardening,
+and authored-object spawning, through thin bindings with explicit ownership.
+Freeze applicable API coverage at milestone start. Editor project automation is
+outside scope; document exclusions for C-only mechanisms such as code-generation
+macros.
+
+1. [ ] **Cover the runtime API.** Define handle, value, error, and lifetime
+   mappings, then bind every applicable inventory entry with C as the canonical
+   API. Include loading/spawning authored objects and direct construction.
+2. [ ] **Verify C/Python equivalence.** Equivalent representative workloads must
+   produce matching configuration and behavior for creation, updates, focused
+   mutation, authored-object spawning, and shared resources.
+3. [ ] **Verify ownership and errors.** Preserve explicit destruction, stale
+   handle behavior, and error reporting. Apply the shared 1,000-cycle criterion
+   to Python creation/use/destruction, including shared resources and failures.
+4. [ ] **Meet the overhead budget.** Each agreed equivalent representative
+   C/Python workload must have at most 20% additional CPU time in Python. Freeze
+   workloads and measurement procedures before implementation. Exclude imports,
+   startup, render waits, and frame caps; measure whole workloads, not individual
+   call overhead.
+5. [ ] **Package and demonstrate usage.** Provide installation instructions and
+   runnable authored-object and direct-runtime examples. Verify package/consumer
+   use by Linux execution and Windows cross-builds within the agreed platform
+   scope.
+
 ### 7. Editor implementation scalability
 
 Reduce manual property edit sites and keep large scenes usable while preserving
-explicit C ownership and existing interaction/serialization behavior.
+explicit C ownership and existing interaction/serialization behavior. Defer this
+milestone until after Python bindings unless game development makes it necessary
+sooner and the user explicitly reprioritizes it. Retain the shared-property and
+10,000-item goals below.
 
 Implemented foundations: editor-core extraction; command, document, build, and
 scene-session modules; shared controls and extracted item editors/panels/viewport
@@ -611,64 +710,10 @@ A 100,000-item scene is not required.
    with explicit allocation/failure handling. Split oversized modules where it
    supports these goals, retaining interaction and serialization tests.
 
-### 8. Global-state assumptions
-
-Support two independent runtime worlds in one process, including presentation.
-Multiple OS windows and parallel simulation threads are not required.
-
-Implemented foundations: explicit editor document/session ownership and teardown;
-subprocess-hosted simulation with session-owned controls, frames, and logs;
-independent spawned-object/UI instances, resource lifetime tests, and sequential
-engine recreation. These do not yet establish independent in-process worlds.
-
-1. [ ] **Isolate simulation and clocks.** Inventory globals and define world and
-   subsystem lifetimes before moving state. Run two worlds with independent
-   entities, physics, clocks, pause, and step controls. Mutating, advancing, or
-   pausing one must not alter the other.
-2. [ ] **Isolate presentation.** Render both worlds through their own camera and
-   viewport output. Presentation changes and teardown in one must not change or
-   invalidate the other's output; one OS window may contain both.
-3. [ ] **Route input explicitly.** Route input to the intended world and verify
-   focus/selection changes do not leak events or mutable input state into the
-   other world. Keep tool and simulation dependencies explicit.
-4. [ ] **Share resources with explicit ownership.** Verify independent mutable
-   state and safe sharing of immutable assets across worlds. Releasing one
-   world's references must not invalidate the survivor; release final resources
-   when their final owner is destroyed.
-5. [ ] **Verify teardown and recreation.** Apply the shared 1,000-cycle criterion
-   while repeatedly destroying/recreating one world with the other live. Verify
-   simulation, presentation, input routing, and shared resources remain valid,
-   with no cross-world mutation or accumulating live resources.
-
-### 9. Python bindings
-
-Expose the stable public runtime C API and authored-object spawning through thin
-bindings with explicit ownership. Freeze applicable API coverage at milestone
-start. Editor project automation is outside scope; document exclusions for C-only
-mechanisms such as code-generation macros.
-
-1. [ ] **Cover the runtime API.** Define handle, value, error, and lifetime
-   mappings, then bind every applicable inventory entry with C as the canonical
-   API. Include loading/spawning authored objects and direct construction.
-2. [ ] **Verify C/Python equivalence.** Equivalent representative workloads must
-   produce matching configuration and behavior for creation, updates, focused
-   mutation, authored-object spawning, and shared resources.
-3. [ ] **Verify ownership and errors.** Preserve explicit destruction, stale
-   handle behavior, and error reporting. Apply the shared 1,000-cycle criterion
-   to Python creation/use/destruction, including shared resources and failures.
-4. [ ] **Meet the overhead budget.** Each agreed equivalent representative
-   C/Python workload must have at most 20% additional CPU time in Python. Freeze
-   workloads and measurement procedures before implementation. Exclude imports,
-   startup, render waits, and frame caps; measure whole workloads, not individual
-   call overhead.
-5. [ ] **Package and demonstrate usage.** Provide installation instructions and
-   runnable authored-object and direct-runtime examples. Verify package/consumer
-   use by Linux execution and Windows cross-builds within the agreed platform
-   scope.
-
 ### 10. End-to-end game
 
-Develop a large game last, iterating engine improvements during its development.
+Develop a large game last, separately from the earlier C game experiment,
+iterating engine improvements during its development.
 Existing Pong and vehicle demonstrations are groundwork. The user determines
 completion; no automatic release, feature-complete, or numeric acceptance gate
 is imposed on this milestone.

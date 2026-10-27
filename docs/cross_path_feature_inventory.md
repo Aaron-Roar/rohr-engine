@@ -1,8 +1,19 @@
 # Cross-path feature inventory
 
 This is the frozen acceptance inventory for [roadmap milestone 4](../NEXT_STEPS.md#4-cross-path-feature-parity).
-Goal 1 records coverage and remaining work; it does not certify runtime parity or
-implement the missing paths. Goals 2–5 own the closures below.
+
+**Milestone 4 is complete by user acceptance (2026-10-27).** Goals 1–4 and
+corrective goals C1–C16 retain their recorded evidence. C7's five deferred manual
+checks and C9's skipped additional panel confirmation remain **unverified**.
+Broader goal 5 cases/retests without recorded confirmation also remain unverified
+exceptions; acceptance does not mean they passed. The procedures and historical
+results below are retained for later review.
+
+The [roadmap priority order](../NEXT_STEPS.md#roadmap-milestones) now puts physics,
+a small C game, and runtime isolation before hardening and Python bindings;
+editor scalability follows Python unless explicitly reprioritized for the game.
+This planning update changes no runtime API or persistence compatibility.
+Goal 1 records the original coverage baseline; goals 2–5 own the closures below.
 
 ## Baseline and interpretation
 
@@ -403,7 +414,8 @@ and `UBSAN_OPTIONS=halt_on_error=1` outside the process-inspection sandbox.
 
 ## Goal 5 platform and interactive review
 
-**In progress: case 1 composition and presentation passed its corrective retests.**
+**Complete by user acceptance; unverified exceptions are retained above.**
+Case 1 composition and presentation passed its corrective retests.
 The user confirmed the two rotated screens and stable resizing, then reported
 PASS after retesting the corrected layering and window/workspace switching.
 The lower-left text's narrow wrapping, clockwise rotation and intentional
@@ -412,8 +424,9 @@ passed camera zoom, but found an unrotated background leaking beyond rotated
 screens, misplaced simulation content and mismatched content-offset movement.
 The next review also failed camera-content clipping: objects were cropped against
 unrotated screen bounds. The user subsequently confirmed PASS after the camera
-texture and rotated-clipping corrections. Cases 2–5 remain pending and goal 5
-stays open.
+texture and rotated-clipping corrections. Cases 2–5 have only the evidence
+recorded below; their outstanding checks are unverified exceptions to the
+user-accepted closure of goal 5.
 
 Further review reported build/lifecycle, authoring-panel, selection, and physics
 control issues. The [corrective milestone](../NEXT_STEPS.md#corrective-milestone-for-goal-5)
@@ -463,10 +476,10 @@ returning. The original failed fixture remains available for comparison.
 | Case | Actions and required observations | User-confirmed result |
 |---|---|---|
 | 1. Composition and presentation | The left/right screens have different rotation, placement and resolution. The left screen extends past the viewport edge and clips. The red bar draws over the left screen but under the right; the green panel stays above both. Text wraps, rotates and clips. Resize wider/taller without losing content or distorting aspect. In the viewport editor, move/rotate a screen and change camera zoom/content transforms; placement and content remain independent after rebuilding. | PASS after corrective retests: runtime layering, text wrapping/rotation/clipping, resizing, Sway stability and camera zoom were accepted earlier. The user then confirmed PASS for the corrected camera preview and rotated clipping. Earlier screen-editor failures are resolved. |
-| 2. Visuals and visibility | Inspect `push_marker`, `spin_marker`, pin/weld/spring, the mirrored sprite, playing animations and `empty_animation`. Spring endpoints have different colors/scales/offsets. Toggle editor eyes separately from Visible in App, including the parent; rebuild and verify only app visibility affects runtime drawing and hidden bodies still simulate. Restore parent visibility without changing child settings. Empty animation must not prevent rendering. | Pending |
-| 3. Editor interaction | Select geometry, drag from the selecting press, use child-selection and rotation handles, and undo/redo each gesture. Pick force targets/references from menus and the viewport, checking hover highlights. Scroll a long selector; check modal menus do not move underlying items. Drag the slider thumb without moving its parent. Rename via Enter/Escape and confirm subsequent keyboard navigation works. | User-reported failures: oversized force/torque picking, persistent/overlapping child panels, first-element activation, object/joint scrolling, and delayed joint clamping. C6 panel lifecycle/scrolling and C8 source picking complete with user acceptance; C14 immediate joint/axis placement and spring controls complete with user acceptance; broader interaction retests remain pending. |
-| 4. Input and audio | Exercise the starter's configured logical input actions and text entry without unintended gameplay input while editing. Run the installed-SDK `audio` example: Play Water Splash produces sound; music play/pause/resume and track switching work; Quit/escape shuts down. Review window size/aspect settings. Muted description defaults and queued/applied audio state retain their automated fixture evidence; silent startup alone is not proof of muted playback. | Pending |
-| 5. Project lifecycle and delivery | Build/run the application and Simulate Scene. The application includes direct-API extras; scene simulation contains authored objects. Verify run/pause/stop, return to Editor, close/reopen/reorder tabs through View, rebuild a visible edit and replay. Close/switch a project during an active build and verify cancellation; terminal interrupt reaches the subprocess. Launch installed-SDK artifacts outside their source directories. | User-reported failures: relocation, repeat builds, missing CMake recovery, generation diagnostics, and incomplete-joint generation. Startup error 21 reproduced in rohr-project-1. C1 diagnostics, C2 relocation/repeat builds, C3 missing CMake recovery, C4 partial-spawn startup, and C5 incomplete joints complete with verification below; C6 panel lifecycle/scrolling and C8 source picking also complete; C7 complete with its manual checks explicitly deferred; C9 complete with the additional panel check explicitly skipped; C10 directional response and C11 explicit migration complete; C12 explicit motion authoring complete (including whole-body motion added at final review); C13 whole-body node physics complete; C14, C15, and C16 complete; broader interactive retests remain pending. |
+| 2. Visuals and visibility | Inspect `push_marker`, `spin_marker`, pin/weld/spring, the mirrored sprite, playing animations and `empty_animation`. Spring endpoints have different colors/scales/offsets. Toggle editor eyes separately from Visible in App, including the parent; rebuild and verify only app visibility affects runtime drawing and hidden bodies still simulate. Restore parent visibility without changing child settings. Empty animation must not prevent rendering. | Unverified; retained as an exception to user-accepted closure |
+| 3. Editor interaction | Select geometry, drag from the selecting press, use child-selection and rotation handles, and undo/redo each gesture. Pick force targets/references from menus and the viewport, checking hover highlights. Scroll a long selector; check modal menus do not move underlying items. Drag the slider thumb without moving its parent. Rename via Enter/Escape and confirm subsequent keyboard navigation works. | User-reported failures: oversized force/torque picking, persistent/overlapping child panels, first-element activation, object/joint scrolling, and delayed joint clamping. C6 panel lifecycle/scrolling and C8 source picking complete with user acceptance; C14 immediate joint/axis placement and spring controls complete with user acceptance; broader interaction retests remain unverified exceptions to user-accepted closure. |
+| 4. Input and audio | Exercise the starter's configured logical input actions and text entry without unintended gameplay input while editing. Run the installed-SDK `audio` example: Play Water Splash produces sound; music play/pause/resume and track switching work; Quit/escape shuts down. Review window size/aspect settings. Muted description defaults and queued/applied audio state retain their automated fixture evidence; silent startup alone is not proof of muted playback. | Unverified; retained as an exception to user-accepted closure |
+| 5. Project lifecycle and delivery | Build/run the application and Simulate Scene. The application includes direct-API extras; scene simulation contains authored objects. Verify run/pause/stop, return to Editor, close/reopen/reorder tabs through View, rebuild a visible edit and replay. Close/switch a project during an active build and verify cancellation; terminal interrupt reaches the subprocess. Launch installed-SDK artifacts outside their source directories. | User-reported failures: relocation, repeat builds, missing CMake recovery, generation diagnostics, and incomplete-joint generation. Startup error 21 reproduced in rohr-project-1. C1 diagnostics, C2 relocation/repeat builds, C3 missing CMake recovery, C4 partial-spawn startup, and C5 incomplete joints complete with verification below; C6 panel lifecycle/scrolling and C8 source picking also complete; C7 complete with its manual checks explicitly deferred; C9 complete with the additional panel check explicitly skipped; C10 directional response and C11 explicit migration complete; C12 explicit motion authoring complete (including whole-body motion added at final review); C13 whole-body node physics complete; C14, C15, and C16 complete; broader interactive retests remain unverified exceptions to user-accepted closure. |
 
 Preparation evidence (2026-10-21): full Linux build and **111/111 CTest tests
 pass**, including the installed-SDK comparisons and scene/build lifecycle
@@ -476,9 +489,10 @@ dummy-SDL startup and clean interrupt shutdown. Goal 4's independently built
 eight examples and starter remain valid unchanged. Windows runtime execution is
 not required. The new generator also cross-builds for Windows and passes
 ASan/UBSan with leak detection while creating, saving, reloading and generating
-the complete review project. Record manual observations per case before closing goal 5 or
-marking milestone 4 complete; fix confirmed discrepancies and repeat affected
-checks first.
+the complete review project. These automated passes do not establish manual
+results. Milestone 4 and goal 5 are now closed by user acceptance with the
+unverified exceptions recorded above; retain the cases for later review and
+record any future observations separately.
 
 Corrective verification (2026-10-21): all 111 Linux tests pass, with three
 scene-session/lifecycle tests rerun outside the sandbox to allow their local
@@ -2306,9 +2320,10 @@ Goal 1 checks performed:
 
 No engine builds, runtime fixture execution, sanitizers, Windows cross-builds or
 interactive verification were performed for this documentation goal. Source and
-fixture presence do not imply those checks passed. Goal 1 is complete when this
-inventory is reconciled; milestone 4 remains incomplete until goals 2–5 close the
-applicable gaps with behavioral and platform evidence.
+fixture presence do not imply those checks passed. Goal 1 completed the inventory
+reconciliation. Later goals record their own behavioral and platform evidence;
+milestone 4 is now complete by user acceptance with the exceptions at the top of
+this document.
 
 
 **C12 complete — explicit motion authoring and requested whole-body control:**
@@ -2606,7 +2621,8 @@ Verification logs are retained in ignored `build/c15_delivery/`: the
 `windows_joints_build.log`, and `linux_joints_run.log` record independent SDK
 delivery. Project format 13 (accepting 12), runtime format 10, CLI/generation,
 runtime physics, and developer-owned `main.c` are unchanged. C15 is complete;
-C16 and broader goal 5 acceptance remain pending. C7/C9 review exceptions remain.
+C16's subsequent completion is recorded below. Goal 5 is now closed by user
+acceptance with the recorded exceptions, including C7/C9.
 
 **C16 complete — numeric property locks:**
 
@@ -2678,5 +2694,6 @@ The `logs/final_linux_tests.log`, `logs/final_sanitizer_tests.log`,
 results. `verification.txt` indexes the completed checks. Reproduce the shared
 lock and CLI regressions with
 `ctest --test-dir build --output-on-failure -R 'editor_numeric_locks|editor_cli_numeric_locks|editor_configuration_controls|ui_field_selection|ui_reports'`.
-C16 is complete; broader goal 5 acceptance and the existing C7/C9 review
-exceptions remain separate. No subsequent goal was started.
+C16 is complete. Milestone 4 and goal 5 are now complete by user acceptance;
+the existing C7/C9 exceptions and other unconfirmed goal 5 checks remain
+unverified. No subsequent implementation goal was started.
