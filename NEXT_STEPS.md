@@ -13,7 +13,7 @@ priority order.
 | 2 | Asset and resource ownership | Complete |
 | 3 | COM, inertia, and origin semantics | Complete |
 | 4 | Cross-path feature parity | Complete by user acceptance; recorded verification exceptions remain |
-| 6 | Physics robustness | In progress; goal 1 complete, goals 2–5 pending |
+| 6 | Physics robustness | In progress; goals 1–2 complete, goals 3–5 pending |
 | — | [C game experiment](#c-game-experiment) | Pending; agree concept and completion criteria when starting |
 | 8 | Runtime isolation (global-state assumptions) | Foundations implemented; two independent worlds pending |
 | 5 | Adversarial testing and hardening | Substantial coverage implemented; follows runtime isolation |
@@ -21,10 +21,10 @@ priority order.
 | 7 | Editor implementation scalability | Deferred until after Python unless game development makes it necessary sooner |
 | 10 | End-to-end game | Pending; separate larger game directed by the user |
 
-**Next goal:** milestone 6 goal 2, **Fast objects against thin barriers**, only
-when explicitly instructed. Freeze its exact fixture and resolve its material
-clarifications before implementation. Goal 1 is complete, including the user's
-motion review and accepted centered settling limits. No later goal has started.
+**Next goal:** milestone 6 goal 3, **Persistent stack stability**, only when
+explicitly instructed. Freeze its strike and observation interval before
+implementation, and agree settling limits through visual review before completion.
+Goals 1–2 are complete. No later goal has started.
 
 Regression checks and relevant sanitizer checks remain mandatory throughout
 physics, the C game experiment, and runtime isolation. Deferring the broader
@@ -563,10 +563,41 @@ or require undamped pendulums to stop.
    and demo cross-builds. No compiler warnings or sanitizer findings; native
    Windows execution was not performed and is not a completion gate.
    Local evidence is recorded in `sandbox/milestone_6/goal_1/collision_verification.txt`.
-2. [ ] **Fast objects against thin barriers.** Fire a 1 × 1 rigid body and a
+2. [x] **Fast objects against thin barriers.** Fire a 1 × 1 rigid body and a
    radius-0.5 particle at a 0.1-thick static wall at 100, 1,000, and 10,000
    units/second. Cover straight and oblique impacts with restitution 0 and 0.8.
    Require no tunneling and compliance with penetration and rebound criteria.
+   Frozen fixture: a mass-1, initially unrotated square or radius-0.5 standalone
+   particle (32 collision vertices), moving toward a static 0.1 × 40,000 wall
+   centered at the origin. Gravity and friction are zero; both materials use
+   the selected restitution. Initial velocity is `(speed, 0)` or
+   `(speed / sqrt(2), speed / sqrt(2))`; initial center is
+   `(-0.55 - velocity.x * 0.25, -velocity.y * 0.25)`, targeting the wall's
+   middle at 0.25 seconds. Rotation stays unrestricted for the square.
+   Run for 2.5 seconds at each rate. Two additional 60 Hz schedules start a
+   100 ms or 1 s update at 0.2 seconds, followed by the other delay at 1.3
+   seconds, so each delay crosses impact in a separate run. Observe every
+   completed substep: penetration ≤0.001, fixed wall, finite state, no crossing,
+   no energy growth above 0.1%, and full elapsed time within 1e-9 seconds.
+   After impact, require normal velocity `-restitution * initial_velocity.x`
+   within 1% (absolute 0.0001 units/s for zero restitution), tangential velocity
+   unchanged within 0.01%, and no spurious spin above 0.0001 degrees/s.
+   Keep executables and evidence under `sandbox/milestone_6/goal_2/`.
+   Complete: all 120 runs pass using one configured substep and eight solver
+   iterations. Contact subdivision now bounds closing normal motion, avoiding
+   excessive work during sliding. Iterative contacts retain their restitution
+   targets for the substep, preserving particle rebound through repeated solves.
+   Peak penetration is 0.000010003 units; Release normal 60 Hz p95 is at most
+   0.564 ms and delayed updates at most 27.040 ms on the reference laptop on AC.
+   Verification: 21 focused Linux regressions, ten ASan/UBSan tests, all twenty
+   Goal 1 runs including its performance limits, and circle/circle rebound at
+   1/2/4/8 solver iterations. The extreme-drop, player-controller, and particle
+   pit examples build independently against Linux, sanitizer, and Windows SDKs;
+   Linux and sanitizer demo/startup/interrupt and delayed player-floor checks pass.
+   No compiler warnings or sanitizer findings. Native Windows execution was not
+   performed. The accepted Goal 1 window-switch review remains the interactive
+   baseline; no rendering or event-loop behavior changed. Local evidence:
+   `sandbox/milestone_6/goal_2/verification.txt`.
 3. [ ] **Persistent stack stability.** Stack twenty 10 × 10, mass-1 boxes on a
    static floor, simulate for 60 seconds, then strike the stack sideways with
    another box. Require no progressive sinking, growing jitter, or explosive

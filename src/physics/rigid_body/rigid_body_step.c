@@ -491,6 +491,8 @@ static bool system_contact_point_solve(
     float inverse_inertia_first,
     float inverse_inertia_second,
     const ContactPointInfo *previous,
+    const float *previous_rebound,
+    float *rebound_speed,
     Velocity *relative_velocity,
     Vec2D *normal_impulse,
     Vec2D *friction_impulse, Report *report
@@ -548,7 +550,10 @@ static bool system_contact_point_solve(
         first_lever * first_lever * inverse_inertia_first +
         second_lever * second_lever * inverse_inertia_second;
     if(denominator <= 0.0f) return false;
-    impulse_magnitude = -(1.0f + restitution) * normal_velocity / denominator;
+    float rebound = previous_rebound != NULL ? *previous_rebound :
+        -restitution * fminf(normal_velocity, 0.0f);
+    *rebound_speed = rebound;
+    impulse_magnitude = (rebound - normal_velocity) / denominator;
     if(!isfinite(impulse_magnitude) || !isfinite(denominator) ||
             !isfinite(previous_impulse_magnitude + impulse_magnitude)) {
         physics_operation_reject(report, ROHR_PHYSICS_NORMAL_IMPULSE, ERROR_ENGINE_STATE_INVALID,
@@ -596,7 +601,8 @@ ContactInfo system_resolve_collision(
     Entity second,
     OverlapInfo overlap,
     bool restitution_enabled,
-    const ContactInfo *previous_contact, Report *report, bool *applied
+    const ContactInfo *previous_contact, const float *previous_rebounds,
+    float *rebounds, Report *report, bool *applied
 ) {
     bool first_particle = entity_index_components_check(first, ROHR_PARTICLE);
     bool second_particle = entity_index_components_check(second, ROHR_PARTICLE);
@@ -637,13 +643,16 @@ ContactInfo system_resolve_collision(
     }
     for(uint8_t i = 0; i < result.point_count; i += 1) {
         const ContactPointInfo *previous_point = NULL;
+        const float *previous_rebound = NULL;
         if(previous_contact != NULL) {
             for(uint8_t previous = 0; previous < previous_contact->point_count;
                     previous += 1) {
-                if(result.points[i].feature_id != 0 &&
+                if((result.point_count == 1 && previous_contact->point_count == 1) ||
+                        (result.points[i].feature_id != 0 &&
                         result.points[i].feature_id ==
-                            previous_contact->points[previous].feature_id) {
+                            previous_contact->points[previous].feature_id)) {
                     previous_point = &previous_contact->points[previous];
+                    previous_rebound = &previous_rebounds[previous];
                     break;
                 }
             }
@@ -652,7 +661,7 @@ ContactInfo system_resolve_collision(
             first, second, overlap, result.points[i].position, restitution_enabled,
             inverse_mass_first, inverse_mass_second,
             inverse_inertia_first, inverse_inertia_second,
-            previous_point,
+            previous_point, previous_rebound, &rebounds[i],
             &result.points[i].relative_velocity,
             &result.points[i].normal_impulse,
             &result.points[i].friction_impulse, report);
@@ -666,7 +675,8 @@ static ContactInfo system_resolve_collision_manifold(
     Entity second,
     const ContactManifold *manifold,
     bool restitution_enabled,
-    const ContactInfo *previous_contact, Report *report, bool *applied
+    const ContactInfo *previous_contact, const float *previous_rebounds,
+    float *rebounds, Report *report, bool *applied
 ) {
     ContactInfo result;
     OverlapInfo overlap;
@@ -701,6 +711,7 @@ static ContactInfo system_resolve_collision_manifold(
         };
         for(uint8_t i = 0; i < manifold->count; i += 1) {
             const ContactPointInfo *previous_point = NULL;
+            const float *previous_rebound = NULL;
             result.points[i].feature_id = manifold->feature_ids[i];
             result.points[i].position = manifold->points[i];
             if(previous_contact != NULL) {
@@ -711,6 +722,7 @@ static ContactInfo system_resolve_collision_manifold(
                             result.points[i].feature_id ==
                                 previous_contact->points[previous].feature_id) {
                         previous_point = &previous_contact->points[previous];
+                        previous_rebound = &previous_rebounds[previous];
                         break;
                     }
                 }
@@ -719,6 +731,7 @@ static ContactInfo system_resolve_collision_manifold(
                 first, second, overlap, result.points[i].position,
                 restitution_enabled, inverse_mass_first, inverse_mass_second,
                 inverse_inertia_first, inverse_inertia_second, previous_point,
+                previous_rebound, &rebounds[i],
                 &result.points[i].relative_velocity,
                 &result.points[i].normal_impulse,
                 &result.points[i].friction_impulse, report);
@@ -837,6 +850,7 @@ static void system_rigid_contact_constraint_solve(
 ) {
     ContactInfo representative = {0};
     ContactInfo previous_contacts[CONTACT_MANIFOLD_MAX] = {0};
+    float previous_rebounds[CONTACT_MANIFOLD_MAX][PHYSICS_CONTACT_POINT_MAX] = {{0}};
     bool previous_contact_matched[CONTACT_MANIFOLD_MAX] = {0};
     ContactManifoldSet manifolds;
     uint8_t previous_contact_count;
@@ -860,14 +874,18 @@ static void system_rigid_contact_constraint_solve(
     responds = constraint->value.rigid.responds;
     first_solve = !constraint->value.rigid.solved;
     previous_contact_count = constraint->value.rigid.manifold_contact_count;
-    for(uint8_t i = 0; i < constraint->value.rigid.manifold_contact_count; i += 1)
+    for(uint8_t i = 0; i < constraint->value.rigid.manifold_contact_count; i += 1) {
         previous_contacts[i] = constraint->value.rigid.manifold_contacts[i];
+        for(uint8_t p = 0; p < PHYSICS_CONTACT_POINT_MAX; ++p)
+            previous_rebounds[i][p] = constraint->value.rigid.rebound_speeds[i][p];
+    }
     if(entity_index_components_check(first, ROHR_PARTICLE) &&
             entity_index_components_check(second, ROHR_PARTICLE)) {
         representative = responds
             ? system_resolve_collision(
                 first, second, overlap, first_solve,
-                previous_contact_count > 0 ? &previous_contacts[0] : NULL, report, &normal_applied)
+                previous_contact_count > 0 ? &previous_contacts[0] : NULL,
+                previous_rebounds[0], constraint->value.rigid.rebound_speeds[0], report, &normal_applied)
             : (ContactInfo){0};
         constraint->value.rigid.manifold_contact_count = representative.detected;
         if(representative.detected)
@@ -888,6 +906,7 @@ static void system_rigid_contact_constraint_solve(
     constraint->value.rigid.manifold_contact_count = 0;
     for(uint8_t i = 0; responds && i < manifolds.count; i += 1) {
         const ContactInfo *previous = NULL;
+        const float *rebounds = NULL;
         ContactInfo contact;
 
         for(uint8_t candidate = 0; candidate < previous_contact_count;
@@ -896,11 +915,14 @@ static void system_rigid_contact_constraint_solve(
                     math_dot_product(previous_contacts[candidate].normal,
                         manifolds.values[i].normal) < 0.98f) continue;
             previous = &previous_contacts[candidate];
+            rebounds = previous_rebounds[candidate];
             previous_contact_matched[candidate] = true;
             break;
         }
         contact = system_resolve_collision_manifold(
-            first, second, &manifolds.values[i], first_solve, previous, report, &normal_applied);
+            first, second, &manifolds.values[i], first_solve, previous, rebounds,
+            constraint->value.rigid.rebound_speeds[constraint->value.rigid.manifold_contact_count],
+            report, &normal_applied);
 
         constraint->value.rigid.manifold_contacts[
             constraint->value.rigid.manifold_contact_count++] = contact;

@@ -62,6 +62,9 @@ typedef struct SystemContactConstraint {
             bool solved;
             ContactInfo contact;
             ContactInfo manifold_contacts[CONTACT_MANIFOLD_MAX];
+            /* Fixed normal velocity targets through this substep's iterations,
+             * indexed alongside the corresponding manifold contact points. */
+            float rebound_speeds[CONTACT_MANIFOLD_MAX][PHYSICS_CONTACT_POINT_MAX];
             uint8_t manifold_contact_count;
         } rigid;
         SystemSoftBoundaryQuery soft;

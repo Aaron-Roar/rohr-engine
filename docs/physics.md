@@ -181,8 +181,9 @@ repeat broadphase and narrow-phase work. More solver iterations improve contact
 and joint convergence without increasing temporal sampling.
 
 Full updates consume all requested time. Moving rigid collider pairs use swept
-translational projections to shorten steps near impact and bound relative travel
-while touching. Collision steps are at most 1/60 second; isolated motion keeps
+translational projections to shorten steps near impact and bound closing travel
+along the contact normal while touching. Tangential sliding and separation do
+not trigger thickness-sized steps. Collision steps are at most 1/60 second; isolated motion keeps
 the configured subdivision. Reports count actual subdivisions. The explicit
 `physics_pipeline_substep(dt)` entry point still executes exactly one caller-sized
 step, for manual pipeline composition.
@@ -200,6 +201,17 @@ light support many body widths to repair a small overlap under a heavy load.
 Stored masses, impulse response, body modes, and freedom to move are unchanged. Larger,
 degenerate, directional, particle, and soft-boundary sets retain the iterative
 solver. These are bounded solver paths, not a guarantee for every extreme scene.
+Iterative rigid contacts retain each point's restitution velocity target for the
+current substep. Later iterations may adjust its accumulated impulse without
+undoing the intended rebound. Targets are discarded with the substep contacts;
+they do not add persistent state or change public contact-report fields.
+
+The [Milestone 6 fixtures](../NEXT_STEPS.md#6-physics-robustness) include thin-wall
+checks for a 1 × 1 square and radius-0.5 standalone particle at up to 10,000
+units/s. The particle uses its 32-vertex collision polygon against the flat wall.
+Run `sandbox/milestone_6/goal_2/bin/linux/thin_barriers_test`; `--performance`
+also enforces the Release CPU limits on the reference laptop on AC. Every
+completed substep is checked, including updates delayed by 100 ms and 1 s.
 
 ## Center of mass and inertia
 
@@ -640,7 +652,8 @@ Current limitations:
 
 - collision polygons must be simple; collision holes and self-intersections are rejected;
 - swept timing uses translational polygon projections; arbitrary fast rotation,
-  concave sweep accuracy, and particle/beam continuous collision are not certified;
+  concave sweep accuracy, and general circle/circle or beam continuous collision
+  are not certified by the flat-wall fixtures;
 - contact reporting exposes one representative manifold even when the solver
   retains several concave surface manifolds;
 - extreme speed, very small geometry, or large mass ratios may require more

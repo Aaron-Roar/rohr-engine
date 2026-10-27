@@ -54,6 +54,7 @@ static bool sweep_pair_visit(Entity target, void *context) {
     Vec2D b = sweep_displacement_get(other, query->duration);
     double enter = -DBL_MAX, leave = DBL_MAX, entry_speed = 0, margin = 0;
     double thickness = DBL_MAX;
+    double minimum_overlap = DBL_MAX, closing_travel = 0;
     for(unsigned s = 0; s < 2; ++s) {
         const Shape *shape = shapes[s];
         for(uint32_t i = 0; i < shape->amount_of_vertices; ++i) {
@@ -67,6 +68,14 @@ static bool sweep_pair_visit(Entity target, void *context) {
             sweep_projection_get(shapes[1], nx, ny, &bl, &bh);
             thickness = fmin(thickness, fmin(ah - al, bh - bl));
             double move = ((double)b.x - a.x) * nx + ((double)b.y - a.y) * ny;
+            double overlap = fmin(ah - bl, bh - al);
+            if(overlap < minimum_overlap) {
+                minimum_overlap = overlap;
+                /* Orient the minimum-translation axis from first to second.
+                 * Only approach along this axis threatens an existing face;
+                 * tangent travel and separation do not crush the contact. */
+                closing_travel = fmax(0, (bl + bh >= al + ah) ? -move : move);
+            }
             if(fabs(move) < DBL_MIN) {
                 if(ah < bl || bh < al) return true;
                 continue;
@@ -88,9 +97,9 @@ static bool sweep_pair_visit(Entity target, void *context) {
         double duration = query->duration * fmin(1, enter + margin / entry_speed);
         if(duration > 0) query->earliest = fmin(query->earliest, duration);
     } else if(enter <= 0 && leave >= 0 && thickness > 0) {
-        /* Already touching: bound relative travel to preserve the supporting
-         * face until the coupled constraint solve. */
-        double travel = hypot((double)b.x - a.x, (double)b.y - a.y);
+        /* Already touching: bound closing normal travel. Tangential sliding
+         * must not require steps proportional to speed / wall thickness. */
+        double travel = closing_travel;
         if(travel > 0.25 * thickness)
             query->earliest = fmin(query->earliest,
                 query->duration * 0.25 * thickness / travel);
