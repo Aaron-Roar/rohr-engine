@@ -249,6 +249,7 @@ set(ROHR_ENGINE_SOURCES
     src/physics/joints/joint.c
     src/physics/joints/joint_placement.c
     src/physics/joints/joint_solver.c
+    src/physics/joints/joint_motion.c
     src/physics/particles/particle.c
     src/physics/physics.c
     src/physics/physics_entity.c
@@ -1267,6 +1268,20 @@ if(ROHR_BUILD_TESTS)
     set_tests_properties(persistent_stack PROPERTIES
         ENVIRONMENT "SDL_VIDEODRIVER=dummy;SDL_AUDIODRIVER=dummy" TIMEOUT 300)
 
+    foreach(joint_kind pin weld spring)
+        add_executable(${joint_kind}_stability_test tests/${joint_kind}_stability.c)
+        target_include_directories(${joint_kind}_stability_test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
+        target_link_libraries(${joint_kind}_stability_test PRIVATE rohr_engine)
+        if(ROHR_ENABLE_SANITIZERS)
+            target_compile_options(${joint_kind}_stability_test PRIVATE ${ROHR_SANITIZER_COMPILE_OPTIONS})
+        endif()
+        set_target_properties(${joint_kind}_stability_test PROPERTIES RUNTIME_OUTPUT_DIRECTORY
+            ${CMAKE_SOURCE_DIR}/sandbox/milestone_6/goal_4/bin/${drop_test_platform})
+        add_test(NAME ${joint_kind}_stability COMMAND ${joint_kind}_stability_test)
+        set_tests_properties(${joint_kind}_stability PROPERTIES
+            ENVIRONMENT "SDL_VIDEODRIVER=dummy;SDL_AUDIODRIVER=dummy" TIMEOUT 300)
+    endforeach()
+
     add_executable(component_registry_test
         tests/component_registry.c
     )
@@ -1384,6 +1399,7 @@ if(ROHR_BUILD_TESTS)
     add_dependencies(rohr_tests extreme_mass_drop_test)
     add_dependencies(rohr_tests thin_barriers_test)
     add_dependencies(rohr_tests persistent_stack_test)
+    add_dependencies(rohr_tests pin_stability_test weld_stability_test spring_stability_test)
     add_dependencies(
         rohr_tests
         entity_info_test

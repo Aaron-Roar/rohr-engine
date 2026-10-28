@@ -13,7 +13,7 @@ priority order.
 | 2 | Asset and resource ownership | Complete |
 | 3 | COM, inertia, and origin semantics | Complete |
 | 4 | Cross-path feature parity | Complete by user acceptance; recorded verification exceptions remain |
-| 6 | Physics robustness | In progress; goals 1–3 complete, goals 4–5 pending |
+| 6 | Physics robustness | Goals 1–4 complete; goal 5 pending |
 | — | [C game experiment](#c-game-experiment) | Pending; agree concept and completion criteria when starting |
 | 8 | Runtime isolation (global-state assumptions) | Foundations implemented; two independent worlds pending |
 | 5 | Adversarial testing and hardening | Substantial coverage implemented; follows runtime isolation |
@@ -21,10 +21,10 @@ priority order.
 | 7 | Editor implementation scalability | Deferred until after Python unless game development makes it necessary sooner |
 | 10 | End-to-end game | Pending; separate larger game directed by the user |
 
-**Next goal:** milestone 6 goal 4, **Joint stability**, only when explicitly
-instructed. Freeze its fixtures, impulse, reference lengths, run lengths, and
-measurement tolerances before implementation. Goals 1–3 are complete. No later
-goal has started.
+**Completed goal:** milestone 6 goal 4, **Joint stability**, including the user's
+visual/window-switch acceptance. Its frozen fixtures and verification are
+recorded below. Goal 5, **Soft-body contact and stability**, has not started and
+awaits an explicit user instruction.
 
 Regression checks and relevant sanitizer checks remain mandatory throughout
 physics, the C game experiment, and runtime isolation. Deferring the broader
@@ -633,10 +633,66 @@ undamped pendulums to stop.
    final settling assertions also rerun under sanitizers. Goals 1–2 performance
    regressions, independent installed-SDK examples, normal/delayed player-floor
    probes, and Windows cross-builds pass. Native Windows execution was not run.
-4. [ ] **Joint stability.** Exercise a pinned pendulum, welded pair, and
-   spring-supported weight under gravity and a defined impulse. Pin/weld errors
-   must meet the shared tolerances; spring motion must match its configured
-   stiffness and damping against the frozen fixture's reference behavior.
+4. [x] **Joint stability.** Three independent executables exercise pin, weld,
+   and spring joints, each in isolation and with floor impacts. The user revised
+   the spring-supported-weight case to two rapidly orbiting, freely moving
+   blocks. Use zero damping, friction 1, restitution 1, and 3,600 degrees/s
+   clockwise rotation. After each dynamic body's first floor-contact episode
+   ends in separation, change only that body's restitution to 0.1. Remove the
+   arbitrary low-speed restitution cutoff; retain numerical tolerances only.
+   Frozen fixtures (all dynamic masses 1, gravity (0, -9.8), configured substeps
+   1, solver iterations 8; no sleeping, velocity clamps, or forced settling):
+   - Pin: horizontal 100 × 10 arm centered at (50, 60), left endpoint pinned to
+     (0, 60). Initialize COM velocity consistently with rotation about the pin.
+     At exactly 5 seconds apply a magnitude-1,000 tangential COM impulse in the
+     current clockwise direction. Reference length 100; anchor error ≤0.1 units.
+   - Weld: 10 × 10 boxes centered at (-5, 200) and (5, 200), joined at their
+     touching edges with relative angle zero. Initialize both spins and orbital
+     COM velocities for rigid assembly rotation, plus common velocity (600, -800).
+     At 5 seconds apply impulse (1,000, 0) only to the left box. Reference length
+     10; anchor error ≤0.01 units and relative angular error ≤0.1 degree.
+   - Spring: 10 × 10 boxes centered at (-50, 200) and (50, 200), center anchors,
+     rest length 100, stiffness 20, damping 0. Initialize clockwise orbital motion
+     and individual spins at 3,600 degrees/s, plus common velocity (600, -800).
+     At 5 seconds apply impulse (1,000, 0) only to the right box. Compare isolated
+     relative motion with an independent double-precision reference: position
+     error ≤1% of max(100, reference peak separation), velocity error ≤1% of
+     max(1,000, reference peak relative speed). Halve the reference integration
+     step until changes are below 1% of those error limits. Also calibrate with
+     opposite axial impulses of magnitude 1 against the analytic undamped
+     oscillator, with position error ≤0.01 units and velocity error ≤0.05 units/s.
+   Run each main case for 30 seconds at 30/60/120 Hz and at 60 Hz with a 100 ms
+   update at 4.8 seconds and a 1 s update at 5.2 seconds; split exactly at the
+   impulse. Isolated cases disable collision response. Impact cases use a static
+   1,000,000 × 10 floor centered at (0, -5), stored mass 1, friction/restitution 1;
+   welded bodies exclude mutual collision. Measure every completed substep:
+   joint errors, finite state, fixed supports, energy, consumed time, independent
+   penetration ≤0.1 units, and rotational sweeps against the floor. Isolated
+   energy error must stay within 1%, accounting for gravity, elastic energy and
+   constraint-consistent impulse work; verify applicable momentum conservation.
+   Retain the shared rebound and CPU limits, including the observer in timings.
+   Report settling after the final impulse as speeds ≤0.0001 units/s and
+   ≤0.0001 degrees/s for 2 continuous seconds, or "not settled within 30 seconds";
+   it is an observation, not a pass deadline. Obtain visual/window-switch review.
+   Executables, previews and evidence belong under `sandbox/milestone_6/goal_4/`.
+   Complete: automated verification passes, and the user accepted motion and
+   window switching across the three joints in the review preview.
+   All 27 joint cases pass, including three analytic spring calibrations.
+   Release 60 Hz p95 is at most 0.630 ms; delayed updates at most 30.198 ms on
+   the AC-powered reference laptop, including measurements. Peak penetration
+   is 0.003139 units, pin error 0.000020 units, weld error 0.004407 units, and
+   weld angular error zero. Pin impact cases settle at 5.3 seconds; weld and
+   spring impact cases retain motion at 30 seconds, as permitted. Twenty-one
+   focused regressions, twelve ASan/UBSan checks, and Goals 1–3 performance and
+   settling regressions pass. Affected examples build independently against
+   Linux, sanitizer, and Windows SDKs; Linux/sanitizer startup, interrupt,
+   extreme-drop demo checks, and normal/delayed player-floor probes pass.
+   Windows cross-builds pass; native Windows execution was not performed.
+   No final compiler warnings or sanitizer findings. The shared solver uses
+   coupled pin/weld rows, constrained integration for independent supported
+   pairs, precise reduction of accumulated turns, and consistent low-speed
+   restitution targets. Public APIs and persistence are unchanged. See
+   `sandbox/milestone_6/goal_4/verification.txt` and `preview_controls.txt` there.
 5. [ ] **Soft-body contact and stability.** Drop a beam-braced soft body onto a
    floor and ramp, then apply rigid-body and particle loads. Deformation is valid;
    enabled collider contacts must meet the shared penetration/no-tunneling

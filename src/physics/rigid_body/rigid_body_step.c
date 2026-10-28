@@ -64,6 +64,7 @@ static void system_positions_update(double dt, Report *report) {
     for(uint32_t n = 0; n < entity_alive_count_get(); ++n) {
         EntityIndex i;
         if(!physics_step_alive_index_at(n, &i) || !physics_entity_movable_get(i)) continue;
+        if(physics_joint_motion_integrated_check(i)) continue;
         PhysicsChange change = physics_change_get(i, PHYSICS_CHANGE_POSITION);
         change.position = (Position){positions[i].x + velocities[i].x * dt,
             positions[i].y + velocities[i].y * dt};
@@ -79,6 +80,7 @@ static void system_orientations_update(double dt, Report *report) {
         if(!physics_step_alive_index_at(n, &i) || !physics_entity_movable_get(i) ||
                 entity_index_components_check(i, ROHR_SOFT_BODY) ||
                 physics_entity_nonrotating_check(i)) continue;
+        if(physics_joint_motion_integrated_check(i)) continue;
         PhysicsChange change = physics_change_get(i, PHYSICS_CHANGE_ORIENTATION);
         physics_change_orientation_set(&change, orientations[i] + angular_velocities[i] * dt);
         (void)physics_changes_commit(&change, 1, report, ROHR_PHYSICS_ORIENTATION,
@@ -91,6 +93,7 @@ static void system_angular_velocities_update(double dt, Report *report) {
         EntityIndex i;
         if(!physics_step_alive_index_at(n, &i) || !physics_entity_movable_get(i) ||
                 entity_index_components_check(i, ROHR_SOFT_BODY)) continue;
+        if(physics_joint_motion_integrated_check(i)) continue;
         PhysicsChange change = physics_change_get(i, PHYSICS_CHANGE_ANGULAR_VELOCITY);
         change.angular_velocity = physics_entity_nonrotating_check(i) ? 0.0f :
             angular_velocities[i] + (angular_accelerations[i] + torque_angular_accelerations[i]) * dt;
@@ -127,6 +130,7 @@ static void system_velocities_update(double dt, Report *report) {
             continue;
         }
         if(physics_entity_movable_get(i)) {
+            if(physics_joint_motion_integrated_check(i)) continue;
             PhysicsChange change = physics_change_get(i, PHYSICS_CHANGE_VELOCITY);
             change.velocity = (Velocity){
                 .x = velocities[i].x + (accelerations[i].x + force_accelerations[i].x)*dt,
@@ -480,6 +484,20 @@ Vec2D system_friction_impulse_apply(
     };
 }
 
+static float system_contact_rebound_get(EntityIndex first,EntityIndex second,
+        Position point,Vec2D normal,bool enabled) {
+    if(!enabled)return 0;
+    EntityIndex bodies[]={first,second};Velocity v[2]={{0,0},{0,0}};
+    for(unsigned i=0;i<2;++i)if(physics_entity_movable_get(bodies[i])) {
+        EntityIndex body=bodies[i];
+        Vec2D angular=math_angular_velocity_cross_vec(physics_entity_nonrotating_check(body)?0:angular_velocities[body],
+            math_vector_subtract(point,physics_com_world_by_index_get(body)));
+        v[i]=(Velocity){velocities[body].x+angular.x,velocities[body].y+angular.y};
+    }
+    float normal_velocity=math_dot_product(math_vector_subtract(v[1],v[0]),normal);
+    return -fminf(restitutions[first],restitutions[second])*fminf(normal_velocity,0);
+}
+
 static bool system_contact_point_solve(
     Entity first,
     Entity second,
@@ -543,7 +561,6 @@ static bool system_contact_point_solve(
             physics_operation_entity_get(first), physics_operation_entity_get(second));
         return false;
     }
-    if(fabsf(normal_velocity) < 1.0f) restitution = 0.0f;
     first_lever = math_cross_2d(first_offset, overlap.normal);
     second_lever = math_cross_2d(second_offset, overlap.normal);
     denominator = inverse_mass_first + inverse_mass_second +
@@ -641,9 +658,12 @@ ContactInfo system_resolve_collision(
     if(!physics_entity_nonrotating_check(second) && inverse_mass_second > 0.0f) {
         inverse_inertia_second = physics_inverse_inertia_by_index_get(second);
     }
+    float initial_rebounds[PHYSICS_CONTACT_POINT_MAX];
+    for(uint8_t i=0;i<result.point_count;++i)
+        initial_rebounds[i]=system_contact_rebound_get(first,second,result.points[i].position,overlap.normal,restitution_enabled);
     for(uint8_t i = 0; i < result.point_count; i += 1) {
         const ContactPointInfo *previous_point = NULL;
-        const float *previous_rebound = NULL;
+        const float *previous_rebound = &initial_rebounds[i];
         if(previous_contact != NULL) {
             for(uint8_t previous = 0; previous < previous_contact->point_count;
                     previous += 1) {
@@ -709,9 +729,12 @@ static ContactInfo system_resolve_collision_manifold(
             .depth = overlap.depth,
             .point_count = manifold->count
         };
+        float initial_rebounds[PHYSICS_CONTACT_POINT_MAX];
+        for(uint8_t i=0;i<manifold->count;++i)
+            initial_rebounds[i]=system_contact_rebound_get(first,second,manifold->points[i],overlap.normal,restitution_enabled);
         for(uint8_t i = 0; i < manifold->count; i += 1) {
             const ContactPointInfo *previous_point = NULL;
-            const float *previous_rebound = NULL;
+            const float *previous_rebound = &initial_rebounds[i];
             result.points[i].feature_id = manifold->feature_ids[i];
             result.points[i].position = manifold->points[i];
             if(previous_contact != NULL) {
@@ -1250,6 +1273,7 @@ EngineResult physics_rigid_integrate(double dt, Report *report) {
 double physics_rigid_integrate_adaptive(double dt, Report *report) {
     system_loads_apply(report, false);
     system_loads_apply(report, true);
+    dt = physics_joint_duration_get(dt);
     dt = physics_rigid_sweep_duration_get(dt, report);
     if(report != NULL && report->has_fatal) return dt;
     physics_rigid_motion_integrate(dt, report);
@@ -1257,11 +1281,13 @@ double physics_rigid_integrate_adaptive(double dt, Report *report) {
 }
 
 void physics_rigid_motion_integrate(double dt, Report *report) {
+    physics_joint_motion_begin(dt, report);
     system_velocities_update(dt, report);
     system_angular_velocities_update(dt, report);
     system_angular_velocity_maximums_apply(report);
     system_orientations_update(dt, report);
     system_positions_update(dt, report);
+    physics_joint_motion_end();
     system_angle_locks_apply(report);
     system_axis_locks_apply(report);
     system_transform_locks_apply(report);

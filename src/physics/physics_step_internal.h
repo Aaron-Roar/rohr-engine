@@ -87,6 +87,11 @@ void physics_rigid_contact_point_impulses_accumulate(
 void physics_joint_spring_forces_apply(Report *report);
 void physics_joint_constraints_gather(Report *report);
 void physics_joint_constraints_solve(Report *report);
+void physics_joint_motion_begin(double dt, Report *report);
+void physics_joint_motion_enabled_set(bool enabled);
+bool physics_joint_motion_integrated_check(EntityIndex index);
+void physics_joint_motion_end(void);
+double physics_joint_duration_get(double dt);
 
 void physics_soft_body_beams_apply(Report *report);
 void physics_soft_body_constraints_gather(Report *report);

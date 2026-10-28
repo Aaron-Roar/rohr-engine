@@ -37,6 +37,10 @@ static bool red_pixel_check(int x, int y, bool expected) {
 }
 
 static bool math_check(void) {
+    CHECK(point(math_vector_rotate((Vec2D){50,0},3600000.25f),
+        math_vector_rotate((Vec2D){50,0},.25f)));
+    CHECK(point(math_vector_rotate((Vec2D){50,0},-3600000.25f),
+        math_vector_rotate((Vec2D){50,0},-.25f)));
     const float angles[] = {0,90,180,270,-450,810};
     const Vec2D expected[] = {{0,1},{1,0},{0,-1},{-1,0},{-1,0},{1,0}};
     Shape shape = {.amount_of_vertices=3,.vertices={{0,1},{0,0},{1,0}}};

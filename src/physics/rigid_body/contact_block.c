@@ -247,7 +247,7 @@ static bool block_prepare_check(ContactBlock *block, ContactConstraintList *list
                 row->scale = sqrtl(norm);
                 for(unsigned side = 0; side < 2; ++side)
                     for(unsigned axis = 0; axis < 3; ++axis) row->a[3 * slots[side] + axis] /= row->scale;
-                long double rebound = !c->value.rigid.solved && vn < -1 ?
+                long double rebound = !c->value.rigid.solved && vn < 0 ?
                     -fmin(restitutions[first], restitutions[second]) * vn : 0;
                 row->velocity_rhs = (rebound - vn) / row->scale;
                 float slop = physics_rigid_contact_slop_get(first, second, manifold->normal);

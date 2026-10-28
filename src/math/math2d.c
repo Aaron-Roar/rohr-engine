@@ -237,7 +237,9 @@ float math_axis_magnitude(Axis axis) {
 }
 
 Vec2D math_vector_rotate(Vec2D vector, float angle) {
-    return math_vector_radians_rotate(vector, math_degrees_to_radians(angle));
+    /* Reduce before converting degrees: accumulated revolutions must not lose
+     * the small angle that determines a joint's local lever arm. */
+    return math_vector_radians_rotate(vector, math_degrees_to_radians(fmodf(angle,360.0f)));
 }
 
 float math_degrees_to_radians(float degrees) {

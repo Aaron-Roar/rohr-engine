@@ -178,7 +178,32 @@ static void off_center(bool kinematic, Velocity *linear, float *angular, Positio
     assert(fabsf(*angular)>1); // off-center contact actually exercises rotational response
     rohr_engine_stop();
 }
+static void low_speed_rebound(void) {
+    const float speeds[]={.5f,.01f,.001f},restitution[]={0,.1f,1};
+    /* Reciprocal response selects the block solver; a nonresponding fixed
+     * wall exercises the iterative path with the same physical result. */
+    for(unsigned mode=0;mode<2;++mode)for(unsigned s=0;s<3;++s)for(unsigned r=0;r<3;++r) {
+        OK(rohr_engine_start());
+        OK(rohr_physics_substeps_set(1));
+        OK(rohr_physics_solver_iterations_set(8));
+        Entity body=collider(0,(Position){-1,0},(Velocity){speeds[s],0},1,2);
+        Entity wall=collider(0,(Position){.99999f,0},(Velocity){0},2,mode?0:1);
+        OK(rohr_physics_static_set(wall));
+        OK(rohr_physics_friction_set(body,0));OK(rohr_physics_friction_set(wall,0));
+        OK(rohr_physics_restitution_set(body,restitution[r]));
+        OK(rohr_physics_restitution_set(wall,restitution[r]));
+        step();
+        float expected=-speeds[s]*restitution[r];
+        if(fabsf(velocity_get(body).x-expected)>fmaxf(1e-6f,fabsf(expected)*.01f))
+            fprintf(stderr,"low speed rebound mode=%u speed=%g restitution=%g expected=%g actual=%g\n",mode,speeds[s],restitution[r],expected,velocity_get(body).x);
+        assert(fabsf(velocity_get(body).x-expected)<=fmaxf(1e-6f,fabsf(expected)*.01f));
+        assert(fabsf(velocity_get(body).y)<1e-6f);
+        assert(fabsf(rohr_physics_angular_velocity_get(body).result.value)<1e-4f);
+        rohr_engine_stop();
+    }
+}
 int main(void) {
+    low_speed_rebound();
     for(int a=0;a<3;++a) for(int b=0;b<3;++b)
         for(unsigned masks=0;masks<4;++masks) for(int reversed=0;reversed<2;++reversed)
             pair(a,b,masks,reversed);

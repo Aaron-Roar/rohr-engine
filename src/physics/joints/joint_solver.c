@@ -8,6 +8,7 @@
 #include "math2d.h"
 #include "physics/physics_operation.h"
 #include <math.h>
+#include <float.h>
 
 static void system_unavailable_joint_skip(EntityIndex index, Entity target,
         EngineError code, Report *report) {
@@ -39,160 +40,126 @@ static Velocity system_point_velocity(Entity entity, Vec2D world_offset) {
         .y = velocities[index].y + angular_part.y
     };
 }
-static float system_joint_inverse_inertia(EntityIndex index) {
-    return physics_inverse_inertia_by_index_get(index);
+/* Solve the anchor axes together: an off-center impulse changes both axes
+ * through rotation. Welds add the angular row to that same effective-mass
+ * system, rather than undoing the anchor correction in a separate pass. */
+static bool joint_matrix_solve(double matrix[3][3], double rhs[3], unsigned count) {
+    for(unsigned col = 0; col < count; ++col) {
+        unsigned pivot = col;
+        for(unsigned row = col + 1; row < count; ++row)
+            if(fabs(matrix[row][col]) > fabs(matrix[pivot][col])) pivot = row;
+        if(!isfinite(matrix[pivot][col]) || fabs(matrix[pivot][col]) < 1e-18) return false;
+        if(pivot != col) {
+            for(unsigned j = 0; j < count; ++j) {
+                double swap = matrix[col][j]; matrix[col][j] = matrix[pivot][j]; matrix[pivot][j] = swap;
+            }
+            double swap = rhs[col]; rhs[col] = rhs[pivot]; rhs[pivot] = swap;
+        }
+        double diagonal = matrix[col][col];
+        for(unsigned j = col; j < count; ++j) matrix[col][j] /= diagonal;
+        rhs[col] /= diagonal;
+        for(unsigned row = 0; row < count; ++row) {
+            if(row == col) continue;
+            double factor = matrix[row][col];
+            for(unsigned j = col; j < count; ++j) matrix[row][j] -= factor * matrix[col][j];
+            rhs[row] -= factor * rhs[col];
+        }
+    }
+    for(unsigned row = 0; row < count; ++row) if(!isfinite(rhs[row])) return false;
+    return true;
 }
 
-static void system_rigid_anchor_axis_solve(
-        EntityIndex a,
-        EntityIndex b,
-        Vec2D offset_a,
-        Vec2D offset_b,
-        Vec2D position_error,
-        Vec2D velocity_error,
-        Vec2D axis, Report *report, Entity source
-) {
-    float inverse_mass_a = physics_entity_simulated_get(a) ? 1.0f / mass[a] : 0.0f;
-    float inverse_mass_b = physics_entity_simulated_get(b) ? 1.0f / mass[b] : 0.0f;
-    float inverse_inertia_a = system_joint_inverse_inertia(a);
-    float inverse_inertia_b = system_joint_inverse_inertia(b);
-    float lever_a = math_cross_2d(offset_a, axis);
-    float lever_b = math_cross_2d(offset_b, axis);
-    float effective_inverse_mass = inverse_mass_a + inverse_mass_b +
-        lever_a * lever_a * inverse_inertia_a + lever_b * lever_b * inverse_inertia_b;
-    float position_impulse;
-    float velocity_impulse;
-
-    if(effective_inverse_mass <= 0.0f) return;
-    position_impulse = math_dot_product(position_error, axis) / effective_inverse_mass;
-    velocity_impulse = math_dot_product(velocity_error, axis) / effective_inverse_mass;
-    {
-        PhysicsChange changes[] = {
-            physics_change_get(a, PHYSICS_CHANGE_POSITION | PHYSICS_CHANGE_ORIENTATION),
-            physics_change_get(b, PHYSICS_CHANGE_POSITION | PHYSICS_CHANGE_ORIENTATION)
-        };
-        changes[0].position.x += axis.x * position_impulse * inverse_mass_a;
-        changes[0].position.y += axis.y * position_impulse * inverse_mass_a;
-        physics_change_orientation_set(&changes[0], changes[0].orientation - math_radians_to_degrees(lever_a * position_impulse * inverse_inertia_a));
-        changes[1].position.x -= axis.x * position_impulse * inverse_mass_b;
-        changes[1].position.y -= axis.y * position_impulse * inverse_mass_b;
-        physics_change_orientation_set(&changes[1], changes[1].orientation + math_radians_to_degrees(lever_b * position_impulse * inverse_inertia_b));
-        (void)physics_changes_commit(changes, 2, report, ROHR_PHYSICS_JOINT_POSITION, source, physics_operation_entity_get(b));
-    }
-    {
-        PhysicsChange changes[] = {
-            physics_change_get(a, PHYSICS_CHANGE_VELOCITY | PHYSICS_CHANGE_ANGULAR_VELOCITY),
-            physics_change_get(b, PHYSICS_CHANGE_VELOCITY | PHYSICS_CHANGE_ANGULAR_VELOCITY)
-        };
-        changes[0].velocity.x += axis.x * velocity_impulse * inverse_mass_a;
-        changes[0].velocity.y += axis.y * velocity_impulse * inverse_mass_a;
-        changes[0].angular_velocity -= math_radians_to_degrees(lever_a * velocity_impulse * inverse_inertia_a);
-        changes[1].velocity.x -= axis.x * velocity_impulse * inverse_mass_b;
-        changes[1].velocity.y -= axis.y * velocity_impulse * inverse_mass_b;
-        changes[1].angular_velocity += math_radians_to_degrees(lever_b * velocity_impulse * inverse_inertia_b);
-        (void)physics_changes_commit(changes, 2, report, ROHR_PHYSICS_JOINT_VELOCITY, source, physics_operation_entity_get(b));
-    }
-}
-
-static void system_pin_joint_apply(Entity joint_entity, Report *report) {
+static void system_rigid_joint_apply(EntityIndex joint_entity, Report *report) {
     Joint joint = joints[joint_entity];
-
-    Entity a = joint.a;
-    Entity b = joint.b;
-    EntityIndex a_index;
-    EntityIndex b_index;
-
-    if(!entity_index_get(a, &a_index) || !entity_index_alive_check(a_index) || !entity_index_get(b, &b_index) || !entity_index_alive_check(b_index)) {
-        system_unavailable_joint_skip(joint_entity,
-            (!entity_index_get(a, &a_index) || !entity_index_alive_check(a_index)) ? a : b,
-            ERROR_ENGINE_INVALID_ENTITY, report);
+    EntityIndex bodies[2];
+    if(!entity_index_get(joint.a, &bodies[0]) || !entity_index_alive_check(bodies[0]) ||
+            !entity_index_get(joint.b, &bodies[1]) || !entity_index_alive_check(bodies[1])) {
+        system_unavailable_joint_skip(joint_entity, joint.b, ERROR_ENGINE_INVALID_ENTITY, report);
         return;
     }
-
-    if(a_index == b_index) return;
-    Vec2D offset_a;
-    Vec2D offset_b;
-    Position world_anchor_a;
-    Position world_anchor_b;
-
-    {
-        JointAnchorPositionResult anchor_a = physics_joint_anchor_world_position_get(joint.anchor_a);
-        JointAnchorPositionResult anchor_b = physics_joint_anchor_world_position_get(joint.anchor_b);
-        if(anchor_a.kind == ERROR_RESULT_ERROR || anchor_b.kind == ERROR_RESULT_ERROR) {
-            system_unavailable_joint_skip(joint_entity,
-                anchor_a.kind == ERROR_RESULT_ERROR ? a : b,
-                anchor_a.kind == ERROR_RESULT_ERROR ? anchor_a.result.error : anchor_b.result.error,
-                report);
-            return;
+    if(bodies[0] == bodies[1]) return;
+    double weights[6] = {0};
+    for(unsigned side = 0; side < 2; ++side) {
+        EntityIndex body = bodies[side];
+        if(!physics_entity_simulated_get(body)) continue;
+        weights[3 * side] = weights[3 * side + 1] = 1.0 / mass[body];
+        weights[3 * side + 2] = physics_inverse_inertia_by_index_get(body);
+    }
+    unsigned count = joint.type == JOINT_WELD && weights[2] + weights[5] > 0 ? 3 : 2;
+    for(unsigned phase = 0; phase < 2; ++phase) {
+        JointAnchorPositionResult anchors[] = {
+            physics_joint_anchor_world_position_get(joint.anchor_a),
+            physics_joint_anchor_world_position_get(joint.anchor_b)
+        };
+        for(unsigned side = 0; side < 2; ++side)
+            if(error_check(anchors[side])) {
+                system_unavailable_joint_skip(joint_entity, side ? joint.b : joint.a,
+                    anchors[side].result.error, report);
+                return;
+            }
+        Vec2D r[2];
+        for(unsigned side = 0; side < 2; ++side)
+            r[side] = math_vector_subtract(anchors[side].result.value,
+                physics_com_world_by_index_get(bodies[side]));
+        double jacobian[3][6] = {
+            {-1, 0, -r[0].y, 1, 0, r[1].y},
+            {0, -1, r[0].x, 0, 1, -r[1].x},
+            {0, 0, -1, 0, 0, 1}
+        };
+        double rhs[3] = {
+            (double)anchors[1].result.value.x - anchors[0].result.value.x,
+            (double)anchors[1].result.value.y - anchors[0].result.value.y,
+            remainder((double)orientations[bodies[1]] - orientations[bodies[0]] - joint.rest_angle, 360) *
+                (3.14159265358979323846 / 180)
+        };
+        if(phase) {
+            double velocity[6] = {0};
+            for(unsigned side = 0; side < 2; ++side) {
+                EntityIndex body = bodies[side];
+                if(!physics_entity_movable_get(body)) continue;
+                velocity[3 * side] = velocities[body].x;
+                velocity[3 * side + 1] = velocities[body].y;
+                velocity[3 * side + 2] = physics_entity_nonrotating_check(body) ? 0 :
+                    angular_velocities[body] * (3.14159265358979323846 / 180);
+            }
+            for(unsigned row = 0; row < count; ++row) {
+                rhs[row] = 0;
+                for(unsigned k = 0; k < 6; ++k) rhs[row] += jacobian[row][k] * velocity[k];
+            }
+            /* Retain the operation's float-state overflow/retry contract even
+             * though the effective-mass calculation uses double precision. */
+            for(unsigned row = 0; row < count; ++row)if(!isfinite(rhs[row])||fabs(rhs[row])>FLT_MAX) {
+                physics_operation_reject(report,ROHR_PHYSICS_JOINT_VELOCITY,
+                    ERROR_ENGINE_STATE_INVALID,physics_operation_entity_get(joint_entity),joint.b);
+                return;
+            }
         }
-        world_anchor_a = anchor_a.result.value;
-        world_anchor_b = anchor_b.result.value;
-        offset_a = math_vector_subtract(world_anchor_a, positions[a_index]);
-        offset_b = math_vector_subtract(world_anchor_b, positions[b_index]);
-    }
-
-    offset_a = math_vector_subtract(world_anchor_a, physics_com_world_by_index_get(a_index));
-    offset_b = math_vector_subtract(world_anchor_b, physics_com_world_by_index_get(b_index));
-    Vec2D error = {
-        .x = world_anchor_b.x - world_anchor_a.x,
-        .y = world_anchor_b.y - world_anchor_a.y
-    };
-
-    Velocity velocity_a = system_point_velocity(a, offset_a);
-    Velocity velocity_b = system_point_velocity(b, offset_b);
-
-    Vec2D relative_velocity = {
-        .x = velocity_b.x - velocity_a.x,
-        .y = velocity_b.y - velocity_a.y
-    };
-
-    system_rigid_anchor_axis_solve(a_index, b_index, offset_a, offset_b,
-        error, relative_velocity, (Vec2D){1.0f, 0.0f}, report, physics_operation_entity_get(joint_entity));
-    system_rigid_anchor_axis_solve(a_index, b_index, offset_a, offset_b,
-        error, relative_velocity, (Vec2D){0.0f, 1.0f}, report, physics_operation_entity_get(joint_entity));
-}
-
-static void system_weld_joint_apply(Entity joint_entity, Report *report) {
-    Joint joint = joints[joint_entity];
-    EntityIndex a_index;
-    EntityIndex b_index;
-    float inverse_inertia_a = 0.0f;
-    float inverse_inertia_b = 0.0f;
-    float inverse_inertia_sum;
-    float angle_error;
-    float angular_velocity_error;
-
-    system_pin_joint_apply(joint_entity, report);
-    if(report != NULL && report->has_fatal) return;
-    if(!entity_index_get(joint.a, &a_index) || !entity_index_alive_check(a_index) ||
-            !entity_index_get(joint.b, &b_index) || !entity_index_alive_check(b_index)) return;
-    if(a_index == b_index) return;
-    if(error_check(physics_joint_anchor_world_position_get(joint.anchor_a)) ||
-            error_check(physics_joint_anchor_world_position_get(joint.anchor_b))) return;
-    inverse_inertia_a = physics_inverse_inertia_by_index_get(a_index);
-    inverse_inertia_b = physics_inverse_inertia_by_index_get(b_index);
-    inverse_inertia_sum = inverse_inertia_a + inverse_inertia_b;
-    if(inverse_inertia_sum <= 0.0f) return;
-    angle_error = (orientations[b_index] - orientations[a_index]) - joint.rest_angle;
-    angular_velocity_error = angular_velocities[b_index] - angular_velocities[a_index];
-    {
-        PhysicsChange changes[] = {
-            physics_change_get(a_index, PHYSICS_CHANGE_ORIENTATION),
-            physics_change_get(b_index, PHYSICS_CHANGE_ORIENTATION)
-        };
-        physics_change_orientation_set(&changes[0], changes[0].orientation + angle_error * inverse_inertia_a / inverse_inertia_sum);
-        physics_change_orientation_set(&changes[1], changes[1].orientation - angle_error * inverse_inertia_b / inverse_inertia_sum);
-        (void)physics_changes_commit(changes, 2, report, ROHR_PHYSICS_JOINT_POSITION,
-                physics_operation_entity_get(joint_entity), joint.b);
-    }
-    {
-        PhysicsChange changes[] = {
-            physics_change_get(a_index, PHYSICS_CHANGE_ANGULAR_VELOCITY),
-            physics_change_get(b_index, PHYSICS_CHANGE_ANGULAR_VELOCITY)
-        };
-        changes[0].angular_velocity += angular_velocity_error * inverse_inertia_a / inverse_inertia_sum;
-        changes[1].angular_velocity -= angular_velocity_error * inverse_inertia_b / inverse_inertia_sum;
-        (void)physics_changes_commit(changes, 2, report, ROHR_PHYSICS_JOINT_VELOCITY,
+        double matrix[3][3] = {{0}};
+        for(unsigned row = 0; row < count; ++row)
+            for(unsigned col = 0; col < count; ++col)
+                for(unsigned k = 0; k < 6; ++k)
+                    matrix[row][col] += jacobian[row][k] * weights[k] * jacobian[col][k];
+        if(!joint_matrix_solve(matrix, rhs, count)) return;
+        PhysicsChange changes[2];
+        for(unsigned side = 0; side < 2; ++side) {
+            changes[side] = physics_change_get(bodies[side], phase ?
+                PHYSICS_CHANGE_VELOCITY | PHYSICS_CHANGE_ANGULAR_VELOCITY :
+                PHYSICS_CHANGE_POSITION | PHYSICS_CHANGE_ORIENTATION);
+            double delta[3] = {0};
+            for(unsigned axis = 0; axis < 3; ++axis)
+                for(unsigned row = 0; row < count; ++row)
+                    delta[axis] -= weights[3 * side + axis] * jacobian[row][3 * side + axis] * rhs[row];
+            if(phase) {
+                changes[side].velocity.x += delta[0]; changes[side].velocity.y += delta[1];
+                changes[side].angular_velocity += delta[2] * (180 / 3.14159265358979323846);
+            } else {
+                physics_change_orientation_set(&changes[side], changes[side].orientation +
+                    delta[2] * (180 / 3.14159265358979323846));
+                changes[side].position.x += delta[0]; changes[side].position.y += delta[1];
+            }
+        }
+        (void)physics_changes_commit(changes, 2, report,
+                phase ? ROHR_PHYSICS_JOINT_VELOCITY : ROHR_PHYSICS_JOINT_POSITION,
                 physics_operation_entity_get(joint_entity), joint.b);
     }
 }
@@ -351,9 +318,9 @@ static void physics_step_joint_constraints_apply(Report *report) {
         if(!entity_index_alive_check(joint_entity) ||
                 !entity_index_components_check(joint_entity, ROHR_JOINT)) continue;
         if(joints[joint_entity].type == JOINT_PIN) {
-            system_pin_joint_apply(joint_entity, report);
+            system_rigid_joint_apply(joint_entity, report);
         } else if(joints[joint_entity].type == JOINT_WELD) {
-            system_weld_joint_apply(joint_entity, report);
+            system_rigid_joint_apply(joint_entity, report);
         }
     }
 }

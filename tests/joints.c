@@ -279,6 +279,81 @@ static void placement_tests(void) {
     OK(rohr_entity_delete(root));
 }
 
+/* The constrained integration path must use geometry and masses, including
+ * displaced centers of mass; it is not tied to the milestone fixtures. */
+static Velocity motion_velocity_get(Entity entity) {
+    return velocities[rohr_entity_index_get(entity).result.value];
+}
+static void independent_motion_tests(void) {
+    const JointType types[]={JOINT_PIN,JOINT_WELD,JOINT_SPRING};
+    for(unsigned kind=0;kind<3;++kind) {
+        Entity a=named_entity("motion_a"),b=named_entity("motion_b");
+        Entity bodies[]={a,b};
+        for(unsigned i=0;i<2;++i) {
+            OK(rohr_physics_hitbox_set(bodies[i],rohr_math_square_create(4,6)));
+            OK(rohr_physics_mass_set(bodies[i],i?3:1));
+            OK(rohr_physics_dynamic_set(bodies[i]));
+            OK(rohr_physics_collision_response_none_set(bodies[i]));
+            OK(rohr_physics_center_of_mass_local_position_set(bodies[i],(Position){.5f,1}));
+            OK(rohr_physics_orientation_set(bodies[i],35));
+            OK(rohr_physics_velocity_set(bodies[i],(Velocity){0}));
+            OK(rohr_physics_angular_velocity_set(bodies[i],0));
+        }
+        if(kind==0)OK(rohr_physics_static_set(a));
+        Vec2D ra=rohr_math_vector_rotate((Vec2D){2.5f,-1},35);
+        Vec2D rb=rohr_math_vector_rotate((Vec2D){-3.5f,-1},35);
+        Vec2D origin=rohr_math_vector_rotate((Vec2D){.5f,1},35);
+        Position ca={30-ra.x,50-ra.y},cb={30-rb.x,50-rb.y};
+        if(kind==2) {ca=(Position){20,50};cb=(Position){40,50};}
+        OK(rohr_physics_position_set(a,(Position){ca.x-origin.x,ca.y-origin.y}));
+        OK(rohr_physics_position_set(b,(Position){cb.x-origin.x,cb.y-origin.y}));
+        JointAnchorIdResult aa=rohr_physics_joint_anchor_add((JointAnchorDescription){.entity=a,.local_offset=kind==2?(Vec2D){.5f,1}:(Vec2D){3,0}});OK(aa);
+        JointAnchorIdResult bb=rohr_physics_joint_anchor_add((JointAnchorDescription){.entity=b,.local_offset=kind==2?(Vec2D){.5f,1}:(Vec2D){-3,0}});OK(bb);
+        EntityResult joint=rohr_physics_joint_add((JointDescription){.type=types[kind],.anchor_a=aa.result.value,.anchor_b=bb.result.value,
+            .stiffness=20,.damping=0,.rest_length=20,.rest_length_explicit=true,.rest_angle_explicit=true});OK(joint);
+        double omega=20,cx=(ca.x+3*cb.x)/4,cy=(ca.y+3*cb.y)/4;
+        if(kind==0) {cx=30;cy=50;}
+        for(unsigned i=kind==0?1:0;i<2;++i) {
+            Position center=i?cb:ca;
+            OK(rohr_physics_velocity_set(bodies[i],kind==2?(Velocity){i?-1:3,0}:(Velocity){omega*(center.y-cy),-omega*(center.x-cx)}));
+            OK(rohr_physics_angular_velocity_set(bodies[i],kind==2?0:omega*180/3.14159265358979323846));
+        }
+        OK(rohr_physics_substeps_set(1));OK(rohr_physics_solver_iterations_set(8));
+        Velocity before_a=motion_velocity_get(a),before_b=motion_velocity_get(b);
+        Report integration=rohr_physics_pipeline_integrate(.01);
+        assert(!integration.has_fatal&&integration.diagnostic_count==0);
+        assert(motion_velocity_get(a).x==before_a.x&&motion_velocity_get(a).y==before_a.y);
+        assert(motion_velocity_get(b).x==before_b.x&&motion_velocity_get(b).y==before_b.y);
+        for(unsigned i=0;i<2;++i) {
+            Position center=i?cb:ca;
+            OK(rohr_physics_orientation_set(bodies[i],35));
+            OK(rohr_physics_position_set(bodies[i],(Position){center.x-origin.x,center.y-origin.y}));
+        }
+        double initial_speed=hypot(motion_velocity_get(b).x,motion_velocity_get(b).y);
+        for(unsigned step=0;step<240;++step) {
+            Report report=rohr_system_physics_update(1.0/120);
+            assert(!report.has_fatal&&report.diagnostic_count==0);
+            if(kind!=2) {
+                Position pa=rohr_physics_joint_anchor_world_position_get(aa.result.value).result.value;
+                Position pb=rohr_physics_joint_anchor_world_position_get(bb.result.value).result.value;
+                assert(hypot(pa.x-pb.x,pa.y-pb.y)<.001);
+                assert(fabs(rohr_physics_angular_velocity_get(b).result.value-omega*180/3.14159265358979323846)<.1);
+                Velocity v=motion_velocity_get(b);
+                assert(fabs(hypot(v.x,v.y)-initial_speed)<.02);
+            } else {
+                Position pa=rohr_physics_center_of_mass_world_position_get(a).result.value;
+                Position pb=rohr_physics_center_of_mass_world_position_get(b).result.value;
+                double w=sqrt(20*(1+1.0/3)),expected=20-4*sin(w*(step+1)/120)/w;
+                assert(fabs((pb.x-pa.x)-expected)<.01);
+                Velocity va=motion_velocity_get(a),vb=motion_velocity_get(b);
+                assert(fabs(va.x+3*vb.x)<.001);
+            }
+        }
+        if(kind!=2)assert(orientations[rohr_entity_index_get(b).result.value]>35+1000);
+        OK(rohr_entity_delete(joint.result.value));OK(rohr_entity_delete(a));OK(rohr_entity_delete(b));
+    }
+}
+
 int main(void) {
     EntityResult body_a;
     EntityResult body_b;
@@ -290,6 +365,7 @@ int main(void) {
     EntityIndexResult index_b;
 
     if(rohr_error_check(rohr_engine_start())) return 1;
+    independent_motion_tests();
     description_tests();
     incomplete_tests();
     placement_tests();

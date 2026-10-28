@@ -183,8 +183,10 @@ and joint convergence without increasing temporal sampling.
 Full updates consume all requested time. Moving rigid collider pairs use swept
 translational projections to shorten steps near impact and bound closing travel
 along the contact normal while touching. Tangential sliding and separation do
-not trigger thickness-sized steps. Collision steps are at most 1/60 second; isolated motion keeps
-the configured subdivision. Reports count actual subdivisions. The explicit
+not trigger thickness-sized steps. Collision steps are at most 1/60 second.
+Active joints additionally bound steps to 1/120 second, ten degrees at the current
+angular speed, and one tenth of the spring's inverse natural frequency. These bounds
+consume all elapsed time without limiting speed. Reports count actual subdivisions. The explicit
 `physics_pipeline_substep(dt)` entry point still executes exactly one caller-sized
 step, for manual pipeline composition.
 
@@ -445,7 +447,30 @@ surface manifold for solving.
 ## Joints and soft bodies
 
 Joint anchors store local offsets on one entity or world positions. Springs
-apply forces; pin and weld joints are iterative constraints. In editor
+apply forces; pin and weld joints use coupled anchor constraints (including the
+angular row for welds). Complete physics substeps also integrate independent
+joint pairs in constrained coordinates: a pin with an immovable support uses
+angular momentum about its anchor, a free welded pair uses composite mass and
+inertia, and a free center-attached spring pair uses implicit midpoint forces.
+These paths require ordinary rigid bodies with one joint per endpoint and no
+motion locks or angular speed limits. Connected networks, noncentral springs,
+and unsupported configurations retain ordinary integration and iterative solving.
+Contacts still run through the shared contact pipeline. No artificial damping,
+sleeping, or settling rule is added. Standalone `physics_pipeline_integrate`
+retains its prepared-load semantics and does not perform these joint operations.
+
+Rotation calculations reduce complete turns before converting to radians while
+preserving stored, unbounded degree values. Restitution applies at low speeds
+without a one-unit/second cutoff; iterative manifold points capture their
+initial rebound targets before any point applies an impulse.
+
+The three `pin_stability`, `weld_stability`, and `spring_stability` tests cover
+isolated high-energy motion and floor impacts, with joint error, independent
+energy/momentum, collision, and elapsed-time checks. The spring test also checks
+an independent numerical reference and an analytic axial oscillator. Executables
+and local preview evidence are under `sandbox/milestone_6/goal_4/`.
+
+In editor
 constraint placement, argument order determines the moved side where a
 constraint must align two anchors.
 
