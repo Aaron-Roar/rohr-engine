@@ -13,7 +13,7 @@ priority order.
 | 2 | Asset and resource ownership | Complete |
 | 3 | COM, inertia, and origin semantics | Complete |
 | 4 | Cross-path feature parity | Complete by user acceptance; recorded verification exceptions remain |
-| 6 | Physics robustness | In progress; goals 1–2 complete, goals 3–5 pending |
+| 6 | Physics robustness | In progress; goals 1–3 complete, goals 4–5 pending |
 | — | [C game experiment](#c-game-experiment) | Pending; agree concept and completion criteria when starting |
 | 8 | Runtime isolation (global-state assumptions) | Foundations implemented; two independent worlds pending |
 | 5 | Adversarial testing and hardening | Substantial coverage implemented; follows runtime isolation |
@@ -21,10 +21,10 @@ priority order.
 | 7 | Editor implementation scalability | Deferred until after Python unless game development makes it necessary sooner |
 | 10 | End-to-end game | Pending; separate larger game directed by the user |
 
-**Next goal:** milestone 6 goal 3, **Persistent stack stability**, only when
-explicitly instructed. Freeze its strike and observation interval before
-implementation, and agree settling limits through visual review before completion.
-Goals 1–2 are complete. No later goal has started.
+**Next goal:** milestone 6 goal 4, **Joint stability**, only when explicitly
+instructed. Freeze its fixtures, impulse, reference lengths, run lengths, and
+measurement tolerances before implementation. Goals 1–3 are complete. No later
+goal has started.
 
 Regression checks and relevant sanitizer checks remain mandatory throughout
 physics, the C game experiment, and runtime isolation. Deferring the broader
@@ -519,10 +519,11 @@ measurement tolerances before implementing the relevant goal.
 **Settling criteria:** Goal 1's centered stack has user-approved limits: settle
 within 2 simulated seconds after impact, then stay supported for 10 seconds with
 each body's linear speed at most 0.0001 units/s and angular speed at most 0.0001
-degrees/s. Offset cases may move naturally. Settling limits for Goals 3 and 5
-still require their own visual review before completion. No automatic freezing
-is agreed; settling criteria do not relax collision requirements during motion
-or require undamped pendulums to stop.
+degrees/s. Offset cases may move naturally. Goal 3's user-approved limits are
+recorded with its fixture below. Goal 5 still requires its own visual review
+and agreed settling limits before completion. No automatic freezing is agreed;
+settling criteria do not relax collision requirements during motion or require
+undamped pendulums to stop.
 
 1. [x] **Extreme mass/size drop.** Place a 0.01 × 0.01, mass 0.0001 rigid body on
    a 0.01 × 0.1 static floor whose stored mass is 0.0001. Drop a 100 × 100,
@@ -598,12 +599,40 @@ or require undamped pendulums to stop.
    performed. The accepted Goal 1 window-switch review remains the interactive
    baseline; no rendering or event-loop behavior changed. Local evidence:
    `sandbox/milestone_6/goal_2/verification.txt`.
-3. [ ] **Persistent stack stability.** Stack twenty 10 × 10, mass-1 boxes on a
+3. [x] **Persistent stack stability.** Stack twenty 10 × 10, mass-1 boxes on a
    static floor, simulate for 60 seconds, then strike the stack sideways with
    another box. Require no progressive sinking, growing jitter, or explosive
    numerical collapse; natural toppling is valid. Freeze the strike and
    post-strike observation interval, and agree settling limits after visual
    review before completing the goal.
+   Frozen fixture: floor 1,000 × 10 centered at (0, -5), stored mass 1;
+   twenty initially unrotated boxes centered at (0, 5 + 10i), i=0..19.
+   Gravity is (0, -9.8), friction 0.8, restitution 0, with unrestricted dynamic
+   motion. At exactly 60 seconds create a 10 × 10, mass-1 striker at (-30, 105)
+   with velocity (50, 0) and the same gravity/materials. Observe until 90 seconds.
+   Use 30/60/120 Hz and a 60 Hz schedule with a 100 ms update at 59.8 seconds
+   and a 1 s update at 60.2 seconds; split at the exact striker creation time.
+   Measure every completed substep, including independent rotated-rectangle
+   penetration (limit 0.1 units), fixed floor, finite state, consumed time,
+   energy, pre-strike drift, and residual linear/angular speeds. The user
+   accepted the motion and window-switch preview and these settling limits:
+   from 2 seconds until the strike, each body's linear speed must stay at most
+   0.0001 units/s and angular speed at most 0.0001 degrees/s, with at most
+   0.0001 units of further displacement from its settled position. After natural
+   toppling, every body's linear speed must stay at most 0.05 units/s and angular
+   speed at most 0.5 degrees/s throughout seconds 85–90. Small residual motion
+   is accepted; the 0.1-unit penetration limit applies throughout. Executables
+   and evidence belong under `sandbox/milestone_6/goal_3/`.
+   Complete: all four 90-second schedules pass collision, finite-state, energy,
+   time-consumption, drift, and accepted settling assertions. Maximum measured
+   penetration is 0.001425 units; worst 60 Hz Release p95 is 0.652 ms and the
+   longest delayed update is 40.631 ms on the AC-powered reference laptop.
+   The bounded contact solver now supports larger coupled sets, independent
+   sticking/sliding friction, and pose-checked geometry reuse within a solve.
+   Twenty-one focused regressions and eleven sanitizer tests pass, with the
+   final settling assertions also rerun under sanitizers. Goals 1–2 performance
+   regressions, independent installed-SDK examples, normal/delayed player-floor
+   probes, and Windows cross-builds pass. Native Windows execution was not run.
 4. [ ] **Joint stability.** Exercise a pinned pendulum, welded pair, and
    spring-supported weight under gravity and a defined impulse. Pin/weld errors
    must meet the shared tolerances; spring motion must match its configured

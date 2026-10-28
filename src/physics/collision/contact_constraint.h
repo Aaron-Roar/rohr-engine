@@ -66,6 +66,11 @@ typedef struct SystemContactConstraint {
              * indexed alongside the corresponding manifold contact points. */
             float rebound_speeds[CONTACT_MANIFOLD_MAX][PHYSICS_CONTACT_POINT_MAX];
             uint8_t manifold_contact_count;
+            /* Geometry-only cache, reset for each solver invocation. */
+            ContactManifoldSet block_geometry;
+            Position block_positions[2];
+            Orientation block_orientations[2];
+            bool block_geometry_valid;
         } rigid;
         SystemSoftBoundaryQuery soft;
     } value;
@@ -77,6 +82,10 @@ typedef struct ContactConstraintList {
     size_t capacity;
     /* Refresh only a rigid contact pass explicitly gathered by the caller. */
     bool rigid_gathered;
+    /* Invalidated by geometry changes during the constraint iterations. */
+    bool rigid_dirty;
+    /* Set only by a solver that can prove further passes make no change. */
+    bool solver_converged;
 } ContactConstraintList;
 
 EngineResult contact_constraint_list_init(

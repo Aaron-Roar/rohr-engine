@@ -1255,6 +1255,18 @@ if(ROHR_BUILD_TESTS)
     set_tests_properties(thin_barriers PROPERTIES
         ENVIRONMENT "SDL_VIDEODRIVER=dummy;SDL_AUDIODRIVER=dummy" TIMEOUT 120)
 
+    add_executable(persistent_stack_test tests/persistent_stack.c)
+    target_include_directories(persistent_stack_test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
+    target_link_libraries(persistent_stack_test PRIVATE rohr_engine)
+    if(ROHR_ENABLE_SANITIZERS)
+        target_compile_options(persistent_stack_test PRIVATE ${ROHR_SANITIZER_COMPILE_OPTIONS})
+    endif()
+    set_target_properties(persistent_stack_test PROPERTIES RUNTIME_OUTPUT_DIRECTORY
+        ${CMAKE_SOURCE_DIR}/sandbox/milestone_6/goal_3/bin/${drop_test_platform})
+    add_test(NAME persistent_stack COMMAND persistent_stack_test)
+    set_tests_properties(persistent_stack PROPERTIES
+        ENVIRONMENT "SDL_VIDEODRIVER=dummy;SDL_AUDIODRIVER=dummy" TIMEOUT 300)
+
     add_executable(component_registry_test
         tests/component_registry.c
     )
@@ -1371,6 +1383,7 @@ if(ROHR_BUILD_TESTS)
     add_custom_target(rohr_tests)
     add_dependencies(rohr_tests extreme_mass_drop_test)
     add_dependencies(rohr_tests thin_barriers_test)
+    add_dependencies(rohr_tests persistent_stack_test)
     add_dependencies(
         rohr_tests
         entity_info_test

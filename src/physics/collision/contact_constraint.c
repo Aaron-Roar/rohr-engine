@@ -47,6 +47,8 @@ void contact_constraint_list_clear(ContactConstraintList *list) {
     if(list != NULL) {
         list->count = 0;
         list->rigid_gathered = false;
+        list->rigid_dirty = false;
+        list->solver_converged = false;
     }
 }
 

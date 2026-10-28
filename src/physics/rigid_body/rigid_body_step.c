@@ -1284,6 +1284,7 @@ void physics_rigid_constraints_gather(Report *report) {
         (uint64_t)physics_broadphase_tree.nodes[physics_broadphase_tree.root].height);
     if(report->has_fatal) return;
     system_broadphase_collisions_apply(report);
+    physics_step_contact_constraints.rigid_dirty = false;
 }
 
 void physics_rigid_contact_constraint_solve(

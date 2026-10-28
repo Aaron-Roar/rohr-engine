@@ -66,7 +66,7 @@ void physics_rigid_gravity_apply(Acceleration gravity, Report *report);
 void physics_rigid_constraints_gather(Report *report);
 float physics_rigid_contact_slop_get(EntityIndex first, EntityIndex second, Vec2D normal);
 bool physics_rigid_contact_block_solve_check(ContactConstraintList *list,
-    Report *report);
+    float position_fraction, Report *report, bool *converged);
 Vec2D system_friction_impulse_apply(Entity first, Entity second, OverlapInfo overlap,
     Vec2D first_offset, Vec2D second_offset, float normal_impulse,
     float inverse_mass_first, float inverse_mass_second,

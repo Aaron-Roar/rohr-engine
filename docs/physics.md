@@ -189,14 +189,29 @@ the configured subdivision. Reports count actual subdivisions. The explicit
 step, for manual pipeline composition.
 
 Rigid penetration slop is the smaller of 0.01 units and 0.0001 times the smaller
-collider thickness along the contact normal. Small reciprocal polygon contact
-sets (up to eight pairs and sixteen normal/friction rows) use a mass-weighted QR
-solve for simultaneous support with Coulomb-limited static friction. Sliding
-friction uses each solve's new normal impulse, preserving earlier coupled
-impulses. Geometric penetration correction uses equal translational weights and
-shape-dependent rotational weights, independent of stored mass. It uses signed
-depths at individual contact points and repairs the connected set on each pass;
-later passes gather contacts created by those corrections. This avoids moving a
+collider thickness along the contact normal. Reciprocal polygon contact
+collections of up to 32 pairs can use simultaneous support solves, with at most
+32 bodies and 96 normal/friction rows per block. Contacts sharing a movable body
+are grouped together; sharing only a static floor does not couple independent
+groups. Small or extreme-weight sets use extended-precision, mass-weighted QR.
+Larger sets with moderate weights use sparse double-precision Cholesky, with QR
+fallback when necessary. Active constraints reuse their factorization, and
+repeated active sets terminate the attempt instead of cycling.
+
+Sticking friction is decided independently at each contact within its Coulomb
+bound. Contacts with tangential slip use bounded sliding friction and may stick
+once the slip stops. Sliding friction uses each solve's new normal impulse,
+preserving earlier coupled impulses. Geometric penetration correction uses equal
+translational weights and shape-dependent rotational weights, independent of
+stored mass. It uses signed depths at individual contact points and repairs the
+connected set on each pass;
+later passes gather contacts created by those corrections. Position and velocity
+convergence are checked separately, with positional roundoff tolerance capped by
+the contact slop. Geometry is reused while both poses remain unchanged, and the
+cache is reset for each solver invocation. Public edits between manual solves
+therefore invalidate it, including shape edits that preserve the pose. A
+contact-only solve can finish early after a preceding pass has applied transform
+locks; joint systems retain their configured iterations. This avoids moving a
 light support many body widths to repair a small overlap under a heavy load.
 Stored masses, impulse response, body modes, and freedom to move are unchanged. Larger,
 degenerate, directional, particle, and soft-boundary sets retain the iterative
@@ -212,6 +227,15 @@ units/s. The particle uses its 32-vertex collision polygon against the flat wall
 Run `sandbox/milestone_6/goal_2/bin/linux/thin_barriers_test`; `--performance`
 also enforces the Release CPU limits on the reference laptop on AC. Every
 completed substep is checked, including updates delayed by 100 ms and 1 s.
+
+The twenty-box stack fixture runs for 60 seconds before a sideways strike, then
+observes natural toppling through 90 seconds. Run
+`sandbox/milestone_6/goal_3/bin/linux/persistent_stack_test`; `--performance`
+also checks the same Release CPU limits. Every completed substep checks collision
+depth, finite state, the fixed floor, energy, and elapsed time. Settling checks
+enforce the user-approved pre-strike drift/speed limits and residual speeds during
+seconds 85–90, as recorded in the roadmap. The solver does not freeze bodies to
+meet those limits.
 
 ## Center of mass and inertia
 

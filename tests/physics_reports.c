@@ -245,6 +245,39 @@ static void contact_metrics(void) {
     rohr_engine_stop();
 }
 
+static void contact_cache_invalidation(void) {
+    OK(rohr_engine_start());
+    Entity first = body(0, true), moving = body(1.5f, true), second = body(10, true);
+    OK(rohr_physics_static_set(first));
+    OK(rohr_physics_static_set(second));
+    physics_pipeline_substep_begin();
+    Report report = rohr_physics_pipeline_contacts_gather();
+    assert(!report.has_fatal);
+    report = rohr_physics_pipeline_constraints_solve(8);
+    assert(!report.has_fatal && position(moving).x > 1.999f);
+
+    /* Repeated manual solves must discover a newly touching neighbor after a
+     * public transform edit, even without another explicit gather call. */
+    OK(rohr_physics_position_set(moving, (Position){9.25f, 0}));
+    report = rohr_physics_pipeline_constraints_solve(8);
+    assert(!report.has_fatal && position(moving).x < 8.001f);
+
+    /* Shape edits can change contact geometry without changing the pose. */
+    OK(rohr_physics_hitbox_set(moving, rohr_math_square_create(4, 2)));
+    report = rohr_physics_pipeline_constraints_solve(8);
+    assert(!report.has_fatal && position(moving).x < 7.001f);
+    assert(position(first).x == 0 && position(second).x == 10);
+
+    EntityIndexResult index = rohr_entity_index_get(moving); OK(index);
+    OK(rohr_physics_velocity_set(moving, (Velocity){1, 0}));
+    report = rohr_physics_pipeline_constraints_solve(8);
+    assert(!report.has_fatal && fabsf(velocities[index.result.value].x) < .0001f);
+    OK(rohr_physics_velocity_set(moving, (Velocity){-3, 0}));
+    report = rohr_physics_pipeline_constraints_solve(8);
+    assert(!report.has_fatal && velocities[index.result.value].x == -3);
+    rohr_engine_stop();
+}
+
 #ifdef ROHR_TEST_ALLOCATION_WRAP
 static void aborted_update_state(bool batched) {
     OK(rohr_engine_start());
@@ -388,6 +421,7 @@ int main(void) {
     delayed_frame_soft_body();
     warning_and_fatal();
     contact_metrics();
+    contact_cache_invalidation();
     diagnostic_overflow();
 #ifdef ROHR_TEST_ALLOCATION_WRAP
     aborted_update_state(false);

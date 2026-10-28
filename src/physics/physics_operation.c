@@ -68,6 +68,9 @@ bool physics_changes_commit(PhysicsChange *changes, size_t count, Report *report
         const PhysicsChange *c = &changes[n];
         EntityIndex i = c->index;
         unsigned f = c->fields;
+        bool geometry_changed = ((f & PHYSICS_CHANGE_POSITION) &&
+            (positions[i].x != c->position.x || positions[i].y != c->position.y)) ||
+            ((f & PHYSICS_CHANGE_ORIENTATION) && orientations[i] != c->orientation);
         if(f & PHYSICS_CHANGE_POSITION) positions[i] = c->position;
         if(f & PHYSICS_CHANGE_ORIENTATION) orientations[i] = c->orientation;
         if(f & PHYSICS_CHANGE_VELOCITY) velocities[i] = c->velocity;
@@ -76,7 +79,7 @@ bool physics_changes_commit(PhysicsChange *changes, size_t count, Report *report
         if(f & PHYSICS_CHANGE_ANGULAR_ACCELERATION) angular_accelerations[i] = c->angular_acceleration;
         if(f & PHYSICS_CHANGE_FORCE_ACCELERATION) force_accelerations[i] = c->force_acceleration;
         if(f & PHYSICS_CHANGE_TORQUE_ACCELERATION) torque_angular_accelerations[i] = c->torque_acceleration;
-        if(f & (PHYSICS_CHANGE_POSITION | PHYSICS_CHANGE_ORIENTATION))
+        if(geometry_changed)
             physics_step_hitbox_dirty_add(i);
     }
     return true;

@@ -158,6 +158,7 @@ void physics_step_interaction_by_index_record(
 }
 
 void physics_step_hitbox_dirty_add(EntityIndex index) {
+    physics_step_contact_constraints.rigid_dirty = true;
     if(index >= MAX_ENTITIES || system_hitbox_dirty[index]) return;
     system_hitbox_dirty[index] = true;
     system_hitbox_dirty_entities[system_hitbox_dirty_count++] = index;
@@ -196,10 +197,15 @@ void physics_pipeline_contact_constraints_solve(
     float position_fraction,
     void *context
 ) {
-    if(constraints == &physics_step_contact_constraints && constraints->rigid_gathered)
+    if(constraints == &physics_step_contact_constraints && constraints->rigid_gathered && constraints->rigid_dirty)
         physics_rigid_constraints_gather(context);
     if(context != NULL && ((Report *)context)->has_fatal) return;
-    if(physics_rigid_contact_block_solve_check(constraints, context)) return;
+    bool converged = false;
+    if(physics_rigid_contact_block_solve_check(constraints, position_fraction, context, &converged)) {
+        constraints->solver_converged = converged && constraints == &physics_step_contact_constraints &&
+            physics_step_joint_constraints.count == 0;
+        return;
+    }
     for(size_t i = 0; i < constraints->count; i += 1) {
         if(context != NULL && ((Report *)context)->has_fatal) break;
         SystemContactConstraint *constraint = &constraints->values[i];
