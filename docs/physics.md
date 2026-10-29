@@ -475,6 +475,21 @@ constraint placement, argument order determines the moved side where a
 constraint must align two anchors.
 
 Soft bodies own particle nodes, beams, and optional visual node-loop areas.
+The current [Milestone 6 Goal 5 work](../NEXT_STEPS.md#6-physics-robustness)
+adds enabled beam-to-beam contacts, including same-owner contacts. Shared-endpoint
+beam pairs are excluded; other pairs obey directional collision filters and
+distribute response across both pairs of nodes. Node contacts retain ownership
+of matching endpoint regions. Beam collision remains disabled by default.
+
+Complete physics substeps use a second spring-force evaluation for elastic
+soft-body nodes, with stiffness and collision-motion limits on adaptive steps.
+Zero-stiffness nodes and standalone manual integration keep their existing
+prepared-force integration behavior. Contact-only convergence does not freeze
+bodies or damp residual motion. These changes do not alter public descriptions
+or persistence formats. Goal 5 currently **fails** its extreme-load penetration
+and CPU requirements; the roadmap records the measured failures. Its visual
+acceptance is also unfinished. These changes must not be treated as completion
+of the soft-body robustness milestone.
 Each beam has independent lifetime ownership and optional thick-segment collision,
 separate from visual areas. **New beams have collision off.** Thickness and filters
 are explicit; creation, endpoint edits, and node-radius changes never derive,

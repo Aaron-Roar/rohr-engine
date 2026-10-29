@@ -135,7 +135,9 @@ static void simulation_check(void) {
     double dy = pb.result.value.y - pa.result.value.y;
     near(orientations[index], 23 + atan2(-dy, dx) * 180 / 3.14159265358979323846, 1e-5);
     assert(hypot(dx, dy) > 20);
-    near(rate_get(body), rohr_math_radians_to_degrees(1.0f / 1.01f), 1e-3);
+    /* Central spring forces conserve angular momentum. The adaptive Verlet
+     * trajectory no longer has the old single Euler step's length of sqrt(404). */
+    near(rate_get(body), rohr_math_radians_to_degrees(400.0f / (dx*dx+dy*dy)), 1e-3);
     assert((rohr_physics_pipeline_update(.1)).header.status != ROHR_REPORT_FAILED);
     assert(velocity_get(a).x > 0 && velocity_get(b).x < 0);
     PositionResult next_a = rohr_physics_position_get(a), next_b = rohr_physics_position_get(b);

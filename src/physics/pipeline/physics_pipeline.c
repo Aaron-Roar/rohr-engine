@@ -34,8 +34,10 @@ static Report physics_pipeline_substep_internal(double *duration, bool adaptive)
     /* Only complete substeps have prepared spring loads. Standalone integration
      * must not invent forces or constraint work for a manually composed pass. */
     physics_joint_motion_enabled_set(true);
+    physics_soft_motion_enabled_set(true);
     child = adaptive ? physics_pipeline_integrate_adaptive(duration) : physics_pipeline_integrate(dt);
     physics_joint_motion_enabled_set(false);
+    physics_soft_motion_enabled_set(false);
     (void)report_merge(&report, &child);
     if(report.has_fatal) goto done;
     child = physics_pipeline_contacts_gather();

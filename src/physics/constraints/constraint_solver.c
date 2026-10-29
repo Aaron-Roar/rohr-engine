@@ -3,6 +3,8 @@
  */
 
 #include "constraint_solver.h"
+#include "physics/physics_operation.h"
+#include "physics/physics_step_internal.h"
 
 void constraint_solver_run(
     ContactConstraintList *contacts,
@@ -16,14 +18,20 @@ void constraint_solver_run(
 
     if(contacts == NULL || iterations == 0 || contacts_solve == NULL) return;
     contacts->rigid_dirty |= contacts->rigid_gathered;
+    bool soft_pass = false;
+    if(contacts == &physics_step_contact_constraints)
+        for(size_t i = 0; i < contacts->count; ++i)
+            soft_pass |= contacts->values[i].type != SYSTEM_CONTACT_CONSTRAINT_RIGID_PAIR;
     for(size_t i = 0; i < contacts->count; ++i)
         if(contacts->values[i].type == SYSTEM_CONTACT_CONSTRAINT_RIGID_PAIR)
             contacts->values[i].value.rigid.block_geometry_valid = false;
     for(uint32_t iteration = 0; iteration < iterations; iteration += 1) {
         contacts->solver_converged = false;
-        position_fraction = 1.0f / (float)(iterations - iteration);
+        position_fraction = soft_pass ? 1.0f : 1.0f / (float)(iterations - iteration);
+        if(soft_pass) physics_motion_tracking_begin();
         contacts_solve(contacts, position_fraction, context);
         if(joints_solve != NULL) joints_solve(context);
+        if(soft_pass) contacts->solver_converged = physics_motion_tracking_end_check();
         /* A preceding pass must have applied transform locks before contact
          * convergence can prove the contact-only system is unchanged. */
         if(iteration > 0 && contacts->solver_converged) break;

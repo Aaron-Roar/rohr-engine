@@ -384,6 +384,12 @@ static bool system_soft_boundary_pair_apply(Entity rigid_entity, SystemSoftBound
      * velocity throughout the solve, even if correction removes the overlap. */
     weight_a = 1.0f - query->t;
     weight_b = query->t;
+    /* Overlap repair is geometric. Physical inverse mass remains above for
+     * impulses; equal movable weights avoid repeatedly burying a light beam
+     * beneath a heavy load supported by another collider. */
+    inverse_mass_a = inverse_mass_a > 0.0f ? 1.0f : 0.0f;
+    inverse_mass_b = inverse_mass_b > 0.0f ? 1.0f : 0.0f;
+    inverse_mass_rigid = inverse_mass_rigid > 0.0f ? 1.0f : 0.0f;
     inverse_mass_sum = weight_a * weight_a * inverse_mass_a +
         weight_b * weight_b * inverse_mass_b + inverse_mass_rigid;
     PhysicsChange changes[] = {
@@ -466,6 +472,7 @@ void physics_soft_body_beams_apply(Report *report) {
 
 void physics_soft_body_constraints_gather(Report *report) {
     system_soft_body_boundary_collisions_apply(report);
+    if(!report->has_fatal) physics_beam_pairs_gather(report);
 }
 
 void physics_soft_body_constraint_solve(
@@ -473,7 +480,11 @@ void physics_soft_body_constraint_solve(
     float position_fraction, Report *report
 ) {
     if(constraint == NULL) return;
-    constraint->value.soft.position_fraction = position_fraction;
+    /* Soft endpoints can be shared by several contacts. Apply separation on
+     * every pass so later contacts do not leave most of their correction until
+     * the final pass, when earlier contacts can no longer respond. */
+    constraint->value.soft.position_fraction = 1.0f;
+    (void)position_fraction;
     (void)system_soft_boundary_pair_apply(
         constraint->value.soft.rigid_entity,
         &constraint->value.soft, report);

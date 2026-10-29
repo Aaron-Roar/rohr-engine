@@ -13,7 +13,7 @@ priority order.
 | 2 | Asset and resource ownership | Complete |
 | 3 | COM, inertia, and origin semantics | Complete |
 | 4 | Cross-path feature parity | Complete by user acceptance; recorded verification exceptions remain |
-| 6 | Physics robustness | Goals 1–4 complete; goal 5 pending |
+| 6 | Physics robustness | Goals 1–4 accepted; goal 5 failed verification |
 | — | [C game experiment](#c-game-experiment) | Pending; agree concept and completion criteria when starting |
 | 8 | Runtime isolation (global-state assumptions) | Foundations implemented; two independent worlds pending |
 | 5 | Adversarial testing and hardening | Substantial coverage implemented; follows runtime isolation |
@@ -23,8 +23,11 @@ priority order.
 
 **Completed goal:** milestone 6 goal 4, **Joint stability**, including the user's
 visual/window-switch acceptance. Its frozen fixtures and verification are
-recorded below. Goal 5, **Soft-body contact and stability**, has not started and
-awaits an explicit user instruction.
+recorded below. Goal 5, **Soft-body contact and stability**, was pursued and
+**failed verification**: extreme-load penetration and CPU limits remain unmet.
+The current branch also exceeds Goal 3's delayed-update CPU limit, while its
+numerical results remain unchanged. Stop here pending explicit user direction;
+the C game experiment has not started.
 
 Regression checks and relevant sanitizer checks remain mandatory throughout
 physics, the C game experiment, and runtime isolation. Deferring the broader
@@ -693,11 +696,54 @@ undamped pendulums to stop.
    pairs, precise reduction of accumulated turns, and consistent low-speed
    restitution targets. Public APIs and persistence are unchanged. See
    `sandbox/milestone_6/goal_4/verification.txt` and `preview_controls.txt` there.
-5. [ ] **Soft-body contact and stability.** Drop a beam-braced soft body onto a
+5. [ ] **Soft-body contact and stability — failed.** Drop a beam-braced soft body onto a
    floor and ramp, then apply rigid-body and particle loads. Deformation is valid;
    enabled collider contacts must meet the shared penetration/no-tunneling
    criteria. Agree damping and settling limits through visual review before
    completing the goal.
+
+   **Goal 5 fixture frozen for implementation:** eight mass-1, radius-5 nodes:
+   square corners `(±50, ±50)` and outward tips `(0, ±75)`, `(±75, 0)`.
+   Four square edges, two diagonals, eight tip edges; stiffness 100, damping 0,
+   geometric rest lengths. Only tip edges collide (thickness 2); nodes collide.
+   Full nonincident self-contact, including beam pairs, is required; own endpoints
+   and shared-endpoint beam pairs are excluded. Friction 0.5, restitution 0.
+   Gravity `(0,-9.8)`; 4,000 × 20 floor or 15-degree ramp; initial lowest
+   collider clearance 100. Each terrain runs 30 s with drop only, mass-80
+   120 × 20 rigid load released 20 above the current node bounds at 8 s,
+   radius-5 mass-1 particle at 10,000 units/s at 8 s (separate node and beam
+   midpoint targets), and combined rigid load at 8 s / beam impact at 12 s.
+   Targets are rightmost at launch, fixture-index tie break; particle starts
+   200 units right and moves left. User-approved delays start at 8.01 s
+   (100 ms) and 12.01 s (1 s), after exact load creation boundaries.
+   The 10-second folding run uses 4.01 s and 8.01 s for those two delays.
+   Gravity-free folding: opposite horizontal tips move inward
+   at 200 units/s, 10 s, actual nonadjacent self-contact required. Isolated
+   contact-free control: one tip displaced outward 5, 30 s, energy within 1%.
+   Penetration limit 0.02; loaded energy may exceed its accounted budget by
+   at most 1%. Zero-restitution separation tolerance 0.0001 units/s.
+   **User-approved damping/settling policy:** zero beam damping; bounded
+   oscillation accepted and settling observational. Final visual acceptance
+   remains pending. Executables and evidence belong in
+   `sandbox/milestone_6/goal_5/`.
+
+   **Verification outcome (2026-10-29): failed.** The 48-case AC-powered Release
+   run has 25 passes and 23 failures. Peak observed penetration is 0.138491031
+   units (limit 0.02), maximum 60 Hz p95 is 16.830 ms (limit 2), and the longest
+   delayed update is 5829.767 ms (limit 50). Failed cases may stop before their
+   full duration; these are not completed scenario passes. The isolated
+   undamped control passes its 1% energy criterion. Full surface beam-pair
+   response, spring integration, conservative motion bounds, and shared-node
+   correction improvements are implemented, but do not satisfy the goal.
+   All 22 affected regressions, 11 focused sanitizer tests, and sanitized
+   folding/control probes pass. Linux and sanitizer installed-SDK examples,
+   player-floor probes, Windows cross-builds, and Windows SDK consumers pass;
+   native Windows execution was not performed. No final compiler warnings.
+   Goals 1, 2, and 4 performance regressions pass. Goal 3 retains its numerical
+   results but its delayed update measures 69.505 ms, then 58.421 ms on repeat;
+   that timing failure remains unresolved. A dedicated Goal 5 visual preview
+   and visual acceptance remain unfinished. See local `verification.txt` and
+   `logs/performance_soft_body_stability_test.log` under the Goal 5 sandbox.
 
 Choose algorithms to satisfy measured failures in these scenarios. Adaptive
 substeps with reported counts, swept collisions through the shared pipeline,

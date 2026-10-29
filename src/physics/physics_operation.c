@@ -6,6 +6,16 @@
 #include "math2d.h"
 #include <math.h>
 
+static bool motion_tracking, motion_changed;
+void physics_motion_tracking_begin(void) {
+    motion_tracking = true;
+    motion_changed = false;
+}
+bool physics_motion_tracking_end_check(void) {
+    motion_tracking = false;
+    return !motion_changed;
+}
+
 bool physics_vector_finite_check(Vec2D value) {
     return isfinite(value.x) && isfinite(value.y);
 }
@@ -71,6 +81,11 @@ bool physics_changes_commit(PhysicsChange *changes, size_t count, Report *report
         bool geometry_changed = ((f & PHYSICS_CHANGE_POSITION) &&
             (positions[i].x != c->position.x || positions[i].y != c->position.y)) ||
             ((f & PHYSICS_CHANGE_ORIENTATION) && orientations[i] != c->orientation);
+        if(motion_tracking && (geometry_changed ||
+                ((f & PHYSICS_CHANGE_VELOCITY) &&
+                    (velocities[i].x != c->velocity.x || velocities[i].y != c->velocity.y)) ||
+                ((f & PHYSICS_CHANGE_ANGULAR_VELOCITY) &&
+                    angular_velocities[i] != c->angular_velocity))) motion_changed = true;
         if(f & PHYSICS_CHANGE_POSITION) positions[i] = c->position;
         if(f & PHYSICS_CHANGE_ORIENTATION) orientations[i] = c->orientation;
         if(f & PHYSICS_CHANGE_VELOCITY) velocities[i] = c->velocity;

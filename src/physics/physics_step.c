@@ -214,6 +214,8 @@ void physics_pipeline_contact_constraints_solve(
             physics_rigid_contact_constraint_solve(constraint, position_fraction, context);
         } else if(constraint->type == SYSTEM_CONTACT_CONSTRAINT_SOFT_BOUNDARY) {
             physics_soft_body_constraint_solve(constraint, position_fraction, context);
+        } else if(constraint->type == SYSTEM_CONTACT_CONSTRAINT_BEAM_PAIR) {
+            physics_beam_pair_solve(&constraint->value.beam_pair, position_fraction, context);
         }
     }
 }
@@ -230,6 +232,8 @@ void physics_pipeline_contact_constraints_finalize(
             physics_rigid_contact_constraint_finalize(constraint, context);
         } else if(constraint->type == SYSTEM_CONTACT_CONSTRAINT_SOFT_BOUNDARY) {
             physics_soft_body_constraint_finalize(constraint, context);
+        } else if(constraint->type == SYSTEM_CONTACT_CONSTRAINT_BEAM_PAIR) {
+            physics_beam_pair_finalize(&constraint->value.beam_pair, context);
         }
     }
 }

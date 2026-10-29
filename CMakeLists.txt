@@ -267,6 +267,8 @@ set(ROHR_ENGINE_SOURCES
     src/physics/soft_body/soft_body_frame.c
     src/physics/soft_body/soft_body_area.c
     src/physics/soft_body/soft_body_solver.c
+    src/physics/soft_body/beam_pair.c
+    src/physics/soft_body/beam_motion.c
     src/state/game_state.c
     src/state/runtime_topology.c
     src/state/runtime_visuals.c
@@ -1282,6 +1284,20 @@ if(ROHR_BUILD_TESTS)
             ENVIRONMENT "SDL_VIDEODRIVER=dummy;SDL_AUDIODRIVER=dummy" TIMEOUT 300)
     endforeach()
 
+    foreach(soft_test soft_body_stability beam_pair_contacts)
+    add_executable(${soft_test}_test tests/${soft_test}.c)
+    target_include_directories(${soft_test}_test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
+    target_link_libraries(${soft_test}_test PRIVATE rohr_engine)
+    if(ROHR_ENABLE_SANITIZERS)
+        target_compile_options(${soft_test}_test PRIVATE ${ROHR_SANITIZER_COMPILE_OPTIONS})
+    endif()
+    set_target_properties(${soft_test}_test PROPERTIES RUNTIME_OUTPUT_DIRECTORY
+        ${CMAKE_SOURCE_DIR}/sandbox/milestone_6/goal_5/bin/${drop_test_platform})
+    add_test(NAME ${soft_test} COMMAND ${soft_test}_test)
+    set_tests_properties(${soft_test} PROPERTIES
+        ENVIRONMENT "SDL_VIDEODRIVER=dummy;SDL_AUDIODRIVER=dummy" TIMEOUT 600)
+    endforeach()
+
     add_executable(component_registry_test
         tests/component_registry.c
     )
@@ -1396,6 +1412,7 @@ if(ROHR_BUILD_TESTS)
     )
 
     add_custom_target(rohr_tests)
+    add_dependencies(rohr_tests soft_body_stability_test beam_pair_contacts_test)
     add_dependencies(rohr_tests extreme_mass_drop_test)
     add_dependencies(rohr_tests thin_barriers_test)
     add_dependencies(rohr_tests persistent_stack_test)

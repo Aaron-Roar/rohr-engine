@@ -64,7 +64,7 @@ static void system_positions_update(double dt, Report *report) {
     for(uint32_t n = 0; n < entity_alive_count_get(); ++n) {
         EntityIndex i;
         if(!physics_step_alive_index_at(n, &i) || !physics_entity_movable_get(i)) continue;
-        if(physics_joint_motion_integrated_check(i)) continue;
+        if(physics_joint_motion_integrated_check(i) || physics_soft_motion_integrated_check(i)) continue;
         PhysicsChange change = physics_change_get(i, PHYSICS_CHANGE_POSITION);
         change.position = (Position){positions[i].x + velocities[i].x * dt,
             positions[i].y + velocities[i].y * dt};
@@ -80,7 +80,7 @@ static void system_orientations_update(double dt, Report *report) {
         if(!physics_step_alive_index_at(n, &i) || !physics_entity_movable_get(i) ||
                 entity_index_components_check(i, ROHR_SOFT_BODY) ||
                 physics_entity_nonrotating_check(i)) continue;
-        if(physics_joint_motion_integrated_check(i)) continue;
+        if(physics_joint_motion_integrated_check(i) || physics_soft_motion_integrated_check(i)) continue;
         PhysicsChange change = physics_change_get(i, PHYSICS_CHANGE_ORIENTATION);
         physics_change_orientation_set(&change, orientations[i] + angular_velocities[i] * dt);
         (void)physics_changes_commit(&change, 1, report, ROHR_PHYSICS_ORIENTATION,
@@ -93,7 +93,7 @@ static void system_angular_velocities_update(double dt, Report *report) {
         EntityIndex i;
         if(!physics_step_alive_index_at(n, &i) || !physics_entity_movable_get(i) ||
                 entity_index_components_check(i, ROHR_SOFT_BODY)) continue;
-        if(physics_joint_motion_integrated_check(i)) continue;
+        if(physics_joint_motion_integrated_check(i) || physics_soft_motion_integrated_check(i)) continue;
         PhysicsChange change = physics_change_get(i, PHYSICS_CHANGE_ANGULAR_VELOCITY);
         change.angular_velocity = physics_entity_nonrotating_check(i) ? 0.0f :
             angular_velocities[i] + (angular_accelerations[i] + torque_angular_accelerations[i]) * dt;
@@ -130,7 +130,7 @@ static void system_velocities_update(double dt, Report *report) {
             continue;
         }
         if(physics_entity_movable_get(i)) {
-            if(physics_joint_motion_integrated_check(i)) continue;
+            if(physics_joint_motion_integrated_check(i) || physics_soft_motion_integrated_check(i)) continue;
             PhysicsChange change = physics_change_get(i, PHYSICS_CHANGE_VELOCITY);
             change.velocity = (Velocity){
                 .x = velocities[i].x + (accelerations[i].x + force_accelerations[i].x)*dt,
@@ -1274,7 +1274,9 @@ double physics_rigid_integrate_adaptive(double dt, Report *report) {
     system_loads_apply(report, false);
     system_loads_apply(report, true);
     dt = physics_joint_duration_get(dt);
+    dt = physics_soft_duration_get(dt);
     dt = physics_rigid_sweep_duration_get(dt, report);
+    dt = physics_soft_sweep_duration_get(dt, report);
     if(report != NULL && report->has_fatal) return dt;
     physics_rigid_motion_integrate(dt, report);
     return dt;
@@ -1282,11 +1284,13 @@ double physics_rigid_integrate_adaptive(double dt, Report *report) {
 
 void physics_rigid_motion_integrate(double dt, Report *report) {
     physics_joint_motion_begin(dt, report);
+    physics_soft_motion_begin(dt, report);
     system_velocities_update(dt, report);
     system_angular_velocities_update(dt, report);
     system_angular_velocity_maximums_apply(report);
     system_orientations_update(dt, report);
     system_positions_update(dt, report);
+    physics_soft_motion_end(dt, report);
     physics_joint_motion_end();
     system_angle_locks_apply(report);
     system_axis_locks_apply(report);

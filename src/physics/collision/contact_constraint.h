@@ -46,8 +46,19 @@ typedef struct SystemSoftBoundaryQuery {
 
 typedef enum SystemContactConstraintType {
     SYSTEM_CONTACT_CONSTRAINT_RIGID_PAIR,
-    SYSTEM_CONTACT_CONSTRAINT_SOFT_BOUNDARY
+    SYSTEM_CONTACT_CONSTRAINT_SOFT_BOUNDARY,
+    SYSTEM_CONTACT_CONSTRAINT_BEAM_PAIR
 } SystemContactConstraintType;
+
+typedef struct SystemBeamPair {
+    Entity beams[2];
+    EntityIndex indices[2], nodes[4];
+    float weights[4], normal_impulse, tangent_impulse, rebound_speed;
+    Axis normal;
+    OverlapInfo overlap;
+    ContactInfo contact;
+    bool solved, responds;
+} SystemBeamPair;
 
 typedef struct SystemContactConstraint {
     SystemContactConstraintType type;
@@ -73,6 +84,7 @@ typedef struct SystemContactConstraint {
             bool block_geometry_valid;
         } rigid;
         SystemSoftBoundaryQuery soft;
+        SystemBeamPair beam_pair;
     } value;
 } SystemContactConstraint;
 

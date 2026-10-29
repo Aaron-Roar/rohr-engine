@@ -6,6 +6,10 @@
 
 #include "physics/physics_internal.h"
 
+/* Synchronous contact-pass convergence tracking; no persistent motion state. */
+void physics_motion_tracking_begin(void);
+bool physics_motion_tracking_end_check(void);
+
 /* Only the fields owned by this operation are validated and committed. */
 enum {
     PHYSICS_CHANGE_POSITION = 1u << 0,

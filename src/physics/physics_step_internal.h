@@ -94,6 +94,15 @@ void physics_joint_motion_end(void);
 double physics_joint_duration_get(double dt);
 
 void physics_soft_body_beams_apply(Report *report);
+void physics_soft_motion_enabled_set(bool enabled);
+void physics_soft_motion_begin(double dt, Report *report);
+void physics_soft_motion_end(double dt, Report *report);
+bool physics_soft_motion_integrated_check(EntityIndex index);
+double physics_soft_duration_get(double dt);
+double physics_soft_sweep_duration_get(double dt, Report *report);
+void physics_beam_pairs_gather(Report *report);
+void physics_beam_pair_solve(SystemBeamPair *pair, float fraction, Report *report);
+void physics_beam_pair_finalize(const SystemBeamPair *pair, Report *report);
 void physics_soft_body_constraints_gather(Report *report);
 void physics_soft_body_constraint_solve(
     SystemContactConstraint *constraint,

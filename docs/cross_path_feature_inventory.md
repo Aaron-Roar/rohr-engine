@@ -15,6 +15,12 @@ editor scalability follows Python unless explicitly reprioritized for the game.
 This planning update changes no runtime API or persistence compatibility.
 Goal 1 records the original coverage baseline; goals 2–5 own the closures below.
 
+Subsequent [Milestone 6 Goal 5 work](../NEXT_STEPS.md#6-physics-robustness)
+adds enabled beam-pair response and changes elastic soft-node integration without
+changing public descriptions or persistence formats. That work has **failed**
+its penetration/performance acceptance and has no final visual acceptance.
+Milestone 4's historical acceptance does not certify these later solver changes.
+
 ## Baseline and interpretation
 
 Audit begun 2026-10-19, completed 2026-10-20 at commit `e078695808112b41af7384bb902b7d619ffac759`.
