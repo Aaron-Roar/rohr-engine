@@ -13,7 +13,7 @@
 #define PIT_PARTICLES 800u
 #define PIT_FRAMES 7200u
 typedef struct PitSample {
-    double cpu, wall, integration, gather, solve;
+    double cpu, wall, integration, gather, solve, work, render;
     uint64_t substeps, candidates, contacts;
 } PitSample;
 typedef struct Pit {
@@ -21,8 +21,8 @@ typedef struct Pit {
     Position poses[PIT_PARTICLES];
     PitSample samples[PIT_FRAMES], last;
     unsigned count, frames, completed_frames, limit;
-    bool headless, paused, quit, numerical_valid;
-    double active_wall, maximum_depth, maximum_side_escape;
+    bool headless, paused, quit, numerical_valid, benchmark, uncapped;
+    double active_wall, maximum_depth, maximum_side_escape, maximum_lag;
     uint64_t escape_samples, diagnostic_frames;
     const char *stop_reason;
     CameraId camera;
@@ -54,6 +54,7 @@ static bool scene_create(Pit *p) {
     p->stop_reason = "setup_failed";
     p->frames = p->completed_frames = 0; p->last = (PitSample){0};
     p->active_wall = p->maximum_depth = p->maximum_side_escape = 0;
+    p->maximum_lag = 0;
     p->escape_samples = p->diagnostic_frames = 0;
     p->numerical_valid = false;
     for(unsigned i = 0; i < p->count; ++i)
@@ -86,7 +87,7 @@ static bool scene_create(Pit *p) {
             if(rohr_entity_components_check(entity.result.value, forbidden[j])) return false;
     }
     p->numerical_valid = true; p->stop_reason = NULL;
-    p->paused = !p->headless;
+    p->paused = !p->headless && !p->benchmark;
     printf("particle_pit count=%u diameter=5 vertices=16 mass=1 friction=0.5 restitution=0.5 "
         "gravity=9.8 tick_hz=240 substeps=4 iterations=8 seconds=%.3f soft_bodies=0 joints=0\n",
         p->count, p->limit/60.0);
@@ -178,9 +179,21 @@ static int number_compare(const void *a, const void *b) {
     double x = *(const double *)a, y = *(const double *)b;
     return (x > y)-(x < y);
 }
+static double work_p95_get(const Pit *p) {
+    double values[PIT_FRAMES];
+    for(unsigned i = 0; i < p->frames; ++i) values[i] = p->samples[i].work;
+    qsort(values, p->frames, sizeof(*values), number_compare);
+    return p->frames ? values[(p->frames*95+99)/100-1] : 0;
+}
+static bool realtime_check(const Pit *p) {
+    return p->benchmark && !p->uncapped && !p->headless && p->count == PIT_PARTICLES &&
+        p->limit == 720 && p->completed_frames == p->limit && !p->stop_reason && !interrupted &&
+        p->active_wall > 0 && work_p95_get(p) <= 16.67 &&
+        fabs((p->completed_frames/60.0)/p->active_wall - 1) <= .01;
+}
 static void summary_print(const Pit *p) {
     double values[PIT_FRAMES], total = 0; PitSample sums = {0};
-    bool complete = p->limit > 0 && p->completed_frames == p->limit;
+    bool complete = p->limit > 0 && p->completed_frames == p->limit && !p->stop_reason && !interrupted;
     const char *reason = p->stop_reason ? p->stop_reason : complete ? "endpoint_reached" :
         interrupted ? "interrupted" : p->quit ? "window_closed" : "endpoint_not_reached";
     for(unsigned i = 0; i < p->frames; ++i) {
@@ -204,7 +217,17 @@ static void summary_print(const Pit *p) {
     printf("profile_ms integration=%.3f gather=%.3f solve=%.3f substeps=%llu candidates=%llu contacts=%llu\n",
         sums.integration, sums.gather, sums.solve, (unsigned long long)sums.substeps,
         (unsigned long long)sums.candidates, (unsigned long long)sums.contacts);
-    puts("Diagnostic only: CPU excludes validation/drawing; stage timings are wall time. No performance acceptance inferred.");
+    if(p->benchmark) {
+        double render_total = 0;
+        for(unsigned i = 0; i < p->frames; ++i) render_total += p->samples[i].render;
+        printf("benchmark rendered=%d uncapped=%d frame_work_p95_ms=%.6f render_total_ms=%.6f "
+            "fps=%.6f simulated_elapsed_ratio=%.9f final_lag_ms=%.6f maximum_lag_ms=%.6f realtime_pass=%d\n",
+            !p->headless, p->uncapped, work_p95_get(p), render_total,
+            p->active_wall > 0 ? p->completed_frames/p->active_wall : 0,
+            p->active_wall > 0 ? (p->completed_frames/60.0)/p->active_wall : 0,
+            1000*(p->active_wall-p->completed_frames/60.0), 1000*p->maximum_lag, realtime_check(p));
+    }
+    puts("CPU excludes validation/drawing; frame work excludes pacing. Stage timings are inclusive wall time. Headless/uncapped/short runs are diagnostic; one run is not milestone acceptance.");
     fflush(stdout);
 }
 static void shape_draw(Shape shape, Position center, Color color) {
@@ -230,9 +253,9 @@ static bool graphics_create(Pit *p) {
     w.mode = GRAPHICS_WINDOW_MODE_WINDOWED; w.window_width = w.logical_width = 1280;
     w.window_height = w.logical_height = 720;
     if(!result_check(rohr_graphics_window_presentation_description_set(w)) ||
-        !result_check(rohr_graphics_vsync_set(false)) || !result_check(rohr_graphics_frame_limit_set(60))) return false;
+        !result_check(rohr_graphics_vsync_set(false)) || !result_check(rohr_graphics_frame_limit_set(p->uncapped ? 0 : 60))) return false;
     int count = 0; SDL_Window **windows = SDL_GetWindows(&count);
-    if(windows && count) SDL_SetWindowTitle(windows[0], "Milestone 11 - particle-only rigid pit diagnostic");
+    if(windows && count) SDL_SetWindowTitle(windows[0], "Particle-only rigid pit measurement");
     SDL_free(windows);
     for(unsigned i = 0; i < 3; ++i) {
         TextDescription d = rohr_graphics_text_description_default_get(); d.value = "";
@@ -254,7 +277,8 @@ static bool graphics_create(Pit *p) {
     return !rohr_error_check(rohr_viewport_screen_add(p->viewport,p->screen,item)) &&
         result_check(rohr_viewport_enable_set(p->viewport));
 }
-static bool draw_check(Pit *p) {
+static bool draw_check(Pit *p, double *wait_ms) {
+    uint64_t started = SDL_GetTicksNS();
     char text[384];
     snprintf(text, sizeof(text), "%u particles | diameter 5 | restitution 0.5 | %s | simulated %.2f / %.2f s | active wall %.2f s",
         p->count, p->paused ? "PAUSED" : "RUNNING", p->completed_frames/60.0, p->limit/60.0, p->active_wall);
@@ -263,7 +287,12 @@ static bool draw_check(Pit *p) {
         p->last.cpu, p->last.integration, p->last.gather, p->last.solve, (unsigned long long)p->last.substeps);
     if(!rohr_graphics_text_value_set(&p->text[1],text) ||
         !rohr_graphics_text_value_set(&p->text[2], "Space play/pause | N step | R reset | Esc close | Live fixed steps: playback slows when CPU-bound.")) return false;
-    return rohr_graphics_show().header.status != ROHR_REPORT_FAILED;
+    Report report = rohr_graphics_show();
+    for(size_t i = 0; i < report.statistic_count; ++i)
+        if(report.statistics[i].metric_id == ROHR_REPORT_FRAME_LIMIT_WAIT_NS)
+            *wait_ms += report.statistics[i].value/1e6;
+    p->last.render = (SDL_GetTicksNS()-started)/1e6 - *wait_ms;
+    return report.header.status != ROHR_REPORT_FAILED;
 }
 int main(int argc, char **argv) {
     Pit *p = calloc(1,sizeof(*p)); if(!p) return 1;
@@ -273,6 +302,8 @@ int main(int argc, char **argv) {
     const char *csv_path = NULL;
     for(int i = 1; i < argc; ++i) {
         if(!strcmp(argv[i],"--headless")) p->headless = true;
+        else if(!strcmp(argv[i],"--benchmark=rendered")) p->benchmark = true;
+        else if(!strcmp(argv[i],"--uncapped")) p->uncapped = true;
         else if(!strcmp(argv[i],"--smoke")) smoke = true;
         else if(!strncmp(argv[i],"--csv=",6)) csv_path = argv[i]+6;
         else if(!strncmp(argv[i],"--count=",8)) {
@@ -285,7 +316,8 @@ int main(int argc, char **argv) {
             else p->limit = (unsigned)ceil(seconds*60);
         } else valid = false;
     }
-    if(!valid) { fprintf(stderr,"usage: particle_pit [--headless] [--count=1..800] [--seconds=0.017..120] [--csv=PATH] [--smoke]\n"); free(p); return 2; }
+    if((p->benchmark && p->headless) || (p->uncapped && !p->benchmark)) valid = false;
+    if(!valid) { fprintf(stderr,"usage: particle_pit [--headless|--benchmark=rendered [--uncapped]] [--count=1..800] [--seconds=0.017..120] [--csv=PATH] [--smoke]\n"); free(p); return 2; }
     if(smoke) p->limit = 6;
     if(csv_path) {
         p->csv = fopen(csv_path,"w"); if(!p->csv) { perror(csv_path); free(p); return 1; }
@@ -311,6 +343,7 @@ int main(int argc, char **argv) {
                 if(event.type == SDL_EVENT_QUIT) p->quit = true;
                 if(event.type != SDL_EVENT_KEY_DOWN || event.key.repeat) continue;
                 if(event.key.scancode == SDL_SCANCODE_ESCAPE) p->quit = true;
+                if(p->benchmark) continue;
                 if(event.key.scancode == SDL_SCANCODE_SPACE) p->paused = !p->paused;
                 if(event.key.scancode == SDL_SCANCODE_N) { single = true; p->paused = true; }
                 if(event.key.scancode == SDL_SCANCODE_R) {
@@ -328,12 +361,23 @@ int main(int argc, char **argv) {
             }
             if(p->frames == p->limit) p->paused = true;
         }
-        if(!p->headless && !draw_check(p)) { p->stop_reason = "graphics_failed"; goto done; }
-        if(stepping) p->active_wall += (SDL_GetTicksNS()-frame_start)/1e9;
-        if((p->headless || smoke) && p->frames == p->limit) break;
+        double wait_ms = 0;
+        if(!p->headless && !draw_check(p, &wait_ms)) { p->stop_reason = "graphics_failed"; goto done; }
+        if(stepping) {
+            double elapsed = (SDL_GetTicksNS()-frame_start)/1e9;
+            p->active_wall += elapsed;
+            p->maximum_lag = fmax(p->maximum_lag, p->active_wall-p->completed_frames/60.0);
+            if(p->frames) {
+                p->last.work = elapsed*1000-wait_ms;
+                p->samples[p->frames-1].work = p->last.work;
+                p->samples[p->frames-1].render = p->last.render;
+            }
+        }
+        if((p->headless || smoke || p->benchmark) && p->frames == p->limit) break;
     }
     status = interrupted ? 130 : (!p->numerical_valid || p->stop_reason ||
-        ((p->headless || smoke) && p->completed_frames != p->limit) ? 1 : 0);
+        ((p->headless || smoke || p->benchmark) && p->completed_frames != p->limit) ||
+        (p->benchmark && !p->uncapped && !smoke && p->limit == 720 && p->count == PIT_PARTICLES && !realtime_check(p)) ? 1 : 0);
 done:
     summary_print(p);
     if(graphics) {

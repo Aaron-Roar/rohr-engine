@@ -66,4 +66,8 @@ preserved. Milestone 12 allows measured tick-rate, substep and iteration tuning
 with every configuration recorded, while keeping the authored scene, terrain,
 materials, 200 particles and input sequence unchanged. This does not change the
 benchmark's current settings or command-line behavior. Keep new executables and
-evidence under `sandbox/milestone_12/goal_<n>/`; goal 1 has not started.
+evidence under `sandbox/milestone_12/goal_<n>/`. Goal 1's
+[measurement contract](../../docs/physics_measurement_contract.md) defines the
+reference and diagnostic consumers. Add `--uncapped` to a rendered benchmark
+for a separate throughput/headroom run; it cannot qualify as normal rendered
+acceptance. Fatal benchmark failures now print an explicit incomplete summary.

@@ -512,8 +512,17 @@ highest unfinished priority: rework physics on `physics-pipelines` against the
 frozen `physics-pipelines-overoptimized` reference at `6f283268`, excluding
 `main` from comparisons. First meet the real-time gates for the unchanged
 authored car and 800-particle pit, then compare accuracy and behavior and obtain
-user acceptance of the final balance. The roadmap is planned; goal 1 has not
-started and no pipeline changes are implied by this documentation update.
+user acceptance of the final balance. Goal 1 is complete for review; its
+[measurement contract](physics_measurement_contract.md) records the preserved
+reference, exclusive stage costs, baseline errors and repeatable comparisons.
+All 219 timed fixture scenarios plus four calibrations finish with matching
+profiled/unprofiled traces. The full car baseline was explicitly stopped by the
+user at 15.417 of 60 simulated seconds and remains incomplete. The full headless
+pit finishes; six interrupted rendered trials show frame-work p95 above the
+real-time target but remain incomplete. The user directed stopping further trials
+and retaining this evidence; no real-time acceptance is claimed.
+The soft-body delayed-update comparison still fails at 376.743 ms versus 50 ms.
+Goal 2 has not started.
 [Milestone 11](../NEXT_STEPS.md#11-soft-body-correctness-and-real-time-performance)
 is superseded, not complete; its executables, experiments and evidence remain
 preserved. Passing contact regressions does not establish real-time performance
@@ -547,6 +556,12 @@ physics CPU time, stage wall times and work counts. Drawing and validation are
 outside the physics timer. The live view advances fixed simulation steps and
 slows when CPU-bound; it does not claim real-time acceptance. `--smoke` checks
 startup, drawing and teardown over 0.1 seconds, without reaching impact.
+`--benchmark=rendered` starts automatically, runs the same fixture at 1280×720,
+and exits at its endpoint. It reports frame work excluding pacing, FPS,
+elapsed/simulated ratio and schedule lag. Add `--uncapped` only for a separate
+throughput diagnostic. Benchmark controls cannot pause, reset or single-step the
+sequence; Escape/window close still interrupts. Milestone 12 diagnostic builds
+and new evidence use its own sandbox, preserving the older executable above.
 The diagnostic continues after finite escape failures and recoverable physics
 diagnostics, retaining the worst floor depth and side escape until its declared
 duration. Its report separates the numerical verdict from endpoint completion.

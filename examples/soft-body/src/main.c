@@ -238,7 +238,7 @@ static void render_scene(CameraId camera, void *context_value) {
 int main(int argc, char **argv) {
     static CarBenchmark benchmark;
     if(!car_benchmark_parse(&benchmark, argc, argv)) {
-        fprintf(stderr, "usage: soft_body [--benchmark=headless|rendered] [--debug] [--slow-motion] [--frames=1..3600]\n");
+        fprintf(stderr, "usage: soft_body [--benchmark=headless|rendered] [--uncapped] [--debug] [--slow-motion] [--frames=1..3600]\n");
         return 2;
     }
     bool graphics_enabled = !benchmark.enabled || benchmark.rendered;
@@ -294,7 +294,7 @@ int main(int argc, char **argv) {
         window.window_height = window.logical_height = 720;
         if(!result_ok(rohr_graphics_window_presentation_description_set(window)) ||
                 !result_ok(rohr_graphics_vsync_set(false)) ||
-                !result_ok(rohr_graphics_frame_limit_set(60))) goto fail;
+                !result_ok(rohr_graphics_frame_limit_set(benchmark.uncapped ? 0 : 60))) goto fail;
     }
     particle_config = rohr_physics_particle_description_default_get();
     particle_config.acceleration = gravity;
@@ -493,6 +493,7 @@ int main(int argc, char **argv) {
 
 fail:
     fprintf(stderr, "soft-body example failed\n");
+    if(benchmark.enabled) { benchmark.failed = true; (void)car_benchmark_finish(&benchmark); }
     car_destroy(&car);
     example_viewport_destroy(&viewport);
     if(input_controller != INPUT_CONTROLLER_INVALID)

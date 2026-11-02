@@ -13,7 +13,7 @@
 /* Example-owned measurement storage; shared scene construction stays in main. */
 #define CAR_BENCHMARK_FRAMES 3600
 typedef struct CarBenchmark {
-    bool enabled, rendered, debug, slow_motion;
+    bool enabled, rendered, debug, slow_motion, uncapped, failed;
     unsigned frames, limit;
     double physics[CAR_BENCHMARK_FRAMES], work[CAR_BENCHMARK_FRAMES];
     double render[CAR_BENCHMARK_FRAMES], simulated, integration, gather, solve;
@@ -29,6 +29,7 @@ static bool car_benchmark_parse(CarBenchmark *b, int argc, char **argv) {
             b->enabled = b->rendered = true;
         else if(strcmp(argv[i], "--debug") == 0) b->debug = true;
         else if(strcmp(argv[i], "--slow-motion") == 0) b->slow_motion = true;
+        else if(strcmp(argv[i], "--uncapped") == 0) b->uncapped = true;
         else if(strncmp(argv[i], "--frames=", 9) == 0) {
             char *end;
             unsigned long count = strtoul(argv[i] + 9, &end, 10);
@@ -36,7 +37,7 @@ static bool car_benchmark_parse(CarBenchmark *b, int argc, char **argv) {
             b->limit = (unsigned)count;
         } else return false;
     }
-    return b->enabled || argc == 1;
+    return (b->enabled || argc == 1) && (!b->uncapped || b->rendered);
 }
 static void car_benchmark_report_add(CarBenchmark *b, const Report *r) {
     for(size_t i = 0; i < r->statistic_count; ++i) {
@@ -67,12 +68,12 @@ static double car_benchmark_summary(const char *label, double *values, unsigned 
     return p95;
 }
 static bool car_benchmark_finish(CarBenchmark *b) {
-    double elapsed = (SDL_GetTicksNS() - b->started) / 1e9;
+    double elapsed = b->started ? (SDL_GetTicksNS() - b->started) / 1e9 : 0;
     car_benchmark_summary("physics_cpu", b->physics, b->frames);
     car_benchmark_summary("render_work", b->render, b->frames);
     double p95 = car_benchmark_summary("frame_work", b->work, b->frames);
-    bool complete = b->frames == CAR_BENCHMARK_FRAMES;
-    bool realtime = complete && b->rendered && !b->debug && !b->slow_motion &&
+    bool complete = !b->failed && b->frames == CAR_BENCHMARK_FRAMES;
+    bool realtime = complete && b->rendered && !b->debug && !b->slow_motion && !b->uncapped && elapsed > 0 &&
         p95 <= 16.67 && fabs(b->simulated / elapsed - 1) <= .01;
     printf("benchmark frames=%u complete=%d rendered=%d debug=%d slow_motion=%d "
         "simulated=%.9f elapsed=%.9f fps=%.3f realtime_pass=%d "
@@ -85,6 +86,9 @@ static bool car_benchmark_finish(CarBenchmark *b) {
         b->integration, b->gather, b->solve);
     printf("schedule_lag_ms final=%.3f maximum=%.3f\n",
         1000 * (elapsed - b->frames / 60.0), 1000 * b->maximum_lag);
-    return b->frames == b->limit && (!complete || !b->rendered || b->debug || b->slow_motion || realtime);
+    printf("completion condition=time target=60 reached=%d reason=%s measurements=%s uncapped=%d\n",
+        complete, b->failed ? "runtime_failed" : complete ? "endpoint_reached" : "short_or_interrupted",
+        complete ? "full_run" : "partial_run", b->uncapped);
+    return !b->failed && b->frames == b->limit && (!complete || !b->rendered || b->debug || b->slow_motion || b->uncapped || realtime);
 }
 #endif

@@ -13,7 +13,7 @@ priority order.
 | 2 | Asset and resource ownership | Complete |
 | 3 | COM, inertia, and origin semantics | Complete |
 | 4 | Cross-path feature parity | Complete by user acceptance; recorded verification exceptions remain |
-| 12 | Real-time physics pipeline rework | Highest unfinished priority; planned, goal 1 not started |
+| 12 | Real-time physics pipeline rework | Highest unfinished priority; goal 1 complete for review |
 | 11 | Soft-body correctness and real-time performance | Superseded by milestone 12; not complete; evidence preserved |
 | 6 | Physics robustness | Goals 1–4 accepted; goal 5 failed verification |
 | — | [C game experiment](#c-game-experiment) | Pending; agree concept and completion criteria when starting |
@@ -35,8 +35,10 @@ measurement variability, not an established physics regression. Milestone 12
 supersedes milestone 11 and is the highest unfinished priority: achieve real-time
 car and pit performance, then compare accuracy and behavior with the frozen
 `physics-pipelines-overoptimized` reference at `6f283268`. Exclude `main` from
-comparisons. This documentation update starts no pipeline goal; milestone 12
-goal 1 and the C game experiment have not started.
+comparisons. Milestone 12 goal 1 establishes the reference and measurement
+contract, with the full car run explicitly stopped by the user and retained as
+incomplete. Goal 2 awaits explicit instruction; the C game experiment has not
+started.
 
 Regression checks and relevant sanitizer checks remain mandatory throughout
 physics, the C game experiment, and runtime isolation. Deferring the broader
@@ -514,9 +516,20 @@ accuracy and behavior against the reference and choose an acceptable middle
 ground. This is the highest unfinished priority and supersedes milestone 11,
 whose failed attempts, experiments, executables, and evidence remain preserved.
 
-**Status: planned; no goal started.** Adding this roadmap is documentation-only
-and does not authorize starting goal 1 or modifying physics code. Pursue one
-goal at a time only on explicit user instruction, stopping after verification
+**Status: goal 1 complete for review; goal 2 not started.** The
+[measurement contract](docs/physics_measurement_contract.md) records reference
+provenance, measured exclusive stage costs, baseline errors and the comparison
+format. All 219 timed fixture scenarios plus four calibrations finish, with
+matching profiled/unprofiled state and work traces. Ten Linux and ten ASan/UBSan
+tests pass; installed-SDK consumers build on Linux and cross-build for Windows.
+The user explicitly stopped the full car baseline at 15.417 of 60 simulated
+seconds; it remains incomplete, not a full-run bound. The full headless pit
+finishes; six rendered pit windows closed before their endpoints and remain
+incomplete, with observed frame-work p95 29.505–209.506 ms, above 16.67 ms.
+The user directed stopping further trials and retaining this evidence. Complete
+rendered coverage and uncapped headroom remain unverified. The
+soft-body delayed-update CPU comparison still fails at 376.743 ms versus 50 ms.
+Pursue one goal at a time only on explicit user instruction, stopping after verification
 for review and the user's commit before advancing. Keep executables and evidence
 under `sandbox/milestone_12/goal_<n>/` without replacing earlier evidence.
 
@@ -525,7 +538,7 @@ verification, and a reviewable commit. A pipeline may be retained when
 measurements show rewriting it offers no worthwhile benefit; document that
 finding.
 
-1. [ ] **Establish the reference and measurement contract.** Pin the reference
+1. [x] **Establish the reference and measurement contract.** Pin the reference
    commit, preserve its executables and evidence, and establish repeatable
    car/pit runs. Measure each stage's exclusive cost, call counts, subdivisions,
    iterations, candidates and contacts without double-counting nested work.
