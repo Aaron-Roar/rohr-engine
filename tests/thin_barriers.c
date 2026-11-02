@@ -4,10 +4,13 @@
 #include "rohr.h"
 #include "physics/physics_step_internal.h"
 #include <math.h>
+#include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
+static volatile sig_atomic_t interrupted;
+static void interrupt_test(int number) { (void)number;interrupted=1; }
 
 typedef struct Observation {
     Entity body, wall;
@@ -15,6 +18,8 @@ typedef struct Observation {
     double time, impact, depth, vx, vy, restitution, speed;
     uint64_t substeps;
     bool valid, particle;
+    const char *stop_reason;
+    double energy_error, maximum_spin, rebound_error, tangent_error;
 } Observation;
 
 static bool result_check(EngineResult result) {
@@ -48,10 +53,16 @@ static void observe(double dt, void *context) {
     Position p = positions[o->index];
     Velocity v = velocities[o->index];
     double angle = orientations[o->index], spin = angular_velocities[o->index];
+    if(!isfinite(p.x)||!isfinite(p.y)||!isfinite(v.x)||!isfinite(v.y)||
+            !isfinite(angle)||!isfinite(spin)) {
+        o->valid=false;o->stop_reason="invalid_state";return;
+    }
     double radians = angle * 3.14159265358979323846 / 180;
     double extent = o->particle ? .5 : .5 * (fabs(cos(radians)) + fabs(sin(radians)));
     double depth = fmax(0, (double)p.x + extent + (double)(float).05);
     o->depth = fmax(o->depth, depth);
+    o->maximum_spin=fmax(o->maximum_spin,fabs(spin));
+    o->energy_error=fmax(o->energy_error,((double)v.x*v.x+(double)v.y*v.y)/(o->speed*o->speed)-1);
     if(!isfinite(p.x) || !isfinite(p.y) || !isfinite(v.x) || !isfinite(v.y) ||
             !isfinite(angle) || !isfinite(spin) || depth > .001 ||
             fabs(p.y) + extent >= 20000 ||
@@ -63,6 +74,8 @@ static void observe(double dt, void *context) {
     if(o->impact > 0) {
         double expected = -o->restitution * o->vx;
         double tolerance = o->restitution == 0 ? .0001 : fabs(expected) * .01;
+        o->rebound_error=fmax(o->rebound_error,fabs(v.x-expected));
+        o->tangent_error=fmax(o->tangent_error,fabs(v.y-o->vy));
         if(fabs(v.x - expected) > tolerance || fabs(v.y - o->vy) > fmax(.0001, fabs(o->vy) * .0001))
             o->valid = false;
     }
@@ -76,26 +89,42 @@ static int compare(const void *a, const void *b) {
 /* Circle/circle contacts have no polygon feature ID. They must retain the
  * same rebound target as mixed particle/wall contacts across iterations. */
 static bool particle_rebound_check(void) {
-    for(unsigned iterations = 1; iterations <= 8; iterations *= 2) {
-        if(!result_check(rohr_engine_start()) || !result_check(rohr_physics_solver_iterations_set(iterations))) return false;
+    bool all_valid = true;
+    for(unsigned iterations = 1; iterations <= 8 && !interrupted; iterations *= 2) {
+        bool started = result_check(rohr_engine_start());
+        if(!started || !result_check(rohr_physics_solver_iterations_set(iterations))) {
+            printf("FAIL particle_pair_rebound iterations=%u reached=0 reason=setup_failed\n", iterations);
+            if(started) rohr_engine_stop();
+            all_valid = false;
+            continue;
+        }
         ParticleDescription d = rohr_physics_particle_description_default_get();
         d.radius = .5f; d.friction = 0; d.restitution = .8f;
         d.position = (Position){-.49f,0}; d.velocity = (Velocity){100,0};
         EntityResult a = rohr_physics_particle_add(d);
         d.position.x = .5f; d.velocity.x = 0; d.static_body = true;
         EntityResult b = rohr_physics_particle_add(d);
-        bool valid = !rohr_error_check(a) && !rohr_error_check(b);
+        bool valid = !rohr_error_check(a) && !rohr_error_check(b), complete = false;
+        double rebound_error = NAN, tangent_error = NAN, spin = NAN;
+        const char *reason = "setup_failed";
         if(valid) {
             Report report = rohr_system_physics_update(0);
             EntityIndex index = rohr_entity_index_get(a.result.value).result.value;
-            valid = !report.has_fatal && fabs(velocities[index].x + 80) < .001 &&
-                fabs(velocities[index].y) < .0001 && angular_velocities[index] == 0;
+            rebound_error = fabs(velocities[index].x + 80);
+            tangent_error = fabs(velocities[index].y);
+            spin = fabs(angular_velocities[index]);
+            complete = !report.has_fatal && report.header.status != ROHR_REPORT_FAILED &&
+                isfinite(rebound_error) && isfinite(tangent_error) && isfinite(spin);
+            reason = report.has_fatal || report.header.status == ROHR_REPORT_FAILED
+                ? "engine_failure" : complete ? "endpoint_reached" : "invalid_state";
+            valid = complete && rebound_error < .001 && tangent_error < .0001 && spin == 0;
         }
+        printf("%s particle_pair_rebound iterations=%u condition=state target=contact_update_completed reached=%d reason=%s rebound_error=%.9g tangent_error=%.9g spin=%.9g\n",
+            valid ? "PASS" : "FAIL", iterations, complete, reason, rebound_error, tangent_error, spin);
         rohr_engine_stop();
-        if(!valid) return false;
+        all_valid = valid && all_valid;
     }
-    puts("PASS particle_pair_rebound iterations=1,2,4,8");
-    return true;
+    return all_valid && !interrupted;
 }
 
 static bool run_check(unsigned kind, unsigned speed, unsigned oblique, unsigned bounce,
@@ -123,7 +152,7 @@ static bool run_check(unsigned kind, unsigned speed, unsigned oblique, unsigned 
     double requested=0, samples[512], stall=0;
     size_t count=0;
     bool first=false, second=false;
-    while(requested < 2.5 && o.valid) {
+    while(requested < 2.5 && !o.stop_reason && !interrupted) {
         double dt=fmin(1.0/hz,2.5-requested);
         bool delayed=false;
         if(delays && !first && requested >= .2 - 1e-12) {
@@ -141,13 +170,16 @@ static bool run_check(unsigned kind, unsigned speed, unsigned oblique, unsigned 
             if(r.statistics[i].report_id==ROHR_PHYSICS_REPORT_ID &&
                     r.statistics[i].metric_id==ROHR_REPORT_SUBSTEPS_COMPLETED_COUNT)
                 reported=r.statistics[i].value;
-        if(r.has_fatal || r.header.status==ROHR_REPORT_FAILED || reported != o.substeps-before ||
-                reported==0 || fabs(o.time-requested)>1e-9) o.valid=false;
+        if(r.has_fatal || r.header.status==ROHR_REPORT_FAILED)o.stop_reason="engine_failure";
+        else if(reported!=o.substeps-before||!reported||fabs(o.time-requested)>1e-9)o.stop_reason="time_or_substep_mismatch";
         if(delayed) stall=fmax(stall,cpu);
         else if(count < 512) samples[count++]=cpu;
         else o.valid=false;
     }
     physics_substep_observer_set(NULL,NULL);
+    if(interrupted)o.stop_reason="interrupted";
+    bool complete=!o.stop_reason&&fabs(o.time-2.5)<=1e-9;
+    if(!complete)o.valid=false;
     qsort(samples,count,sizeof(double),compare);
     double p95=count ? samples[(count-1)*95/100] : 0;
     if(o.impact < .249 || o.impact > .251 || (delays && (!first || !second)) ||
@@ -155,12 +187,18 @@ static bool run_check(unsigned kind, unsigned speed, unsigned oblique, unsigned 
     printf("%s kind=%u speed=%u oblique=%u bounce=%u hz=%u delays=%u time=%.9f impact=%.9f substeps=%llu depth=%.9g vx=%.9g vy=%.9g p95_ms=%.6f stall_ms=%.6f\n",
         o.valid?"PASS":"FAIL",kind,speed,oblique,bounce,hz,delays,o.time,o.impact,
         (unsigned long long)o.substeps,o.depth,velocities[o.index].x,velocities[o.index].y,p95,stall);
+    printf("worst energy_error=%.9g spin=%.9g rebound_error=%.9g tangent_error=%.9g\n",
+        o.energy_error,o.maximum_spin,o.rebound_error,o.tangent_error);
+    printf("completion condition=time target=2.5 reached=%d reason=%s max_cpu_ms=%.6f\n",
+        complete,o.stop_reason?o.stop_reason:complete?"endpoint_reached":"endpoint_not_reached",
+        fmax(stall,count?samples[count-1]:0));
     fflush(stdout);
     rohr_engine_stop();
     return o.valid;
 }
 
 int main(int argc,char **argv) {
+    signal(SIGINT,interrupt_test);signal(SIGTERM,interrupt_test);
     bool performance=argc==2 && strcmp(argv[1],"--performance")==0;
     bool valid=particle_rebound_check();
     const unsigned speeds[]={100,1000,10000}, rates[]={30,60,120,60,60};
@@ -168,8 +206,8 @@ int main(int argc,char **argv) {
         for(unsigned s=0;s<3;++s)
             for(unsigned angle=0;angle<2;++angle)
                 for(unsigned bounce=0;bounce<2;++bounce)
-                    for(unsigned schedule=0;schedule<5;++schedule)
+                    for(unsigned schedule=0;schedule<5&&!interrupted;++schedule)
                         valid=run_check(kind,speeds[s],angle,bounce,rates[schedule],
                             schedule<3?0:schedule-2,performance) && valid;
-    return valid?0:1;
+    return valid&&!interrupted?0:1;
 }

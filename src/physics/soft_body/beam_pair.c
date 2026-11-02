@@ -57,15 +57,44 @@ static float beam_relative_speed_get(const SystemBeamPair *p,const float weights
     }
     return speed;
 }
+static bool pair_gather_cached;
+static Position pair_gather_starts[MAX_ENTITIES], pair_gather_ends[MAX_ENTITIES];
+void physics_beam_pairs_gather_cache_reset(void) { pair_gather_cached = false; }
+
 void physics_beam_pairs_gather(Report *report) {
-    /* Pair enumeration uses existing pool storage; no persistent pair ownership. */
-    for(EntityIndex a=0;a<soft_body_beams_pool.capacity;++a) {
-        if(!soft_body_beams_pool.used[a])continue;
-        EntityIndex an[2];if(!beam_nodes_get(a,an))continue;
-        for(EntityIndex b=a+1;b<soft_body_beams_pool.capacity;++b) {
-            if(!soft_body_beams_pool.used[b])continue;
-            EntityIndex bn[2];if(!beam_nodes_get(b,bn))continue;
+    /* Rebuild bounded candidates from current endpoints. Reject disjoint bounds
+     * before constructing cutout polygons or searching retained constraints. */
+    typedef struct BeamCandidate { EntityIndex index,nodes[2]; AABB bounds; bool unchanged; } BeamCandidate;
+    static BeamCandidate candidates[MAX_ENTITIES];
+    bool cached=physics_step_contact_constraints.solving&&pair_gather_cached;
+    unsigned count=0;
+    for(EntityIndex i=0;i<soft_body_beams_pool.capacity;++i) {
+        if(!soft_body_beams_pool.used[i])continue;
+        EntityIndex nodes[2];if(!beam_nodes_get(i,nodes))continue;
+        Position a=positions[nodes[0]],b=positions[nodes[1]];
+        float r=.5f*soft_body_beams[i].collision_thickness;
+        bool unchanged=cached&&pair_gather_starts[i].x==a.x&&pair_gather_starts[i].y==a.y&&
+            pair_gather_ends[i].x==b.x&&pair_gather_ends[i].y==b.y;
+        pair_gather_starts[i]=a;pair_gather_ends[i]=b;
+        candidates[count++]=(BeamCandidate){.index=i,.nodes={nodes[0],nodes[1]},.unchanged=unchanged,
+            .bounds={fminf(a.x,b.x)-r,fmaxf(a.x,b.x)+r,fminf(a.y,b.y)-r,fmaxf(a.y,b.y)+r}};
+    }
+    for(unsigned ai=0;ai<count;++ai) {
+        EntityIndex a=candidates[ai].index,*an=candidates[ai].nodes;
+        for(unsigned bi=ai+1;bi<count;++bi) {
+            if(candidates[ai].unchanged&&candidates[bi].unchanged)continue;
+            if(!math_aabb_overlap(candidates[ai].bounds,candidates[bi].bounds))continue;
+            EntityIndex b=candidates[bi].index,*bn=candidates[bi].nodes;
             if(an[0]==bn[0]||an[0]==bn[1]||an[1]==bn[0]||an[1]==bn[1])continue;
+            SystemContactConstraint *existing=NULL;
+            for(size_t k=0;k<physics_step_contact_constraints.count;++k) {
+                SystemContactConstraint *c=&physics_step_contact_constraints.values[k];
+                if(c->type==SYSTEM_CONTACT_CONSTRAINT_BEAM_PAIR&&
+                    c->value.beam_pair.indices[0]==a&&c->value.beam_pair.indices[1]==b){existing=c;break;}
+            }
+            if(existing&&(existing->value.beam_pair.responds||
+                !physics_collision_response_between_check(existing->value.beam_pair.beams[0],
+                    existing->value.beam_pair.beams[1])))continue;
             SystemBeamPair p={.beams={physics_operation_entity_get(a),physics_operation_entity_get(b)},
                 .indices={a,b},.nodes={an[0],an[1],bn[0],bn[1]}};
             Position point;float weights[4];
@@ -83,6 +112,10 @@ void physics_beam_pairs_gather(Report *report) {
                     beam_relative_speed_get(&p,weights,(Axis){1,0}),
                     beam_relative_speed_get(&p,weights,(Axis){0,1})};
             }
+            if(existing) {
+                if(p.responds)existing->value.beam_pair=p;
+                continue;
+            }
             if(!contact_constraint_list_append(&physics_step_contact_constraints,(SystemContactConstraint){
                 .type=SYSTEM_CONTACT_CONSTRAINT_BEAM_PAIR,.value.beam_pair=p})) {
                 physics_report_issue_add(report,ROHR_PHYSICS_CONTACT_GATHER,ROHR_REPORT_SEVERITY_FATAL,
@@ -91,6 +124,7 @@ void physics_beam_pairs_gather(Report *report) {
             }
         }
     }
+    pair_gather_cached=physics_step_contact_constraints.solving;
 }
 void physics_beam_pair_solve(SystemBeamPair *p,float fraction,Report *report) {
     if(!p||!p->responds)return;
@@ -122,8 +156,20 @@ void physics_beam_pair_solve(SystemBeamPair *p,float fraction,Report *report) {
             if(axis)p->tangent_impulse=next;else p->normal_impulse=next;
         }
     }
-    Position point=p->contact.points[0].position;OverlapInfo overlap;float weights[4];
-    bool hit=beam_overlap_get(p,true,&overlap,&point,weights);
+    bool unchanged=p->geometry_valid;
+    for(unsigned i=0;i<4&&unchanged;++i)
+        unchanged=p->geometry_nodes[i].x==positions[p->nodes[i]].x&&
+            p->geometry_nodes[i].y==positions[p->nodes[i]].y;
+    if(!unchanged) {
+        p->geometry_point=p->contact.points[0].position;
+        p->geometry_overlapping=beam_overlap_get(p,true,&p->geometry_overlap,
+            &p->geometry_point,p->geometry_weights);
+        for(unsigned i=0;i<4;++i)p->geometry_nodes[i]=positions[p->nodes[i]];
+        p->geometry_valid=true;
+    }
+    Position point=p->geometry_point;OverlapInfo overlap=p->geometry_overlap;
+    float *weights=p->geometry_weights;
+    bool hit=p->geometry_overlapping;
     if(hit) {
         float sum=0;for(unsigned i=0;i<4;++i)sum+=weights[i]*weights[i]*inverse[i];
         if(sum>0) {

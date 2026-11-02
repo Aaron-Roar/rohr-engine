@@ -4,6 +4,7 @@
 #include "drop_fixture.h"
 #include "physics/physics_step_internal.h"
 #include <math.h>
+#include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -12,11 +13,14 @@
 #define SETTLING_DEADLINE 2.0
 #define SETTLING_HOLD 10.0
 #define SETTLING_SPEED_LIMIT 0.0001
+static volatile sig_atomic_t interrupted;
+static void interrupt_test(int number) { (void)number;interrupted=1; }
 
 typedef struct DropObservation {
     DropFixture fixture;
     uint64_t substeps;
     bool valid;
+    const char *stop_reason;
     double impact;
     double maximum_linear_speed;
     double maximum_angular_speed;
@@ -25,6 +29,7 @@ typedef struct DropObservation {
     double settling_angular_speed;
     double settling_hold;
     unsigned settling_samples;
+    double energy_ratio, correction_x, settling_support_gap, settling_support_offset;
 } DropObservation;
 
 static double vertical_extent_get(const DropBody *body) {
@@ -42,6 +47,9 @@ static void settling_sample_record(DropObservation *observation, const DropBody 
          * body floating above its support cannot pass merely by being still. */
         double gap = bodies[i].position.y - vertical_extent_get(&bodies[i]) -
             bodies[i - 1].position.y - vertical_extent_get(&bodies[i - 1]);
+        observation->settling_support_gap=fmax(observation->settling_support_gap,fabs(gap));
+        observation->settling_support_offset=fmax(observation->settling_support_offset,
+            fabs(bodies[i].position.x-bodies[i-1].position.x));
         if(linear > SETTLING_SPEED_LIMIT || angular > SETTLING_SPEED_LIMIT ||
                 fabs(gap) > DROP_PENETRATION_LIMIT ||
                 fabs(bodies[i].position.x - bodies[i - 1].position.x) > bodies[i - 1].half_width)
@@ -52,14 +60,19 @@ static void settling_sample_record(DropObservation *observation, const DropBody 
 
 static void completed_substep(double dt, void *context) {
     DropObservation *observation = context;
+    bool was_valid=observation->valid;
     DropFixture *fixture = &observation->fixture;
     DropBody previous[DROP_BODY_COUNT];
     memcpy(previous, fixture->bodies, sizeof(previous));
     double previous_time = fixture->time;
     fixture->time += dt;
     ++observation->substeps;
-    if(!drop_fixture_observe(fixture)) { observation->valid = false; return; }
+    if(!drop_fixture_observe(fixture)) {
+        observation->valid=false;observation->stop_reason="invalid_observation";return;
+    }
     const DropBody *tiny = &fixture->bodies[1], *large = &fixture->bodies[2];
+    observation->correction_x=fmax(observation->correction_x,
+        fabs(tiny->position.x-previous[1].position.x)-fabs(previous[1].velocity.x)*dt);
     /* A correction may repair overlap, but must not teleport the tiny support
      * sideways. Allow integrated motion plus one full tiny-body width. */
     if(fabs(tiny->position.x - previous[1].position.x) >
@@ -92,6 +105,8 @@ static void completed_substep(double dt, void *context) {
     }
     if(!isfinite(energy) || energy > 1.001 * (10000000.0 * 9.8 * 1050.01))
         observation->valid = false;
+    if(!isfinite(energy))observation->stop_reason="invalid_energy";
+    observation->energy_ratio=fmax(observation->energy_ratio,energy/(10000000.0*9.8*1050.01));
     if(observation->impact == 0 && large->position.y < 50.011 &&
             fabs(large->velocity.y) < 1) observation->impact = fixture->time;
     if(observation->impact > 0 && fixture->case_index == 0) {
@@ -108,7 +123,7 @@ static void completed_substep(double dt, void *context) {
     if(observation->impact > 0 && fixture->case_index >= 3)
         observation->maximum_tipping_angle = fmax(observation->maximum_tipping_angle,
             fixture->case_index == 3 ? large->angle : -large->angle);
-    if(!observation->valid) {
+    if(was_valid && !observation->valid) {
         fprintf(stderr, "Collision/support/energy/settling failure at completed substep %llu\n",
             (unsigned long long)observation->substeps);
         drop_fixture_print(fixture);
@@ -128,7 +143,7 @@ static bool run_check(unsigned offset, unsigned rate, bool stalls, bool performa
     double samples[4096], maximum_stall = 0, requested_time = 0;
     size_t count = 0;
     bool short_stall = false, long_stall = false;
-    while(requested_time < 30 && observation.valid) {
+    while(requested_time < 30 && !observation.stop_reason && !interrupted) {
         double dt = fmin(1.0 / rate, 30 - requested_time);
         bool delayed = false;
         if(stalls && !short_stall && requested_time >= 14) {
@@ -146,14 +161,19 @@ static bool run_check(unsigned offset, unsigned rate, bool stalls, bool performa
                     report.statistics[i].metric_id == ROHR_REPORT_SUBSTEPS_COMPLETED_COUNT)
                 reported = report.statistics[i].value;
         requested_time += dt;
-        if(report.has_fatal || report.header.status == ROHR_REPORT_FAILED ||
-                reported != observation.substeps - before || reported == 0 ||
-                fabs(fixture->time - requested_time) > 1e-9) observation.valid = false;
+        if(report.has_fatal || report.header.status == ROHR_REPORT_FAILED)
+            observation.stop_reason="engine_failure";
+        else if(reported != observation.substeps-before || !reported ||
+                fabs(fixture->time-requested_time)>1e-9)
+            observation.stop_reason="time_or_substep_mismatch";
         if(delayed) maximum_stall = fmax(maximum_stall, cpu_ms);
         else if(count < sizeof(samples) / sizeof(samples[0])) samples[count++] = cpu_ms;
         else observation.valid = false;
     }
     physics_substep_observer_set(NULL, NULL);
+    if(interrupted)observation.stop_reason="interrupted";
+    bool complete=!observation.stop_reason&&fabs(fixture->time-30)<=1e-9;
+    if(!complete)observation.valid=false;
     qsort(samples, count, sizeof(samples[0]), time_compare);
     double p95 = count ? samples[(count - 1) * 95 / 100] : 0;
     if(observation.impact <= 14 || observation.impact >= 14.5 ||
@@ -168,17 +188,19 @@ static bool run_check(unsigned offset, unsigned rate, bool stalls, bool performa
     /* A supported body remains free to leave and rotate; no fixture lock or
      * automatic freezing is permitted. This is outside timing measurements. */
     DropBody previous = fixture->bodies[2];
-    if(!drop_result_check(rohr_physics_velocity_set(previous.entity, (Velocity){1, 1})) ||
-            !drop_result_check(rohr_physics_angular_velocity_set(previous.entity, 1)))
-        observation.valid = false;
-    Report released = rohr_system_physics_update(0.001);
-    if(released.has_fatal || !drop_fixture_observe(fixture) ||
-            fixture->bodies[2].position.x <= previous.position.x + 0.0005f ||
-            fixture->bodies[2].position.y <= previous.position.y + 0.0005f ||
-            fixture->bodies[2].angle <= previous.angle + 0.0005f) observation.valid = false;
-    MassResult stored_mass = rohr_physics_mass_get(previous.entity);
-    if(rohr_error_check(stored_mass) || stored_mass.result.value != 10000000.0f)
-        observation.valid = false;
+    if(complete) {
+        if(!drop_result_check(rohr_physics_velocity_set(previous.entity, (Velocity){1, 1})) ||
+                !drop_result_check(rohr_physics_angular_velocity_set(previous.entity, 1)))
+            observation.valid = false;
+        Report released = rohr_system_physics_update(0.001);
+        if(released.has_fatal || !drop_fixture_observe(fixture) ||
+                fixture->bodies[2].position.x <= previous.position.x + 0.0005f ||
+                fixture->bodies[2].position.y <= previous.position.y + 0.0005f ||
+                fixture->bodies[2].angle <= previous.angle + 0.0005f) observation.valid = false;
+        MassResult stored_mass = rohr_physics_mass_get(previous.entity);
+        if(rohr_error_check(stored_mass) || stored_mass.result.value != 10000000.0f)
+            observation.valid = false;
+    }
     printf("%s offset=%u hz=%u stalls=%d samples=%zu substeps=%llu time=%.9f peak_depth=%.9g impact=%.9f p95_cpu_ms=%.6f stall_cpu_ms=%.6f post15_linear=%.9g post15_angular=%.9g tipping_angle=%.9g final_angle=%.9g settling_samples=%u settling_hold=%.9f settling_linear=%.9g settling_angular=%.9g\n",
         observation.valid ? "PASS" : "FAIL", offset, rate, stalls, count,
         (unsigned long long)observation.substeps, fixture->time, fixture->maximum_depth,
@@ -186,20 +208,26 @@ static bool run_check(unsigned offset, unsigned rate, bool stalls, bool performa
         observation.maximum_angular_speed, observation.maximum_tipping_angle, previous.angle,
         observation.settling_samples, observation.settling_hold,
         observation.settling_linear_speed, observation.settling_angular_speed);
+    printf("worst energy_ratio=%.9g correction_x=%.9g settling_support_gap=%.9g settling_support_offset=%.9g\n",
+        observation.energy_ratio,observation.correction_x,observation.settling_support_gap,observation.settling_support_offset);
+    printf("completion condition=time target=30 reached=%d reason=%s max_cpu_ms=%.6f\n",
+        complete,observation.stop_reason?observation.stop_reason:complete?"endpoint_reached":"endpoint_not_reached",
+        fmax(maximum_stall,count?samples[count-1]:0));
     drop_fixture_destroy(fixture);
     return observation.valid;
 }
 
 int main(int argc, char **argv) {
+    signal(SIGINT,interrupt_test);signal(SIGTERM,interrupt_test);
     bool performance = argc == 2 && strcmp(argv[1], "--performance") == 0;
     if(!drop_result_check(rohr_engine_start())) return 1;
     bool ok = true;
-    for(unsigned offset = 0; offset < DROP_CASE_COUNT && ok; ++offset) {
+    for(unsigned offset = 0; offset < DROP_CASE_COUNT && !interrupted; ++offset) {
         const unsigned rates[] = {30, 60, 120};
-        for(unsigned i = 0; i < 3 && ok; ++i)
-            ok = run_check(offset, rates[i], false, performance);
-        if(ok) ok = run_check(offset, 60, true, performance);
+        for(unsigned i = 0; i < 3 && !interrupted; ++i)
+            ok = run_check(offset, rates[i], false, performance) && ok;
+        if(!interrupted)ok = run_check(offset, 60, true, performance) && ok;
     }
     rohr_engine_stop();
-    return ok ? 0 : 1;
+    return ok && !interrupted ? 0 : 1;
 }

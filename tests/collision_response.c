@@ -3,9 +3,11 @@
  */
 #include "rohr.h"
 #include "core/engine_internal.h"
+#include "physics/physics_step_internal.h"
 #include <assert.h>
 #include <math.h>
 #include <stdio.h>
+#include <string.h>
 
 #define OK(value) assert(!rohr_error_check(value))
 static Velocity velocity_get(Entity entity) {
@@ -53,6 +55,26 @@ static void step(void) {
     Report report = rohr_system_physics_update(0);
     assert(report.header.status != ROHR_REPORT_FAILED);
 }
+static void filter_parity(Entity first, Entity second) {
+    EntityIndexResult a = rohr_entity_index_get(first), b = rohr_entity_index_get(second);
+    OK(a); OK(b);
+    for(unsigned cached = 0; cached < 2; ++cached) {
+        if(cached) physics_step_entities_begin();
+        CollisionFilterDescription filter;
+        CollisionFilterDescriptionResult public = rohr_physics_collision_filter_description_get(first);
+        OK(public);
+        assert(physics_collision_filter_by_index_get(a.result.value, &filter));
+        assert(filter.category == public.result.value.category && filter.responds_to == public.result.value.responds_to);
+        assert(physics_collision_response_to_by_index_check(a.result.value, b.result.value) ==
+            rohr_physics_collision_response_to_check(first, second));
+        assert(physics_collision_response_between_by_index_check(a.result.value, b.result.value) ==
+            rohr_physics_collision_response_between_check(first, second));
+        assert(!physics_collision_filter_by_index_get(MAX_ENTITIES, &filter));
+        assert(!physics_collision_filter_by_index_get(a.result.value, NULL));
+        assert(!physics_collision_response_to_by_index_check(a.result.value, MAX_ENTITIES));
+        physics_step_entities_end();
+    }
+}
 static void pair(int first_kind, int second_kind, unsigned masks, bool reverse) {
     OK(rohr_engine_start());
     Entity a,b;
@@ -68,6 +90,7 @@ static void pair(int first_kind, int second_kind, unsigned masks, bool reverse) 
     assert(rohr_physics_collision_response_between_check(a,b)==!!masks);
     assert(rohr_physics_collision_response_between_check(b,a)==!!masks);
     assert(!rohr_physics_collision_response_to_check(ENTITY_INVALID,b));
+    filter_parity(a,b); filter_parity(b,a);
     step();
     assert(rohr_physics_overlap_check(a,b) && rohr_physics_overlap_check(b,a));
     OverlapInfo ab=rohr_physics_overlap_get(a,b),ba=rohr_physics_overlap_get(b,a);
@@ -90,6 +113,7 @@ static void pair(int first_kind, int second_kind, unsigned masks, bool reverse) 
     /* Mask changes end contact without ending a continuing geometric overlap. */
     OK(rohr_physics_collision_response_none_set(a));
     OK(rohr_physics_collision_response_none_set(b));
+    filter_parity(a,b); filter_parity(b,a);
     OK(rohr_physics_position_set(a,(Position){-.75f,0}));
     OK(rohr_physics_position_set(b,(Position){.75f,0}));
     step();
@@ -111,6 +135,7 @@ static void beam_pair(unsigned masks, bool reverse) {
     if(!reverse) p=collider(0,(Position){0,1.5f},(Velocity){3,-10},2,masks&2?1:0);
     OK(rohr_physics_collision_response_set(beam.result.value,masks&1?2:0));
     assert(rohr_physics_collision_response_to_check(beam.result.value,p)==!!(masks&1));
+    filter_parity(beam.result.value,p); filter_parity(p,beam.result.value);
     step();
     assert(rohr_physics_overlap_check(beam.result.value,p));
     assert(rohr_physics_contact_check(beam.result.value,p)==!!masks);
@@ -126,6 +151,66 @@ static void beam_pair(unsigned masks, bool reverse) {
         near(vp.x,3);near(vp.y,-10);near(rohr_physics_position_get(p).result.value.y,1.5f);
         near(rohr_physics_angular_velocity_get(p).result.value,0);
     } else {assert(vp.y>-10);assert(vp.x<3);}
+    rohr_engine_stop();
+}
+static void filter_defaults_and_lifetime(void) {
+    OK(rohr_engine_start());
+    EntityResult first = rohr_entity_add(), second = rohr_entity_add();
+    OK(first); OK(second);
+    filter_parity(first.result.value, second.result.value);
+    OK(rohr_physics_collision_filter_description_set(first.result.value,
+        (CollisionFilterDescription){UINT64_C(1) << 63, UINT64_C(1) << 62}));
+    OK(rohr_physics_collision_filter_description_set(second.result.value,
+        (CollisionFilterDescription){UINT64_C(1) << 62, 0}));
+    filter_parity(first.result.value, second.result.value);
+    filter_parity(second.result.value, first.result.value);
+    EntityIndexResult index = rohr_entity_index_get(first.result.value); OK(index);
+    physics_step_entities_begin();
+    physics_step_entity_by_index_delete(index.result.value);
+    CollisionFilterDescription filter;
+    assert(!physics_collision_filter_by_index_get(index.result.value, &filter));
+    EntityResult replacement = rohr_entity_add(); OK(replacement);
+    assert(!rohr_physics_collision_response_to_check(first.result.value, second.result.value));
+    filter_parity(replacement.result.value, second.result.value);
+    /* A component mask alone cannot supply a beam-owned filter. */
+    OK(rohr_entity_components_add(replacement.result.value, ROHR_SOFT_BODY_BEAM));
+    index = rohr_entity_index_get(replacement.result.value); OK(index);
+    assert(rohr_error_check(rohr_physics_collision_filter_description_get(replacement.result.value)));
+    assert(!physics_collision_filter_by_index_get(index.result.value, &filter));
+    OK(rohr_entity_components_delete(replacement.result.value, ROHR_SOFT_BODY_BEAM));
+    rohr_engine_stop();
+}
+static void stale_soft_contact_target(void) {
+    OK(rohr_engine_start());
+    Entity a = collider(2, (Position){-5,0}, (Velocity){0}, 4, 0);
+    Entity b = collider(2, (Position){5,0}, (Velocity){0}, 4, 0);
+    EntityResult beam = rohr_physics_soft_body_beam_add((SoftBodyBeamDescription){
+        .node_a=a, .node_b=b,
+        .collision={.enabled=true, .thickness=2, .filter={.category=1, .responds_to=2}}});
+    OK(beam);
+    Entity target = collider(0, (Position){0,1.5f}, (Velocity){0,-10}, 2, 1);
+    EntityIndexResult index = rohr_entity_index_get(target); OK(index);
+    SystemContactConstraint saved = {.type=SYSTEM_CONTACT_CONSTRAINT_SOFT_BOUNDARY,
+        .value.soft={.node_a=a, .node_b=b,
+            .a=rohr_entity_index_get(a).result.value, .b=rohr_entity_index_get(b).result.value,
+            .beam_index=rohr_entity_index_get(beam.result.value).result.value,
+            .rigid=index.result.value, .rigid_entity=target, .radius=1,
+            .start={12345,0}, .responds=true, .solving=true, .position_fraction=1}};
+    OK(rohr_entity_delete(target));
+    Entity replacement = collider(0, (Position){0,1.5f}, (Velocity){0,-10}, 2, 1);
+    assert(rohr_entity_index_get(replacement).result.value == index.result.value);
+    assert(replacement != target);
+    for(unsigned cached=0; cached<2; ++cached) {
+        if(cached) physics_step_entities_begin();
+        SystemContactConstraint before;
+        memcpy(&before, &saved, sizeof(before));
+        Report report = physics_report_create(ROHR_PHYSICS_CONSTRAINTS_REPORT_ID);
+        physics_soft_body_constraint_solve(&saved, 1, &report);
+        assert(memcmp(&saved, &before, sizeof(saved)) == 0);
+        assert(report.diagnostic_count == 0 && !report.has_fatal);
+        physics_step_entities_end();
+    }
+    near(velocity_get(replacement).y, -10);
     rohr_engine_stop();
 }
 static void motion_and_material(bool kinematic, bool nonresponder) {
@@ -203,6 +288,8 @@ static void low_speed_rebound(void) {
     }
 }
 int main(void) {
+    filter_defaults_and_lifetime();
+    stale_soft_contact_target();
     low_speed_rebound();
     for(int a=0;a<3;++a) for(int b=0;b<3;++b)
         for(unsigned masks=0;masks<4;++masks) for(int reversed=0;reversed<2;++reversed)

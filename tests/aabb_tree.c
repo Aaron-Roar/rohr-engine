@@ -84,6 +84,27 @@ int main(void) {
             }
         }
     }
+    /* Move leaves far outside their original ancestors and compare all queries
+     * with brute force, including shrinkage and repeated updates. */
+    for(unsigned pass = 0; pass < 3; ++pass) {
+        for(uint32_t leaf = 0; leaf < tree.count; ++leaf) {
+            if(!aabb_tree_node_leaf_check(&tree.nodes[leaf])) continue;
+            size_t i = (size_t)tree.nodes[leaf].entity - 1;
+            float x = (float)((i * 17 + pass * 131) % 503) - 250;
+            float y = (float)((i * 29 + pass * 47) % 307) - 150;
+            bounds[i] = (AABB){x, x + 1 + pass, y, y + 2};
+            if(!aabb_tree_leaf_bounds_set(&tree, leaf, bounds[i])) return 1;
+        }
+        for(size_t i = 0; i < 256; ++i) {
+            results = (QueryResults){0};
+            if(!aabb_tree_query(&tree, bounds[i], result_add, &results)) return 1;
+            for(size_t j = 0; j < 256; ++j)
+                if(math_aabb_overlap(bounds[i], bounds[j]) !=
+                    result_has(&results, (Entity)(j + 1))) return 1;
+        }
+    }
+    if(aabb_tree_leaf_bounds_set(&tree, (uint32_t)tree.count, bounds[0]) ||
+        aabb_tree_leaf_bounds_set(&tree, tree.root, bounds[0])) return 1;
     aabb_tree_destroy(&tree);
     return 0;
 }

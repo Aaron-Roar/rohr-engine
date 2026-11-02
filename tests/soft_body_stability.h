@@ -18,6 +18,7 @@ typedef struct SbFixture {
     EntityIndex ni[8];
     unsigned kind; /* 0 drop, 1 box, 2 node, 3 beam, 4 combined, 5 fold, 6 control */
     bool ramp,valid,loaded,launched;
+    const char *stop_reason;
     double time,depth,energy_base,energy_added,energy_error,peak_speed,final_speed;
     double observer_cpu;
     uint64_t substeps,self_contacts,particle_contacts,load_contacts;
@@ -64,12 +65,14 @@ static bool sb_create(SbFixture *f,unsigned kind,bool ramp) {
     /* Lowest collider measured along the terrain normal; owner remains upright. */
     if(kind<5&&!sb_body(&f->terrain,(Position){-10*sin(rad),-10*cos(rad)},4000,20,1,true,angle))return false;
     EntityResult owner=rohr_physics_soft_body_add((SoftBodyDescription){.position={0,cy}});
-    if(rohr_error_check(owner))return false;f->owner=owner.result.value;
+    if(rohr_error_check(owner))return false;
+    f->owner=owner.result.value;
     for(unsigned i=0;i<8;++i) {
         EntityResult n=rohr_physics_soft_body_node_add((SoftBodyNodeDescription){.owner=f->owner,
             .position={sb_points[i].x,sb_points[i].y+cy},.mass=1,.radius=5,.friction=.5,.restitution=0,
             .collision_enabled=kind!=6,.collision_filter={.category=1,.responds_to=1}});
-        if(rohr_error_check(n))return false;f->nodes[i]=n.result.value;f->ni[i]=sb_index(n.result.value);
+        if(rohr_error_check(n))return false;
+        f->nodes[i]=n.result.value;f->ni[i]=sb_index(n.result.value);
         if(kind<5&&!sb_ok(rohr_physics_gravity_enable(n.result.value)))return false;
     }
     for(unsigned i=0;i<14;++i) {
@@ -77,7 +80,8 @@ static bool sb_create(SbFixture *f,unsigned kind,bool ramp) {
             .node_a=f->nodes[sb_edges[i][0]],.node_b=f->nodes[sb_edges[i][1]],.stiffness=100,.damping=0,
             .friction=.5,.restitution=0,.collision={.enabled=i>=6&&kind!=6,.thickness=2,
                 .filter={.category=1,.responds_to=1}}});
-        if(rohr_error_check(b))return false;f->beams[i]=b.result.value;
+        if(rohr_error_check(b))return false;
+        f->beams[i]=b.result.value;
     }
     if(kind==5) {
         if(!sb_ok(rohr_physics_velocity_set(f->nodes[5],(Velocity){-200,0}))||
@@ -198,8 +202,11 @@ static void sb_observe(double dt,void *context) {
     for(unsigned i=0;i<11;++i)if(objects[i]) {
         EntityIndex n=sb_index(objects[i]);double speed=hypot(velocities[n].x,velocities[n].y);
         f->peak_speed=fmax(f->peak_speed,speed);if(i<8)f->final_speed=fmax(f->final_speed,speed);
-        if(!isfinite(positions[n].x)||!isfinite(positions[n].y)||!isfinite(speed))f->valid=false;
+        if(!isfinite(positions[n].x)||!isfinite(positions[n].y)||!isfinite(speed)) {
+            f->valid=false;f->stop_reason="invalid_state";
+        }
     }
+    if(!isfinite(e))f->stop_reason="invalid_energy";
     if(f->tunneled||!isfinite(e)||f->depth>.02||f->energy_error>.01)f->valid=false;
     f->observer_cpu+=1000.0*(clock()-start)/CLOCKS_PER_SEC;
 }

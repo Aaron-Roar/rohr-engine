@@ -481,15 +481,64 @@ beam pairs are excluded; other pairs obey directional collision filters and
 distribute response across both pairs of nodes. Node contacts retain ownership
 of matching endpoint regions. Beam collision remains disabled by default.
 
+During constraint solving, rigid corrections can move nodes into previously
+separated beams. The solver refreshes these contacts before soft-body response,
+retaining existing impact targets and accumulated impulses. Endpoint exclusion
+still follows the current geometry: a beam tilted by node correction may contact
+a target outside the endpoint disk within the same solve. Broadphase refits stay
+within that solve. Exact-pose hitbox reuse and a live-entity snapshot can span a
+complete synchronous substep; neither survives its return. Manual stages rebuild
+after public geometry edits, including edits made between gathering and solving.
+Internal liveness checks and collider iteration reuse that membership snapshot;
+component masks remain live. Recovery deletion invalidates membership before
+removing an entity. Outside the complete substep, checks and iteration use the
+current entity tables.
+Internal rigid/beam collision paths read directional filters by validated body
+index, retaining beam-owned overrides and the default filter for other bodies.
+Saved soft-contact targets retain their handle identity check, so storage-slot
+reuse cannot revive a stale target. Public filter queries keep handle validation.
+
+Adaptive motion bounds use prepared acceleration for translating, nonrotating
+colliders, including the elastic-node integrator's half-acceleration position
+term. A zero net displacement does not imply a stationary trajectory: broadphase
+bounds include excursions before a reversal. Nonrotating particle pairs use
+their circular contact geometry for sweeps. Beam side-contact bounds can extend
+the existing travel-limited step when the target's vertices remain outside the
+moving side plane, with the same penetration margin. These are general physics
+paths; none selects behavior by example, fixture identity, or benchmark mode.
+
+[Milestone 11](../NEXT_STEPS.md#11-soft-body-correctness-and-real-time-performance)
+tracks the remaining performance work and the authored car benchmark. Passing
+contact regressions does not establish real-time performance or complete the
+milestone 6 soft-body goal.
+
+The opt-in `particle_pit` CMake target isolates the rigid collision path with
+800 standalone particles of diameter 5 and restitution 0.5 falling into a pit.
+It contains no car, soft-body components or joints. Its executable is under
+`sandbox/milestone_11/goal_1/bin/<platform>/`. Run it without arguments for a
+paused live view (Space plays, N steps, R resets), or use `--headless` for the
+12-second diagnostic. `--count=200` supports scaling comparisons;
+`--seconds=6` selects a shorter diagnostic; `--csv=PATH` records each frame's
+physics CPU time, stage wall times and work counts. Drawing and validation are
+outside the physics timer. The live view advances fixed simulation steps and
+slows when CPU-bound; it does not claim real-time acceptance. `--smoke` checks
+startup, drawing and teardown over 0.1 seconds, without reaching impact.
+The diagnostic continues after finite escape failures and recoverable physics
+diagnostics, retaining the worst floor depth and side escape until its declared
+duration. Its report separates the numerical verdict from endpoint completion.
+Fatal errors, unavailable/nonfinite particle state, lack of completed substeps,
+or interruption produce an incomplete run with explicitly partial measurements.
+
 Complete physics substeps use a second spring-force evaluation for elastic
 soft-body nodes, with stiffness and collision-motion limits on adaptive steps.
 Zero-stiffness nodes and standalone manual integration keep their existing
 prepared-force integration behavior. Contact-only convergence does not freeze
 bodies or damp residual motion. These changes do not alter public descriptions
-or persistence formats. Goal 5 currently **fails** its extreme-load penetration
-and CPU requirements; the roadmap records the measured failures. Its visual
-acceptance is also unfinished. These changes must not be treated as completion
-of the soft-body robustness milestone.
+or persistence formats. The existing 48 Goal 5 numerical cases now pass their
+penetration, finite-state, energy and contact checks. CPU requirements and full
+acceptance remain unfinished; the roadmap records the measurements and remaining
+verification. These changes must not be treated as completion of the soft-body
+robustness milestone.
 Each beam has independent lifetime ownership and optional thick-segment collision,
 separate from visual areas. **New beams have collision off.** Thickness and filters
 are explicit; creation, endpoint edits, and node-radius changes never derive,

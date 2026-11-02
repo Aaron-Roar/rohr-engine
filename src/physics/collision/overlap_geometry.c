@@ -9,24 +9,39 @@
 #include <float.h>
 #include <math.h>
 
+/* Keep projection order and float comparisons identical to the public math
+ * helper, without copying a fixed-capacity shape/list for every SAT axis. */
+static Projection physics_sat_projection_get(const Shape *shape, Axis axis) {
+    if(shape->amount_of_vertices == 0) return (Projection){0};
+    float first = math_dot_product(shape->vertices[0], axis);
+    Projection result = {.min = first, .max = first};
+    for(uint16_t i = 1; i < shape->amount_of_vertices; ++i) {
+        float value = math_dot_product(shape->vertices[i], axis);
+        if(value < result.min) result.min = value;
+        if(value > result.max) result.max = value;
+    }
+    return result;
+}
+
 static bool physics_sat_piece_axes_apply(
-    Shape first,
-    Shape second,
+    const Shape *first,
+    const Shape *second,
     const Shape *source,
     uint8_t piece_index,
     Vec2D center_delta,
     OverlapInfo *overlap
 ) {
-    Vec2DList axes = math_vectors_normalize(math_normals_create(first));
-
-    for(uint8_t edge = 0; edge < axes.amount_of_vectors; edge += 1) {
-        Axis axis = axes.vectors[edge];
+    if(first->amount_of_vertices <= 1 || first->amount_of_vertices > MAX_VECTORS) return true;
+    for(uint8_t edge = 0; edge < first->amount_of_vertices; edge += 1) {
+        Position a = first->vertices[edge];
+        Position b = first->vertices[(edge + 1) % first->amount_of_vertices];
+        Axis axis = math_vector_normalize((Axis){b.y - a.y, -(b.x - a.x)});
         if(math_dot_product(axis, center_delta) < 0.0f) {
             axis.x = -axis.x;
             axis.y = -axis.y;
         }
-        Projection first_projection = math_project_shape_on_axis(first, axis);
-        Projection second_projection = math_project_shape_on_axis(second, axis);
+        Projection first_projection = physics_sat_projection_get(first, axis);
+        Projection second_projection = physics_sat_projection_get(second, axis);
         float depth = math_projection_overlap(first_projection, second_projection);
         if(depth <= 0.0f) return false;
         /* Intersection length is not separation distance when either interval
@@ -55,9 +70,9 @@ OverlapInfo physics_sat_collision_piece_overlap_get(
     center_delta = math_vector_subtract(
         math_polygon_centroid(*second_source),
         math_polygon_centroid(*first_source));
-    if(!physics_sat_piece_axes_apply(first, second, first_source, first_index,
+    if(!physics_sat_piece_axes_apply(&first, &second, first_source, first_index,
             center_delta, &overlap) ||
-            !physics_sat_piece_axes_apply(second, first, second_source,
+            !physics_sat_piece_axes_apply(&second, &first, second_source,
                 second_index, (Vec2D){-center_delta.x, -center_delta.y},
                 &overlap) || overlap.depth == FLT_MAX)
         return (OverlapInfo){0};

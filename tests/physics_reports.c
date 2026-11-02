@@ -340,6 +340,19 @@ static void allocation_failures(void) {
     fail_allocations = false;
     assert(report.has_fatal && report.first_fatal.internal_stage == ROHR_PHYSICS_CONTACT_GATHER);
     assert(report.first_fatal.source.id == a && report.first_fatal.target.id == b);
+    /* With value storage already reserved, fail only the new pair-index
+     * allocation. No constraint may be published before both stores exist. */
+    contact_constraint_list_destroy(&physics_step_contact_constraints);
+    OK(contact_constraint_list_init(&physics_step_contact_constraints, 1));
+    fail_allocations = true;
+    report = physics_pipeline_contacts_gather();
+    fail_allocations = false;
+    assert(report.has_fatal && report.first_fatal.internal_stage == ROHR_PHYSICS_CONTACT_GATHER);
+    assert(physics_step_contact_constraints.count == 0 &&
+        !contact_constraint_list_rigid_pair_check(&physics_step_contact_constraints, a, b));
+    report = physics_pipeline_contacts_gather();
+    assert(!report.has_fatal && physics_step_contact_constraints.count == 1 &&
+        contact_constraint_list_rigid_pair_check(&physics_step_contact_constraints, a, b));
     joint_constraint_list_destroy(&physics_step_joint_constraints);
     fail_allocations = true;
     report = physics_pipeline_joints_gather();

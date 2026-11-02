@@ -20,6 +20,7 @@
 #include <float.h>
 #include <stdio.h>
 #include <time.h>
+#include <string.h>
 
 
 AABBTree physics_broadphase_tree = {.root = AABB_TREE_NODE_INVALID};
@@ -28,6 +29,33 @@ JointConstraintList physics_step_joint_constraints;
 static bool system_hitbox_dirty[MAX_ENTITIES];
 static EntityIndex system_hitbox_dirty_entities[MAX_ENTITIES];
 static size_t system_hitbox_dirty_count;
+/* Entity membership cannot change inside a complete synchronous substep.
+ * Manual stages retain ordinary validation; observers run after this cache ends. */
+PhysicsStepMembership physics_step_membership;
+static EntityIndex step_entity_indices[MAX_ENTITIES];
+static uint32_t step_entity_count;
+
+void physics_step_entities_begin(void) {
+    physics_step_membership.active = false;
+    physics_step_membership.collider_count = 0;
+    step_entity_count = entity_alive_count_get();
+    if(step_entity_count > MAX_ENTITIES) return;
+    memset(physics_step_membership.handles, 0, sizeof(physics_step_membership.handles));
+    for(uint32_t n = 0; n < step_entity_count; ++n) {
+        EntityResult entity = entity_alive_at_get(n);
+        EntityIndex index;
+        if(entity.kind == ERROR_RESULT_ERROR || !entity_index_get(entity.result.value, &index) ||
+                !entity_index_alive_check(index)) return;
+        step_entity_indices[n] = index;
+        physics_step_membership.handles[index] = entity.result.value;
+        if((entity_mask[index] & ROHR_HIT_BOX) != 0)
+            physics_step_membership.colliders[physics_step_membership.collider_count++] = index;
+    }
+    physics_step_membership.active = true;
+}
+
+void physics_step_entities_end(void) { physics_step_membership.active = false; }
+bool physics_step_entities_active_check(void) { return physics_step_membership.active; }
 
 double physics_step_elapsed_ms(uint64_t start) {
     return (double)(SDL_GetPerformanceCounter() - start) * 1000.0 /
@@ -114,6 +142,11 @@ void physics_broadphase_destroy(void) {
 }
 
 bool physics_step_entity_from_index_get(EntityIndex index, Entity *entity) {
+    if(physics_step_membership.active) {
+        if(entity == NULL || index >= MAX_ENTITIES || physics_step_membership.handles[index] == ENTITY_INVALID) return false;
+        *entity = physics_step_membership.handles[index];
+        return true;
+    }
     EntityResult result = entity_from_index_get(index);
 
     if(entity == NULL || result.kind == ERROR_RESULT_ERROR) {
@@ -125,6 +158,12 @@ bool physics_step_entity_from_index_get(EntityIndex index, Entity *entity) {
 
 bool physics_step_alive_index_at(uint32_t alive_position, EntityIndex *index) {
     EntityResult result;
+
+    if(physics_step_membership.active) {
+        if(index == NULL || alive_position >= step_entity_count) return false;
+        *index = step_entity_indices[alive_position];
+        return true;
+    }
 
     if(index == NULL) {
         return false;
@@ -180,6 +219,7 @@ void physics_step_entity_by_index_delete(EntityIndex index) {
     if(!physics_step_entity_from_index_get(index, &entity)) {
         return;
     }
+    physics_step_entities_end();
     entity_delete(entity);
 }
 
@@ -201,18 +241,31 @@ void physics_pipeline_contact_constraints_solve(
         physics_rigid_constraints_gather(context);
     if(context != NULL && ((Report *)context)->has_fatal) return;
     bool converged = false;
-    if(physics_rigid_contact_block_solve_check(constraints, position_fraction, context, &converged)) {
+    bool block_solved = physics_rigid_contact_block_solve_check(constraints, position_fraction, context, &converged);
+    if(block_solved) {
         constraints->solver_converged = converged && constraints == &physics_step_contact_constraints &&
             physics_step_joint_constraints.count == 0;
-        return;
+        if(!soft_body_beams_pool.count) return;
     }
-    for(size_t i = 0; i < constraints->count; i += 1) {
+    for(size_t i = 0; !block_solved && i < constraints->count; i += 1) {
         if(context != NULL && ((Report *)context)->has_fatal) break;
         SystemContactConstraint *constraint = &constraints->values[i];
 
         if(constraint->type == SYSTEM_CONTACT_CONSTRAINT_RIGID_PAIR) {
             physics_rigid_contact_constraint_solve(constraint, position_fraction, context);
-        } else if(constraint->type == SYSTEM_CONTACT_CONSTRAINT_SOFT_BOUNDARY) {
+        }
+    }
+    /* Rigid correction can move a node into a previously separated beam.
+     * Refresh before soft response, preserving every existing impact target. */
+    if(constraints == &physics_step_contact_constraints && soft_body_beams_pool.count) {
+        physics_step_hitbox_dirty_flush(context);
+        physics_rigid_constraints_gather(context);
+        physics_soft_body_constraints_gather(context);
+    }
+    for(size_t i = 0; i < constraints->count; ++i) {
+        if(context != NULL && ((Report *)context)->has_fatal) break;
+        SystemContactConstraint *constraint = &constraints->values[i];
+        if(constraint->type == SYSTEM_CONTACT_CONSTRAINT_SOFT_BOUNDARY) {
             physics_soft_body_constraint_solve(constraint, position_fraction, context);
         } else if(constraint->type == SYSTEM_CONTACT_CONSTRAINT_BEAM_PAIR) {
             physics_beam_pair_solve(&constraint->value.beam_pair, position_fraction, context);

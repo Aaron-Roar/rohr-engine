@@ -13,6 +13,7 @@ priority order.
 | 2 | Asset and resource ownership | Complete |
 | 3 | COM, inertia, and origin semantics | Complete |
 | 4 | Cross-path feature parity | Complete by user acceptance; recorded verification exceptions remain |
+| 11 | Soft-body correctness and real-time performance | Goal 1 resumed; previous attempt failed performance verification |
 | 6 | Physics robustness | Goals 1–4 accepted; goal 5 failed verification |
 | — | [C game experiment](#c-game-experiment) | Pending; agree concept and completion criteria when starting |
 | 8 | Runtime isolation (global-state assumptions) | Foundations implemented; two independent worlds pending |
@@ -24,10 +25,14 @@ priority order.
 **Completed goal:** milestone 6 goal 4, **Joint stability**, including the user's
 visual/window-switch acceptance. Its frozen fixtures and verification are
 recorded below. Goal 5, **Soft-body contact and stability**, was pursued and
-**failed verification**: extreme-load penetration and CPU limits remain unmet.
-The current branch also exceeds Goal 3's delayed-update CPU limit, while its
-numerical results remain unchanged. Stop here pending explicit user direction;
-the C game experiment has not started.
+**failed verification** at checkpoint `63fccb26` on extreme-load penetration and
+CPU limits. The milestone 11 attempt now passes all 48 existing numerical checks,
+but still misses delayed-update and car real-time budgets; neither goal is complete.
+Goal 3's timing rerun on the unchanged build passes at 45.432 ms delayed and
+0.771 ms worst 60 Hz p95; earlier 69.505/58.421 ms failures remain evidence of
+measurement variability, not an established physics regression. The user approved
+milestone 11 goal 1 to diagnose and resolve the soft-body failures, comparing the
+existing car example as well. The C game experiment has not started.
 
 Regression checks and relevant sanitizer checks remain mandatory throughout
 physics, the C game experiment, and runtime isolation. Deferring the broader
@@ -495,6 +500,249 @@ contracts, and generated examples when a goal changes supported behavior.
     see the corrective issue mapping. Goal 5 is now complete by user acceptance
     with the recorded verification exceptions above.
 
+### 11. Soft-body correctness and real-time performance
+
+Identify and fix excessive soft-body simulation cost and contact penetration,
+using milestone 6 goal 5 and the authored soft-body car as acceptance workloads.
+Complete this milestone before resuming milestone 6 completion.
+
+1. [ ] **Diagnose and resolve soft-body contact and performance failures — in progress.**
+   Compare pre-goal-5 commit `b00baf6e`, checkpoint `63fccb26`, and the corrected
+   implementation with identical Release settings and installed SDKs. Keep the
+   car, terrain, 200 particles, 240 Hz ticks, and four configured substeps.
+   The repeatable 60-second input sequence idles until 2 s, drives right until
+   30 s, then left until 60 s, requesting grounded jumps at 5 and 35 s.
+   Measure physics CPU, frame/render work, simulated time, completed substeps,
+   collision candidates and solver work. Separate debug drawing and intentional
+   collision slow motion from normal-speed acceptance. At 1280×720 require
+   sustained 60 FPS, p95 frame work ≤16.67 ms excluding pacing, simulated time
+   within 1% of elapsed wall time, and no accumulated catch-up backlog.
+   Retain all three serial AC-powered repetitions per version with streaming
+   applications closed and no concurrent builds. All 48 milestone 6 goal 5
+   cases must meet their unchanged correctness and timing limits; preserve
+   goals 1–4 and strengthen swept-contact coverage where necessary. Profile
+   before choosing fixes; do not reduce geometry, collision coverage, or elapsed
+   time to improve timings. Public APIs and ownership remain unchanged.
+   Require focused regressions, ASan/UBSan, Linux execution, Windows cross-builds,
+   independently built installed-SDK examples, and visual/window-switch review
+   of the car and goal 5 preview. Executables and evidence belong under
+   `sandbox/milestone_11/goal_1/`. Milestone 6 goal 5 remains incomplete until
+   its remaining gates pass. Do not advance to the C game automatically.
+
+   **Verification attempt (2026-10-30): failed performance requirements.** Rigid
+   correction could introduce a beam overlap after contact gathering. Refreshing
+   contacts during the solve fixes the observed penetration failures while
+   preserving accumulated impulses and endpoint filtering. Solver-local tree
+   refits, exact-pose geometry reuse, conservative swept bounds, compact beam
+   candidates and allocation-free SAT projection loops reduce repeated work.
+   The tight contact-travel bound remains: larger-step experiments violated
+   penetration and COM/origin invariance and were discarded.
+
+   All 48 existing goal 5 numerical checks finish successfully; peak penetration
+   is 0.002126 units (limit 0.02). Exploratory normal 60 Hz p95 is at most
+   1.392 ms, but the worst delayed update is 2878.504 ms (limit 50). A short
+   rendered car probe ended early at 112 frames: physics CPU p95 517.376 ms,
+   render work p95 2.163 ms and frame work p95 520.130 ms. It advanced 1.867
+   simulated seconds in 24.589 elapsed seconds and is explicitly incomplete.
+   These are exploratory observations with streaming not confirmed closed,
+   not the required controlled three-version, three-repetition acceptance.
+
+   All 24 focused regressions, 13 ASan/UBSan checks and goals 1–4 numerical
+   regressions pass. Linux execution, Windows cross-builds, five independently
+   built examples against Linux/sanitizer/Windows SDKs, and normal/delayed
+   Linux/sanitizer player-floor probes pass. Native Windows execution was not
+   performed. No final compiler warnings or sanitizer findings. The scripted
+   car benchmark and usage are in `examples/soft-body/`; local evidence is in
+   `sandbox/milestone_11/goal_1/verification.txt`. Full 60-second comparisons,
+   debug/slow-motion measurements, strengthened swept-surface verification and
+   the dedicated goal 5 preview/visual acceptance remained unfinished at that
+   attempt. Review
+   the evidence from this failed attempt. The user subsequently directed continued
+   work on this same goal; its acceptance criteria remain unchanged.
+
+   **Resumed verification (2026-10-30): in progress.** Acceleration-aware
+   collision bounds and conservative moving-beam side bounds reduce excessive
+   substeps without selecting particular examples or fixtures. Exact-pose
+   geometry reuse now spans a complete synchronous substep. All 48 existing
+   goal 5 numerical checks pass, with peak penetration 0.003006 units; the
+   worst exploratory delayed update remains 422.616 ms (limit 50).
+   Twenty-six focused regressions, fifteen ASan/UBSan tests, goals 1–4 numerical
+   fixtures, and Linux/Windows installed-SDK consumer verification pass.
+   The dedicated goal 5 recorded preview passes Linux and sanitizer smoke
+   checks; the user accepted its motion and window switching. Replay acceptance
+   does not establish real-time performance. The car's real-time requirements,
+   controlled comparisons, car visual review and strengthened swept-surface
+   verification remain open. Current evidence is under the milestone 11 sandbox.
+
+   **User-directed diagnostic within this goal:** isolate rigid collision work
+   with 800 standalone particles, each diameter 5, mass 1, 16 rigid vertices,
+   friction 0.5 and restitution 0.5. Use gravity 9.8, 240 Hz ticks, four configured
+   substeps and eight solver iterations. No car, soft-body nodes, beams, areas,
+   or joints. Drop a staggered 40-column, 20-row grid with 5.5-unit spacing and
+   30-unit initial bottom clearance into a 230-unit-wide rigid pit. Record
+   per-frame CPU, integration/gather/solve wall time, completed substeps and
+   candidate/contact counts over 12 simulated seconds; provide a live view.
+   Smaller particle counts are diagnostic scaling comparisons, not substitutes
+   for the requested 800-particle run. This does not create another milestone
+   or relax the existing acceptance requirements.
+   The user accepted the particle-only preview as the requested fixture. Its
+   first full 12-second Release run completed in 178.130 seconds, with physics
+   CPU p95 356.767 ms. Constraint solving accounts for about 68% of measured
+   stage wall time. No invalid state or escaped particle was detected; this
+   diagnostic does not establish independent swept-contact acceptance. Linux,
+   sanitizer and Windows SDK builds pass, as do 800-particle graphics smoke
+   checks and a smaller sanitizer impact run. Timings remain exploratory.
+   See `sandbox/milestone_11/goal_1/particle_pit_controls.txt` and its CSV/logs.
+   At the user's request, the same pit was also built against `a8a7940a`, the
+   parent of the commit introducing the ten-milestone roadmap (`27e49645`).
+   A fresh unmodified historical Release SDK and a shared API-adapted harness
+   completed all 12 seconds. Matching four individual 240 Hz ticks per frame,
+   historical/current total physics CPU was 130.191/174.507 seconds and p95 was
+   283.560/408.848 ms. Historical batching combined four ticks into one update
+   and ran only four configured subdivisions per frame instead of sixteen:
+   42.506 seconds total CPU, p95 84.698 ms, with larger sampled overlaps.
+   These serial exploratory comparisons do not replace controlled acceptance
+   measurements or prove the cause of the regression. Source provenance,
+   adapters and results are retained in the milestone 11 sandbox.
+
+   **User-directed sensitivity investigation (2026-10-31):** prioritize the
+   authored car's frame rate; 60 FPS is a minimum, with substantial headroom
+   desired for this basic example. Sandbox-only consumers vary solver settings
+   without changing engine defaults or acceptance limits. In identical 10-second
+   headless car screens, four configured substeps with 8/4/2 iterations achieved
+   4.44/7.04/9.06 simulation frames per second; one configured substep with two
+   iterations achieved 10.77. These are short physics-throughput diagnostics,
+   not rendered FPS or full 60-second acceptance. Lower iterations therefore
+   do not resolve the performance failure. All 48 existing goal 5 numerical
+   checks pass at eight iterations; four iterations fail two cases and two
+   iterations fail thirteen, exceeding the unchanged 0.02 penetration limit.
+   Those earlier failed runs stopped early, so their observed depths do not
+   establish replacement tolerances. Delayed-update timing still fails. Isolate contact response,
+   joint response, collision gathering/refresh and swept-collision checks using
+   separate diagnostic bypasses from identical copied car states. Bypassed
+   stages alter physics and cannot qualify as correctness or FPS acceptance.
+   Retain executable consumers and evidence under the milestone 11 sandbox.
+
+   **Experiment sequence clarified (2026-11-01):** continue experiments until
+   the car and soft-body workloads run well and the other physics cases pass
+   or have measured, reviewable deviations. Then propose the minimal solution
+   and its effects on every acceptance case. Preserve the experimental evidence
+   before restoring experimental changes and applying only the selected fixes.
+   No restore or acceptance-limit change is authorized by a timing result alone.
+   Each scenario must declare a time or state/event endpoint, continue after
+   numerical tolerance failures, and report pass/fail and full-run worst cases
+   after reaching that endpoint. Fatal errors, invalid state, lack of progress
+   and interruption produce explicitly incomplete results. Existing milestone
+   fixtures retain their frozen durations; no settling threshold becomes an
+   early termination condition. Repeat the lower-iteration tests with this
+   reporting before assessing possible tolerance tradeoffs.
+
+   All 48 cases now reach their frozen endpoints at each of 8/4/2 iterations.
+   Their pass/fail counts remain 48/0, 46/2 and 35/13, but the two-iteration
+   worst penetration increases from the early-stopped 0.095019 to 0.128841
+   units. Four/eight iterations reach 0.029730/0.007038 units. Exploratory
+   delayed-update maxima remain 345.903–373.631 ms, above 50 ms. Full-run
+   results are in `sandbox/milestone_11/goal_1/logs/solver_full_run_goal5_summary.json`;
+   none establishes acceptable replacement tolerances or real-time car performance.
+
+   **Contact-work experiments (2026-11-01):** avoid polygon scratch storage and
+   shape copies on the particle-pair response path; index retained rigid pairs
+   without reordering constraints or changing accumulated impulses. Separate
+   serial 10-second car screens measured 135.292 → 129.834 seconds of physics
+   CPU for the scratch change and 128.057 → 126.048 seconds for the pair lookup.
+   The lookup's p95 worsened slightly, so that single pair does not establish
+   a useful performance gain. Both comparisons match all 600 frame-state
+   checksums and all reported work counts. These are experimental candidates,
+   not a selected final solution or rendered-FPS acceptance.
+   All 219 timed fixtures retain identical numerical records, including all
+   48 goal 5 cases at the original 16 iterations. Goal 5's peak penetration
+   remains 0.003006; exploratory worst delayed CPU is 398.387 ms, still above
+   50 ms. Twenty-six regressions, sixteen ASan/UBSan checks, Windows cross-builds,
+   and independent Linux/sanitizer/Windows SDK delivery pass. Evidence and
+   pre-experiment archives are under the milestone 11 sandbox, including
+   `rigid_lookup_evidence.json`. Continue diagnosis before selecting the minimal
+   changes; the car and delayed-update performance gates remain unresolved.
+   A physics-only function profile completes the same 600 frames with identical
+   state checksums. It records 7.34 billion entity-liveness checks, 3.49 billion
+   component checks and 2.58 billion live-entity iteration calls. Investigate
+   repeated membership validation and whole-world scans using the existing
+   synchronous-substep lifetime boundary. Instrumented timings are not FPS
+   evidence; public/manual-stage validation and ownership must remain intact.
+
+   **Membership reuse experiment (2026-11-01):** reuse the synchronous substep's
+   live-entity snapshot for internal liveness checks and collider-only scans.
+   Component masks remain live, recovery deletion invalidates the snapshot, and
+   manual stages retain current-table validation. One serial 10-second car
+   comparison measured physics CPU 125.938 → 117.599 seconds (6.6% lower),
+   with p95 445.279 → 412.707 ms. All 600 frame-state checksums and work counts
+   match. Throughput remains about 5 simulation frames/s; these exploratory
+   headless measurements do not establish rendered FPS or controlled acceptance.
+   All 219 timed fixtures finish with identical numerical records. Goal 5's
+   maximum penetration remains 0.003006; worst exploratory normal 60 Hz p95 is
+   0.523 ms and delayed CPU is 383.701 ms, still failing the 50 ms limit.
+   Twenty-six regressions, sixteen ASan/UBSan checks, Windows cross-builds and
+   independent Linux/sanitizer/Windows SDK examples pass. Retained evidence and
+   before/after archives are under the milestone 11 sandbox; see
+   `membership_snapshot_evidence.json`. No final solution or tolerance changes
+   have been selected. Continue measuring repeated contact/filter validation
+   and collision-refresh work; bookkeeping savings alone remain insufficient.
+   The subsequent pit-runner correction separates numerical escape failures
+   from invalid-state/fatal stops, retaining worst depths through the declared
+   endpoint. Injected finite escapes complete and fail numerically; missing or
+   nonfinite state produces incomplete results even on the last scheduled frame.
+
+   **Internal filter experiment (2026-11-01):** read collision filters by entity
+   index in validated internal paths, preserving public validation, beam overrides,
+   directional masks and stale-target rejection. A serial 10-second car comparison
+   measured physics CPU 117.560 → 111.493 seconds (5.2% lower) and p95
+   410.875 → 379.943 ms. All 600 frame-state checksums and work counts match.
+   Headless throughput remains only 5.35 simulation frames/s; this exploratory
+   pair does not establish rendered FPS or controlled acceptance. All 219 timed
+   fixtures reach their endpoints with unchanged numerical records. Goal 5's
+   peak penetration remains 0.003006; worst exploratory normal 60 Hz p95 is
+   0.492 ms and delayed CPU is 374.695 ms, still above 50 ms. Twenty-six
+   regressions, sixteen ASan/UBSan checks, Windows cross-builds and independent
+   Linux/sanitizer/Windows SDK examples pass. Linux and sanitizer pit probes
+   verify full-run numerical failure accumulation and incomplete invalid-state
+   reporting. The 800-particle pit finishes all 12 seconds without escapes or
+   invalid state: exploratory CPU is 79.157 seconds, p95 160.112 ms and maximum
+   floor depth 0.002340. Evidence is retained under the milestone 11 sandbox in
+   `index_filter_evidence.json` and its before/after archives. The final
+   solution and tolerance decisions remain open; these bookkeeping improvements
+   have not resolved the performance gap.
+
+   **Refresh-cadence diagnostic (2026-11-01):** sandbox SDK wrappers defer
+   contact discovery to every fourth solver iteration and the last scheduled
+   iteration. Retained pairs still evaluate current geometry; convergence is
+   deferred until discovery runs. Initial gathering, sweeps, geometry, materials
+   and elapsed-time consumption remain unchanged. Three serial 600-frame car
+   screens measure 5.38 simulation frames/s for the reference, 6.71 with deferred
+   refresh at eight iterations, and 11.05 with deferred refresh at two iterations.
+   These exploratory headless results remain far below 60 FPS. The reference
+   wrapper preserves all 600 prior frame-state checksums.
+   All 315 timed variant cases reach their endpoints, plus four state-based
+   particle calibrations. At original fixture iteration settings, deferred
+   refresh fails three stack settling schedules: worst post-toppling linear
+   speed is 1.319054 units/s and angular speed 15.336437 degrees/s, against
+   0.05 and 0.5. All 48 soft-body cases pass at both sixteen and eight iterations,
+   with worst depths 0.003011 and 0.007395. Two iterations fail 13 of 48 cases,
+   reaching depth 0.142258 against 0.02. Delayed soft-body CPU remains
+   303.630–334.866 ms against 50. Seven focused regressions pass in both
+   reference and deferred-refresh modes on Linux and ASan/UBSan; Windows
+   cross-builds pass. The current engine implementation is unchanged by these
+   wrappers. Reject uniform deferred refresh as a standalone solution; preserve
+   the errors and timings for subsequent pipeline rework. See
+   `sandbox/milestone_11/goal_1/contact_cadence_evidence.json` and its archive.
+
+   **User-directed branch sequence (2026-11-01):** conclude the current
+   optimization comparisons and record the optimized implementation as a
+   physics reference. The user will create the reference branch, then direct
+   the rebase and a separate branch for reworking the affected pipelines. Use
+   both main and the optimized reference when evaluating the rework. This is
+   a checkpoint within goal 1; its correctness and real-time acceptance gates
+   remain unchanged. Preserve experimental evidence and distinguish sandbox
+   behavior-changing variants from the implementation selected for reference.
+
 ### 6. Physics robustness
 
 Pass five finite scenarios covering extreme scales, fast motion, contact
@@ -523,8 +771,9 @@ measurement tolerances before implementing the relevant goal.
 within 2 simulated seconds after impact, then stay supported for 10 seconds with
 each body's linear speed at most 0.0001 units/s and angular speed at most 0.0001
 degrees/s. Offset cases may move naturally. Goal 3's user-approved limits are
-recorded with its fixture below. Goal 5 still requires its own visual review
-and agreed settling limits before completion. No automatic freezing is agreed;
+recorded with its fixture below. Goal 5's zero-damping, observational settling
+policy is approved, and its recorded preview's motion and window switching were
+accepted during milestone 11 goal 1. No automatic freezing is agreed;
 settling criteria do not relax collision requirements during motion or require
 undamped pendulums to stop.
 
@@ -723,9 +972,11 @@ undamped pendulums to stop.
    Penetration limit 0.02; loaded energy may exceed its accounted budget by
    at most 1%. Zero-restitution separation tolerance 0.0001 units/s.
    **User-approved damping/settling policy:** zero beam damping; bounded
-   oscillation accepted and settling observational. Final visual acceptance
-   remains pending. Executables and evidence belong in
-   `sandbox/milestone_6/goal_5/`.
+   oscillation accepted and settling observational. The user accepted the
+   recorded preview's motion and window switching during milestone 11 goal 1;
+   real-time performance remains unresolved. Original executables and evidence
+   belong in `sandbox/milestone_6/goal_5/`; the corrective preview and verification
+   belong in `sandbox/milestone_11/goal_1/`.
 
    **Verification outcome (2026-10-29): failed.** The 48-case AC-powered Release
    run has 25 passes and 23 failures. Peak observed penetration is 0.138491031
@@ -741,7 +992,8 @@ undamped pendulums to stop.
    native Windows execution was not performed. No final compiler warnings.
    Goals 1, 2, and 4 performance regressions pass. Goal 3 retains its numerical
    results but its delayed update measures 69.505 ms, then 58.421 ms on repeat;
-   that timing failure remains unresolved. A dedicated Goal 5 visual preview
+   those measurements remain failure evidence, while the subsequent unchanged-build
+   rerun recorded above passes. A dedicated Goal 5 visual preview
    and visual acceptance remain unfinished. See local `verification.txt` and
    `logs/performance_soft_body_stability_test.log` under the Goal 5 sandbox.
 

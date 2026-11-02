@@ -11,6 +11,7 @@
 #include "physics/physics_operation.h"
 #include <float.h>
 #include <math.h>
+#include <string.h>
 
 #define RIGID_CONTACT_PENETRATION_SLOP 0.01f
 #define RIGID_CONTACT_RELATIVE_SLOP 0.0001f
@@ -21,8 +22,30 @@ static double physics_rigid_elapsed_ms(uint64_t start) {
         (double)SDL_GetPerformanceFrequency();
 }
 
+static bool hitbox_cache_active, hitbox_cached[MAX_ENTITIES];
+static bool broadphase_reuse_allowed;
+static Position hitbox_cached_positions[MAX_ENTITIES];
+static Orientation hitbox_cached_orientations[MAX_ENTITIES];
+void physics_step_hitbox_cache_begin(void) {
+    if(!hitbox_cache_active) memset(hitbox_cached, 0, sizeof(hitbox_cached));
+    hitbox_cache_active = true;
+    /* A manual stage can follow arbitrary collider/geometry edits. Only the
+     * complete substep proves the preceding gather is still structurally valid. */
+    broadphase_reuse_allowed = physics_step_entities_active_check();
+}
+void physics_step_hitbox_cache_end(void) {
+    if(!physics_step_entities_active_check()) hitbox_cache_active = false;
+}
+
 bool physics_step_hitbox_update(EntityIndex i, Report *report) {
-    if(!entity_index_alive_check(i) || !entity_index_components_check(i, ROHR_HIT_BOX)) return false;
+    if(!physics_step_entity_alive_check(i) || !physics_step_entity_components_check(i, ROHR_HIT_BOX)) return false;
+    /* Local geometry is immutable during a complete substep or manual solve. Pose correction
+     * invalidates by exact comparison; no cache survives a public call. */
+    if(hitbox_cache_active && hitbox_cached[i] &&
+            positions[i].x == hitbox_cached_positions[i].x &&
+            positions[i].y == hitbox_cached_positions[i].y &&
+            orientations[i] == hitbox_cached_orientations[i])
+        return world_hit_boxes[i].amount_of_vertices != 0;
     Shape next = {0};
     bool valid = physics_world_position_check(positions[i]) && isfinite(orientations[i]) &&
         hit_boxes[i].amount_of_vertices <= MAX_VERTICIES &&
@@ -42,7 +65,7 @@ bool physics_step_hitbox_update(EntityIndex i, Report *report) {
         for(uint32_t v = 0; v < next.amount_of_vertices; ++v)
             if(!physics_vector_finite_check(next.vertices[v])) valid = false;
     }
-    if(entity_index_components_check(i, ROHR_PARTICLE)) {
+    if(physics_step_entity_components_check(i, ROHR_PARTICLE)) {
         Position center = physics_particle_world_origin_by_index_get(i);
         float radius = physics_particle_radius_by_index_get(i);
         valid = valid && physics_vector_finite_check(center) && isfinite(radius) && radius >= 0 &&
@@ -57,6 +80,11 @@ bool physics_step_hitbox_update(EntityIndex i, Report *report) {
         return false;
     }
     world_hit_boxes[i] = next;
+    if(hitbox_cache_active) {
+        hitbox_cached[i] = true;
+        hitbox_cached_positions[i] = positions[i];
+        hitbox_cached_orientations[i] = orientations[i];
+    }
     return next.amount_of_vertices != 0;
 }
 
@@ -78,7 +106,7 @@ static void system_orientations_update(double dt, Report *report) {
     for(uint32_t n = 0; n < entity_alive_count_get(); ++n) {
         EntityIndex i;
         if(!physics_step_alive_index_at(n, &i) || !physics_entity_movable_get(i) ||
-                entity_index_components_check(i, ROHR_SOFT_BODY) ||
+                physics_step_entity_components_check(i, ROHR_SOFT_BODY) ||
                 physics_entity_nonrotating_check(i)) continue;
         if(physics_joint_motion_integrated_check(i) || physics_soft_motion_integrated_check(i)) continue;
         PhysicsChange change = physics_change_get(i, PHYSICS_CHANGE_ORIENTATION);
@@ -92,7 +120,7 @@ static void system_angular_velocities_update(double dt, Report *report) {
     for(uint32_t n = 0; n < entity_alive_count_get(); ++n) {
         EntityIndex i;
         if(!physics_step_alive_index_at(n, &i) || !physics_entity_movable_get(i) ||
-                entity_index_components_check(i, ROHR_SOFT_BODY)) continue;
+                physics_step_entity_components_check(i, ROHR_SOFT_BODY)) continue;
         if(physics_joint_motion_integrated_check(i) || physics_soft_motion_integrated_check(i)) continue;
         PhysicsChange change = physics_change_get(i, PHYSICS_CHANGE_ANGULAR_VELOCITY);
         change.angular_velocity = physics_entity_nonrotating_check(i) ? 0.0f :
@@ -166,7 +194,7 @@ void physics_rigid_gravity_apply(Acceleration gravity, Report *report) {
 
         if(!physics_step_alive_index_at(alive_position, &index) ||
                 !physics_entity_simulated_get(index) ||
-                !entity_index_components_check(index, ROHR_GRAVITY)) continue;
+                !physics_step_entity_components_check(index, ROHR_GRAVITY)) continue;
         PhysicsChange change = physics_change_get(index, PHYSICS_CHANGE_FORCE_ACCELERATION);
         change.force_acceleration.x += gravity.x;
         change.force_acceleration.y += gravity.y;
@@ -176,27 +204,24 @@ void physics_rigid_gravity_apply(Acceleration gravity, Report *report) {
 }
 
 OverlapInfo system_entity_overlap_get(Entity entity_1, Entity entity_2) {
-    if(!entity_index_components_check(entity_1, ROHR_HIT_BOX) ||
-            !entity_index_components_check(entity_2, ROHR_HIT_BOX)) return (OverlapInfo){0};
-    Shape shape1 = world_hit_boxes[entity_1];
-    Shape shape2 = world_hit_boxes[entity_2];
-    if(entity_index_components_check(entity_1, ROHR_PARTICLE) && entity_index_components_check(entity_2, ROHR_PARTICLE)) {
+    if(!physics_step_entity_components_check(entity_1, ROHR_HIT_BOX) ||
+            !physics_step_entity_components_check(entity_2, ROHR_HIT_BOX)) return (OverlapInfo){0};
+    if(physics_step_entity_components_check(entity_1, ROHR_PARTICLE) && physics_step_entity_components_check(entity_2, ROHR_PARTICLE)) {
         return physics_particle_entities_overlap_get(entity_1, entity_2);
     }
-    return physics_sat_overlap_get(shape1, shape2);
+    return physics_sat_overlap_get(world_hit_boxes[entity_1], world_hit_boxes[entity_2]);
 }
 
 /* Masks affect only this pair's effective mass, never the stored motion mode. */
 static bool system_contact_response_check(EntityIndex first, EntityIndex second) {
-    return physics_collision_response_to_check(physics_operation_entity_get(first),
-        physics_operation_entity_get(second));
+    return physics_collision_response_to_by_index_check(first, second);
 }
 
 /* Measure thickness in local space so a distant world origin does not consume
  * the precision needed by a small collider. The fixed tolerance is an upper
  * bound, not permission for a thin body to disappear into its support. */
 static float system_contact_thickness_get(EntityIndex entity, Vec2D normal) {
-    if(entity_index_components_check(entity, ROHR_PARTICLE))
+    if(physics_step_entity_components_check(entity, ROHR_PARTICLE))
         return 2.0f * physics_particle_radius_by_index_get(entity);
     Vec2D local_normal = math_vector_rotate(normal, -orientations[entity]);
     const Shape *shape = &hit_boxes[entity];
@@ -227,13 +252,13 @@ void system_separate_entities_tuned(
         system_contact_response_check(entity_2, entity_1);
 
     float inv_mass_1 =
-        dynamic_1 && entity_index_components_check(entity_1, ROHR_MASS) &&
+        dynamic_1 && physics_step_entity_components_check(entity_1, ROHR_MASS) &&
             mass[entity_1] > 0.0f
         ? 1.0f / mass[entity_1]
         : 0.0f;
 
     float inv_mass_2 =
-        dynamic_2 && entity_index_components_check(entity_2, ROHR_MASS) &&
+        dynamic_2 && physics_step_entity_components_check(entity_2, ROHR_MASS) &&
             mass[entity_2] > 0.0f
         ? 1.0f / mass[entity_2]
         : 0.0f;
@@ -315,9 +340,6 @@ Position system_particle_edge_get(Entity entity, Vec2D normal, Vec1D radius) {
 
 Position system_collision_contact_point(Entity entity_1, Entity entity_2, OverlapInfo collision)
 {
-    Shape shape_1 = world_hit_boxes[entity_1];
-    Shape shape_2 = world_hit_boxes[entity_2];
-
     bool entity_1_dynamic = physics_entity_movable_get(entity_1);
     bool entity_2_dynamic = physics_entity_movable_get(entity_2);
 
@@ -331,8 +353,8 @@ Position system_collision_contact_point(Entity entity_1, Entity entity_2, Overla
     Position point_1 = {0};
     Position point_2 = {0};
     bool particle_pair =
-        entity_index_components_check(entity_1, ROHR_PARTICLE) &&
-        entity_index_components_check(entity_2, ROHR_PARTICLE);
+        physics_step_entity_components_check(entity_1, ROHR_PARTICLE) &&
+        physics_step_entity_components_check(entity_2, ROHR_PARTICLE);
     bool entity_1_particle = particle_pair;
     bool entity_2_particle = particle_pair;
 
@@ -340,13 +362,13 @@ Position system_collision_contact_point(Entity entity_1, Entity entity_2, Overla
         Vec1D r1 = physics_particle_radius_by_index_get(entity_1);
         point_1 = system_particle_edge_get(entity_1, normal, r1);
     } else {
-        point_1 = system_support_point_average(shape_1, normal);
+        point_1 = system_support_point_average(world_hit_boxes[entity_1], normal);
     }
     if(entity_2_particle) {
         Vec1D r2 = physics_particle_radius_by_index_get(entity_2);
         point_2 = system_particle_edge_get(entity_2, opposite_normal, r2);
     } else {
-        point_2 = system_support_point_average(shape_2, opposite_normal);
+        point_2 = system_support_point_average(world_hit_boxes[entity_2], opposite_normal);
     }
 
     /*
@@ -621,8 +643,8 @@ ContactInfo system_resolve_collision(
     const ContactInfo *previous_contact, const float *previous_rebounds,
     float *rebounds, Report *report, bool *applied
 ) {
-    bool first_particle = entity_index_components_check(first, ROHR_PARTICLE);
-    bool second_particle = entity_index_components_check(second, ROHR_PARTICLE);
+    bool first_particle = physics_step_entity_components_check(first, ROHR_PARTICLE);
+    bool second_particle = physics_step_entity_components_check(second, ROHR_PARTICLE);
     float inverse_mass_first = physics_entity_simulated_get(first) &&
         system_contact_response_check(first, second)
         ? 1.0f / mass[first] : 0.0f;
@@ -768,6 +790,7 @@ typedef struct SystemBroadphaseQuery {
     Entity source;
     EntityIndex source_index;
     Report *report;
+    bool refit;
 } SystemBroadphaseQuery;
 
 static bool system_broadphase_pair_apply(Entity target, void *context) {
@@ -777,17 +800,24 @@ static bool system_broadphase_pair_apply(Entity target, void *context) {
     bool responds;
     uint64_t started;
 
-    if(query == NULL || target <= query->source ||
+    if(query == NULL || target == query->source ||
+            (!query->refit && target < query->source) ||
             !entity_index_get(target, &target_index) ||
-            !entity_index_alive_check(target_index)) return true;
+            !physics_step_entity_alive_check(target_index)) return true;
+    SystemBroadphaseQuery canonical;
+    if(target < query->source) {
+        canonical = *query;
+        canonical.source = target;
+        canonical.source_index = target_index;
+        target = query->source;
+        target_index = query->source_index;
+        query = &canonical;
+    }
     /* Position correction can introduce another support contact during the
      * solve. Refresh candidates without duplicating existing constraints or
      * losing their accumulated impulses. */
-    for(size_t i = 0; i < physics_step_contact_constraints.count; ++i) {
-        const SystemContactConstraint *c = &physics_step_contact_constraints.values[i];
-        if(c->type == SYSTEM_CONTACT_CONSTRAINT_RIGID_PAIR &&
-                c->value.rigid.first == query->source && c->value.rigid.second == target) return true;
-    }
+    if(contact_constraint_list_rigid_pair_check(&physics_step_contact_constraints,
+            query->source, target)) return true;
     physics_report_counter_add(query->report, ROHR_REPORT_CANDIDATE_COUNT, 1);
     physics_report_counter_add(query->report, ROHR_REPORT_NARROWPHASE_TEST_COUNT, 1);
     started = SDL_GetPerformanceCounter();
@@ -796,9 +826,9 @@ static bool system_broadphase_pair_apply(Entity target, void *context) {
         (uint64_t)(physics_rigid_elapsed_ms(started) * 1000000.0));
     if(!overlap.detected) return true;
     physics_report_counter_add(query->report, ROHR_REPORT_OVERLAP_COUNT, 1);
-    responds = entity_index_components_check(query->source_index, ROHR_COLLISION) &&
-        entity_index_components_check(target_index, ROHR_COLLISION) &&
-        physics_collision_response_between_check(query->source, target);
+    responds = physics_step_entity_components_check(query->source_index, ROHR_COLLISION) &&
+        physics_step_entity_components_check(target_index, ROHR_COLLISION) &&
+        physics_collision_response_between_by_index_check(query->source_index, target_index);
     bool appended = contact_constraint_list_append(&physics_step_contact_constraints,
         (SystemContactConstraint){
         .type = SYSTEM_CONTACT_CONSTRAINT_RIGID_PAIR,
@@ -867,14 +897,35 @@ void physics_rigid_contact_point_impulses_accumulate(
     }
 }
 
+static ContactManifoldSet system_rigid_manifolds_get(
+    SystemContactConstraint *constraint
+) {
+    EntityIndex bodies[] = {constraint->value.rigid.first_index,
+        constraint->value.rigid.second_index};
+    bool unchanged = constraint->value.rigid.block_geometry_valid;
+    for(unsigned side = 0; side < 2 && unchanged; ++side) {
+        Position previous = constraint->value.rigid.block_positions[side];
+        unchanged = previous.x == positions[bodies[side]].x &&
+            previous.y == positions[bodies[side]].y &&
+            constraint->value.rigid.block_orientations[side] == orientations[bodies[side]];
+    }
+    if(!unchanged) {
+        constraint->value.rigid.block_geometry = contact_manifold_set_polygon_get(
+            world_hit_boxes[bodies[0]], world_hit_boxes[bodies[1]]);
+        for(unsigned side = 0; side < 2; ++side) {
+            constraint->value.rigid.block_positions[side] = positions[bodies[side]];
+            constraint->value.rigid.block_orientations[side] = orientations[bodies[side]];
+        }
+        constraint->value.rigid.block_geometry_valid = true;
+    }
+    return constraint->value.rigid.block_geometry;
+}
+
 static void system_rigid_contact_constraint_solve(
     SystemContactConstraint *constraint,
     float position_fraction, Report *report
 ) {
     ContactInfo representative = {0};
-    ContactInfo previous_contacts[CONTACT_MANIFOLD_MAX] = {0};
-    float previous_rebounds[CONTACT_MANIFOLD_MAX][PHYSICS_CONTACT_POINT_MAX] = {{0}};
-    bool previous_contact_matched[CONTACT_MANIFOLD_MAX] = {0};
     ContactManifoldSet manifolds;
     uint8_t previous_contact_count;
     EntityIndex first;
@@ -892,24 +943,36 @@ static void system_rigid_contact_constraint_solve(
         constraint->value.rigid.contact = (ContactInfo){0};
         return;
     }
-    overlap = system_entity_overlap_get(first, second);
-    if(!overlap.detected) return;
     responds = constraint->value.rigid.responds;
+    bool particles = physics_step_entity_components_check(first, ROHR_PARTICLE) &&
+        physics_step_entity_components_check(second, ROHR_PARTICLE);
+    if(responds && !particles) {
+        /* The manifold already performs SAT. Do not repeat that work just to
+         * check overlap; retain SAT fallback for overlap without clip points. */
+        manifolds = system_rigid_manifolds_get(constraint);
+        overlap = manifolds.count ? (OverlapInfo){.detected = true} :
+            system_entity_overlap_get(first, second);
+    } else overlap = system_entity_overlap_get(first, second);
+    if(!overlap.detected) return;
+    if(!responds) {
+        constraint->value.rigid.manifold_contact_count = 0;
+        constraint->value.rigid.contact = (ContactInfo){0};
+        constraint->value.rigid.overlap = overlap;
+        return;
+    }
     first_solve = !constraint->value.rigid.solved;
     previous_contact_count = constraint->value.rigid.manifold_contact_count;
-    for(uint8_t i = 0; i < constraint->value.rigid.manifold_contact_count; i += 1) {
-        previous_contacts[i] = constraint->value.rigid.manifold_contacts[i];
+    if(particles) {
+        /* Circle pairs have one contact. Keep its previous target separate from
+         * the output, but avoid preparing eight polygon manifolds on every
+         * particle solve. The previous contact is read before it is replaced. */
+        float previous_rebounds[PHYSICS_CONTACT_POINT_MAX];
         for(uint8_t p = 0; p < PHYSICS_CONTACT_POINT_MAX; ++p)
-            previous_rebounds[i][p] = constraint->value.rigid.rebound_speeds[i][p];
-    }
-    if(entity_index_components_check(first, ROHR_PARTICLE) &&
-            entity_index_components_check(second, ROHR_PARTICLE)) {
-        representative = responds
-            ? system_resolve_collision(
-                first, second, overlap, first_solve,
-                previous_contact_count > 0 ? &previous_contacts[0] : NULL,
-                previous_rebounds[0], constraint->value.rigid.rebound_speeds[0], report, &normal_applied)
-            : (ContactInfo){0};
+            previous_rebounds[p] = constraint->value.rigid.rebound_speeds[0][p];
+        representative = system_resolve_collision(
+            first, second, overlap, first_solve,
+            previous_contact_count > 0 ? &constraint->value.rigid.manifold_contacts[0] : NULL,
+            previous_rebounds, constraint->value.rigid.rebound_speeds[0], report, &normal_applied);
         constraint->value.rigid.manifold_contact_count = representative.detected;
         if(representative.detected)
             constraint->value.rigid.manifold_contacts[0] = representative;
@@ -924,8 +987,14 @@ static void system_rigid_contact_constraint_solve(
         }
         return;
     }
-    manifolds = contact_manifold_set_polygon_get(
-        world_hit_boxes[first], world_hit_boxes[second]);
+    ContactInfo previous_contacts[CONTACT_MANIFOLD_MAX];
+    float previous_rebounds[CONTACT_MANIFOLD_MAX][PHYSICS_CONTACT_POINT_MAX];
+    bool previous_contact_matched[CONTACT_MANIFOLD_MAX] = {0};
+    for(uint8_t i = 0; i < previous_contact_count; ++i) {
+        previous_contacts[i] = constraint->value.rigid.manifold_contacts[i];
+        for(uint8_t p = 0; p < PHYSICS_CONTACT_POINT_MAX; ++p)
+            previous_rebounds[i][p] = constraint->value.rigid.rebound_speeds[i][p];
+    }
     constraint->value.rigid.manifold_contact_count = 0;
     for(uint8_t i = 0; responds && i < manifolds.count; i += 1) {
         const ContactInfo *previous = NULL;
@@ -976,7 +1045,7 @@ static void system_rigid_contact_constraint_solve(
 static AABB system_broadphase_bounds_get(EntityIndex index) {
     AABB bounds = math_aabb_create(world_hit_boxes[index]);
 
-    if(entity_index_components_check(index, ROHR_PARTICLE)) {
+    if(physics_step_entity_components_check(index, ROHR_PARTICLE)) {
         Position center = physics_particle_world_origin_by_index_get(index);
         float radius = physics_particle_radius_by_index_get(index);
         bounds.min_x = fminf(bounds.min_x, center.x - radius);
@@ -987,19 +1056,46 @@ static AABB system_broadphase_bounds_get(EntityIndex index) {
     return bounds;
 }
 
+static uint32_t broadphase_leaves[MAX_ENTITIES];
+static Position broadphase_positions[MAX_ENTITIES];
+static Orientation broadphase_orientations[MAX_ENTITIES];
+static bool broadphase_refit, broadphase_changed[MAX_ENTITIES];
+
 static void system_broadphase_build(Report *report) {
+    bool refit = broadphase_reuse_allowed && physics_step_contact_constraints.solving &&
+        physics_step_contact_constraints.rigid_gathered;
+    broadphase_refit = refit;
+    memset(broadphase_changed, 0, sizeof(broadphase_changed));
+    if(refit) {
+        for(uint32_t n = 0; n < physics_step_collider_iteration_count_get(); ++n) {
+            EntityIndex i;
+            if(!physics_step_collider_index_at(n, &i) || broadphase_leaves[i] == AABB_TREE_NODE_INVALID) continue;
+            if(positions[i].x == broadphase_positions[i].x &&
+                    positions[i].y == broadphase_positions[i].y &&
+                    orientations[i] == broadphase_orientations[i]) continue;
+            if(!physics_step_hitbox_update(i, report)) continue;
+            (void)aabb_tree_leaf_bounds_set(&physics_broadphase_tree,
+                broadphase_leaves[i], system_broadphase_bounds_get(i));
+            broadphase_positions[i] = positions[i];
+            broadphase_orientations[i] = orientations[i];
+            broadphase_changed[i] = true;
+        }
+        return;
+    }
     aabb_tree_clear(&physics_broadphase_tree);
+    memset(broadphase_leaves, 0xff, sizeof(broadphase_leaves));
     for(uint32_t alive_position = 0;
-            alive_position < entity_alive_count_get();
+            alive_position < physics_step_collider_iteration_count_get();
             alive_position += 1) {
         EntityIndex index;
         Entity entity;
 
-        if(!physics_step_alive_index_at(alive_position, &index) ||
-                !entity_index_components_check(index, ROHR_HIT_BOX) ||
+        if(!physics_step_collider_index_at(alive_position, &index) ||
+                !physics_step_entity_components_check(index, ROHR_HIT_BOX) ||
                 !physics_step_entity_from_index_get(index, &entity)) continue;
         if(!physics_step_hitbox_update(index, report)) continue;
         physics_report_counter_add(report, ROHR_REPORT_COLLIDER_COUNT, 1);
+        uint32_t leaf = (uint32_t)physics_broadphase_tree.count;
         EngineResult result = aabb_tree_insert(
             &physics_broadphase_tree, entity, system_broadphase_bounds_get(index));
         if(result.kind == ERROR_RESULT_ERROR) {
@@ -1008,29 +1104,35 @@ static void system_broadphase_build(Report *report) {
                 "could not build broadphase tree");
             return;
         }
+        broadphase_leaves[index] = leaf;
+        broadphase_positions[index] = positions[index];
+        broadphase_orientations[index] = orientations[index];
     }
+    broadphase_reuse_allowed = physics_step_contact_constraints.solving;
 }
 
 static void system_broadphase_collisions_apply(Report *report) {
     for(uint32_t alive_position = 0;
-            alive_position < entity_alive_count_get();
+            alive_position < physics_step_collider_iteration_count_get();
             alive_position += 1) {
         EntityIndex index;
         Entity entity;
         SystemBroadphaseQuery query;
 
-        if(!physics_step_alive_index_at(alive_position, &index) ||
-                !entity_index_components_check(index, ROHR_HIT_BOX) ||
+        if(!physics_step_collider_index_at(alive_position, &index) ||
+                !physics_step_entity_components_check(index, ROHR_HIT_BOX) ||
                 !physics_step_entity_from_index_get(index, &entity)) continue;
+        if(broadphase_refit && !broadphase_changed[index]) continue;
         if(world_hit_boxes[index].amount_of_vertices == 0) continue;
         query = (SystemBroadphaseQuery){
             .source = entity,
             .source_index = index,
-            .report = report
+            .report = report,
+            .refit = broadphase_refit
         };
         (void)aabb_tree_query(
             &physics_broadphase_tree,
-            system_broadphase_bounds_get(index),
+            physics_broadphase_tree.nodes[broadphase_leaves[index]].bounds,
             system_broadphase_pair_apply,
             &query
         );
@@ -1050,7 +1152,7 @@ static void system_angle_locks_apply(Report *report) {
             continue;
         }
 
-        if(!entity_index_components_check(entity, ROHR_ANGLE_LOCK)) {
+        if(!physics_step_entity_components_check(entity, ROHR_ANGLE_LOCK)) {
             continue;
         }
 
@@ -1130,7 +1232,7 @@ static void system_axis_locks_apply(Report *report) {
             continue;
         }
 
-        if(!entity_index_components_check(entity, ROHR_AXIS_LOCK)) {
+        if(!physics_step_entity_components_check(entity, ROHR_AXIS_LOCK)) {
             continue;
         }
 
@@ -1191,14 +1293,14 @@ static void system_transform_locks_apply(Report *report) {
             continue;
         }
 
-        if(!entity_index_components_check(driven, ROHR_TRANSFORM_LOCK)) {
+        if(!physics_step_entity_components_check(driven, ROHR_TRANSFORM_LOCK)) {
             continue;
         }
 
         Entity driver = transform_locks[driven].driver;
         EntityIndex driver_index;
 
-        if(!entity_index_get(driver, &driver_index) || !entity_index_alive_check(driver_index)) {
+        if(!entity_index_get(driver, &driver_index) || !physics_step_entity_alive_check(driver_index)) {
             physics_operation_reject(report, ROHR_PHYSICS_TRANSFORM_LOCK,
                 ERROR_ENGINE_INVALID_ENTITY, physics_operation_entity_get(driven), driver);
             continue;
@@ -1303,9 +1405,9 @@ void physics_rigid_accelerations_clear(void) {
 
 void physics_rigid_constraints_gather(Report *report) {
     uint64_t started;
-    physics_step_contact_constraints.rigid_gathered = true;
     started = SDL_GetPerformanceCounter();
     system_broadphase_build(report);
+    physics_step_contact_constraints.rigid_gathered = true;
     physics_report_counter_add(report, ROHR_REPORT_BROADPHASE_BUILD_NS,
         (uint64_t)(physics_rigid_elapsed_ms(started) * 1000000.0));
     physics_report_counter_add(report, ROHR_REPORT_TREE_NODES_CURRENT, physics_broadphase_tree.count);

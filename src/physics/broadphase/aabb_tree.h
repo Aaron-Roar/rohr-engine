@@ -35,6 +35,7 @@ typedef bool (*AABBTreeQueryCallback)(Entity entity, void *context);
 
 EngineResult aabb_tree_init(AABBTree *tree, size_t capacity);
 EngineResult aabb_tree_insert(AABBTree *tree, Entity entity, AABB bounds);
+bool aabb_tree_leaf_bounds_set(AABBTree *tree, uint32_t leaf, AABB bounds);
 bool aabb_tree_query(
     AABBTree *tree,
     AABB bounds,

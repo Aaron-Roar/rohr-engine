@@ -1284,7 +1284,9 @@ if(ROHR_BUILD_TESTS)
             ENVIRONMENT "SDL_VIDEODRIVER=dummy;SDL_AUDIODRIVER=dummy" TIMEOUT 300)
     endforeach()
 
-    foreach(soft_test soft_body_stability beam_pair_contacts)
+    set(ROHR_SOFT_TEST_OUTPUT_DIRECTORY "${CMAKE_SOURCE_DIR}/sandbox/milestone_6/goal_5/bin/${drop_test_platform}"
+        CACHE PATH "Output directory for soft-body verification executables")
+    foreach(soft_test soft_body_stability beam_pair_contacts beam_motion particle_sweep)
     add_executable(${soft_test}_test tests/${soft_test}.c)
     target_include_directories(${soft_test}_test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
     target_link_libraries(${soft_test}_test PRIVATE rohr_engine)
@@ -1292,11 +1294,23 @@ if(ROHR_BUILD_TESTS)
         target_compile_options(${soft_test}_test PRIVATE ${ROHR_SANITIZER_COMPILE_OPTIONS})
     endif()
     set_target_properties(${soft_test}_test PROPERTIES RUNTIME_OUTPUT_DIRECTORY
-        ${CMAKE_SOURCE_DIR}/sandbox/milestone_6/goal_5/bin/${drop_test_platform})
+        ${ROHR_SOFT_TEST_OUTPUT_DIRECTORY})
     add_test(NAME ${soft_test} COMMAND ${soft_test}_test)
     set_tests_properties(${soft_test} PROPERTIES
         ENVIRONMENT "SDL_VIDEODRIVER=dummy;SDL_AUDIODRIVER=dummy" TIMEOUT 600)
     endforeach()
+
+    # Opt-in scaling diagnostic; the default invocation opens an interactive view.
+    add_executable(particle_pit EXCLUDE_FROM_ALL tests/particle_pit.c)
+    target_link_libraries(particle_pit PRIVATE rohr_engine)
+    if(ROHR_ENABLE_SANITIZERS)
+        target_compile_options(particle_pit PRIVATE ${ROHR_SANITIZER_COMPILE_OPTIONS})
+    endif()
+    set(ROHR_PHYSICS_DIAGNOSTIC_OUTPUT_DIRECTORY
+        "${CMAKE_SOURCE_DIR}/sandbox/milestone_11/goal_1/bin/${drop_test_platform}"
+        CACHE PATH "Output directory for opt-in physics diagnostics")
+    set_target_properties(particle_pit PROPERTIES RUNTIME_OUTPUT_DIRECTORY
+        "${ROHR_PHYSICS_DIAGNOSTIC_OUTPUT_DIRECTORY}")
 
     add_executable(component_registry_test
         tests/component_registry.c
@@ -1412,7 +1426,7 @@ if(ROHR_BUILD_TESTS)
     )
 
     add_custom_target(rohr_tests)
-    add_dependencies(rohr_tests soft_body_stability_test beam_pair_contacts_test)
+    add_dependencies(rohr_tests soft_body_stability_test beam_pair_contacts_test beam_motion_test particle_sweep_test)
     add_dependencies(rohr_tests extreme_mass_drop_test)
     add_dependencies(rohr_tests thin_barriers_test)
     add_dependencies(rohr_tests persistent_stack_test)

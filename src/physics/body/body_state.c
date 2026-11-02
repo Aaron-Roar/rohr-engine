@@ -41,21 +41,21 @@ void physics_body_state_sync(EntityIndex index) {
 }
 
 bool physics_entity_held_get(EntityIndex index) {
-    return entity_index_alive_check(index) &&
-        entity_index_components_check(index, ROHR_HOLD);
+    return physics_step_entity_alive_check(index) &&
+        (entity_mask[index] & ROHR_HOLD) != 0;
 }
 
 bool physics_entity_movable_get(EntityIndex index) {
-    return entity_index_alive_check(index) &&
-        entity_index_components_check(index, ROHR_DYNAMIC) &&
-        !entity_index_components_check(index, ROHR_STATIC) &&
-        !physics_entity_held_get(index);
+    if(!physics_step_entity_alive_check(index)) return false;
+    RohrComponentMask mask = entity_mask[index];
+    return (mask & ROHR_DYNAMIC) != 0 && (mask & (ROHR_STATIC | ROHR_HOLD)) == 0;
 }
 
 bool physics_entity_simulated_get(EntityIndex index) {
-    return physics_entity_movable_get(index) &&
-        !entity_index_components_check(index, ROHR_KINEMATIC_DRIVEN) &&
-        entity_index_components_check(index, ROHR_MASS) && mass[index] > 0.0f;
+    if(!physics_step_entity_alive_check(index)) return false;
+    RohrComponentMask mask = entity_mask[index];
+    return (mask & (ROHR_DYNAMIC | ROHR_MASS)) == (ROHR_DYNAMIC | ROHR_MASS) &&
+        (mask & (ROHR_STATIC | ROHR_HOLD | ROHR_KINEMATIC_DRIVEN)) == 0 && mass[index] > 0.0f;
 }
 
 EngineResult physics_mass_set(Entity entity, Mass mass_value) {
@@ -192,9 +192,11 @@ EngineResult physics_group_entities_unhold(GroupId group) {
 
 /* Particle collision properties do not remove a rigid body's angular response. */
 bool physics_entity_nonrotating_check(EntityIndex index) {
-    return entity_index_components_check(index, ROHR_SOFT_BODY_NODE) ||
-        (entity_index_components_check(index, ROHR_PARTICLE) &&
-            (!entity_index_components_check(index, ROHR_HIT_BOX) ||
+    if(!physics_step_entity_alive_check(index)) return false;
+    RohrComponentMask mask = entity_mask[index];
+    return (mask & ROHR_SOFT_BODY_NODE) != 0 ||
+        ((mask & ROHR_PARTICLE) != 0 &&
+            ((mask & ROHR_HIT_BOX) == 0 ||
                 (particle_geometries_pool.used[index] &&
                     particle_geometries_pool.objects[index].standalone)));
 }

@@ -6,6 +6,7 @@
 #include "example_viewport.h"
 #include "example_input.h"
 #include "car_controls.h"
+#include "car_benchmark.h"
 
 #include <math.h>
 #include <stdio.h>
@@ -234,7 +235,14 @@ static void render_scene(CameraId camera, void *context_value) {
             GRAPHICS_FILLED, hub_color);
 }
 
-int main(void) {
+int main(int argc, char **argv) {
+    static CarBenchmark benchmark;
+    if(!car_benchmark_parse(&benchmark, argc, argv)) {
+        fprintf(stderr, "usage: soft_body [--benchmark=headless|rendered] [--debug] [--slow-motion] [--frames=1..3600]\n");
+        return 2;
+    }
+    bool graphics_enabled = !benchmark.enabled || benchmark.rendered;
+    bool benchmark_pass = true;
     Entity walls[LEVEL_WALL_COUNT];
     Entity ramp[RAMP_TRIANGLE_COUNT];
     Entity particles[PIT_PARTICLE_COUNT];
@@ -251,7 +259,7 @@ int main(void) {
     bool collision_zoom_started = false;
     bool collision_slow_motion_active = false;
     bool camera_returning = false;
-    bool broadphase_debug = true;
+    bool broadphase_debug = benchmark.enabled ? benchmark.debug : true;
     ViewportId viewport = VIEWPORT_INVALID;
 
     if(!result_ok(rohr_directory_working_set(rohr_directory_base_get())) ||
@@ -277,8 +285,17 @@ int main(void) {
             goto fail;
     }
     if(!result_ok(rohr_engine_time_per_tick_set(physics_tick_time)) ||
-            !result_ok(rohr_physics_substeps_set(4)) ||
-            !result_ok(rohr_graphics_start())) goto fail;
+            !result_ok(rohr_physics_substeps_set(4))) goto fail;
+    if(graphics_enabled && !result_ok(rohr_graphics_start())) goto fail;
+    if(benchmark.enabled && graphics_enabled) {
+        WindowPresentationDescription window = rohr_graphics_window_presentation_description_get();
+        window.mode = GRAPHICS_WINDOW_MODE_WINDOWED;
+        window.window_width = window.logical_width = 1280;
+        window.window_height = window.logical_height = 720;
+        if(!result_ok(rohr_graphics_window_presentation_description_set(window)) ||
+                !result_ok(rohr_graphics_vsync_set(false)) ||
+                !result_ok(rohr_graphics_frame_limit_set(60))) goto fail;
+    }
     particle_config = rohr_physics_particle_description_default_get();
     particle_config.acceleration = gravity;
     particle_config.radius = particle_radius;
@@ -337,15 +354,17 @@ int main(void) {
         });
         if(particles[i] == ENTITY_INVALID) goto fail;
     }
-    if(!result_ok(rohr_graphics_camera_attach(
+    if(graphics_enabled && !result_ok(rohr_graphics_camera_attach(
                 (CameraAttachmentDescription){.entity = chassis, .follow_position = true}))) goto fail;
-    if(!result_ok(rohr_camera_zoom_set(
+    if(graphics_enabled && !result_ok(rohr_camera_zoom_set(
                 rohr_camera_active_get(), camera_default_zoom, 0.0))) goto fail;
     RenderContext render_context = {walls, ramp, particles, chassis, cabin, wheels};
-    if(!example_viewport_create(render_scene, &render_context, &viewport)) goto fail;
+    if(graphics_enabled && !example_viewport_create(render_scene, &render_context, &viewport)) goto fail;
 
     rohr_engine_clock_reset();
+    benchmark.started = SDL_GetTicksNS();
     while(true) {
+        uint64_t frame_start = SDL_GetTicksNS();
         SDL_Event event;
         bool exit_requested = false;
 
@@ -353,7 +372,7 @@ int main(void) {
         while((event = rohr_engine_event_poll()).type != 0) {
             if(event.type == SDL_EVENT_QUIT) exit_requested = true;
         }
-        if(rohr_input_action_button_pressed_check(debug_action)) {
+        if(!benchmark.enabled && rohr_input_action_button_pressed_check(debug_action)) {
             broadphase_debug = !broadphase_debug;
             rohr_graphics_aabb_tree_debug_set(broadphase_debug);
             rohr_graphics_contacts_debug_set(broadphase_debug);
@@ -361,6 +380,52 @@ int main(void) {
         if(rohr_input_action_button_pressed_check(exit_action))
             exit_requested = true;
         if(exit_requested) break;
+        if(benchmark.enabled) {
+            double script_time = benchmark.frames / 60.0;
+            float drive = script_time < 2 ? 0 : script_time < 30 ? 1 : -1;
+            car_jump_request(&controls, &car, benchmark.frames == 300 || benchmark.frames == 2100);
+            if(!result_ok(car_controls_update(&controls, &car, drive))) goto fail;
+            clock_t cpu = clock();
+            Report physics = rohr_physics_update(4);
+            benchmark.physics[benchmark.frames] = 1000.0 * (clock() - cpu) / CLOCKS_PER_SEC;
+            car_benchmark_report_add(&benchmark, &physics);
+            if(physics.header.status == ROHR_REPORT_FAILED || physics.has_fatal) goto fail;
+            double scale = collision_slow_motion_active ? camera_collision_physics_scale : 1;
+            benchmark.simulated += 4.0 * physics_tick_time * scale;
+            if(benchmark.slow_motion && !collision_zoom_started) {
+                for(unsigned i = 0; i < PIT_PARTICLE_COUNT; ++i) {
+                    if(!rohr_physics_contact_check(chassis, particles[i])) continue;
+                    collision_zoom_started = collision_slow_motion_active = true;
+                    zoom_end_tick = benchmark.frames + 300;
+                    if(!result_ok(rohr_physics_dt_per_tick_set(physics_tick_time * camera_collision_physics_scale))) goto fail;
+                    break;
+                }
+            }
+            if(collision_slow_motion_active && benchmark.frames >= zoom_end_tick) {
+                rohr_physics_engine_time_per_tick_use();
+                collision_slow_motion_active = false;
+            }
+            double wait_ms = 0;
+            if(graphics_enabled) {
+                uint64_t render_start = SDL_GetTicksNS();
+                Report graphics = rohr_graphics_show();
+                if(graphics.header.status == ROHR_REPORT_FAILED) goto fail;
+                for(size_t i = 0; i < graphics.statistic_count; ++i)
+                    if(graphics.statistics[i].metric_id == ROHR_REPORT_FRAME_LIMIT_WAIT_NS)
+                        wait_ms += graphics.statistics[i].value / 1e6;
+                benchmark.render[benchmark.frames] = (SDL_GetTicksNS() - render_start) / 1e6 - wait_ms;
+            }
+            benchmark.work[benchmark.frames] = (SDL_GetTicksNS() - frame_start) / 1e6 - wait_ms;
+            ++benchmark.frames;
+            benchmark.maximum_lag = fmax(benchmark.maximum_lag,
+                (SDL_GetTicksNS() - benchmark.started) / 1e9 - benchmark.frames / 60.0);
+            if(benchmark.frames % 60 == 0) {
+                fprintf(stderr, "benchmark progress frame=%u simulated=%.3f elapsed=%.3f\n",
+                    benchmark.frames, benchmark.simulated, (SDL_GetTicksNS() - benchmark.started) / 1e9);
+            }
+            if(benchmark.frames >= benchmark.limit) break;
+            continue;
+        }
         car_jump_request(&controls, &car, rohr_input_action_button_pressed_check(jump_action));
         {
             if(rohr_engine_update().header.status == ROHR_REPORT_FAILED) goto fail;
@@ -417,13 +482,14 @@ int main(void) {
         }
         rohr_graphics_show();
     }
+    if(benchmark.enabled) benchmark_pass = car_benchmark_finish(&benchmark);
     car_destroy(&car);
     example_viewport_destroy(&viewport);
     if(input_controller != INPUT_CONTROLLER_INVALID)
         (void)rohr_input_controller_destroy(input_controller);
-    rohr_graphics_stop();
+    if(graphics_enabled) rohr_graphics_stop();
     rohr_engine_stop();
-    return 0;
+    return benchmark_pass ? 0 : 1;
 
 fail:
     fprintf(stderr, "soft-body example failed\n");
@@ -431,7 +497,7 @@ fail:
     example_viewport_destroy(&viewport);
     if(input_controller != INPUT_CONTROLLER_INVALID)
         (void)rohr_input_controller_destroy(input_controller);
-    rohr_graphics_stop();
+    if(graphics_enabled) rohr_graphics_stop();
     rohr_engine_stop();
     return 1;
 }

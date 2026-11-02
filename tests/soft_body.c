@@ -436,7 +436,11 @@ int main(void) {
             .mass = 1.0f,
             .radius = 2.0f
         });
-        if(rohr_error_check(seam_a) || rohr_error_check(seam_b)) FAIL();
+        /* Isolate endpoint cutouts from deformation: moving an endpoint can
+         * tilt the beam into a target outside the endpoint's excluded disk. */
+        if(rohr_error_check(seam_a) || rohr_error_check(seam_b) ||
+                rohr_error_check(rohr_physics_static_set(seam_a.result.value)) ||
+                rohr_error_check(rohr_physics_static_set(seam_b.result.value))) FAIL();
         seam_beam = rohr_physics_soft_body_beam_add((SoftBodyBeamDescription){
             .restitution = 0.25f,
             .collision = {.enabled = true, .thickness = 4,
@@ -450,7 +454,7 @@ int main(void) {
         });
         if(rohr_error_check(seam_beam) ||
                 rohr_error_check(rohr_physics_position_set(
-                    target.result.value, (Position){95.0f, 99.0f})) ||
+                    target.result.value, (Position){94.9f, 100.0f})) ||
                 rohr_error_check(rohr_physics_hitbox_set(target.result.value,
                     rohr_math_square_create(0.5f, 0.5f))) ||
                 rohr_error_check(rohr_physics_mass_set(target.result.value, 1.0f)) ||
@@ -469,7 +473,7 @@ int main(void) {
                 rohr_error_check(rohr_physics_position_set(
                     seam_b.result.value, (Position){105.0f, 100.0f})) ||
                 rohr_error_check(rohr_physics_position_set(
-                    target.result.value, (Position){95.0f, 99.0f})) ||
+                    target.result.value, (Position){94.9f, 100.0f})) ||
                 rohr_error_check(rohr_physics_velocity_set(
                     seam_a.result.value, (Velocity){0})) ||
                 rohr_error_check(rohr_physics_velocity_set(
@@ -480,6 +484,22 @@ int main(void) {
         if(rohr_physics_contact_check(seam_a.result.value, target.result.value) ||
                 !rohr_physics_contact_check(
                     seam_beam.result.value, target.result.value)) FAIL();
+        /* With movable endpoints, rigid correction rotates the beam into a
+         * previously separated part of the target. Discover it in this solve,
+         * rather than leaving that new overlap until the next update. */
+        if(rohr_error_check(rohr_physics_soft_body_node_collision_filter_description_set(
+                    seam_a.result.value, (CollisionFilterDescription){
+                        .category = ROHR_COLLISION_CATEGORY_SOFT_BODY_NODE,
+                        .responds_to = ROHR_COLLISION_CATEGORY_ALL & ~ROHR_COLLISION_CATEGORY_SOFT_BODY_NODE})) ||
+                rohr_error_check(rohr_physics_dynamic_set(seam_a.result.value)) ||
+                rohr_error_check(rohr_physics_dynamic_set(seam_b.result.value)) ||
+                rohr_error_check(rohr_physics_position_set(seam_a.result.value, (Position){95, 100})) ||
+                rohr_error_check(rohr_physics_position_set(seam_b.result.value, (Position){105, 100})) ||
+                rohr_error_check(rohr_physics_position_set(target.result.value, (Position){95, 99})) ||
+                rohr_error_check(rohr_physics_velocity_set(target.result.value, (Velocity){0}))) FAIL();
+        rohr_system_physics_update(0.0);
+        if(!rohr_physics_contact_check(seam_a.result.value, target.result.value) ||
+                !rohr_physics_contact_check(seam_beam.result.value, target.result.value)) FAIL();
     }
     {
         EntityResult local_body = rohr_physics_soft_body_add((SoftBodyDescription){0});

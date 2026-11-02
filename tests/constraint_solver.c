@@ -47,11 +47,47 @@ static void contacts_finalize(
     test->finalizes += contacts->count;
 }
 
+static bool rigid_pair_lookup_check(void) {
+    ContactConstraintList list;
+    size_t indices[130];
+    bool valid = false;
+    if(contact_constraint_list_init(&list, 1).kind == ERROR_RESULT_ERROR) return false;
+    for(unsigned i = 0; i < 130; ++i) {
+        /* Mixed kinds and repeated reallocations must not invalidate indices. */
+        if(i % 7 == 0 && !contact_constraint_list_append(&list,
+                (SystemContactConstraint){.type = SYSTEM_CONTACT_CONSTRAINT_SOFT_BOUNDARY})) goto done;
+        indices[i] = list.count;
+        if(!contact_constraint_list_append(&list, (SystemContactConstraint){
+                .type = SYSTEM_CONTACT_CONSTRAINT_RIGID_PAIR,
+                .value.rigid = {.first = i + 1, .second = i + 1001}})) goto done;
+    }
+    for(unsigned i = 0; i < 130; ++i) {
+        if(!contact_constraint_list_rigid_pair_check(&list, i + 1, i + 1001) ||
+                contact_constraint_list_rigid_pair_check(&list, i + 1001, i + 1) ||
+                contact_constraint_list_rigid_pair_check(&list, (i + 1) | UINT32_C(0x80000000), i + 1001) ||
+                list.values[indices[i]].value.rigid.first != i + 1) goto done;
+    }
+    size_t capacity = list.rigid_pair_capacity;
+    contact_constraint_list_clear(&list);
+    if(list.rigid_pair_count || list.rigid_pair_capacity != capacity ||
+            contact_constraint_list_rigid_pair_check(&list, 1, 1001)) goto done;
+    if(!contact_constraint_list_append(&list, (SystemContactConstraint){
+            .type = SYSTEM_CONTACT_CONSTRAINT_RIGID_PAIR,
+            .value.rigid = {.first = 1001, .second = 1}}) ||
+            !contact_constraint_list_rigid_pair_check(&list, 1001, 1) ||
+            contact_constraint_list_rigid_pair_check(&list, 1, 1001)) goto done;
+    valid = true;
+done:
+    contact_constraint_list_destroy(&list);
+    return valid;
+}
+
 int main(void) {
     ContactConstraintList contacts;
     JointConstraintList joint_constraints;
     SolverTestContext context = {.expected_contact_solves = 520};
 
+    if(!rigid_pair_lookup_check()) return 1;
     if(contact_constraint_list_init(&contacts, 1).kind == ERROR_RESULT_ERROR) return 1;
     if(joint_constraint_list_init(&joint_constraints, 1).kind == ERROR_RESULT_ERROR) {
         contact_constraint_list_destroy(&contacts);

@@ -682,7 +682,8 @@ EngineResult physics_soft_body_beam_collision_filter_description_set(Entity beam
 }
 
 CollisionFilterDescriptionResult physics_soft_body_beam_collision_filter_description_get(Entity entity) {
-    SoftBodyBeamCollisionDescriptionResult description = physics_soft_body_beam_collision_description_get(entity);
-    if(error_check(description)) return ERROR_RESULT_MAKE_ERROR(CollisionFilterDescriptionResult, description.result.error);
-    return ERROR_RESULT_MAKE_VALUE(CollisionFilterDescriptionResult, description.result.value.filter);
+    SoftBodyBeamResult beam = physics_soft_body_beam_get(entity);
+    if(error_check(beam)) return ERROR_RESULT_MAKE_ERROR(CollisionFilterDescriptionResult, beam.result.error);
+    return ERROR_RESULT_MAKE_VALUE(CollisionFilterDescriptionResult, ((CollisionFilterDescription){
+        .category = beam.result.value.category, .responds_to = beam.result.value.responds_to}));
 }

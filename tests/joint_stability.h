@@ -31,6 +31,7 @@ typedef struct JsFixture {
     unsigned count;
     Entity joint;
     bool impact, calibration, kicked, valid;
+    const char *stop_reason;
     double time, energy_ref, energy_scale, energy_error, anchor_error, angle_error;
     double depth, sweep_depth, ref_position_error, ref_velocity_error;
     double reference_difference, peak_length, peak_speed, momentum_error;
@@ -225,7 +226,7 @@ static void js_observe(double dt,void *context) {
     for(unsigned i=0;i<f->count;++i) {
         JsBody *b=&f->bodies[i],old=*b;js_read(b);
         if(!isfinite(b->p.x)||!isfinite(b->p.y)||!isfinite(b->v.x)||!isfinite(b->v.y)||
-                !isfinite(b->angle)||!isfinite(b->spin)) {f->valid=false;return;}
+                !isfinite(b->angle)||!isfinite(b->spin)) {f->valid=false;f->stop_reason="invalid_state";return;}
         speed=fmax(speed,hypot(b->v.x,b->v.y));spin=fmax(spin,fabs(b->spin));
         if(f->impact) {
             double bottom=js_bottom(*b);
@@ -234,7 +235,9 @@ static void js_observe(double dt,void *context) {
             if(js_floor_contact_check(b->entity,f->floor.entity))b->touched=true;
             if(b->touched&&!b->bounced&&bottom>.01&&bottom>js_bottom(old)) {
                 b->bounced=true;b->rebound_time=f->time;
-                if(!js_ok(rohr_physics_restitution_set(b->entity,.1f)))f->valid=false;
+                if(!js_ok(rohr_physics_restitution_set(b->entity,.1f))) {
+                    f->valid=false;f->stop_reason="fixture_event_failed";
+                }
             }
             if(fabs(b->p.x)+hypot(b->hx,b->hy)>500000)f->valid=false;
         }
@@ -266,6 +269,7 @@ static void js_observe(double dt,void *context) {
             hypot(f->reference.x-ref.x,f->reference.y-ref.y),hypot(f->reference.vx-ref.vx,f->reference.vy-ref.vy)));
     }
     double e=js_energy(f),error=(e-f->energy_ref)/f->energy_scale;
+    if(!isfinite(e)) {f->valid=false;f->stop_reason="invalid_energy";return;}
     f->energy_error=fmax(f->energy_error,f->impact?error:fabs(error));
     if(f->impact) {
         if(JS_KIND==JOINT_SPRING)f->depth=fmax(f->depth,js_pair_depth(f->bodies[0],f->bodies[1]));
@@ -292,8 +296,10 @@ static bool js_run(unsigned hz,bool delayed,bool impact,bool calibration,bool pe
     physics_substep_observer_set(js_observe,&f);
     double requested=0,samples[4000],stall=0,end=calibration?2:30;unsigned count=0;
     bool short_delay=false,long_delay=false;
-    while(requested<end && f.valid && !js_interrupted) {
-        if(!calibration&&!f.kicked&&requested>=5-1e-10)if(!js_kick(&f)) {f.valid=false;break;}
+    while(requested<end && !f.stop_reason && !js_interrupted) {
+        if(!calibration&&!f.kicked&&requested>=5-1e-10)if(!js_kick(&f)) {
+            f.valid=false;f.stop_reason="fixture_event_failed";break;
+        }
         double dt=fmin(1.0/hz,end-requested);bool is_delay=false;
         if(delayed&&!short_delay&&requested>=4.8-1e-10) {dt=.1;short_delay=true;is_delay=true;}
         else if(delayed&&!long_delay&&requested>=5.2-1e-10) {dt=1;long_delay=true;is_delay=true;}
@@ -305,9 +311,13 @@ static bool js_run(unsigned hz,bool delayed,bool impact,bool calibration,bool pe
         if(is_delay)stall=fmax(stall,cpu);else if(count<4000)samples[count++]=cpu;else f.valid=false;
         for(size_t i=0;i<r.statistic_count;++i)
             if(r.statistics[i].report_id==ROHR_PHYSICS_REPORT_ID&&r.statistics[i].metric_id==ROHR_REPORT_SUBSTEPS_COMPLETED_COUNT)reported=r.statistics[i].value;
-        if(r.has_fatal||r.header.status==ROHR_REPORT_FAILED||reported!=f.substeps-before||!reported||fabs(f.time-requested)>1e-9)f.valid=false;
+        if(r.has_fatal||r.header.status==ROHR_REPORT_FAILED)f.stop_reason="engine_failure";
+        else if(reported!=f.substeps-before||!reported||fabs(f.time-requested)>1e-9)f.stop_reason="time_or_substep_mismatch";
     }
     physics_substep_observer_set(NULL,NULL);
+    if(js_interrupted)f.stop_reason="interrupted";
+    bool complete=!f.stop_reason&&fabs(f.time-end)<=1e-9;
+    if(!complete)f.valid=false;
     qsort(samples,count,sizeof(*samples),js_compare);double p95=count?samples[(count-1)*95/100]:0;
     if(fabs(f.time-end)>1e-9||js_interrupted||(!calibration&&!f.kicked)||
             (delayed&&(!short_delay||!long_delay)))f.valid=false;
@@ -326,6 +336,9 @@ static bool js_run(unsigned hz,bool delayed,bool impact,bool calibration,bool pe
         f.anchor_error,f.angle_error,f.depth,f.sweep_depth,f.energy_error,f.momentum_error,
         f.ref_position_error,f.ref_velocity_error,f.reference_difference,p95,stall,f.settling_time,
         f.bodies[0].rebound_time,f.count>1?f.bodies[1].rebound_time:-1);
+    printf("completion condition=time target=%.9g reached=%d reason=%s max_cpu_ms=%.6f\n",
+        end,complete,f.stop_reason?f.stop_reason:complete?"endpoint_reached":"endpoint_not_reached",
+        fmax(stall,count?samples[count-1]:0));
     fflush(stdout);rohr_engine_stop();return f.valid;
 }
 int main(int argc,char **argv) {

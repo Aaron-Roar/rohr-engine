@@ -22,12 +22,92 @@ static Vec2D sweep_displacement_get(EntityIndex index, double dt) {
 
 static AABB sweep_bounds_get(EntityIndex index, double dt) {
     AABB bounds = math_aabb_create(world_hit_boxes[index]);
-    Vec2D move = sweep_displacement_get(index, dt);
-    bounds.min_x += fminf(0, move.x);
-    bounds.max_x += fmaxf(0, move.x);
-    bounds.min_y += fminf(0, move.y);
-    bounds.max_y += fmaxf(0, move.y);
+    if(entity_index_components_check(index, ROHR_PARTICLE)) {
+        Position center = physics_particle_world_origin_by_index_get(index);
+        float radius = physics_particle_radius_by_index_get(index);
+        bounds.min_x = fminf(bounds.min_x, center.x-radius);
+        bounds.max_x = fmaxf(bounds.max_x, center.x+radius);
+        bounds.min_y = fminf(bounds.min_y, center.y-radius);
+        bounds.max_y = fmaxf(bounds.max_y, center.y+radius);
+    }
+    if(physics_entity_movable_get(index)) {
+        /* Opposing velocity and acceleration can turn before the end of the
+         * proposed step. Keep both excursions in the broadphase bound. */
+        double vx = velocities[index].x*dt, vy = velocities[index].y*dt;
+        double ax = (accelerations[index].x+force_accelerations[index].x)*dt*dt;
+        double ay = (accelerations[index].y+force_accelerations[index].y)*dt*dt;
+        bounds.min_x += fmin(0, vx)+fmin(0, ax);
+        bounds.max_x += fmax(0, vx)+fmax(0, ax);
+        bounds.min_y += fmin(0, vy)+fmin(0, ay);
+        bounds.max_y += fmax(0, vy)+fmax(0, ay);
+    }
     return bounds;
+}
+
+static double sweep_travel_time_get(double distance, double speed, double acceleration);
+
+/* Particle pairs use circles in contact response, independently of the vertex
+ * count used for mixed particle/polygon contacts. Their translating sweep can
+ * use the same circles directly instead of projecting polygon edge axes. */
+static bool sweep_particle_pair_check(SweepQuery *query, EntityIndex other) {
+    EntityIndex first = query->index;
+    if(!entity_index_components_check(first, ROHR_PARTICLE) ||
+            !entity_index_components_check(other, ROHR_PARTICLE) ||
+            !physics_entity_nonrotating_check(first) || !physics_entity_nonrotating_check(other)) return false;
+    Position a = physics_particle_world_origin_by_index_get(first);
+    Position b = physics_particle_world_origin_by_index_get(other);
+    double r1 = physics_particle_radius_by_index_get(first), r2 = physics_particle_radius_by_index_get(other);
+    if(!(r1 > 0) || !(r2 > 0)) return false;
+    EntityIndex indices[2] = {first, other};
+    double vx[2] = {0}, vy[2] = {0}, ax[2] = {0}, ay[2] = {0};
+    for(unsigned i = 0; i < 2; ++i) {
+        EntityIndex n = indices[i];
+        if(entity_mask[n] & (ROHR_AXIS_LOCK | ROHR_TRANSFORM_LOCK)) return false;
+        if(!physics_entity_movable_get(n)) continue;
+        vx[i] = velocities[n].x; vy[i] = velocities[n].y;
+        double factor = physics_soft_position_acceleration_factor_get(n);
+        ax[i] = factor*(accelerations[n].x+force_accelerations[n].x);
+        ay[i] = factor*(accelerations[n].y+force_accelerations[n].y);
+    }
+    if(ax[0] != ax[1] || ay[0] != ay[1]) {
+        /* A relative accelerated path is curved. Its total travel bounds the
+         * distance it can close even if its proposed endpoint returns home. */
+        double x = (double)b.x-a.x, y = (double)b.y-a.y, distance = hypot(x, y);
+        Vec2D normal = distance > 0 ? (Vec2D){x/distance, y/distance} : (Vec2D){1, 0};
+        double gap = distance-r1-r2;
+        double travel = gap > 0 ? gap+4*physics_rigid_contact_slop_get(first, other, normal) :
+            .5*fmin(r1, r2);
+        double duration = sweep_travel_time_get(travel, hypot(vx[0]-vx[1], vy[0]-vy[1]),
+            hypot(ax[0]-ax[1], ay[0]-ay[1]));
+        if(duration > 0) query->earliest = fmin(query->earliest, duration);
+        return true;
+    }
+    Vec2D da = sweep_displacement_get(first, query->duration);
+    Vec2D db = sweep_displacement_get(other, query->duration);
+    double x = (double)b.x-a.x, y = (double)b.y-a.y;
+    double dx = (double)db.x-da.x, dy = (double)db.y-da.y;
+    double distance2 = x*x+y*y, dot = x*dx+y*dy, travel2 = dx*dx+dy*dy;
+    double radius = r1+r2, gap = distance2-radius*radius;
+    if(dot >= 0 || !(travel2 > 0)) return true;
+    if(gap > 0) {
+        double discriminant = dot*dot-travel2*gap;
+        if(discriminant <= 0) return true;
+        double root = sqrt(discriminant);
+        double entry = gap/(-dot+root);
+        if(entry > 1) return true;
+        Vec2D normal = {(x+entry*dx)/radius, (y+entry*dy)/radius};
+        double margin = 4*physics_rigid_contact_slop_get(first, other, normal);
+        /* A grazing crossing can be shorter than the penetration margin.
+         * Stop before closest approach instead of stepping past its exit. */
+        double inside = fmin(margin*radius/root, .5*root/travel2);
+        double duration = query->duration*fmin(1, entry+inside);
+        if(duration > 0) query->earliest = fmin(query->earliest, duration);
+    } else if(distance2 > 0) {
+        double closing = -dot/sqrt(distance2), margin = .5*fmin(r1, r2);
+        if(closing > margin)
+            query->earliest = fmin(query->earliest, query->duration*margin/closing);
+    }
+    return true;
 }
 
 static void sweep_projection_get(const Shape *shape, double x, double y,
@@ -39,14 +119,69 @@ static void sweep_projection_get(const Shape *shape, double x, double y,
     }
 }
 
+static double sweep_travel_time_get(double distance, double speed, double acceleration) {
+    speed = fmax(0, speed); acceleration = fmax(0, acceleration);
+    if(acceleration > 0) return 2*distance/(speed+sqrt(speed*speed+4*acceleration*distance));
+    return speed > 0 ? distance/speed : INFINITY;
+}
+
+/* Fixed-orientation shapes have fixed separating axes. Bound their prepared
+ * quadratic motion directly: scaling a full-step displacement down linearly
+ * needlessly repeats tiny steps at accelerating supported nodes. */
+static bool sweep_translating_pair_check(SweepQuery *query, EntityIndex other) {
+    EntityIndex indices[2] = {query->index, other};
+    double vx[2] = {0}, vy[2] = {0}, ax[2] = {0}, ay[2] = {0};
+    for(unsigned i = 0; i < 2; ++i) {
+        EntityIndex n = indices[i];
+        if(entity_mask[n] & (ROHR_AXIS_LOCK | ROHR_TRANSFORM_LOCK)) return false;
+        if(!physics_entity_movable_get(n)) continue;
+        if(!physics_entity_nonrotating_check(n)) return false;
+        vx[i] = velocities[n].x; vy[i] = velocities[n].y;
+        double factor = physics_soft_position_acceleration_factor_get(n);
+        ax[i] = factor*(accelerations[n].x+force_accelerations[n].x);
+        ay[i] = factor*(accelerations[n].y+force_accelerations[n].y);
+    }
+    const Shape *shapes[2] = {&world_hit_boxes[indices[0]], &world_hit_boxes[indices[1]]};
+    double entry = 0, depth = INFINITY, thickness = INFINITY, closing = 0, acceleration = 0;
+    for(unsigned s = 0; s < 2; ++s) {
+        const Shape *shape = shapes[s];
+        for(unsigned i = 0; i < shape->amount_of_vertices; ++i) {
+            Position p = shape->vertices[i], q = shape->vertices[(i+1)%shape->amount_of_vertices];
+            double nx = (double)p.y-q.y, ny = (double)q.x-p.x, length = hypot(nx, ny);
+            if(length <= 0) continue;
+            nx /= length; ny /= length;
+            double al, ah, bl, bh;
+            sweep_projection_get(shapes[0], nx, ny, &al, &ah);
+            sweep_projection_get(shapes[1], nx, ny, &bl, &bh);
+            thickness = fmin(thickness, fmin(ah-al, bh-bl));
+            double sign = bl+bh >= al+ah ? 1 : -1;
+            double v = sign*((vx[0]-vx[1])*nx+(vy[0]-vy[1])*ny);
+            double a = sign*((ax[0]-ax[1])*nx+(ay[0]-ay[1])*ny);
+            double overlap = fmin(ah-bl, bh-al);
+            if(overlap < 0) {
+                double margin = 4*physics_rigid_contact_slop_get(indices[0], indices[1], (Vec2D){nx, ny});
+                double time = sweep_travel_time_get(-overlap+margin, v, a);
+                if(time >= query->duration) return true;
+                entry = fmax(entry, time);
+            }
+            if(overlap < depth) { depth = overlap; closing = v; acceleration = a; }
+        }
+    }
+    double duration = entry > 0 ? entry : sweep_travel_time_get(.25*thickness, closing, acceleration);
+    if(duration > 0) query->earliest = fmin(query->earliest, duration);
+    return true;
+}
+
 static bool sweep_pair_visit(Entity target, void *context) {
     SweepQuery *query = context;
     EntityIndex other;
     if(target <= query->source || !entity_index_get(target, &other) ||
             !entity_index_components_check(other, ROHR_COLLISION) ||
-            !physics_collision_response_between_check(query->source, target)) return true;
+            !physics_collision_response_between_by_index_check(query->index, other)) return true;
     EntityIndex first = query->index;
     if(!physics_entity_movable_get(first) && !physics_entity_movable_get(other)) return true;
+    if(sweep_particle_pair_check(query, other)) return true;
+    if(sweep_translating_pair_check(query, other)) return true;
     const Shape *shapes[] = {&world_hit_boxes[first], &world_hit_boxes[other]};
     /* A concave shape's hull is conservative for timing only; the ordinary
      * narrow phase still decides which pieces actually touch. */
@@ -123,8 +258,10 @@ double physics_rigid_sweep_duration_get(double dt, Report *report) {
             categories |= filter.category;
             responses |= filter.responds_to;
             if(physics_entity_movable_get(index)) {
-                Vec2D displacement = sweep_displacement_get(index, dt);
-                if(displacement.x != 0 || displacement.y != 0 || angular_velocities[index] != 0) {
+                if(velocities[index].x != 0 || velocities[index].y != 0 ||
+                        accelerations[index].x+force_accelerations[index].x != 0 ||
+                        accelerations[index].y+force_accelerations[index].y != 0 ||
+                        angular_velocities[index] != 0) {
                     moving_collider = true;
                     moving_categories |= filter.category;
                     moving_responses |= filter.responds_to;

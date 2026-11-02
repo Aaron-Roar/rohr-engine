@@ -7,6 +7,64 @@
 
 #include "physics.h"
 
+/* Membership is frozen only inside a synchronous complete substep. Component
+ * values remain live; manual stages use the ordinary entity validation path. */
+typedef struct PhysicsStepMembership {
+    bool active;
+    Entity handles[MAX_ENTITIES];
+    EntityIndex colliders[MAX_ENTITIES];
+    uint32_t collider_count;
+} PhysicsStepMembership;
+extern PhysicsStepMembership physics_step_membership;
+
+static inline bool physics_step_entity_alive_check(EntityIndex index) {
+    if(physics_step_membership.active)
+        return index < MAX_ENTITIES &&
+            physics_step_membership.handles[index] != ENTITY_INVALID;
+    return entity_index_alive_check(index);
+}
+
+static inline bool physics_step_entity_components_check(EntityIndex index,
+        RohrComponentMask components) {
+    return physics_step_entity_alive_check(index) &&
+        (entity_mask[index] & components) == components;
+}
+
+/* Solver paths already hold indices. Read current filters without converting
+ * them back to public handles; beams own their filter in their beam component. */
+static inline bool physics_collision_filter_by_index_get(EntityIndex index,
+        CollisionFilterDescription *filter) {
+    if(filter == NULL || !physics_step_entity_alive_check(index)) return false;
+    RohrComponentMask mask = entity_mask[index];
+    if((mask & ROHR_SOFT_BODY_BEAM) != 0) {
+        if(index >= soft_body_beams_pool.capacity || !soft_body_beams_pool.used[index]) return false;
+        *filter = (CollisionFilterDescription){soft_body_beams[index].category,
+            soft_body_beams[index].responds_to};
+    } else if((mask & ROHR_COLLISION_FILTER) != 0) {
+        *filter = collision_filters[index];
+    } else {
+        *filter = (CollisionFilterDescription){ROHR_COLLISION_CATEGORY_DEFAULT,
+            ROHR_COLLISION_CATEGORY_ALL};
+    }
+    return true;
+}
+
+static inline bool physics_collision_response_to_by_index_check(EntityIndex first,
+        EntityIndex second) {
+    CollisionFilterDescription a, b;
+    return physics_collision_filter_by_index_get(first, &a) &&
+        physics_collision_filter_by_index_get(second, &b) &&
+        (a.responds_to & b.category) != 0;
+}
+
+static inline bool physics_collision_response_between_by_index_check(EntityIndex first,
+        EntityIndex second) {
+    CollisionFilterDescription a, b;
+    return physics_collision_filter_by_index_get(first, &a) &&
+        physics_collision_filter_by_index_get(second, &b) &&
+        ((a.responds_to & b.category) != 0 || (b.responds_to & a.category) != 0);
+}
+
 typedef struct ParticleShapeChange {
     Shape shape;
     HitboxVariant *allocated;

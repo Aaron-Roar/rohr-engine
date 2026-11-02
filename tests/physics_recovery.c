@@ -558,6 +558,65 @@ static void configuration_descriptions(void) {
     rohr_engine_stop();
 }
 
+static void manual_geometry_refresh(void) {
+    OK(rohr_engine_start());
+    Entity support = body(0, 0, true), first = body(5, 0, true);
+    OK(rohr_physics_static_set(support));
+    physics_pipeline_step_begin();
+    physics_pipeline_substep_begin();
+    assert(!physics_pipeline_contacts_gather().has_fatal);
+    assert(!physics_pipeline_constraints_solve(8).has_fatal);
+    assert(!rohr_physics_contact_check(support, first));
+    /* Same poses, new geometry: solver-local bounds must not survive the
+     * previous public call. Also cover a new collider absent from its tree. */
+    OK(rohr_physics_hitbox_set(support, rohr_math_square_create(12, 2)));
+    Entity second = body(-5, 0, true);
+    assert(!physics_pipeline_constraints_solve(8).has_fatal);
+    assert(rohr_physics_contact_check(support, first));
+    assert(rohr_physics_contact_check(support, second));
+    rohr_engine_stop();
+}
+
+static void substep_membership_recovery(void) {
+    OK(rohr_engine_start());
+    Entity first = body(0, 0, true), plain = body(10, 0, false);
+    Entity second = body(20, 0, true);
+    EntityIndex a = index_of(first), b = index_of(plain), c = index_of(second), index;
+    physics_step_entities_begin();
+    assert(physics_step_entities_active_check());
+    assert(physics_step_entity_alive_check(a) && physics_step_entity_alive_check(b));
+    assert(!physics_step_entity_alive_check(MAX_ENTITIES));
+    assert(!physics_step_entity_components_check(MAX_ENTITIES, ROHR_HIT_BOX));
+    assert(physics_step_collider_iteration_count_get() == 2);
+    assert(physics_step_collider_index_at(0, &index) && index == a);
+    assert(physics_step_collider_index_at(1, &index) && index == c);
+    assert(!physics_step_collider_index_at(2, &index));
+    assert(!physics_step_collider_index_at(0, NULL));
+    /* The snapshot caches membership, never mutable body modes. */
+    OK(rohr_physics_entity_hold(first));
+    assert(physics_step_entity_components_check(a, ROHR_HOLD));
+    assert(!physics_entity_movable_get(a));
+    OK(rohr_physics_entity_unhold(first));
+    assert(physics_entity_movable_get(a));
+    /* Recovery deletion ends the snapshot before storage/slot reuse. */
+    physics_step_entity_by_index_delete(a);
+    assert(!physics_step_entities_active_check());
+    assert(!physics_step_entity_alive_check(a));
+    assert(!physics_step_entity_components_check(a, ROHR_HIT_BOX));
+    Entity replacement = body(-10, 0, true);
+    assert(replacement != first);
+    OK(rohr_physics_hitbox_set(plain, rohr_math_square_create(2, 2)));
+    uint32_t colliders = 0;
+    for(uint32_t n = 0; n < physics_step_collider_iteration_count_get(); ++n)
+        if(physics_step_collider_index_at(n, &index)) ++colliders;
+    assert(colliders == 3);
+    physics_step_entities_begin();
+    assert(physics_step_collider_iteration_count_get() == 3);
+    assert(physics_step_entity_alive_check(index_of(replacement)));
+    physics_step_entities_end();
+    rohr_engine_stop();
+}
+
 int main(void) {
     configuration_descriptions();
     movement_retry();
@@ -569,5 +628,7 @@ int main(void) {
     rejected_loads_and_limits();
     paired_contact_rejection();
     joint_corrections();
+    manual_geometry_refresh();
+    substep_membership_recovery();
     return 0;
 }

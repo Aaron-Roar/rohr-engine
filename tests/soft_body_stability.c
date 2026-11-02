@@ -16,8 +16,8 @@ static bool run(unsigned kind,bool ramp,unsigned hz,bool delayed,bool performanc
     double integration=0,gather=0,solve=0;
     double t=0,end=kind==5?10:30,samples[4000],stall=0;unsigned count=0;bool short_done=false,long_done=false;
     double short_time=kind==5?4.01:8.01,long_time=kind==5?8.01:12.01;
-    while(t<end-1e-9&&f.valid&&!interrupted) {
-        if(!sb_events(&f,t)){f.valid=false;break;}
+    while(t<end-1e-9&&!f.stop_reason&&!interrupted) {
+        if(!sb_events(&f,t)){f.valid=false;f.stop_reason="fixture_event_failed";break;}
         double dt=fmin(1.0/hz,end-t);bool delay=false;
         /* Loads are created before the delayed update, at exact event boundaries. */
         if(delayed&&!short_done&&t>=short_time-1e-9){dt=.1;short_done=true;delay=true;}
@@ -37,10 +37,14 @@ static bool run(unsigned kind,bool ramp,unsigned hz,bool delayed,bool performanc
         for(size_t i=0;i<r.statistic_count;++i)
             if(r.statistics[i].report_id==ROHR_PHYSICS_REPORT_ID&&
                 r.statistics[i].metric_id==ROHR_REPORT_SUBSTEPS_COMPLETED_COUNT)reported=r.statistics[i].value;
-        if(r.has_fatal||r.diagnostic_count||fabs(f.time-t)>1e-7||reported!=f.substeps-before)f.valid=false;
+        if(r.diagnostic_count)f.valid=false;
+        if(r.has_fatal||r.header.status==ROHR_REPORT_FAILED)f.stop_reason="engine_failure";
+        else if(fabs(f.time-t)>1e-7||reported!=f.substeps-before||!reported)f.stop_reason="time_or_substep_mismatch";
     }
     physics_substep_observer_set(NULL,NULL);
-    if(interrupted||fabs(f.time-end)>1e-7)f.valid=false;
+    if(interrupted)f.stop_reason="interrupted";
+    bool complete=!f.stop_reason&&fabs(f.time-end)<=1e-7;
+    if(!complete)f.valid=false;
     qsort(samples,count,sizeof(double),compare);double p95=count?samples[(count-1)*95/100]:0;
     if(kind==5&&!f.self_contacts)f.valid=false;
     if(kind>=2&&kind<=4&&!f.particle_contacts)f.valid=false;
@@ -49,6 +53,9 @@ static bool run(unsigned kind,bool ramp,unsigned hz,bool delayed,bool performanc
     printf("%s kind=%u ramp=%d hz=%u delayed=%d time=%.9g steps=%llu depth=%.9g pair=%u/%u energy_error=%.9g self=%llu speed=%.9g final_speed=%.9g p95_ms=%.6f stall_ms=%.6f\n",f.valid?"PASS":"FAIL",kind,ramp,hz,delayed,f.time,(unsigned long long)f.substeps,f.depth,f.depth_a,f.depth_b,f.energy_error,(unsigned long long)f.self_contacts,f.peak_speed,f.final_speed,p95,stall);
     printf("contacts particle=%llu load=%llu tunneled=%d\n",(unsigned long long)f.particle_contacts,(unsigned long long)f.load_contacts,f.tunneled);
     printf("profile_ms integration=%.3f gather=%.3f solve=%.3f\n",integration,gather,solve);
+    printf("completion condition=time target=%.9g reached=%d reason=%s max_cpu_ms=%.6f\n",
+        end,complete,f.stop_reason?f.stop_reason:complete?"endpoint_reached":"endpoint_not_reached",
+        fmax(stall,count?samples[count-1]:0));
     fflush(stdout);rohr_engine_stop();return f.valid;
 }
 int main(int argc,char **argv) {

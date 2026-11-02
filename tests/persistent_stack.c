@@ -5,6 +5,7 @@
 #include "physics/physics_step_internal.h"
 #include <float.h>
 #include <math.h>
+#include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -12,6 +13,8 @@
 
 #define STACK_COUNT 20
 #define STACK_BODY_MAX 22
+static volatile sig_atomic_t interrupted;
+static void interrupt_test(int number) { (void)number;interrupted=1; }
 
 typedef struct StackBody {
     Entity entity;
@@ -30,6 +33,7 @@ typedef struct StackFixture {
     double time, depth, pre_linear, pre_angular, post_linear, post_angular;
     double pre_drift, pre_angle, settled_drift, energy_peak;
     bool struck, valid;
+    const char *stop_reason;
 } StackFixture;
 
 static bool stack_result_check(EngineResult result) {
@@ -106,7 +110,9 @@ static void stack_observe(double dt,void *context) {
         b->extent_y=b->hx*fabs(b->sine)+b->hy*fabs(b->cosine);
         if(!isfinite(b->position.x) || !isfinite(b->position.y) ||
                 !isfinite(b->velocity.x) || !isfinite(b->velocity.y) ||
-                !isfinite(b->angle) || !isfinite(b->spin))f->valid=false;
+                !isfinite(b->angle) || !isfinite(b->spin)) {
+            f->valid=false;f->stop_reason="invalid_state";return;
+        }
         if(i==0) {
             if(b->position.x!=0 || b->position.y!=-5 || b->angle!=0 ||
                     b->velocity.x!=0 || b->velocity.y!=0 || b->spin!=0)f->valid=false;
@@ -141,6 +147,7 @@ static void stack_observe(double dt,void *context) {
     f->energy_peak=fmax(f->energy_peak,energy);
     double budget=19600+(f->struck?1250+1029:0);
     if(!isfinite(energy) || energy>budget*1.001)f->valid=false;
+    if(!isfinite(energy))f->stop_reason="invalid_energy";
     for(unsigned i=0;i<f->count;++i)
         for(unsigned j=i+1;j<f->count;++j)
             f->depth=fmax(f->depth,stack_depth_get(&f->bodies[i],&f->bodies[j]));
@@ -172,10 +179,12 @@ static bool stack_run_check(unsigned hz,bool stalls,bool performance) {
     unsigned count=0;
     bool short_delay=false,long_delay=false;
     const double end=90;
-    while(requested<end && f.valid) {
+    while(requested<end && !f.stop_reason && !interrupted) {
         if(!f.struck && requested>=60-1e-10) {
             f.struck=true;
-            if(!stack_box_add(&f,(Position){-30,105},(Velocity){50,0},false)) {f.valid=false;break;}
+            if(!stack_box_add(&f,(Position){-30,105},(Velocity){50,0},false)) {
+                f.valid=false;f.stop_reason="fixture_event_failed";break;
+            }
         }
         double dt=fmin(1.0/hz,end-requested);
         bool delayed=false;
@@ -192,9 +201,13 @@ static bool stack_run_check(unsigned hz,bool stalls,bool performance) {
         if(delayed)delayed_max=fmax(delayed_max,cpu);
         else if(count<12000)samples[count++]=cpu;
         else f.valid=false;
-        if(!updated || fabs(f.time-requested)>1e-9)f.valid=false;
+        if(!updated)f.stop_reason="engine_or_substep_failure";
+        else if(fabs(f.time-requested)>1e-9)f.stop_reason="time_mismatch";
     }
     physics_substep_observer_set(NULL,NULL);
+    if(interrupted)f.stop_reason="interrupted";
+    bool complete=!f.stop_reason&&fabs(f.time-end)<=1e-9;
+    if(!complete)f.valid=false;
     qsort(samples,count,sizeof(double),stack_time_compare);
     double p95=count?samples[(count-1)*95/100]:0;
     if(!f.struck || !f.pre_settling_samples || !f.post_settling_samples ||
@@ -204,15 +217,19 @@ static bool stack_run_check(unsigned hz,bool stalls,bool performance) {
         f.valid?"PASS":"FAIL",hz,stalls,f.time,(unsigned long long)f.substeps,f.depth,
         f.pre_drift,f.pre_angle,f.pre_linear,f.pre_angular,f.settled_drift,
         f.post_linear,f.post_angular,p95,delayed_max,f.energy_peak);
+    printf("completion condition=time target=%.9g reached=%d reason=%s max_cpu_ms=%.6f\n",
+        end,complete,f.stop_reason?f.stop_reason:complete?"endpoint_reached":"endpoint_not_reached",
+        fmax(delayed_max,count?samples[count-1]:0));
     fflush(stdout);
     rohr_engine_stop();
     return f.valid;
 }
 
 int main(int argc,char **argv) {
+    signal(SIGINT,interrupt_test);signal(SIGTERM,interrupt_test);
     bool performance=argc==2 && strcmp(argv[1],"--performance")==0;
     bool valid=true;
     const unsigned rates[]={30,60,120,60};
-    for(unsigned i=0;i<4;++i)valid=stack_run_check(rates[i],i==3,performance)&&valid;
-    return valid?0:1;
+    for(unsigned i=0;i<4&&!interrupted;++i)valid=stack_run_check(rates[i],i==3,performance)&&valid;
+    return valid&&!interrupted?0:1;
 }

@@ -6,6 +6,7 @@
 #define ROHR_PHYSICS_STEP_INTERNAL_H
 
 #include "entity_components.h"
+#include "physics/physics_internal.h"
 #include "physics/broadphase/aabb_tree.h"
 #include "physics/collision/contact_constraint.h"
 #include "physics/collision/interaction_set.h"
@@ -29,8 +30,27 @@ extern ContactConstraintList physics_step_contact_constraints;
 extern JointConstraintList physics_step_joint_constraints;
 
 void physics_interactions_step_begin(void);
+void physics_step_entities_begin(void);
+void physics_step_entities_end(void);
+bool physics_step_entities_active_check(void);
 bool physics_step_entity_from_index_get(EntityIndex index, Entity *entity);
 bool physics_step_alive_index_at(uint32_t alive_position, EntityIndex *index);
+/* Outside a complete substep the iteration spans all live entities, returning
+ * false for noncolliders. This keeps manual stage edits visible immediately. */
+static inline uint32_t physics_step_collider_iteration_count_get(void) {
+    return physics_step_membership.active ? physics_step_membership.collider_count :
+        entity_alive_count_get();
+}
+
+static inline bool physics_step_collider_index_at(uint32_t position, EntityIndex *index) {
+    if(physics_step_membership.active) {
+        if(index == NULL || position >= physics_step_membership.collider_count) return false;
+        *index = physics_step_membership.colliders[position];
+        return true;
+    }
+    return physics_step_alive_index_at(position, index) &&
+        entity_index_components_check(*index, ROHR_HIT_BOX);
+}
 void physics_step_interaction_by_index_record(
     EntityIndex entity_1,
     EntityIndex entity_2,
@@ -40,6 +60,8 @@ void physics_step_interaction_by_index_record(
 );
 void physics_step_hitbox_dirty_add(EntityIndex index);
 bool physics_step_hitbox_update(EntityIndex index, Report *report);
+void physics_step_hitbox_cache_begin(void);
+void physics_step_hitbox_cache_end(void);
 void physics_step_hitbox_dirty_flush(Report *report);
 void physics_step_entity_by_index_delete(EntityIndex index);
 void physics_step_transform_lock_by_index_remove(EntityIndex index);
@@ -99,11 +121,14 @@ void physics_soft_motion_begin(double dt, Report *report);
 void physics_soft_motion_end(double dt, Report *report);
 bool physics_soft_motion_integrated_check(EntityIndex index);
 double physics_soft_duration_get(double dt);
+double physics_soft_position_acceleration_factor_get(EntityIndex index);
 double physics_soft_sweep_duration_get(double dt, Report *report);
 void physics_beam_pairs_gather(Report *report);
 void physics_beam_pair_solve(SystemBeamPair *pair, float fraction, Report *report);
 void physics_beam_pair_finalize(const SystemBeamPair *pair, Report *report);
 void physics_soft_body_constraints_gather(Report *report);
+void physics_soft_body_gather_cache_reset(void);
+void physics_beam_pairs_gather_cache_reset(void);
 void physics_soft_body_constraint_solve(
     SystemContactConstraint *constraint,
     float position_fraction, Report *report

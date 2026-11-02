@@ -216,6 +216,21 @@ EngineResult aabb_tree_insert(AABBTree *tree, Entity entity, AABB bounds) {
     return error_result_value(true);
 }
 
+bool aabb_tree_leaf_bounds_set(AABBTree *tree, uint32_t leaf, AABB bounds) {
+    if(tree == NULL || leaf >= tree->count ||
+            !aabb_tree_node_leaf_check(&tree->nodes[leaf])) return false;
+    tree->nodes[leaf].bounds = bounds;
+    uint32_t index = tree->nodes[leaf].parent;
+    /* Refit only: preserve topology and traversal order during a solve. */
+    while(index != AABB_TREE_NODE_INVALID) {
+        AABBTreeNode *node = &tree->nodes[index];
+        node->bounds = aabb_tree_bounds_combine(tree->nodes[node->left].bounds,
+            tree->nodes[node->right].bounds);
+        index = node->parent;
+    }
+    return true;
+}
+
 bool aabb_tree_query(
     AABBTree *tree,
     AABB bounds,
