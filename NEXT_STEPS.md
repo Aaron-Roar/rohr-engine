@@ -13,7 +13,7 @@ priority order.
 | 2 | Asset and resource ownership | Complete |
 | 3 | COM, inertia, and origin semantics | Complete |
 | 4 | Cross-path feature parity | Complete by user acceptance; recorded verification exceptions remain |
-| 12 | Real-time physics pipeline rework | Highest unfinished priority; goal 1 complete for review |
+| 12 | Real-time physics pipeline rework | Highest unfinished priority; goals 1–2 complete; goal 3 next |
 | 11 | Soft-body correctness and real-time performance | Superseded by milestone 12; not complete; evidence preserved |
 | 6 | Physics robustness | Goals 1–4 accepted; goal 5 failed verification |
 | — | [C game experiment](#c-game-experiment) | Pending; agree concept and completion criteria when starting |
@@ -37,8 +37,9 @@ car and pit performance, then compare accuracy and behavior with the frozen
 `physics-pipelines-overoptimized` reference at `6f283268`. Exclude `main` from
 comparisons. Milestone 12 goal 1 establishes the reference and measurement
 contract, with the full car run explicitly stopped by the user and retained as
-incomplete. Goal 2 awaits explicit instruction; the C game experiment has not
-started.
+incomplete. Goal 2 is complete for review with a limited spring-preparation
+cleanup and verified unchanged trajectories. Goal 3 is next; the C game
+experiment has not started.
 
 Regression checks and relevant sanitizer checks remain mandatory throughout
 physics, the C game experiment, and runtime isolation. Deferring the broader
@@ -516,7 +517,19 @@ accuracy and behavior against the reference and choose an acceptable middle
 ground. This is the highest unfinished priority and supersedes milestone 11,
 whose failed attempts, experiments, executables, and evidence remain preserved.
 
-**Status: goal 1 complete for review; goal 2 not started.** The
+**Status: goals 1–2 complete; goal 2 ready for review and commit.** Goal 2's
+[force-preparation report](docs/physics_force_preparation.md) records the limited
+spring scan/COM-offset cleanup and the decision to retain the other force passes.
+Fourteen Linux and fourteen ASan/UBSan regressions pass, Windows cross-builds
+pass, and all 219 timed scenarios plus four calibrations finish with numerical
+and state/work trace parity against the frozen reference. The car's ten-second
+segment and full headless pit also retain exact traces. The final soft-body
+CPU comparison still fails at 397.578 ms versus 50 ms. No tolerance, API,
+ownership, tick rate, scene or material changes. Explicit SIMD is deferred;
+compiler-vectorization findings and collision-batching candidates are recorded.
+The user requested no broader force optimization. Goal 3 has not started.
+
+Goal 1's
 [measurement contract](docs/physics_measurement_contract.md) records reference
 provenance, measured exclusive stage costs, baseline errors and the comparison
 format. All 219 timed fixture scenarios plus four calibrations finish, with
@@ -544,7 +557,7 @@ finding.
    iterations, candidates and contacts without double-counting nested work.
    Record baseline physics errors and define the comparison report used by
    subsequent goals.
-2. [ ] **Analyze and rework force preparation.** Cover acceleration clearing,
+2. [x] **Analyze and rework force preparation.** Cover acceleration clearing,
    gravity, external loads, spring/beam forces and soft-body frame updates.
    Identify repeated calculations and unnecessary scans. Preserve force
    ownership, application timing and standalone pipeline behavior.

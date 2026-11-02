@@ -57,7 +57,7 @@ foreach(fixture extreme_mass_drop thin_barriers persistent_stack pin_stability w
     measurement_target(${fixture}_test)
 endforeach()
 target_sources(extreme_mass_drop_test PRIVATE "${REPO}/examples/extreme_mass_drop/src/drop_fixture.c")
-foreach(regression beam_motion particle_sweep physics_reports physics_recovery collision_response soft_body beam_contacts constraint_solver)
+foreach(regression beam_motion particle_sweep physics_reports physics_recovery collision_response soft_body beam_contacts constraint_solver force_preparation joints shared_sources soft_body_frame)
     add_executable(${regression}_test "${REPO}/tests/${regression}.c")
     measurement_target(${regression}_test)
     add_test(NAME ${regression} COMMAND ${regression}_test)

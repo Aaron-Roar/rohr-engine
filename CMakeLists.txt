@@ -909,6 +909,17 @@ if(ROHR_BUILD_TESTS)
     set_target_properties(joints_test PROPERTIES RUNTIME_OUTPUT_DIRECTORY ${ROHR_BUILD_OUTPUT_DIRECTORY}/tests)
     add_test(NAME joints COMMAND joints_test)
 
+    add_executable(force_preparation_test tests/force_preparation.c)
+    target_link_libraries(force_preparation_test PRIVATE rohr_engine)
+    target_compile_options(force_preparation_test PRIVATE
+        $<$<C_COMPILER_ID:GNU,Clang>:-Wall;-Wextra;-Wpedantic;-UNDEBUG>)
+    if(ROHR_ENABLE_SANITIZERS)
+        target_compile_options(force_preparation_test PRIVATE ${ROHR_SANITIZER_COMPILE_OPTIONS})
+    endif()
+    set_target_properties(force_preparation_test PROPERTIES RUNTIME_OUTPUT_DIRECTORY ${ROHR_BUILD_OUTPUT_DIRECTORY}/tests)
+    add_test(NAME force_preparation COMMAND force_preparation_test)
+    set_tests_properties(force_preparation PROPERTIES ENVIRONMENT "SDL_VIDEODRIVER=dummy;SDL_AUDIODRIVER=dummy")
+
     add_executable(soft_body_test tests/soft_body.c)
     target_link_libraries(soft_body_test PRIVATE rohr_engine)
     set_target_properties(soft_body_test PROPERTIES RUNTIME_OUTPUT_DIRECTORY ${ROHR_BUILD_OUTPUT_DIRECTORY}/tests)

@@ -199,8 +199,6 @@ static void system_spring_joint_apply(Entity joint_entity, Report *report) {
             }
             world_anchor_a = anchor_a.result.value;
             world_anchor_b = anchor_b.result.value;
-            offset_a = math_vector_subtract(world_anchor_a, positions[a_index]);
-            offset_b = math_vector_subtract(world_anchor_b, positions[b_index]);
         }
 
         offset_a = math_vector_subtract(world_anchor_a, physics_com_world_by_index_get(a_index));
@@ -247,18 +245,9 @@ static void system_spring_joint_apply(Entity joint_entity, Report *report) {
             .y = -force_on_a.y
         };
 
-        Vec2D r_a = {
-            .x = world_anchor_a.x - physics_com_world_by_index_get(a_index).x,
-            .y = world_anchor_a.y - physics_com_world_by_index_get(a_index).y
-        };
-
-        Vec2D r_b = {
-            .x = world_anchor_b.x - physics_com_world_by_index_get(b_index).x,
-            .y = world_anchor_b.y - physics_com_world_by_index_get(b_index).y
-        };
-
-        Torque torque_on_a = -math_cross_2d(r_a, force_on_a);
-        Torque torque_on_b = -math_cross_2d(r_b, force_on_b);
+        /* The poses have not changed since resolving the point velocities. */
+        Torque torque_on_a = -math_cross_2d(offset_a, force_on_a);
+        Torque torque_on_b = -math_cross_2d(offset_b, force_on_b);
 
         PhysicsChange changes[] = {
             physics_change_get(a_index, 0), physics_change_get(b_index, 0)
@@ -279,9 +268,15 @@ static void system_spring_joint_apply(Entity joint_entity, Report *report) {
 
 }
 static void system_joint_spring_forces_apply(Report *report) {
-    for(Entity joint_entity = 0; joint_entity < MAX_ENTITIES; joint_entity += 1) {
-        if(!entity_index_alive_check(joint_entity) ||
-                !entity_index_components_check(joint_entity, ROHR_JOINT) ||
+    /* Keep index order (and therefore accumulation/report order), but do not
+     * scan unused global entity capacity or resolve non-joint slots. No cache
+     * survives a call, so standalone preparation observes edits immediately. */
+    for(EntityIndex joint_entity = 0; joint_entity < joints_pool.capacity; joint_entity += 1) {
+        /* Membership, rather than pool usage, preserves diagnostics for a
+         * manually enabled joint component without a stored description. */
+        if(joint_entity >= entity_mask_pool.capacity ||
+                !(entity_mask[joint_entity] & ROHR_JOINT) ||
+                !entity_index_alive_check(joint_entity) ||
                 joints[joint_entity].type != JOINT_SPRING) continue;
         system_spring_joint_apply(joint_entity, report);
     }

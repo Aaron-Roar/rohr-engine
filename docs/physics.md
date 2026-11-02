@@ -522,7 +522,13 @@ pit finishes; six interrupted rendered trials show frame-work p95 above the
 real-time target but remain incomplete. The user directed stopping further trials
 and retaining this evidence; no real-time acceptance is claimed.
 The soft-body delayed-update comparison still fails at 376.743 ms versus 50 ms.
-Goal 2 has not started.
+Goal 2's [force-preparation rework](physics_force_preparation.md) is complete for
+review: bounded spring scanning and reused COM offsets retain force timing and
+manual-stage behavior. Fourteen Linux and fourteen sanitizer regressions pass;
+Windows cross-builds pass. Full fixture and diagnostic car/pit traces match the
+reference. Other force passes remain unchanged, explicit SIMD is not introduced,
+and the final soft-body delayed-update comparison still fails at 397.578 ms.
+Goal 3 has not started.
 [Milestone 11](../NEXT_STEPS.md#11-soft-body-correctness-and-real-time-performance)
 is superseded, not complete; its executables, experiments and evidence remain
 preserved. Passing contact regressions does not establish real-time performance
