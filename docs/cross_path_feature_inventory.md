@@ -17,8 +17,12 @@ Goal 1 records the original coverage baseline; goals 2–5 own the closures belo
 
 Subsequent [Milestone 6 Goal 5 work](../NEXT_STEPS.md#6-physics-robustness)
 adds enabled beam-pair response and changes elastic soft-node integration without
-changing public descriptions or persistence formats. That work has **failed**
-its penetration/performance acceptance and has no final visual acceptance.
+changing public descriptions or persistence formats. That work **failed** its
+original penetration/performance acceptance. Subsequent milestone 11 numerical
+checks and recorded-preview motion/window-switch review passed, but real-time
+performance remains unresolved. Milestone 11 is superseded, not complete, with
+its evidence preserved; [milestone 12](../NEXT_STEPS.md#12-real-time-physics-pipeline-rework)
+now owns the planned rework and final accuracy/performance tradeoff review.
 Milestone 4's historical acceptance does not certify these later solver changes.
 
 ## Baseline and interpretation

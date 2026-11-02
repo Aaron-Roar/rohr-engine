@@ -507,10 +507,34 @@ the existing travel-limited step when the target's vertices remain outside the
 moving side plane, with the same penetration margin. These are general physics
 paths; none selects behavior by example, fixture identity, or benchmark mode.
 
+[Milestone 12](../NEXT_STEPS.md#12-real-time-physics-pipeline-rework) is the
+highest unfinished priority: rework physics on `physics-pipelines` against the
+frozen `physics-pipelines-overoptimized` reference at `6f283268`, excluding
+`main` from comparisons. First meet the real-time gates for the unchanged
+authored car and 800-particle pit, then compare accuracy and behavior and obtain
+user acceptance of the final balance. The roadmap is planned; goal 1 has not
+started and no pipeline changes are implied by this documentation update.
 [Milestone 11](../NEXT_STEPS.md#11-soft-body-correctness-and-real-time-performance)
-tracks the remaining performance work and the authored car benchmark. Passing
-contact regressions does not establish real-time performance or complete the
-milestone 6 soft-body goal.
+is superseded, not complete; its executables, experiments and evidence remain
+preserved. Passing contact regressions does not establish real-time performance
+or complete the milestone 6 soft-body goal.
+
+Both workloads require normal 1280×720 rendered playback at sustained 60 FPS,
+p95 frame work ≤16.67 ms excluding pacing, simulated time within 1% of elapsed
+time and no accumulating backlog. Use three serial runs per workload/version
+on AC power with streaming closed and no concurrent builds; report uncapped
+headroom, debug drawing and intentional slow motion separately. Headless runs
+remain diagnostic. Milestone 12 permits measured tick-rate, substep and iteration
+tuning while preserving scenes, body counts, materials, public APIs and ownership.
+Continue milestone 6 goals 1–5 and relevant regressions to their declared
+endpoints, recording full-run worst errors even after numerical failures.
+Existing numerical tolerances and extreme-fixture CPU budgets are comparison
+criteria during rework, not mandatory intermediate gates; their failures remain
+visible. Invalid/nonfinite state, fatal errors, inability to advance time or
+interruption remain incomplete. Safety and lifecycle verification remain
+mandatory. Final tolerance changes require explicit user acceptance in goal 11
+and verification before updating milestone 6's status. New executables and
+evidence belong under `sandbox/milestone_12/goal_<n>/`.
 
 The opt-in `particle_pit` CMake target isolates the rigid collision path with
 800 standalone particles of diameter 5 and restitution 0.5 falling into a pit.

@@ -13,7 +13,8 @@ priority order.
 | 2 | Asset and resource ownership | Complete |
 | 3 | COM, inertia, and origin semantics | Complete |
 | 4 | Cross-path feature parity | Complete by user acceptance; recorded verification exceptions remain |
-| 11 | Soft-body correctness and real-time performance | Goal 1 resumed; previous attempt failed performance verification |
+| 12 | Real-time physics pipeline rework | Highest unfinished priority; planned, goal 1 not started |
+| 11 | Soft-body correctness and real-time performance | Superseded by milestone 12; not complete; evidence preserved |
 | 6 | Physics robustness | Goals 1–4 accepted; goal 5 failed verification |
 | — | [C game experiment](#c-game-experiment) | Pending; agree concept and completion criteria when starting |
 | 8 | Runtime isolation (global-state assumptions) | Foundations implemented; two independent worlds pending |
@@ -26,13 +27,16 @@ priority order.
 visual/window-switch acceptance. Its frozen fixtures and verification are
 recorded below. Goal 5, **Soft-body contact and stability**, was pursued and
 **failed verification** at checkpoint `63fccb26` on extreme-load penetration and
-CPU limits. The milestone 11 attempt now passes all 48 existing numerical checks,
+CPU limits. The preserved milestone 11 attempt passes all 48 existing numerical checks,
 but still misses delayed-update and car real-time budgets; neither goal is complete.
 Goal 3's timing rerun on the unchanged build passes at 45.432 ms delayed and
 0.771 ms worst 60 Hz p95; earlier 69.505/58.421 ms failures remain evidence of
-measurement variability, not an established physics regression. The user approved
-milestone 11 goal 1 to diagnose and resolve the soft-body failures, comparing the
-existing car example as well. The C game experiment has not started.
+measurement variability, not an established physics regression. Milestone 12
+supersedes milestone 11 and is the highest unfinished priority: achieve real-time
+car and pit performance, then compare accuracy and behavior with the frozen
+`physics-pipelines-overoptimized` reference at `6f283268`. Exclude `main` from
+comparisons. This documentation update starts no pipeline goal; milestone 12
+goal 1 and the C game experiment have not started.
 
 Regression checks and relevant sanitizer checks remain mandatory throughout
 physics, the C game experiment, and runtime isolation. Deferring the broader
@@ -500,13 +504,137 @@ contracts, and generated examples when a goal changes supported behavior.
     see the corrective issue mapping. Goal 5 is now complete by user acceptance
     with the recorded verification exceptions above.
 
+### 12. Real-time physics pipeline rework
+
+Rework physics on `physics-pipelines`, using **`physics-pipelines-overoptimized`
+at `6f283268`** (full commit `6f283268aa4bf038c4ed78271baeb9d5986bd7d9`) as the
+frozen reference. **Exclude `main` from comparisons.** First achieve real-time
+performance in the unchanged soft-body car and 800-particle pit. Then assess
+accuracy and behavior against the reference and choose an acceptable middle
+ground. This is the highest unfinished priority and supersedes milestone 11,
+whose failed attempts, experiments, executables, and evidence remain preserved.
+
+**Status: planned; no goal started.** Adding this roadmap is documentation-only
+and does not authorize starting goal 1 or modifying physics code. Pursue one
+goal at a time only on explicit user instruction, stopping after verification
+for review and the user's commit before advancing. Keep executables and evidence
+under `sandbox/milestone_12/goal_<n>/` without replacing earlier evidence.
+
+Each pipeline goal includes analysis, a measured rework where justified,
+verification, and a reviewable commit. A pipeline may be retained when
+measurements show rewriting it offers no worthwhile benefit; document that
+finding.
+
+1. [ ] **Establish the reference and measurement contract.** Pin the reference
+   commit, preserve its executables and evidence, and establish repeatable
+   car/pit runs. Measure each stage's exclusive cost, call counts, subdivisions,
+   iterations, candidates and contacts without double-counting nested work.
+   Record baseline physics errors and define the comparison report used by
+   subsequent goals.
+2. [ ] **Analyze and rework force preparation.** Cover acceleration clearing,
+   gravity, external loads, spring/beam forces and soft-body frame updates.
+   Identify repeated calculations and unnecessary scans. Preserve force
+   ownership, application timing and standalone pipeline behavior.
+3. [ ] **Analyze and rework integration and subdivision.** Cover rigid, joint
+   and soft-body integration, swept collision checks, and adaptive step selection.
+   Investigate why individual interactions cause repeated world-wide work.
+   Evaluate timestep and subdivision settings alongside algorithm changes;
+   consume all elapsed simulation time.
+4. [ ] **Analyze and rework contact gathering.** Cover broadphase construction
+   and update, candidate filtering, narrowphase geometry, rigid contacts,
+   particle contacts, soft boundaries and beam pairs. Reduce repeated discovery
+   and geometry work while measuring missed contacts, penetration and tunneling.
+5. [ ] **Analyze and rework joint gathering.** Cover anchor resolution, pin/weld
+   constraint assembly, validation and reusable joint data. Separate data that
+   changes with topology from data that changes with motion, preserving
+   entity-lifetime safety and manual gathering semantics.
+6. [ ] **Analyze and rework rigid-contact solving.** Cover particle and polygon
+   response, block solving, position correction, friction, restitution and
+   retained contact state. Evaluate simpler execution and data layouts,
+   iteration requirements and convergence behavior. Measure effects on mass
+   ratios, impacts, stacks and dense particle piles.
+7. [ ] **Analyze and rework joint solving.** Cover pin/weld response, spring
+   coupling and transform locks. Measure constraint error, energy behavior and
+   cost under the existing high-speed, high-rotation fixtures. Preserve
+   documented ownership and lock semantics.
+8. [ ] **Analyze and rework soft-body constraint solving.** Cover node–rigid,
+   beam–rigid and beam–beam response, self-collision and contact refresh.
+   Evaluate how rigid corrections and soft contacts interact. Measure
+   deformation, seam penetration, tunneling, energy and car behavior.
+9. [ ] **Analyze and rework pipeline orchestration and finalization.** Integrate
+   the revised stages. Review their execution order, shared caches, invalidation,
+   repeated passes, interaction publication and reporting overhead. Verify
+   standalone stages and complete updates remain correctly composed.
+10. [ ] **Meet the combined real-time gates.** Resolve remaining integration
+    bottlenecks and select measured runtime settings. Verify both the car and
+    particle pit meet the performance contract below. Produce visual previews
+    and obtain motion/window-switch review. Numerical deviations remain
+    explicitly recorded.
+11. [ ] **Compare with the reference and select the middle ground.** Compare
+    the real-time implementation against the frozen reference across all physics
+    scenarios. Present accuracy, behavior and performance tradeoffs for user
+    selection. Implement the selected balance, retain real-time performance,
+    and verify the agreed final tolerances before updating milestone 6's status.
+
+#### Performance and verification contract
+
+- **Car:** unchanged authored scene, terrain, materials and 200 particles;
+  existing 60-second input sequence: idle until 2 s, drive right until 30 s,
+  then left until 60 s, requesting grounded jumps at 5 and 35 s.
+- **Pit:** unchanged 800-particle fixture, diameter 5 and restitution 0.5;
+  existing 12-second drop-and-pile sequence. Preserve the remaining fixture
+  geometry, masses, materials and initial layout recorded under milestone 11.
+- **Both:** normal rendered playback at 1280×720, sustained 60 FPS, p95 frame
+  work ≤16.67 ms excluding pacing, simulated time within 1% of elapsed time,
+  and no accumulating backlog. Report uncapped throughput/headroom separately.
+- Final measurements use three serial runs per workload and version on AC
+  power, with streaming closed and no concurrent builds. Headless results are
+  diagnostics, not rendered-FPS acceptance.
+- Continue running milestone 6 goals 1–5 and the relevant regressions.
+  Scenarios finish at their declared time or state endpoint and report full-run
+  worst measurements despite numerical failures. Report numerical pass/fail
+  separately from endpoint completion.
+- Invalid/nonfinite state, fatal errors or inability to advance time produce
+  incomplete results; interruption also remains incomplete. Memory safety,
+  ownership, lifecycle correctness and truthful reporting remain mandatory.
+- Require relevant sanitizer checks, Linux execution, Windows cross-builds and
+  independent installed-SDK examples. Measure debug drawing and intentional
+  slow motion separately.
+
+#### Tradeoff policy
+
+- Physics tick rate, configured substeps and solver iterations may be tuned.
+  Record every configuration; do not alter scene geometry, body counts or
+  materials to manufacture performance.
+- Existing numerical tolerances and extreme-fixture CPU budgets become
+  **comparison criteria during rework**, not mandatory intermediate completion
+  gates. Keep their failures visible; do not silently redefine a pass. This
+  policy supersedes milestone 11's fixed-settings and intermediate acceptance
+  requirements, while preserving their historical evidence and milestone 6's
+  recorded status.
+- Public APIs and ownership contracts remain unchanged. Any necessary API
+  redesign requires a separate decision.
+- Final tolerance changes require explicit user acceptance in goal 11. Prefer
+  the most accurate accepted configuration that still meets both real-time
+  gates. Update milestone 6's status only after the selected balance and agreed
+  final tolerances are verified.
+
 ### 11. Soft-body correctness and real-time performance
+
+**Superseded by milestone 12; not complete. Evidence preserved.** The following
+scope, settings, acceptance requirements, branch instructions and dated results
+are historical records, not active directions. Milestone 12 replaces this work
+with pipeline-by-pipeline rework and its performance/tradeoff contract. Preserve
+all existing executables, experiment archives and measurements under
+`sandbox/milestone_11/goal_1/`; failed or incomplete runs remain labelled as such.
+
+Historical scope:
 
 Identify and fix excessive soft-body simulation cost and contact penetration,
 using milestone 6 goal 5 and the authored soft-body car as acceptance workloads.
 Complete this milestone before resuming milestone 6 completion.
 
-1. [ ] **Diagnose and resolve soft-body contact and performance failures — in progress.**
+1. [ ] **Diagnose and resolve soft-body contact and performance failures — superseded, not complete.**
    Compare pre-goal-5 commit `b00baf6e`, checkpoint `63fccb26`, and the corrected
    implementation with identical Release settings and installed SDKs. Keep the
    car, terrain, 200 particles, 240 Hz ticks, and four configured substeps.
@@ -560,7 +688,7 @@ Complete this milestone before resuming milestone 6 completion.
    the evidence from this failed attempt. The user subsequently directed continued
    work on this same goal; its acceptance criteria remain unchanged.
 
-   **Resumed verification (2026-10-30): in progress.** Acceleration-aware
+   **Resumed verification (2026-10-30): incomplete at supersession.** Acceleration-aware
    collision bounds and conservative moving-beam side bounds reduce excessive
    substeps without selecting particular examples or fixtures. Exact-pose
    geometry reuse now spans a complete synchronous substep. All 48 existing
@@ -734,11 +862,13 @@ Complete this milestone before resuming milestone 6 completion.
    the errors and timings for subsequent pipeline rework. See
    `sandbox/milestone_11/goal_1/contact_cadence_evidence.json` and its archive.
 
-   **User-directed branch sequence (2026-11-01):** conclude the current
+   **Historical branch sequence (2026-11-01; superseded by milestone 12):** conclude the current
    optimization comparisons and record the optimized implementation as a
    physics reference. The user will create the reference branch, then direct
    the rebase and a separate branch for reworking the affected pipelines. Use
-   both main and the optimized reference when evaluating the rework. This is
+   both main and the optimized reference when evaluating the rework. That
+   comparison direction is superseded: milestone 12 excludes `main` and uses
+   only the frozen reference at `6f283268`. This was
    a checkpoint within goal 1; its correctness and real-time acceptance gates
    remain unchanged. Preserve experimental evidence and distinguish sandbox
    behavior-changing variants from the implementation selected for reference.
@@ -749,6 +879,12 @@ Pass five finite scenarios covering extreme scales, fast motion, contact
 stability, constraints, and deformable bodies. Existing contact-stability,
 concave-collision, beam-contact, and recovery fixes/tests remain the baseline.
 The AABB-tree broad phase and live-entity iteration are already implemented.
+
+**During milestone 12:** retain the status and historical criteria below and
+continue running all five fixtures. Numerical tolerances and extreme-fixture CPU
+budgets are comparison criteria, not intermediate rework completion gates;
+failures remain visible. Final tolerance changes require explicit user acceptance
+in milestone 12 goal 11, followed by verification before this status is updated.
 
 Run all five fixtures at 30, 60, and 120 updates per second, plus a 60 Hz run with
 one 100 ms stall and one 1 s stall. Process all elapsed time in the immediately

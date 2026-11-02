@@ -50,7 +50,20 @@ Output includes physics CPU time, render/frame work excluding frame-cap waits,
 simulated and elapsed time, schedule lag, completed substeps, collision work and
 pipeline timings. A full normal rendered run exits unsuccessfully if p95 frame
 work exceeds 16.67 ms or simulated time differs from elapsed time by over 1%.
-Headless/debug/slow-motion results are diagnostic. Milestone 11 additionally
-requires three serial repetitions per engine version on AC power, with streaming
-applications closed and no concurrent builds, plus visual/window-switch review;
-one successful process does not establish milestone completion.
+Headless/debug/slow-motion results are diagnostic.
+[Milestone 12](../../NEXT_STEPS.md#12-real-time-physics-pipeline-rework) additionally
+requires sustained 60 FPS without accumulating backlog, three serial repetitions
+per workload and engine version on AC power, with streaming applications closed
+and no concurrent builds, plus visual/window-switch review. Report uncapped
+throughput/headroom separately; one successful process does not establish
+milestone completion. The same rendered gates also apply to the unchanged
+800-particle pit's 12-second sequence.
+
+The planned rework runs on `physics-pipelines` against the frozen
+`physics-pipelines-overoptimized` reference at `6f283268`; exclude `main` from
+comparisons. Milestone 11 is superseded, not complete, with its evidence
+preserved. Milestone 12 allows measured tick-rate, substep and iteration tuning
+with every configuration recorded, while keeping the authored scene, terrain,
+materials, 200 particles and input sequence unchanged. This does not change the
+benchmark's current settings or command-line behavior. Keep new executables and
+evidence under `sandbox/milestone_12/goal_<n>/`; goal 1 has not started.
