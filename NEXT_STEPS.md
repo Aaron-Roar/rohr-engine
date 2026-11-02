@@ -13,7 +13,7 @@ priority order.
 | 2 | Asset and resource ownership | Complete |
 | 3 | COM, inertia, and origin semantics | Complete |
 | 4 | Cross-path feature parity | Complete by user acceptance; recorded verification exceptions remain |
-| 12 | Real-time physics pipeline rework | Highest unfinished priority; goals 1–2 complete; goal 3 next |
+| 12 | Real-time physics pipeline rework | Highest unfinished priority; goals 1–3 complete; goal 3 ready for review and commit |
 | 11 | Soft-body correctness and real-time performance | Superseded by milestone 12; not complete; evidence preserved |
 | 6 | Physics robustness | Goals 1–4 accepted; goal 5 failed verification |
 | — | [C game experiment](#c-game-experiment) | Pending; agree concept and completion criteria when starting |
@@ -37,9 +37,10 @@ car and pit performance, then compare accuracy and behavior with the frozen
 `physics-pipelines-overoptimized` reference at `6f283268`. Exclude `main` from
 comparisons. Milestone 12 goal 1 establishes the reference and measurement
 contract, with the full car run explicitly stopped by the user and retained as
-incomplete. Goal 2 is complete for review with a limited spring-preparation
-cleanup and verified unchanged trajectories. Goal 3 is next; the C game
-experiment has not started.
+incomplete. Goal 2 is complete with a limited spring-preparation cleanup and
+verified unchanged trajectories. Goal 3 is complete for review with unchanged
+integration settings and verified trajectory parity; the C game experiment has
+not started.
 
 Regression checks and relevant sanitizer checks remain mandatory throughout
 physics, the C game experiment, and runtime isolation. Deferring the broader
@@ -517,7 +518,7 @@ accuracy and behavior against the reference and choose an acceptable middle
 ground. This is the highest unfinished priority and supersedes milestone 11,
 whose failed attempts, experiments, executables, and evidence remain preserved.
 
-**Status: goals 1–2 complete; goal 2 ready for review and commit.** Goal 2's
+**Status: goals 1–3 complete; goal 3 ready for review and commit.** Goal 2's
 [force-preparation report](docs/physics_force_preparation.md) records the limited
 spring scan/COM-offset cleanup and the decision to retain the other force passes.
 Fourteen Linux and fourteen ASan/UBSan regressions pass, Windows cross-builds
@@ -527,7 +528,22 @@ segment and full headless pit also retain exact traces. The final soft-body
 CPU comparison still fails at 397.578 ms versus 50 ms. No tolerance, API,
 ownership, tick rate, scene or material changes. Explicit SIMD is deferred;
 compiler-vectorization findings and collision-batching candidates are recorded.
-The user requested no broader force optimization. Goal 3 has not started.
+The user requested no broader force optimization.
+
+Goal 3's [integration/subdivision report](docs/physics_integration_subdivision.md)
+records compact temporary sweep geometry and reused axis projections, retaining
+all integration passes, duration rules and accuracy safeguards. Fourteen Linux
+and fourteen sanitizer regressions pass, Windows cross-builds pass, and all 219
+timed scenarios plus four calibrations, the ten-second car segment and full pit
+retain exact reference traces. Three paired sweep microbenchmarks show 21–37%
+less kernel cost; the car's sweep stage is 19.6% lower in one diagnostic pair,
+with only 1.6% lower total time. These battery/headless timings do not establish
+rendered acceptance. Lower-substep alternatives increase penetration and are
+rejected in accordance with the user's preference; 240 Hz, four substeps and
+eight iterations remain unchanged. The abandoned 60 Hz car probe is explicitly
+incomplete, with its trace preserved. The soft-body delayed CPU comparison still
+fails at 372.958 ms versus 50 ms. Goal 3 is ready for review and commit; Goal 4 has
+not started. Evidence remains under `sandbox/milestone_12/goal_3/`.
 
 Goal 1's
 [measurement contract](docs/physics_measurement_contract.md) records reference
@@ -561,7 +577,7 @@ finding.
    gravity, external loads, spring/beam forces and soft-body frame updates.
    Identify repeated calculations and unnecessary scans. Preserve force
    ownership, application timing and standalone pipeline behavior.
-3. [ ] **Analyze and rework integration and subdivision.** Cover rigid, joint
+3. [x] **Analyze and rework integration and subdivision.** Cover rigid, joint
    and soft-body integration, swept collision checks, and adaptive step selection.
    Investigate why individual interactions cause repeated world-wide work.
    Evaluate timestep and subdivision settings alongside algorithm changes;
@@ -596,6 +612,9 @@ finding.
     particle pit meet the performance contract below. Produce visual previews
     and obtain motion/window-switch review. Numerical deviations remain
     explicitly recorded.
+    Reconcile the existing car benchmark's jump-force lifetime handling before
+    final motion/playback acceptance; preserve the historical fixture traces.
+    See the [Goal 3 clock-ownership finding](docs/physics_integration_subdivision.md#clock-ownership-follow-up).
 11. [ ] **Compare with the reference and select the middle ground.** Compare
     the real-time implementation against the frozen reference across all physics
     scenarios. Present accuracy, behavior and performance tradeoffs for user

@@ -512,7 +512,7 @@ highest unfinished priority: rework physics on `physics-pipelines` against the
 frozen `physics-pipelines-overoptimized` reference at `6f283268`, excluding
 `main` from comparisons. First meet the real-time gates for the unchanged
 authored car and 800-particle pit, then compare accuracy and behavior and obtain
-user acceptance of the final balance. Goal 1 is complete for review; its
+user acceptance of the final balance. Goal 1 is complete; its
 [measurement contract](physics_measurement_contract.md) records the preserved
 reference, exclusive stage costs, baseline errors and repeatable comparisons.
 All 219 timed fixture scenarios plus four calibrations finish with matching
@@ -522,13 +522,22 @@ pit finishes; six interrupted rendered trials show frame-work p95 above the
 real-time target but remain incomplete. The user directed stopping further trials
 and retaining this evidence; no real-time acceptance is claimed.
 The soft-body delayed-update comparison still fails at 376.743 ms versus 50 ms.
-Goal 2's [force-preparation rework](physics_force_preparation.md) is complete for
-review: bounded spring scanning and reused COM offsets retain force timing and
+Goal 2's [force-preparation rework](physics_force_preparation.md) is complete:
+bounded spring scanning and reused COM offsets retain force timing and
 manual-stage behavior. Fourteen Linux and fourteen sanitizer regressions pass;
 Windows cross-builds pass. Full fixture and diagnostic car/pit traces match the
 reference. Other force passes remain unchanged, explicit SIMD is not introduced,
 and the final soft-body delayed-update comparison still fails at 397.578 ms.
-Goal 3 has not started.
+Goal 3's [integration/subdivision rework](physics_integration_subdivision.md) is
+complete for review: compact sweep geometry and reused projections preserve all
+integration passes and exact default state/work traces. Fourteen Linux and
+fourteen sanitizer regressions and Windows cross-builds pass. Lower-substep
+alternatives increase penetration and remain rejected; the user chose to retain
+240 Hz, four substeps and eight iterations. The 60 Hz car experiment was stopped
+and remains incomplete. Diagnostic battery/headless timing shows a local sweep
+cost reduction, not real-time acceptance. The soft-body delayed CPU comparison
+still fails at 372.958 ms. The report also records the existing car benchmark's
+jump-force lifecycle handling for review before the final playback gate.
 [Milestone 11](../NEXT_STEPS.md#11-soft-body-correctness-and-real-time-performance)
 is superseded, not complete; its executables, experiments and evidence remain
 preserved. Passing contact regressions does not establish real-time performance

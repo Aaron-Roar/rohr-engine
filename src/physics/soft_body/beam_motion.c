@@ -3,6 +3,7 @@
  */
 #include "physics/physics_step_internal.h"
 #include "physics/physics_operation.h"
+#include <float.h>
 #include <math.h>
 #include <string.h>
 
@@ -82,27 +83,39 @@ double physics_soft_position_acceleration_factor_get(EntityIndex index) {
 /* Convex bounds use endpoint velocities, so common translation cancels and
  * tangent motion does not force steps proportional to beam thickness. */
 typedef struct SoftSweep {
-    Shape shape;
+    const Shape *rigid_shape;
+    Position beam_vertices[4];
     EntityIndex nodes[2];
     unsigned count;
     double feature,angular_speed,low_fraction,high_fraction;
 } SoftSweep;
+/* Geometry is borrowed only during this synchronous sweep. Beam corners are
+ * small value data; rigid vertices stay in the current world-hitbox cache. */
+static unsigned soft_sweep_vertex_count_get(const SoftSweep *s) {
+    return s->count == 2 ? 4 : s->rigid_shape ? s->rigid_shape->amount_of_vertices : 0;
+}
+static const Position *soft_sweep_vertices_get(const SoftSweep *s) {
+    return s->count == 2 ? s->beam_vertices : s->rigid_shape ? s->rigid_shape->vertices : NULL;
+}
 static SoftSweep soft_sweep_beam_get(EntityIndex beam,EntityIndex a,EntityIndex b) {
     double dx=positions[b].x-positions[a].x,dy=positions[b].y-positions[a].y,l=hypot(dx,dy);
     if(l<=.0001)return (SoftSweep){0};
     double radius=.5*soft_body_beams[beam].collision_thickness,nx=-dy/l*radius,ny=dx/l*radius;
     return (SoftSweep){.nodes={a,b},.count=2,.feature=2*radius,.high_fraction=1,
         .angular_speed=radius*hypot(velocities[b].x-velocities[a].x,velocities[b].y-velocities[a].y)/l,
-        .shape={.amount_of_vertices=4,.vertices={{positions[a].x+nx,positions[a].y+ny},
+        .beam_vertices={{positions[a].x+nx,positions[a].y+ny},
             {positions[b].x+nx,positions[b].y+ny},{positions[b].x-nx,positions[b].y-ny},
-            {positions[a].x-nx,positions[a].y-ny}}}};
+            {positions[a].x-nx,positions[a].y-ny}}};
 }
-static void soft_projection_get(const SoftSweep *s,Axis axis,double dt,double *lo,double *hi,double *vl,double *vh) {
-    *lo=INFINITY;*hi=-INFINITY;*vl=INFINITY;*vh=-INFINITY;
-    for(unsigned i=0;i<s->shape.amount_of_vertices;++i) {
-        double p=(double)s->shape.vertices[i].x*axis.x+(double)s->shape.vertices[i].y*axis.y;
+static void soft_projection_get(const SoftSweep *s,Axis axis,double *lo,double *hi) {
+    *lo=INFINITY;*hi=-INFINITY;
+    for(unsigned i=0;i<soft_sweep_vertex_count_get(s);++i) {
+        double p=(double)soft_sweep_vertices_get(s)[i].x*axis.x+(double)soft_sweep_vertices_get(s)[i].y*axis.y;
         *lo=fmin(*lo,p);*hi=fmax(*hi,p);
     }
+}
+static void soft_velocity_projection_get(const SoftSweep *s,Axis axis,double dt,double *vl,double *vh) {
+    *vl=INFINITY;*vh=-INFINITY;
     for(unsigned i=0;i<s->count;++i) {
         EntityIndex n=s->nodes[i];double v=0,a=0;
         if(physics_entity_movable_get(n)) {
@@ -127,13 +140,13 @@ static void soft_projection_get(const SoftSweep *s,Axis axis,double dt,double *l
 }
 static SoftSweep soft_sweep_local_get(const SoftSweep *beam,const SoftSweep *target,double dt) {
     SoftSweep result=*beam;
-    if(beam->count!=2||!target->shape.amount_of_vertices)return result;
+    if(beam->count!=2||!soft_sweep_vertex_count_get(target))return result;
     Position start=positions[beam->nodes[0]],end=positions[beam->nodes[1]];
     double dx=end.x-start.x,dy=end.y-start.y,length=hypot(dx,dy);
     if(length<=.0001)return result;
     double low=INFINITY,high=-INFINITY,travel=0;
-    for(unsigned i=0;i<target->shape.amount_of_vertices;++i) {
-        Position p=target->shape.vertices[i];double t=((p.x-start.x)*dx+(p.y-start.y)*dy)/length;
+    for(unsigned i=0;i<soft_sweep_vertex_count_get(target);++i) {
+        Position p=soft_sweep_vertices_get(target)[i];double t=((p.x-start.x)*dx+(p.y-start.y)*dy)/length;
         low=fmin(low,t);high=fmax(high,t);
     }
     for(unsigned i=0;i<2;++i)for(unsigned j=0;j<target->count;++j) {
@@ -169,7 +182,7 @@ static double soft_travel_time_get(double distance,double speed,double accelerat
  * Rotating targets, beam pairs and transform-driven nodes use the old bound. */
 static bool soft_side_duration_get(const SoftSweep *beam,const SoftSweep *target,
     double dt,double feature,double *duration) {
-    if(beam->count!=2||target->count!=1||!target->shape.amount_of_vertices)return false;
+    if(beam->count!=2||target->count!=1||!soft_sweep_vertex_count_get(target))return false;
     EntityIndex a=beam->nodes[0],b=beam->nodes[1],p=target->nodes[0];
     if(physics_entity_movable_get(p)&&!physics_entity_nonrotating_check(p))return false;
     EntityIndex bodies[3]={a,b,p};
@@ -189,9 +202,9 @@ static bool soft_side_duration_get(const SoftSweep *beam,const SoftSweep *target
     double qvx=vx[2]-vx[0],qvy=vy[2]-vy[0];
     double side=0,radius=.5*beam->feature,plane=radius-.005*feature;
     if(length<=.0001||plane<0)return false;
-    for(unsigned i=0;i<target->shape.amount_of_vertices;++i)
-        side+=dx*((double)target->shape.vertices[i].y-positions[a].y)-
-            dy*((double)target->shape.vertices[i].x-positions[a].x);
+    for(unsigned i=0;i<soft_sweep_vertex_count_get(target);++i)
+        side+=dx*((double)soft_sweep_vertices_get(target)[i].y-positions[a].y)-
+            dy*((double)soft_sweep_vertices_get(target)[i].x-positions[a].x);
     side=side>=0?1:-1;
     double axial_v=(dx*dvx+dy*dvy)/length,axial_a=(dx*dax+dy*day)/length;
     double transverse_v=(dx*dvy-dy*dvx)/length,transverse_a=(dx*day-dy*dax)/length;
@@ -200,9 +213,9 @@ static bool soft_side_duration_get(const SoftSweep *beam,const SoftSweep *target
      * terms, without treating transverse velocity as first-order shortening. */
     double next=fmin(dt,soft_travel_time_get(.5*length,
         fmax(0,-axial_v),fmax(0,-axial_a)));
-    for(unsigned i=0;i<target->shape.amount_of_vertices;++i) {
-        double qx=(double)target->shape.vertices[i].x-positions[a].x;
-        double qy=(double)target->shape.vertices[i].y-positions[a].y;
+    for(unsigned i=0;i<soft_sweep_vertex_count_get(target);++i) {
+        double qx=(double)soft_sweep_vertices_get(target)[i].x-positions[a].x;
+        double qy=(double)soft_sweep_vertices_get(target)[i].y-positions[a].y;
         double c0=side*(dx*qy-dy*qx)-plane*length;
         if(!(c0>1e-12*length))return false;
         double c1=fmin(0,side*(dx*qvy-dy*qvx+dvx*qy-dvy*qx)-plane*axial_v);
@@ -229,16 +242,17 @@ static bool soft_side_duration_get(const SoftSweep *beam,const SoftSweep *target
 static double soft_pair_duration_get(const SoftSweep *original_a,const SoftSweep *original_b,double dt) {
     SoftSweep local_a=soft_sweep_local_get(original_a,original_b,dt),local_b=soft_sweep_local_get(original_b,original_a,dt);
     const SoftSweep *a=&local_a,*b=&local_b;
-    if(!a->shape.amount_of_vertices||!b->shape.amount_of_vertices)return dt;
-    const Shape *shapes[2]={&a->shape,&b->shape};
+    if(!soft_sweep_vertex_count_get(a)||!soft_sweep_vertex_count_get(b))return dt;
+    const SoftSweep *shapes[2]={a,b};
     double entry=0,min_depth=INFINITY,closing=0,closing_acceleration=0,feature=fmin(a->feature,b->feature);
-    for(unsigned s=0;s<2;++s)for(unsigned i=0;i<shapes[s]->amount_of_vertices;++i) {
-        Position p=shapes[s]->vertices[i],q=shapes[s]->vertices[(i+1)%shapes[s]->amount_of_vertices];
+    for(unsigned s=0;s<2;++s)for(unsigned i=0;i<soft_sweep_vertex_count_get(shapes[s]);++i) {
+        Position p=soft_sweep_vertices_get(shapes[s])[i],q=soft_sweep_vertices_get(shapes[s])[(i+1)%soft_sweep_vertex_count_get(shapes[s])];
         double nx=q.y-p.y,ny=p.x-q.x,l=hypot(nx,ny);if(l<.0001)continue;Axis axis={nx/l,ny/l};
         double al,ah,avl,avh,bl,bh,bvl,bvh;
-        soft_projection_get(a,axis,dt,&al,&ah,&avl,&avh);soft_projection_get(b,axis,dt,&bl,&bh,&bvl,&bvh);
+        soft_projection_get(a,axis,&al,&ah);soft_projection_get(b,axis,&bl,&bh);
+        soft_velocity_projection_get(a,axis,dt,&avl,&avh);soft_velocity_projection_get(b,axis,dt,&bvl,&bvh);
         double d=fmin(ah-bl,bh-al),speed=(bl+bh>al+ah)?avh-bvl:bvh-avl;
-        soft_projection_get(a,axis,0,&al,&ah,&avl,&avh);soft_projection_get(b,axis,0,&bl,&bh,&bvl,&bvh);
+        soft_velocity_projection_get(a,axis,0,&avl,&avh);soft_velocity_projection_get(b,axis,0,&bvl,&bvh);
         double initial_speed=(bl+bh>al+ah)?avh-bvl:bvh-avl;
         double acceleration=fmax(0,(speed-initial_speed)/dt);
         if(d<0) {
@@ -265,7 +279,14 @@ static AABB soft_sweep_bounds[MAX_ENTITIES];
 static bool soft_sweep_valid[MAX_ENTITIES];
 static EntityIndex soft_sweep_indices[MAX_ENTITIES];
 static AABB soft_sweep_bounds_get(const SoftSweep *s,double dt) {
-    AABB box=math_aabb_create(s->shape);
+    AABB box={.min_x=FLT_MAX,.max_x=-FLT_MAX,.min_y=FLT_MAX,.max_y=-FLT_MAX};
+    const Position *vertices=soft_sweep_vertices_get(s);
+    for(unsigned i=0;i<soft_sweep_vertex_count_get(s);++i) {
+        if(vertices[i].x<box.min_x)box.min_x=vertices[i].x;
+        if(vertices[i].x>box.max_x)box.max_x=vertices[i].x;
+        if(vertices[i].y<box.min_y)box.min_y=vertices[i].y;
+        if(vertices[i].y>box.max_y)box.max_y=vertices[i].y;
+    }
     double low_x=0,high_x=0,low_y=0,high_y=0;
     for(unsigned i=0;i<s->count;++i) {
         EntityIndex n=s->nodes[i];
@@ -299,7 +320,7 @@ double physics_soft_sweep_duration_get(double dt,Report *report) {
             s=soft_sweep_beam_get(j,a,b);
         } else if(entity_index_components_check(j,ROHR_COLLISION|ROHR_HIT_BOX)) {
             if(!physics_step_hitbox_update(j,report))continue;
-            s=(SoftSweep){.shape=world_hit_boxes[j],.nodes={j},.count=1};
+            s=(SoftSweep){.rigid_shape=&world_hit_boxes[j],.nodes={j},.count=1};
             if(physics_entity_movable_get(j)&&!entity_index_components_check(j,ROHR_PARTICLE)) {
                 double radius=0;
                 Position com=physics_com_local_by_index_get(j);
@@ -310,7 +331,7 @@ double physics_soft_sweep_duration_get(double dt,Report *report) {
                     fabs(angular_accelerations[j]+torque_angular_accelerations[j])*dt)*.017453292519943295;
             }
         }
-        if(!s.shape.amount_of_vertices)continue;
+        if(!soft_sweep_vertex_count_get(&s))continue;
         soft_sweep_bounds[j]=soft_sweep_bounds_get(&s,dt);
         soft_sweep_valid[j]=true;
         soft_sweep_indices[candidate_count++]=j;
@@ -334,7 +355,7 @@ double physics_soft_sweep_duration_get(double dt,Report *report) {
                 second=soft_sweep_beam_get(j,c,d);
             } else if(entity_index_components_check(j,ROHR_COLLISION|ROHR_HIT_BOX)) {
                 if(!physics_step_hitbox_update(j,report))continue;
-                second=(SoftSweep){.shape=world_hit_boxes[j],.nodes={j},.count=1,.feature=first.feature};
+                second=(SoftSweep){.rigid_shape=&world_hit_boxes[j],.nodes={j},.count=1,.feature=first.feature};
                 if(physics_entity_movable_get(j)&&!entity_index_components_check(j,ROHR_PARTICLE)) {
                     Position com=physics_com_local_by_index_get(j);
                     double radius=0;for(unsigned v=0;v<hit_boxes[j].amount_of_vertices;++v)

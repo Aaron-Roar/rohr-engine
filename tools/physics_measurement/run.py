@@ -79,6 +79,7 @@ def main():
             text = log_path.read_text(errors="replace")
             lines = text.splitlines()
             stages = [fields(line) for line in lines if line.startswith("measurement_stage ")]
+            durations = [fields(line) for line in lines if line.startswith("measurement_duration ")]
             totals = [fields(line) for line in lines if line.startswith("measurement_total ")]
             endpoints = [fields(line) for line in lines if line.startswith("completion ")]
             rows = []
@@ -96,7 +97,7 @@ def main():
                    "endpoints": endpoints, "all_declared_endpoints_reached": bool(endpoints) and all(e.get("reached") == "1" for e in endpoints),
                    "passed_cases": sum(line.startswith("PASS ") for line in lines),
                    "failed_cases": sum(line.startswith("FAIL ") for line in lines),
-                   "stages": stages, "totals": totals,
+                   "stages": stages, "duration_limits": durations, "totals": totals,
                    "summary_lines": [line for line in lines if line.startswith(("benchmark ", "physics_cpu_ms ", "frame_work_ms ", "render_work_ms ", "result ", "worst ", "FAIL ", "schedule_lag_ms ", "verdict="))]}
             run["trace_valid"] = all(r["finite"] == "1" and r["fatal"] == "0" and r["attempted"] == r["completed"] == r["observed"] and r.get("report_loss", "0") == "0" for r in rows) if rows else None
             run["accounting_valid"] = bool(totals) and all(t.get("accounting_valid") == "1" for t in totals)

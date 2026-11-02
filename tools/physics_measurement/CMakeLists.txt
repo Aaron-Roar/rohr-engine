@@ -11,11 +11,11 @@ enable_testing()
 
 # Diagnostic consumers require GNU-compatible --wrap (Linux and MinGW).
 # The installed engine archive is neither edited nor recompiled.
-file(STRINGS "${CMAKE_CURRENT_SOURCE_DIR}/profile_functions.inc" functions REGEX "^(VOID|VALUE)\\(")
+file(STRINGS "${CMAKE_CURRENT_SOURCE_DIR}/profile_functions.inc" functions REGEX "^(VOID|VALUE|DURATION)\\(")
 set(wrapped physics_update physics_dt_update system_physics_update physics_pipeline_update physics_pipeline_substep physics_substep_observer_set physics_report_counter_add)
 foreach(line IN LISTS functions)
     string(REGEX REPLACE "^VALUE\\([^,]+, " "VOID(" line "${line}")
-    string(REGEX REPLACE "^VOID\\(([a-z_]+),.*" "\\1" fn "${line}")
+    string(REGEX REPLACE "^(VOID|DURATION)\\(([a-z_]+),.*" "\\2" fn "${line}")
     list(APPEND wrapped "${fn}")
 endforeach()
 function(measurement_target target)

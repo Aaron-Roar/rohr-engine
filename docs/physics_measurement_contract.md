@@ -107,6 +107,15 @@ count while preserving any fixture observer and its caller-owned context.
 These observer counts describe complete updates; a standalone substep has no
 update-level completion counter or observer callback in the frozen engine.
 
+Goal 3 adds `measurement_duration` records to the same four duration-selector
+wrappers. Each records strict positive reductions, the smallest returned duration
+and the mean returned/input fraction among those reductions. Selectors execute
+sequentially: several may shorten the same proposed step, so their counts must
+not be summed as unique limiting steps or contacts. Timer boundaries and stage
+membership remain unchanged; recording overhead belongs to the enclosing timed
+caller. The runner retains these records as `duration_limits` in its JSON output.
+See the [integration/subdivision report](physics_integration_subdivision.md).
+
 `ROHR_MEASUREMENT_PROFILE=0` forwards the same wrappers without stage timers.
 Both modes capture a per-update hash of live entity handles, masks and scalar
 position/velocity/acceleration/orientation state outside the physics timer. They

@@ -1,4 +1,8 @@
 /* Cross-object calls only: same-object/internal work remains in its enclosing metric. */
+#ifndef DURATION
+#define DURATION(fn, stage, args, call) VALUE(double, fn, stage, args, call)
+#define DEFAULT_DURATION
+#endif
 VOID(physics_rigid_accelerations_clear, force_preparation, (void), ())
 VOID(physics_rigid_gravity_apply, force_preparation, (Acceleration gravity, Report *r), (gravity, r))
 VOID(physics_sources_apply, force_preparation, (Report *r, bool torque), (r, torque))
@@ -11,10 +15,10 @@ VALUE(Report, physics_pipeline_integrate_adaptive, integration, (double *dt), (d
 VOID(physics_joint_motion_begin, integration, (double dt, Report *r), (dt, r))
 VOID(physics_soft_motion_begin, integration, (double dt, Report *r), (dt, r))
 VOID(physics_soft_motion_end, integration, (double dt, Report *r), (dt, r))
-VALUE(double, physics_rigid_sweep_duration_get, subdivision_sweeps, (double dt, Report *r), (dt, r))
-VALUE(double, physics_soft_sweep_duration_get, subdivision_sweeps, (double dt, Report *r), (dt, r))
-VALUE(double, physics_joint_duration_get, subdivision_sweeps, (double dt), (dt))
-VALUE(double, physics_soft_duration_get, subdivision_sweeps, (double dt), (dt))
+DURATION(physics_rigid_sweep_duration_get, subdivision_sweeps, (double dt, Report *r), (dt, r))
+DURATION(physics_soft_sweep_duration_get, subdivision_sweeps, (double dt, Report *r), (dt, r))
+DURATION(physics_joint_duration_get, subdivision_sweeps, (double dt), (dt))
+DURATION(physics_soft_duration_get, subdivision_sweeps, (double dt), (dt))
 VALUE(Report, physics_pipeline_contacts_gather, contact_gathering, (void), ())
 VOID(physics_rigid_constraints_gather, contact_gathering, (Report *r), (r))
 VOID(physics_soft_body_constraints_gather, contact_gathering, (Report *r), (r))
@@ -34,3 +38,7 @@ VOID(physics_pipeline_contact_constraints_finalize, finalization, (ContactConstr
 VOID(physics_step_hitbox_dirty_flush, finalization, (Report *r), (r))
 VOID(physics_report_finish, reporting, (Report *r, uint64_t started), (r, started))
 VALUE(EngineResult, report_merge, reporting, (Report *destination, const Report *source), (destination, source))
+#ifdef DEFAULT_DURATION
+#undef DURATION
+#undef DEFAULT_DURATION
+#endif

@@ -41,6 +41,8 @@ static FILE *trace;
 static uint64_t updates, total_ns, substeps, candidates, contacts, attempted;
 static uint64_t diagnostics, incomplete_updates;
 static uint64_t lost_report_updates, stage_candidates[M_COUNT], stage_contacts[M_COUNT];
+static uint64_t duration_reductions[M_COUNT];
+static double minimum_duration[M_COUNT], duration_ratio_sum[M_COUNT];
 static double simulated, update_simulated;
 static uint64_t observed, update_observed;
 static void (*caller_observer)(double, void *);
@@ -77,7 +79,24 @@ type __wrap_##fn args { \
     if(measured) measurement_leave(&timer, metrics, SDL_GetTicksNS()); \
     return result; \
 }
+#define DURATION(fn, stage, args, call) \
+double __real_##fn args; \
+double __wrap_##fn args { \
+    bool measured = active && enabled; \
+    if(measured) measurement_enter(&timer, M_##fn, SDL_GetTicksNS()); \
+    double result = __real_##fn call; \
+    if(measured) { \
+        measurement_leave(&timer, metrics, SDL_GetTicksNS()); \
+        if(result > 0 && result < dt) { \
+            ++duration_reductions[M_##fn]; \
+            duration_ratio_sum[M_##fn] += result / dt; \
+            if(!minimum_duration[M_##fn] || result < minimum_duration[M_##fn]) minimum_duration[M_##fn] = result; \
+        } \
+    } \
+    return result; \
+}
 #include "profile_functions.inc"
+#undef DURATION
 #undef VOID
 #undef VALUE
 
@@ -101,6 +120,10 @@ static void finish(void) {
             names[i], stages[i], (unsigned long long)metrics[i].calls,
             (unsigned long long)metrics[i].inclusive_ns, (unsigned long long)metrics[i].exclusive_ns,
             (unsigned long long)stage_candidates[i], (unsigned long long)stage_contacts[i]);
+        if(duration_reductions[i])
+            printf("measurement_duration name=%s reductions=%llu minimum_seconds=%.12g mean_returned_fraction=%.9g\n",
+                names[i], (unsigned long long)duration_reductions[i], minimum_duration[i],
+                duration_ratio_sum[i] / duration_reductions[i]);
     }
     printf("measurement_total enabled=%d updates=%llu wall_ns=%llu exclusive_ns=%llu accounting_valid=%d "
         "attempted=%llu completed=%llu candidates=%llu contacts=%llu diagnostics=%llu incomplete_updates=%llu simulated=%.12f observed=%llu "

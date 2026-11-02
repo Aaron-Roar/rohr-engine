@@ -25,7 +25,7 @@ static Position moved(Position p, Velocity v, Acceleration a, double t, bool ela
     return (Position){p.x + next.x*t, p.y + next.y*t};
 }
 
-static void side_path(unsigned motion, bool elastic, bool reverse, float angle, float offset) {
+static void side_path(unsigned motion, bool elastic, bool reverse, float angle, float offset, unsigned vertices) {
     OK(rohr_engine_start());
     EntityResult owner = rohr_physics_soft_body_add((SoftBodyDescription){0}); OK(owner);
     Position start[3] = {{-10, 0}, {10, 0}, {3, 1.5f}};
@@ -58,7 +58,7 @@ static void side_path(unsigned motion, bool elastic, bool reverse, float angle, 
     OK(beam);
     ParticleDescription description = rohr_physics_particle_description_default_get();
     description.position = start[2]; description.radius = .5f; description.mass_value = 1;
-    description.gravity_enabled = false; description.rigid_vertices = 16;
+    description.gravity_enabled = false; description.rigid_vertices = vertices;
     EntityResult particle = rohr_physics_particle_add(description); OK(particle);
     OK(rohr_physics_collision_filter_description_set(particle.result.value,
         (CollisionFilterDescription){.category = 2, .responds_to = 1}));
@@ -102,8 +102,14 @@ int main(void) {
             for(unsigned reverse = 0; reverse < 2; ++reverse)
                 for(unsigned angle = 0; angle < 3; ++angle)
                     for(unsigned offset = 0; offset < 2; ++offset)
-                        side_path(motion, elastic, reverse, angle*37, offset*100);
-    side_path(4, false, false, 0, 0);
+                        side_path(motion, elastic, reverse, angle*37, offset*100, 16);
+    side_path(4, false, false, 0, 0, 16);
+    /* Borrowed rigid geometry must cover the entire supported vertex range;
+     * beam-local copies must keep their own corners when endpoints reverse. */
+    for(unsigned reverse = 0; reverse < 2; ++reverse) {
+        side_path(0, false, reverse, 0, 0, 3);
+        side_path(2, true, reverse, 37, 100, MAX_VERTICIES);
+    }
     puts("PASS beam motion: sampled rotating, shortening, stretching and accelerated side-contact paths");
     return 0;
 }
