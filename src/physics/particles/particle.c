@@ -8,6 +8,9 @@
 
 #include <math.h>
 #include <stdlib.h>
+#if defined(__SSE2__) && !defined(__FMA__) && !defined(__FAST_MATH__) && !defined(ROHR_PARTICLE_BATCH_SCALAR)
+#include <xmmintrin.h>
+#endif
 #include "physics/physics_step_internal.h"
 #include "physics/collision/shape_decomposition.h"
 
@@ -324,6 +327,55 @@ static OverlapInfo physics_particle_values_overlap_get(
         .normal = normal,
         .depth = radius_sum - distance
     };
+}
+
+OverlapInfo physics_particle_circle_overlap_get(
+    PhysicsParticleCircle first,
+    PhysicsParticleCircle second
+) {
+    return physics_particle_values_overlap_get(
+        first.center, first.radius, second.center, second.radius);
+}
+
+void physics_particle_circles_overlap_get(
+    const PhysicsParticleCircle first[4],
+    const PhysicsParticleCircle second[4],
+    OverlapInfo overlaps[4]
+) {
+#if defined(__SSE2__) && !defined(__FMA__) && !defined(__FAST_MATH__) && !defined(ROHR_PARTICLE_BATCH_SCALAR)
+    /* Four independent pairs; no horizontal reduction or approximate reciprocal.
+     * Keep the scalar multiply/add, square root and division sequence. */
+    __m128 dx = _mm_sub_ps(
+        _mm_setr_ps(second[0].center.x, second[1].center.x, second[2].center.x, second[3].center.x),
+        _mm_setr_ps(first[0].center.x, first[1].center.x, first[2].center.x, first[3].center.x));
+    __m128 dy = _mm_sub_ps(
+        _mm_setr_ps(second[0].center.y, second[1].center.y, second[2].center.y, second[3].center.y),
+        _mm_setr_ps(first[0].center.y, first[1].center.y, first[2].center.y, first[3].center.y));
+    __m128 radius = _mm_add_ps(
+        _mm_setr_ps(first[0].radius, first[1].radius, first[2].radius, first[3].radius),
+        _mm_setr_ps(second[0].radius, second[1].radius, second[2].radius, second[3].radius));
+    __m128 squared = _mm_add_ps(_mm_mul_ps(dx, dx), _mm_mul_ps(dy, dy));
+    int separated = _mm_movemask_ps(_mm_cmpge_ps(squared, _mm_mul_ps(radius, radius)));
+    if(separated == 15) {
+        for(unsigned i = 0; i < 4; ++i) overlaps[i] = (OverlapInfo){0};
+        return;
+    }
+    __m128 distance = _mm_sqrt_ps(squared);
+    __m128 nonzero = _mm_cmpgt_ps(distance, _mm_set1_ps(0.00001f));
+    __m128 one = _mm_set1_ps(1.0f);
+    __m128 divisor = _mm_or_ps(_mm_and_ps(nonzero, distance), _mm_andnot_ps(nonzero, one));
+    float x[4], y[4], depth[4];
+    _mm_storeu_ps(x, _mm_or_ps(_mm_and_ps(nonzero, _mm_div_ps(dx, divisor)),
+        _mm_andnot_ps(nonzero, one)));
+    _mm_storeu_ps(y, _mm_and_ps(nonzero, _mm_div_ps(dy, divisor)));
+    _mm_storeu_ps(depth, _mm_sub_ps(radius, distance));
+    for(unsigned i = 0; i < 4; ++i)
+        overlaps[i] = separated & (1 << i) ? (OverlapInfo){0} :
+            (OverlapInfo){.detected = true, .normal = {x[i], y[i]}, .depth = depth[i]};
+#else
+    for(unsigned i = 0; i < 4; ++i)
+        overlaps[i] = physics_particle_circle_overlap_get(first[i], second[i]);
+#endif
 }
 
 OverlapInfo physics_particle_entities_overlap_get(

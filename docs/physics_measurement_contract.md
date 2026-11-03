@@ -123,6 +123,23 @@ also check finite values and record counts and observed duration. Compare every
 trace row except `wall_ns` to prove profiling preserves the observed trajectory
 and work. This is a same-platform checksum, not a penetration or tunneling oracle.
 
+Goal 4 deliberately removes duplicate narrowphase visits within a rigid refit
+gather. Its reference comparison excludes `candidates` as well as `wall_ns`,
+while checking candidate reductions separately and retaining exact state,
+contact, subdivision, duration and diagnostic comparisons. Source-attributed
+candidate counts must still equal returned report totals; they now describe
+the smaller amount of actual work. The profiling-on/off equivalence rule above
+still compares candidates when comparing the same implementation. See the
+[contact-gathering report](physics_contact_gathering.md).
+
+Particle batches count every tested pair, including lanes computed before a
+later contact-append failure stops publication. `ROHR_REPORT_NARROWPHASE_NS`
+times one packet, including copying cached circles and computing its overlaps;
+do not multiply that time by its lane count. Circle snapshot preparation is
+part of broadphase bounds work. Sensor/contact publication remains ordered and
+only published overlaps increment the overlap counter. Exclusive stage
+accounting and report aggregation boundaries remain unchanged.
+
 Timer overhead, wrapper dispatch and the observer cost perturb timings. State
 validation and CSV writing occur outside the recorded outer physics interval,
 but inside the consumer's broader frame work. Report profiling overhead against

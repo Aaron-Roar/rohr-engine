@@ -529,7 +529,7 @@ Windows cross-builds pass. Full fixture and diagnostic car/pit traces match the
 reference. Other force passes remain unchanged, explicit SIMD is not introduced,
 and the final soft-body delayed-update comparison still fails at 397.578 ms.
 Goal 3's [integration/subdivision rework](physics_integration_subdivision.md) is
-complete for review: compact sweep geometry and reused projections preserve all
+complete: compact sweep geometry and reused projections preserve all
 integration passes and exact default state/work traces. Fourteen Linux and
 fourteen sanitizer regressions and Windows cross-builds pass. Lower-substep
 alternatives increase penetration and remain rejected; the user chose to retain
@@ -538,6 +538,19 @@ and remains incomplete. Diagnostic battery/headless timing shows a local sweep
 cost reduction, not real-time acceptance. The soft-body delayed CPU comparison
 still fails at 372.958 ms. The report also records the existing car benchmark's
 jump-force lifecycle handling for review before the final playback gate.
+Goal 4's [contact-gathering rework](physics_contact_gathering.md) is complete:
+duplicate refit visits are removed, scalar SAT projections avoid per-vertex
+external calls, and cached circles feed ordered four-pair particle batches.
+Particle SIMD has a scalar fallback and a 2.5–3 times faster isolated kernel;
+matched pit updates show only 0.10% less rigid-gather time and 0.03% less physics
+time, within measurement noise. Whole-pit trials do not establish an overall
+SIMD speedup. Polygon SIMD is not selected for common small shapes. Fifteen Linux
+SIMD, fifteen scalar-fallback and fifteen sanitizer regressions and Windows
+cross-builds pass. All fixture and diagnostic workload state/contact/subdivision
+traces match the frozen reference; candidate work decreases. Settings and
+tolerances remain unchanged. Battery/headless diagnostics do not establish
+real-time acceptance; the soft-body delayed CPU comparison still fails at
+368.877 ms versus 50 ms. Goal 5 has not started.
 [Milestone 11](../NEXT_STEPS.md#11-soft-body-correctness-and-real-time-performance)
 is superseded, not complete; its executables, experiments and evidence remain
 preserved. Passing contact regressions does not establish real-time performance

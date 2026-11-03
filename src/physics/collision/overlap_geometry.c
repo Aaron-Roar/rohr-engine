@@ -13,10 +13,10 @@
  * helper, without copying a fixed-capacity shape/list for every SAT axis. */
 static Projection physics_sat_projection_get(const Shape *shape, Axis axis) {
     if(shape->amount_of_vertices == 0) return (Projection){0};
-    float first = math_dot_product(shape->vertices[0], axis);
+    float first = shape->vertices[0].x * axis.x + shape->vertices[0].y * axis.y;
     Projection result = {.min = first, .max = first};
     for(uint16_t i = 1; i < shape->amount_of_vertices; ++i) {
-        float value = math_dot_product(shape->vertices[i], axis);
+        float value = shape->vertices[i].x * axis.x + shape->vertices[i].y * axis.y;
         if(value < result.min) result.min = value;
         if(value > result.max) result.max = value;
     }

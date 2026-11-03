@@ -786,66 +786,115 @@ static ContactInfo system_resolve_collision_manifold(
     return result;
 }
 
+static bool broadphase_refit, broadphase_changed[MAX_ENTITIES];
+static uint32_t broadphase_query_order[MAX_ENTITIES];
+/* Valid only with the matching broadphase leaf: refreshed on build/refit and
+ * borrowed during a gather, whose callbacks never mutate poses or geometry. */
+static PhysicsParticleCircle broadphase_circles[MAX_ENTITIES];
+
+typedef struct SystemBroadphasePair {
+    Entity first, second;
+    EntityIndex first_index, second_index;
+} SystemBroadphasePair;
+
 typedef struct SystemBroadphaseQuery {
     Entity source;
     EntityIndex source_index;
     Report *report;
     bool refit;
+    unsigned particle_count;
+    SystemBroadphasePair particles[4];
 } SystemBroadphaseQuery;
 
-static bool system_broadphase_pair_apply(Entity target, void *context) {
-    SystemBroadphaseQuery *query = context;
-    EntityIndex target_index;
-    OverlapInfo overlap;
-    bool responds;
-    uint64_t started;
-
-    if(query == NULL || target == query->source ||
-            (!query->refit && target < query->source) ||
-            !entity_index_get(target, &target_index) ||
-            !physics_step_entity_alive_check(target_index)) return true;
-    SystemBroadphaseQuery canonical;
-    if(target < query->source) {
-        canonical = *query;
-        canonical.source = target;
-        canonical.source_index = target_index;
-        target = query->source;
-        target_index = query->source_index;
-        query = &canonical;
-    }
-    /* Position correction can introduce another support contact during the
-     * solve. Refresh candidates without duplicating existing constraints or
-     * losing their accumulated impulses. */
-    if(contact_constraint_list_rigid_pair_check(&physics_step_contact_constraints,
-            query->source, target)) return true;
-    physics_report_counter_add(query->report, ROHR_REPORT_CANDIDATE_COUNT, 1);
-    physics_report_counter_add(query->report, ROHR_REPORT_NARROWPHASE_TEST_COUNT, 1);
-    started = SDL_GetPerformanceCounter();
-    overlap = system_entity_overlap_get(query->source_index, target_index);
-    physics_report_counter_add(query->report, ROHR_REPORT_NARROWPHASE_NS,
-        (uint64_t)(physics_rigid_elapsed_ms(started) * 1000000.0));
+static bool system_broadphase_pair_record(
+    const SystemBroadphasePair *pair, OverlapInfo overlap, Report *report
+) {
     if(!overlap.detected) return true;
-    physics_report_counter_add(query->report, ROHR_REPORT_OVERLAP_COUNT, 1);
-    responds = physics_step_entity_components_check(query->source_index, ROHR_COLLISION) &&
-        physics_step_entity_components_check(target_index, ROHR_COLLISION) &&
-        physics_collision_response_between_by_index_check(query->source_index, target_index);
+    physics_report_counter_add(report, ROHR_REPORT_OVERLAP_COUNT, 1);
+    bool responds = physics_step_entity_components_check(pair->first_index, ROHR_COLLISION) &&
+        physics_step_entity_components_check(pair->second_index, ROHR_COLLISION) &&
+        physics_collision_response_between_by_index_check(pair->first_index, pair->second_index);
     bool appended = contact_constraint_list_append(&physics_step_contact_constraints,
         (SystemContactConstraint){
         .type = SYSTEM_CONTACT_CONSTRAINT_RIGID_PAIR,
         .value.rigid = {
-            .first = query->source,
-            .second = target,
-            .first_index = query->source_index,
-            .second_index = target_index,
+            .first = pair->first,
+            .second = pair->second,
+            .first_index = pair->first_index,
+            .second_index = pair->second_index,
             .overlap = overlap,
             .responds = responds
         }
     });
     if(!appended)
-        physics_report_issue_add(query->report, ROHR_PHYSICS_CONTACT_GATHER, ROHR_REPORT_SEVERITY_FATAL,
+        physics_report_issue_add(report, ROHR_PHYSICS_CONTACT_GATHER, ROHR_REPORT_SEVERITY_FATAL,
             ERROR_MEMORY_POOL_ALLOCATION_FAILED, ROHR_REPORT_UPDATE_ABORTED,
-            query->source, target, "could not allocate rigid contact constraint");
+            pair->first, pair->second, "could not allocate rigid contact constraint");
     return appended;
+}
+
+static bool system_broadphase_particles_flush(SystemBroadphaseQuery *query) {
+    unsigned count = query->particle_count;
+    if(count == 0) return true;
+    query->particle_count = 0;
+    physics_report_counter_add(query->report, ROHR_REPORT_CANDIDATE_COUNT, count);
+    physics_report_counter_add(query->report, ROHR_REPORT_NARROWPHASE_TEST_COUNT, count);
+    uint64_t started = SDL_GetPerformanceCounter();
+    PhysicsParticleCircle first[4], second[4];
+    OverlapInfo overlaps[4];
+    for(unsigned i = 0; i < count; ++i) {
+        first[i] = broadphase_circles[query->particles[i].first_index];
+        second[i] = broadphase_circles[query->particles[i].second_index];
+    }
+    if(count == 4) physics_particle_circles_overlap_get(first, second, overlaps);
+    else for(unsigned i = 0; i < count; ++i)
+        overlaps[i] = physics_particle_circle_overlap_get(first[i], second[i]);
+    physics_report_counter_add(query->report, ROHR_REPORT_NARROWPHASE_NS,
+        (uint64_t)(physics_rigid_elapsed_ms(started) * 1000000.0));
+    /* Publish in original traversal order, including sensors. All lanes above
+     * were tested even if a later allocation failure stops publication. */
+    for(unsigned i = 0; i < count; ++i)
+        if(!system_broadphase_pair_record(&query->particles[i], overlaps[i], query->report))
+            return false;
+    return true;
+}
+
+static bool system_broadphase_pair_apply(Entity target, void *context) {
+    SystemBroadphaseQuery *query = context;
+    EntityIndex target_index;
+    if(query == NULL || target == query->source ||
+            (!query->refit && target < query->source) ||
+            !entity_index_get(target, &target_index) ||
+            !physics_step_entity_alive_check(target_index)) return true;
+    /* Bounds and poses stay fixed throughout this gather. If both endpoints
+     * moved, the earlier query already visited this pair, including misses.
+     * Use iteration order, not handle order: reused slots can reorder handles.
+     * A later gather must test the pair again after either endpoint moves. */
+    if(query->refit && broadphase_changed[target_index] &&
+            broadphase_query_order[target_index] <
+                broadphase_query_order[query->source_index]) return true;
+    SystemBroadphasePair pair = target < query->source ?
+        (SystemBroadphasePair){target, query->source, target_index, query->source_index} :
+        (SystemBroadphasePair){query->source, target, query->source_index, target_index};
+    if(contact_constraint_list_rigid_pair_check(&physics_step_contact_constraints,
+            pair.first, pair.second)) return true;
+    if(physics_step_entity_components_check(pair.first_index, ROHR_HIT_BOX | ROHR_PARTICLE) &&
+            physics_step_entity_components_check(pair.second_index, ROHR_HIT_BOX | ROHR_PARTICLE) &&
+            world_hit_boxes[pair.first_index].amount_of_vertices != 0 &&
+            world_hit_boxes[pair.second_index].amount_of_vertices != 0) {
+        query->particles[query->particle_count++] = pair;
+        return query->particle_count < 4 || system_broadphase_particles_flush(query);
+    }
+    /* Mixed geometry and invalidated leaves keep the original path. Flush
+     * pending circles first so no contact is reordered across a polygon pair. */
+    if(!system_broadphase_particles_flush(query)) return false;
+    physics_report_counter_add(query->report, ROHR_REPORT_CANDIDATE_COUNT, 1);
+    physics_report_counter_add(query->report, ROHR_REPORT_NARROWPHASE_TEST_COUNT, 1);
+    uint64_t started = SDL_GetPerformanceCounter();
+    OverlapInfo overlap = system_entity_overlap_get(pair.first_index, pair.second_index);
+    physics_report_counter_add(query->report, ROHR_REPORT_NARROWPHASE_NS,
+        (uint64_t)(physics_rigid_elapsed_ms(started) * 1000000.0));
+    return system_broadphase_pair_record(&pair, overlap, query->report);
 }
 
 void physics_rigid_contact_point_impulses_accumulate(
@@ -1048,6 +1097,7 @@ static AABB system_broadphase_bounds_get(EntityIndex index) {
     if(physics_step_entity_components_check(index, ROHR_PARTICLE)) {
         Position center = physics_particle_world_origin_by_index_get(index);
         float radius = physics_particle_radius_by_index_get(index);
+        broadphase_circles[index] = (PhysicsParticleCircle){center, radius};
         bounds.min_x = fminf(bounds.min_x, center.x - radius);
         bounds.max_x = fmaxf(bounds.max_x, center.x + radius);
         bounds.min_y = fminf(bounds.min_y, center.y - radius);
@@ -1059,7 +1109,6 @@ static AABB system_broadphase_bounds_get(EntityIndex index) {
 static uint32_t broadphase_leaves[MAX_ENTITIES];
 static Position broadphase_positions[MAX_ENTITIES];
 static Orientation broadphase_orientations[MAX_ENTITIES];
-static bool broadphase_refit, broadphase_changed[MAX_ENTITIES];
 
 static void system_broadphase_build(Report *report) {
     bool refit = broadphase_reuse_allowed && physics_step_contact_constraints.solving &&
@@ -1079,6 +1128,7 @@ static void system_broadphase_build(Report *report) {
             broadphase_positions[i] = positions[i];
             broadphase_orientations[i] = orientations[i];
             broadphase_changed[i] = true;
+            broadphase_query_order[i] = n;
         }
         return;
     }
@@ -1112,24 +1162,20 @@ static void system_broadphase_build(Report *report) {
 }
 
 static void system_broadphase_collisions_apply(Report *report) {
+    SystemBroadphaseQuery query = {.report = report, .refit = broadphase_refit};
     for(uint32_t alive_position = 0;
             alive_position < physics_step_collider_iteration_count_get();
             alive_position += 1) {
         EntityIndex index;
         Entity entity;
-        SystemBroadphaseQuery query;
 
         if(!physics_step_collider_index_at(alive_position, &index) ||
                 !physics_step_entity_components_check(index, ROHR_HIT_BOX) ||
                 !physics_step_entity_from_index_get(index, &entity)) continue;
         if(broadphase_refit && !broadphase_changed[index]) continue;
         if(world_hit_boxes[index].amount_of_vertices == 0) continue;
-        query = (SystemBroadphaseQuery){
-            .source = entity,
-            .source_index = index,
-            .report = report,
-            .refit = broadphase_refit
-        };
+        query.source = entity;
+        query.source_index = index;
         (void)aabb_tree_query(
             &physics_broadphase_tree,
             physics_broadphase_tree.nodes[broadphase_leaves[index]].bounds,
@@ -1138,6 +1184,7 @@ static void system_broadphase_collisions_apply(Report *report) {
         );
         if(report->has_fatal) return;
     }
+    (void)system_broadphase_particles_flush(&query);
 }
 
 static void system_angle_locks_apply(Report *report) {

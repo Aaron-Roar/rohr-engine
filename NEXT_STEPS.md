@@ -13,7 +13,7 @@ priority order.
 | 2 | Asset and resource ownership | Complete |
 | 3 | COM, inertia, and origin semantics | Complete |
 | 4 | Cross-path feature parity | Complete by user acceptance; recorded verification exceptions remain |
-| 12 | Real-time physics pipeline rework | Highest unfinished priority; goals 1–3 complete; goal 3 ready for review and commit |
+| 12 | Real-time physics pipeline rework | Highest unfinished priority; goals 1–4 complete; goal 4 ready for review and commit |
 | 11 | Soft-body correctness and real-time performance | Superseded by milestone 12; not complete; evidence preserved |
 | 6 | Physics robustness | Goals 1–4 accepted; goal 5 failed verification |
 | — | [C game experiment](#c-game-experiment) | Pending; agree concept and completion criteria when starting |
@@ -38,9 +38,9 @@ car and pit performance, then compare accuracy and behavior with the frozen
 comparisons. Milestone 12 goal 1 establishes the reference and measurement
 contract, with the full car run explicitly stopped by the user and retained as
 incomplete. Goal 2 is complete with a limited spring-preparation cleanup and
-verified unchanged trajectories. Goal 3 is complete for review with unchanged
-integration settings and verified trajectory parity; the C game experiment has
-not started.
+verified unchanged trajectories. Goals 3 and 4 preserve integration settings and
+verified trajectory parity. Goal 4's contact gathering is ready for review and
+commit; the C game experiment has not started.
 
 Regression checks and relevant sanitizer checks remain mandatory throughout
 physics, the C game experiment, and runtime isolation. Deferring the broader
@@ -518,7 +518,7 @@ accuracy and behavior against the reference and choose an acceptable middle
 ground. This is the highest unfinished priority and supersedes milestone 11,
 whose failed attempts, experiments, executables, and evidence remain preserved.
 
-**Status: goals 1–3 complete; goal 3 ready for review and commit.** Goal 2's
+**Status: goals 1–4 complete; goal 4 ready for review and commit.** Goal 2's
 [force-preparation report](docs/physics_force_preparation.md) records the limited
 spring scan/COM-offset cleanup and the decision to retain the other force passes.
 Fourteen Linux and fourteen ASan/UBSan regressions pass, Windows cross-builds
@@ -526,7 +526,7 @@ pass, and all 219 timed scenarios plus four calibrations finish with numerical
 and state/work trace parity against the frozen reference. The car's ten-second
 segment and full headless pit also retain exact traces. The final soft-body
 CPU comparison still fails at 397.578 ms versus 50 ms. No tolerance, API,
-ownership, tick rate, scene or material changes. Explicit SIMD is deferred;
+ownership, tick rate, scene or material changes. Explicit SIMD was deferred in Goal 2;
 compiler-vectorization findings and collision-batching candidates are recorded.
 The user requested no broader force optimization.
 
@@ -542,8 +542,26 @@ rendered acceptance. Lower-substep alternatives increase penetration and are
 rejected in accordance with the user's preference; 240 Hz, four substeps and
 eight iterations remain unchanged. The abandoned 60 Hz car probe is explicitly
 incomplete, with its trace preserved. The soft-body delayed CPU comparison still
-fails at 372.958 ms versus 50 ms. Goal 3 is ready for review and commit; Goal 4 has
-not started. Evidence remains under `sandbox/milestone_12/goal_3/`.
+fails at 372.958 ms versus 50 ms. Goal 3 evidence remains under
+`sandbox/milestone_12/goal_3/`.
+
+Goal 4's [contact-gathering report](docs/physics_contact_gathering.md) records
+duplicate refit-candidate suppression, direct scalar SAT projection, reused
+circle geometry and ordered four-pair particle batches. Particle SIMD is retained
+with a scalar fallback: its isolated kernel is 2.5–3 times faster, but matched
+pit updates show only 0.10% less rigid-gather time and 0.03% less physics time,
+within measurement noise. Three whole-pit trials per mode also do not establish
+an overall SIMD speedup. Polygon SIMD packing loses on common small shapes and
+is not selected. Paired kernels show 8–45% less polygon-overlap cost and 14.6%
+less duplicate-heavy gathering cost. These battery/headless diagnostics do not
+establish rendered acceptance. Fifteen Linux SIMD, fifteen scalar-fallback and
+fifteen sanitizer regressions pass; Windows cross-builds pass. All 219 timed
+scenarios plus four calibrations, the ten-second car prefix and full pit preserve
+exact state/contact/subdivision traces and numerical records against the frozen
+reference. Candidate counts intentionally decrease. The soft-body delayed CPU
+comparison still fails at 368.877 ms versus 50 ms. Settings, APIs and tolerances
+remain unchanged. Evidence is under
+`sandbox/milestone_12/goal_4/`; Goal 5 has not started.
 
 Goal 1's
 [measurement contract](docs/physics_measurement_contract.md) records reference
@@ -582,7 +600,7 @@ finding.
    Investigate why individual interactions cause repeated world-wide work.
    Evaluate timestep and subdivision settings alongside algorithm changes;
    consume all elapsed simulation time.
-4. [ ] **Analyze and rework contact gathering.** Cover broadphase construction
+4. [x] **Analyze and rework contact gathering.** Cover broadphase construction
    and update, candidate filtering, narrowphase geometry, rigid contacts,
    particle contacts, soft boundaries and beam pairs. Reduce repeated discovery
    and geometry work while measuring missed contacts, penetration and tunneling.

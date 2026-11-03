@@ -132,6 +132,15 @@ void physics_interaction_state_destroy(void);
 void physics_config_init(void);
 Position physics_particle_world_origin_by_index_get(EntityIndex index);
 float physics_particle_radius_by_index_get(EntityIndex index);
+typedef struct PhysicsParticleCircle {
+    Position center;
+    float radius;
+} PhysicsParticleCircle;
+OverlapInfo physics_particle_circle_overlap_get(
+    PhysicsParticleCircle first, PhysicsParticleCircle second);
+void physics_particle_circles_overlap_get(
+    const PhysicsParticleCircle first[4], const PhysicsParticleCircle second[4],
+    OverlapInfo overlaps[4]);
 OverlapInfo physics_particle_entities_overlap_get(
     EntityIndex first,
     EntityIndex second
