@@ -13,7 +13,7 @@ priority order.
 | 2 | Asset and resource ownership | Complete |
 | 3 | COM, inertia, and origin semantics | Complete |
 | 4 | Cross-path feature parity | Complete by user acceptance; recorded verification exceptions remain |
-| 12 | Real-time physics pipeline rework | Highest unfinished priority; goals 1–5 complete; goal 5 ready for review and commit |
+| 12 | Real-time physics pipeline rework | Highest unfinished priority; goals 1–6 complete; goal 6 awaiting review/commit |
 | 11 | Soft-body correctness and real-time performance | Superseded by milestone 12; not complete; evidence preserved |
 | 6 | Physics robustness | Goals 1–4 accepted; goal 5 failed verification |
 | — | [C game experiment](#c-game-experiment) | Pending; agree concept and completion criteria when starting |
@@ -39,8 +39,9 @@ comparisons. Milestone 12 goal 1 establishes the reference and measurement
 contract, with the full car run explicitly stopped by the user and retained as
 incomplete. Goal 2 is complete with a limited spring-preparation cleanup and
 verified unchanged trajectories. Goals 3 and 4 preserve integration settings and
-verified trajectory parity. Goal 5's joint gathering is complete for review and
-commit. The C game experiment has not started.
+verified trajectory parity. Goal 5's joint gathering is committed; Goal 6's
+rigid-contact solving is complete and awaiting review/commit, including the
+requested tick-rate experiments. The C game experiment has not started.
 
 Regression checks and relevant sanitizer checks remain mandatory throughout
 physics, the C game experiment, and runtime isolation. Deferring the broader
@@ -518,7 +519,7 @@ accuracy and behavior against the reference and choose an acceptable middle
 ground. This is the highest unfinished priority and supersedes milestone 11,
 whose failed attempts, experiments, executables, and evidence remain preserved.
 
-**Status: goals 1–5 complete; goal 5 ready for review and commit.** Goal 2's
+**Status: goals 1–6 complete; goal 6 awaiting review/commit.** Goal 2's
 [force-preparation report](docs/physics_force_preparation.md) records the limited
 spring scan/COM-offset cleanup and the decision to retain the other force passes.
 Fourteen Linux and fourteen ASan/UBSan regressions pass, Windows cross-builds
@@ -575,7 +576,32 @@ ten-second car prefix and full pit match the parent and frozen reference under t
 comparison rules. The soft-body delayed CPU comparison still fails at 382.453 ms
 versus 50 ms. No speedup or rendered acceptance is claimed; settings, ownership,
 public APIs and tolerances remain unchanged. Evidence is under
-`sandbox/milestone_12/goal_5/`; Goal 6 has not started.
+`sandbox/milestone_12/goal_5/`.
+
+Goal 6's [rigid-contact solving report](docs/physics_rigid_contact_solving.md)
+records pose-checked circle/COM reuse and generation checks before retained
+contact response/publication. Three serial pit trials per version show 14.6%
+less physics CPU time at unchanged settings. Seventeen Linux and seventeen
+ASan/UBSan regressions, Windows cross-builds and independent installed-SDK
+examples pass. All 219 timed scenarios plus four calibrations, the ten-second
+car prefix and full pit preserve the existing numerical/state/work comparisons.
+The soft-body delayed CPU comparison still fails at 364.860 ms versus 50 ms.
+The user selected two particle-only passes plus 0.5-unit slack as the working
+candidate; it remains a preserved experiment, with final tolerances open.
+Corrected full-pit trials show 44.8% less CPU time versus the instrumented
+eight-pass control. Reducing configured subdivisions from four to one gives
+roughly 50 updates/s headlessly, but p95 physics work is 28.382 ms, particle
+penetration reaches 0.580482 and floor penetration 0.086014. No rendered gate
+or global subdivision change is accepted. Further requested 120/60 Hz trials
+(two/one ticks per nominal frame, one subdivision) complete twelve seconds:
+p95 physics CPU is 16.546/14.406 ms, worst particle overlap 1.041389/1.617722,
+and floor penetration 0.350550/0.982507. Both exceed the proposed particle
+overlap limits; neither establishes rendered acceptance or selects a global
+tick rate. Exclusive profiles identify gathering,
+sweeps and response as the remaining dominant costs. A further owned-field
+copying experiment offers no established benefit and is not selected. Production
+settings, public APIs and ownership remain unchanged; evidence is under
+`sandbox/milestone_12/goal_6/`. Goal 7 has not started.
 
 Goal 1's
 [measurement contract](docs/physics_measurement_contract.md) records reference
@@ -622,7 +648,7 @@ finding.
    constraint assembly, validation and reusable joint data. Separate data that
    changes with topology from data that changes with motion, preserving
    entity-lifetime safety and manual gathering semantics.
-6. [ ] **Analyze and rework rigid-contact solving.** Cover particle and polygon
+6. [x] **Analyze and rework rigid-contact solving.** Cover particle and polygon
    response, block solving, position correction, friction, restitution and
    retained contact state. Evaluate simpler execution and data layouts,
    iteration requirements and convergence behavior. Measure effects on mass

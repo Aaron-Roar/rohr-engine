@@ -231,6 +231,14 @@ current substep. Later iterations may adjust its accumulated impulse without
 undoing the intended rebound. Targets are discarded with the substep contacts;
 they do not add persistent state or change public contact-report fields.
 
+Iterative response also reuses validated particle circles and world centers of
+mass while the cached position/orientation remains current. These geometric
+values share the hitbox cache's substep/manual-invocation lifetime; velocity and
+impulse state remain live for every sequential contact. Retained rigid contacts
+check both generation-bearing entity handles before response and publication,
+so deletion and slot reuse cannot transfer a previous body's contact state to
+its replacement. No references or ownership transfers are added.
+
 The [Milestone 6 fixtures](../NEXT_STEPS.md#6-physics-robustness) include thin-wall
 checks for a 1 × 1 square and radius-0.5 standalone particle at up to 10,000
 units/s. The particle uses its 32-vertex collision polygon against the flat wall.
@@ -566,7 +574,26 @@ cross-builds pass. Full fixture numerical records and diagnostic car/pit traces
 retain parent/reference parity under the existing comparison rules. Collection
 cost remains below 0.04% of workload physics time; no new cache or speedup is
 claimed. The soft-body delayed CPU comparison still fails at 382.453 ms versus
-50 ms. Goal 6 has not started.
+50 ms. Goal 6's [rigid-contact solving rework](physics_rigid_contact_solving.md)
+is complete and awaiting review/commit, including the requested 120/60 Hz
+experiments. The implementation reuses validated
+circle geometry and world centers during sequential
+response, and rejects retained contacts whose identities no longer match their
+slots. Three serial pit trials per version show 14.6% less physics CPU time at
+unchanged settings. Seventeen Linux and seventeen sanitizer regressions, Windows
+cross-builds and independent installed-SDK examples pass. Full fixture records
+and diagnostic car/pit traces preserve the existing comparison rules; the
+soft-body delayed CPU comparison still fails at 364.860 ms versus 50 ms.
+The working quality candidate is two particle passes plus 0.5-unit slack,
+preserved separately from production. Further subdivision experiments approach
+50 updates/s headlessly at one subdivision, with p95 physics work 28.382 ms,
+particle overlap 0.580482 and floor penetration 0.086014. At 120/60 Hz with one
+subdivision, p95 physics work falls to 16.546/14.406 ms, but particle overlap
+increases to 1.041389/1.617722 and floor penetration to 0.350550/0.982507.
+These complete headless trials exceed both proposed particle-overlap limits.
+Final tolerances, rendered acceptance and global tick/subdivision selection
+remain open. Goal 7 has
+not started.
 [Milestone 11](../NEXT_STEPS.md#11-soft-body-correctness-and-real-time-performance)
 is superseded, not complete; its executables, experiments and evidence remain
 preserved. Passing contact regressions does not establish real-time performance

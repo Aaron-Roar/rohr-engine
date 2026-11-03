@@ -26,8 +26,16 @@ static bool hitbox_cache_active, hitbox_cached[MAX_ENTITIES];
 static bool broadphase_reuse_allowed;
 static Position hitbox_cached_positions[MAX_ENTITIES];
 static Orientation hitbox_cached_orientations[MAX_ENTITIES];
+/* Geometry only, sharing the hitbox cache's pose checks and invocation lifetime.
+ * Velocity, impulses and response masks remain live between sequential pairs. */
+static PhysicsParticleCircle hitbox_cached_circles[MAX_ENTITIES];
+static Position hitbox_cached_centers[MAX_ENTITIES];
+static bool hitbox_cached_center_valid[MAX_ENTITIES];
 void physics_step_hitbox_cache_begin(void) {
-    if(!hitbox_cache_active) memset(hitbox_cached, 0, sizeof(hitbox_cached));
+    if(!hitbox_cache_active) {
+        memset(hitbox_cached, 0, sizeof(hitbox_cached));
+        memset(hitbox_cached_center_valid, 0, sizeof(hitbox_cached_center_valid));
+    }
     hitbox_cache_active = true;
     /* A manual stage can follow arbitrary collider/geometry edits. Only the
      * complete substep proves the preceding gather is still structurally valid. */
@@ -37,15 +45,35 @@ void physics_step_hitbox_cache_end(void) {
     if(!physics_step_entities_active_check()) hitbox_cache_active = false;
 }
 
+static bool system_hitbox_pose_cached_check(EntityIndex index) {
+    return hitbox_cache_active && hitbox_cached[index] &&
+        positions[index].x == hitbox_cached_positions[index].x &&
+        positions[index].y == hitbox_cached_positions[index].y &&
+        orientations[index] == hitbox_cached_orientations[index];
+}
+
+static PhysicsParticleCircle system_contact_circle_get(EntityIndex index) {
+    if(system_hitbox_pose_cached_check(index)) return hitbox_cached_circles[index];
+    return (PhysicsParticleCircle){physics_particle_world_origin_by_index_get(index),
+        physics_particle_radius_by_index_get(index)};
+}
+
+static Position system_contact_center_get(EntityIndex index) {
+    if(!system_hitbox_pose_cached_check(index)) return physics_com_world_by_index_get(index);
+    if(!hitbox_cached_center_valid[index]) {
+        hitbox_cached_centers[index] = physics_com_world_by_index_get(index);
+        hitbox_cached_center_valid[index] = true;
+    }
+    return hitbox_cached_centers[index];
+}
+
 bool physics_step_hitbox_update(EntityIndex i, Report *report) {
     if(!physics_step_entity_alive_check(i) || !physics_step_entity_components_check(i, ROHR_HIT_BOX)) return false;
     /* Local geometry is immutable during a complete substep or manual solve. Pose correction
      * invalidates by exact comparison; no cache survives a public call. */
-    if(hitbox_cache_active && hitbox_cached[i] &&
-            positions[i].x == hitbox_cached_positions[i].x &&
-            positions[i].y == hitbox_cached_positions[i].y &&
-            orientations[i] == hitbox_cached_orientations[i])
+    if(system_hitbox_pose_cached_check(i))
         return world_hit_boxes[i].amount_of_vertices != 0;
+    hitbox_cached_center_valid[i] = false;
     Shape next = {0};
     bool valid = physics_world_position_check(positions[i]) && isfinite(orientations[i]) &&
         hit_boxes[i].amount_of_vertices <= MAX_VERTICIES &&
@@ -71,6 +99,7 @@ bool physics_step_hitbox_update(EntityIndex i, Report *report) {
         valid = valid && physics_vector_finite_check(center) && isfinite(radius) && radius >= 0 &&
             isfinite(center.x - radius) && isfinite(center.x + radius) &&
             isfinite(center.y - radius) && isfinite(center.y + radius);
+        if(valid) hitbox_cached_circles[i] = (PhysicsParticleCircle){center, radius};
     }
     if(!valid) {
         /* Invalidate derived geometry, never reuse an obsolete collider. */
@@ -222,7 +251,8 @@ static bool system_contact_response_check(EntityIndex first, EntityIndex second)
  * bound, not permission for a thin body to disappear into its support. */
 static float system_contact_thickness_get(EntityIndex entity, Vec2D normal) {
     if(physics_step_entity_components_check(entity, ROHR_PARTICLE))
-        return 2.0f * physics_particle_radius_by_index_get(entity);
+        return 2.0f * (system_hitbox_pose_cached_check(entity) ?
+            hitbox_cached_circles[entity].radius : physics_particle_radius_by_index_get(entity));
     Vec2D local_normal = math_vector_rotate(normal, -orientations[entity]);
     const Shape *shape = &hit_boxes[entity];
     float low = FLT_MAX, high = -FLT_MAX;
@@ -359,14 +389,16 @@ Position system_collision_contact_point(Entity entity_1, Entity entity_2, Overla
     bool entity_2_particle = particle_pair;
 
     if(entity_1_particle) {
-        Vec1D r1 = physics_particle_radius_by_index_get(entity_1);
-        point_1 = system_particle_edge_get(entity_1, normal, r1);
+        PhysicsParticleCircle circle = system_contact_circle_get(entity_1);
+        point_1 = (Position){circle.center.x + normal.x * circle.radius,
+            circle.center.y + normal.y * circle.radius};
     } else {
         point_1 = system_support_point_average(world_hit_boxes[entity_1], normal);
     }
     if(entity_2_particle) {
-        Vec1D r2 = physics_particle_radius_by_index_get(entity_2);
-        point_2 = system_particle_edge_get(entity_2, opposite_normal, r2);
+        PhysicsParticleCircle circle = system_contact_circle_get(entity_2);
+        point_2 = (Position){circle.center.x + opposite_normal.x * circle.radius,
+            circle.center.y + opposite_normal.y * circle.radius};
     } else {
         point_2 = system_support_point_average(world_hit_boxes[entity_2], opposite_normal);
     }
@@ -513,7 +545,7 @@ static float system_contact_rebound_get(EntityIndex first,EntityIndex second,
     for(unsigned i=0;i<2;++i)if(physics_entity_movable_get(bodies[i])) {
         EntityIndex body=bodies[i];
         Vec2D angular=math_angular_velocity_cross_vec(physics_entity_nonrotating_check(body)?0:angular_velocities[body],
-            math_vector_subtract(point,physics_com_world_by_index_get(body)));
+            math_vector_subtract(point,system_contact_center_get(body)));
         v[i]=(Velocity){velocities[body].x+angular.x,velocities[body].y+angular.y};
     }
     float normal_velocity=math_dot_product(math_vector_subtract(v[1],v[0]),normal);
@@ -541,8 +573,8 @@ static bool system_contact_point_solve(
     if(friction_impulse != NULL) *friction_impulse = previous ? previous->friction_impulse : (Vec2D){0};
     bool moving_first = physics_entity_movable_get(first);
     bool moving_second = physics_entity_movable_get(second);
-    Vec2D first_offset = math_vector_subtract(point, physics_com_world_by_index_get(first));
-    Vec2D second_offset = math_vector_subtract(point, physics_com_world_by_index_get(second));
+    Vec2D first_offset = math_vector_subtract(point, system_contact_center_get(first));
+    Vec2D second_offset = math_vector_subtract(point, system_contact_center_get(second));
     Vec2D first_angular_velocity = !moving_first ||
             physics_entity_nonrotating_check(first)
         ? (Vec2D){0}
@@ -970,6 +1002,15 @@ static ContactManifoldSet system_rigid_manifolds_get(
     return constraint->value.rigid.block_geometry;
 }
 
+static bool system_rigid_contact_identity_check(const SystemContactConstraint *constraint) {
+    Entity first, second;
+    return constraint != NULL && constraint->type == SYSTEM_CONTACT_CONSTRAINT_RIGID_PAIR &&
+        physics_step_entity_from_index_get(constraint->value.rigid.first_index, &first) &&
+        first == constraint->value.rigid.first &&
+        physics_step_entity_from_index_get(constraint->value.rigid.second_index, &second) &&
+        second == constraint->value.rigid.second;
+}
+
 static void system_rigid_contact_constraint_solve(
     SystemContactConstraint *constraint,
     float position_fraction, Report *report
@@ -984,7 +1025,8 @@ static void system_rigid_contact_constraint_solve(
     bool first_solve;
     bool normal_applied = false;
 
-    if(constraint == NULL) return;
+    /* Manual callers may delete and reuse either slot between stages. */
+    if(!system_rigid_contact_identity_check(constraint)) return;
     first = constraint->value.rigid.first_index;
     second = constraint->value.rigid.second_index;
     if(!physics_step_hitbox_update(first, report) || !physics_step_hitbox_update(second, report)) {
@@ -1001,6 +1043,10 @@ static void system_rigid_contact_constraint_solve(
         manifolds = system_rigid_manifolds_get(constraint);
         overlap = manifolds.count ? (OverlapInfo){.detected = true} :
             system_entity_overlap_get(first, second);
+    } else if(particles) {
+        /* Both hitboxes above refreshed and validated these exact circles. */
+        overlap = physics_particle_circle_overlap_get(
+            hitbox_cached_circles[first], hitbox_cached_circles[second]);
     } else overlap = system_entity_overlap_get(first, second);
     if(!overlap.detected) return;
     if(!responds) {
@@ -1476,7 +1522,7 @@ void physics_rigid_contact_constraint_solve(
 void physics_rigid_contact_constraint_finalize(
     const SystemContactConstraint *constraint, Report *report
 ) {
-    if(constraint == NULL || !constraint->value.rigid.overlap.detected) return;
+    if(!system_rigid_contact_identity_check(constraint) || !constraint->value.rigid.overlap.detected) return;
     physics_step_interaction_by_index_record(
         constraint->value.rigid.first_index,
         constraint->value.rigid.second_index,
