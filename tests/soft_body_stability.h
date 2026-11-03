@@ -207,7 +207,7 @@ static void sb_observe(double dt,void *context) {
         }
     }
     if(!isfinite(e))f->stop_reason="invalid_energy";
-    if(f->tunneled||!isfinite(e)||f->depth>.02||f->energy_error>.01)f->valid=false;
+    if(f->tunneled||!isfinite(e)||f->depth>.1||f->energy_error>.01)f->valid=false;
     f->observer_cpu+=1000.0*(clock()-start)/CLOCKS_PER_SEC;
 }
 #endif

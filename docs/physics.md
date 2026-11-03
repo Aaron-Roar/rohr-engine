@@ -575,7 +575,7 @@ retain parent/reference parity under the existing comparison rules. Collection
 cost remains below 0.04% of workload physics time; no new cache or speedup is
 claimed. The soft-body delayed CPU comparison still fails at 382.453 ms versus
 50 ms. Goal 6's [rigid-contact solving rework](physics_rigid_contact_solving.md)
-is complete and awaiting review/commit, including the requested 120/60 Hz
+is committed at `479d50a2`, including the requested 120/60 Hz
 experiments. The implementation reuses validated
 circle geometry and world centers during sequential
 response, and rejects retained contacts whose identities no longer match their
@@ -584,16 +584,45 @@ unchanged settings. Seventeen Linux and seventeen sanitizer regressions, Windows
 cross-builds and independent installed-SDK examples pass. Full fixture records
 and diagnostic car/pit traces preserve the existing comparison rules; the
 soft-body delayed CPU comparison still fails at 364.860 ms versus 50 ms.
-The working quality candidate is two particle passes plus 0.5-unit slack,
-preserved separately from production. Further subdivision experiments approach
+The two-particle-pass experiments with 0.5/1.0 solver slack are preserved
+separately from production. The user clarified that "slack" meant a review
+threshold, not solver correction slack; these variants are not approved runtime
+configurations. Further subdivision experiments approach
 50 updates/s headlessly at one subdivision, with p95 physics work 28.382 ms,
 particle overlap 0.580482 and floor penetration 0.086014. At 120/60 Hz with one
 subdivision, p95 physics work falls to 16.546/14.406 ms, but particle overlap
 increases to 1.041389/1.617722 and floor penetration to 0.350550/0.982507.
 These complete headless trials exceed both proposed particle-overlap limits.
 Final tolerances, rendered acceptance and global tick/subdivision selection
-remain open. Goal 7 has
-not started.
+remain open. The user has inserted four next goals: 7, particle–particle
+response; 8, particle–rigid response; 9, shared sweep preparation/traversal;
+and 10, shared gathering broadphase/filtering. These have not started. The
+remaining joint, soft-body, orchestration, real-time and final-comparison goals
+are now 11–15. Flag particle–particle penetration in the diameter-5 pit only
+above 0.5 units. The user provisionally sets penetration checks in all Milestone
+6 extreme fixtures to 0.1 units (drop, thin barriers, stack, joint collisions
+and soft bodies). These are review thresholds, not solver settings; equality
+passes the penetration check, and all maxima remain reported. Tunneling,
+nonfinite-state, support, energy, rebound and joint-error checks remain unchanged.
+No separate hard particle–wall pit threshold has been selected. Prior
+measurements are preserved; new optimization baselines must use the original
+solver correction settings. The dedicated `particle_head_on` regression sends
+two diameter-5 particles toward each other at 1,000 units/s each with restitution
+0.5 and no gravity. It checks independent circle overlap at every completed
+substep against the requested 0.5-unit limit, contact response and no pass-through.
+Its five 2.5-second schedules cover 30/60/120 updates/s and 60 updates/s with
+100 ms and 1 s delays crossing impact. Numerical failures accumulate to the
+endpoint; invalid state or inability to advance makes a run incomplete. See the
+[collision breakdown and priorities](physics_rigid_contact_solving.md#collision-breakdown-and-follow-up-priorities).
+
+The review-policy update passes all 219 existing timed scenarios plus four
+calibrations with unchanged Goal 6 state/work traces, and all five new head-on
+schedules. Worst head-on overlap is 0.000500202179 units. The changed fixtures
+and new case pass 193 timed sanitizer scenarios plus four calibrations; the
+Linux/sanitizer traces agree. Windows cross-builds and independent installed-SDK
+drop-demo checks pass, without native Windows execution. Final builds have no
+compiler warnings or sanitizer findings. Evidence is under
+`sandbox/milestone_12/penetration_review/`; no engine implementation changed.
 [Milestone 11](../NEXT_STEPS.md#11-soft-body-correctness-and-real-time-performance)
 is superseded, not complete; its executables, experiments and evidence remain
 preserved. Passing contact regressions does not establish real-time performance
@@ -610,9 +639,12 @@ Continue milestone 6 goals 1–5 and relevant regressions to their declared
 endpoints, recording full-run worst errors even after numerical failures.
 Existing numerical tolerances and extreme-fixture CPU budgets are comparison
 criteria during rework, not mandatory intermediate gates; their failures remain
-visible. Invalid/nonfinite state, fatal errors, inability to advance time or
+visible. New goals 7–10 specifically require their selected result to respect
+the clarified review thresholds; changing these does not authorize changes to
+solver correction slack.
+Invalid/nonfinite state, fatal errors, inability to advance time or
 interruption remain incomplete. Safety and lifecycle verification remain
-mandatory. Final tolerance changes require explicit user acceptance in goal 11
+mandatory. Final tolerance changes require explicit user acceptance in goal 15
 and verification before updating milestone 6's status. New executables and
 evidence belong under `sandbox/milestone_12/goal_<n>/`.
 

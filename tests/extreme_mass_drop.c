@@ -43,15 +43,15 @@ static void settling_sample_record(DropObservation *observation, const DropBody 
         double angular = fabs(bodies[i].angular_velocity);
         observation->settling_linear_speed = fmax(observation->settling_linear_speed, linear);
         observation->settling_angular_speed = fmax(observation->settling_angular_speed, angular);
-        /* Contact tolerances apply to separation as well as penetration. A
-         * body floating above its support cannot pass merely by being still. */
+        /* Penetration review may be relaxed without allowing a stationary body
+         * to float above its support. Keep the separation check independent. */
         double gap = bodies[i].position.y - vertical_extent_get(&bodies[i]) -
             bodies[i - 1].position.y - vertical_extent_get(&bodies[i - 1]);
         observation->settling_support_gap=fmax(observation->settling_support_gap,fabs(gap));
         observation->settling_support_offset=fmax(observation->settling_support_offset,
             fabs(bodies[i].position.x-bodies[i-1].position.x));
         if(linear > SETTLING_SPEED_LIMIT || angular > SETTLING_SPEED_LIMIT ||
-                fabs(gap) > DROP_PENETRATION_LIMIT ||
+                gap > DROP_SUPPORT_SEPARATION_LIMIT || -gap > DROP_PENETRATION_LIMIT ||
                 fabs(bodies[i].position.x - bodies[i - 1].position.x) > bodies[i - 1].half_width)
             observation->valid = false;
     }
@@ -83,7 +83,7 @@ static void completed_substep(double dt, void *context) {
     /* The centered support must not be expelled or passed through. Offset
      * cases retain unrestricted motion, subject to collision and energy. */
     if(fixture->case_index == 0 && (fabs(tiny->position.x) > 0.005 ||
-            tiny->position.y < -DROP_PENETRATION_LIMIT || tiny->position.y > 0.015 ||
+            tiny->position.y < -0.0001 || tiny->position.y > 0.015 ||
             (fixture->time > 14.5 &&
                 fabs(large->position.y - 50.01) > 0.001))) observation->valid = false;
     double energy = 0;

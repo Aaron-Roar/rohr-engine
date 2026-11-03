@@ -1337,7 +1337,7 @@ if(ROHR_BUILD_TESTS)
 
     set(ROHR_SOFT_TEST_OUTPUT_DIRECTORY "${CMAKE_SOURCE_DIR}/sandbox/milestone_6/goal_5/bin/${drop_test_platform}"
         CACHE PATH "Output directory for soft-body verification executables")
-    foreach(soft_test soft_body_stability beam_pair_contacts beam_motion particle_sweep)
+    foreach(soft_test soft_body_stability beam_pair_contacts beam_motion particle_sweep particle_head_on)
     add_executable(${soft_test}_test tests/${soft_test}.c)
     target_include_directories(${soft_test}_test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
     target_link_libraries(${soft_test}_test PRIVATE rohr_engine)
@@ -1478,7 +1478,7 @@ if(ROHR_BUILD_TESTS)
 
     add_custom_target(rohr_tests)
     add_dependencies(rohr_tests contact_gathering_test joint_gathering_test rigid_contact_solving_test)
-    add_dependencies(rohr_tests soft_body_stability_test beam_pair_contacts_test beam_motion_test particle_sweep_test)
+    add_dependencies(rohr_tests soft_body_stability_test beam_pair_contacts_test beam_motion_test particle_sweep_test particle_head_on_test)
     add_dependencies(rohr_tests extreme_mass_drop_test)
     add_dependencies(rohr_tests thin_barriers_test)
     add_dependencies(rohr_tests persistent_stack_test)

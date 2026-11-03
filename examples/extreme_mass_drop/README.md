@@ -55,7 +55,7 @@ nix develop -c sandbox/milestone_6/goal_1/bin/linux/extreme_mass_drop
 The demo starts paused. Running updates retain elapsed simulation time; paused
 wall time is excluded. The display and terminal show body positions, velocities,
 angles, angular velocities, pair penetration depths, and the maximum depth since
-restart. The first violation above 0.0001 world units stays flagged until restart;
+restart. The first violation above 0.1 world units stays flagged until restart;
 it does not stop or alter motion. No settling timer or automatic freezing is used.
 
 Fatal physics reports or nonfinite observations halt advancement and preserve
@@ -84,7 +84,7 @@ Dummy-SDL checks cannot establish real desktop visual correctness.
 
 The separate `extreme_mass_drop_test` engine regression observes **every completed
 substep** through an internal synchronous observer. It runs all fifteen combinations
-and five 60 Hz stall cases for 30 simulated seconds, checks the 0.0001 penetration
+and five 60 Hz stall cases for 30 simulated seconds, checks the 0.1 penetration
 limit, centered support, finite state, fixed floor, energy growth, actual report
 counts and elapsed-time consumption, then verifies the giant can leave support
 and rotate. It rejects sideways support correction jumps exceeding integrated
@@ -100,8 +100,12 @@ settling within 2 seconds after impact, followed by 10 seconds of support with
 each body's linear speed ≤0.0001 units/s and angular speed ≤0.0001 degrees/s.
 The regression checks every completed substep in that hold, including both
 endpoints of the substep crossing the settling deadline and the endpoint
-crossing the hold's end. Support gaps use the same 0.0001-unit tolerance as
-penetration, so a stationary but unsupported body cannot pass. It reports hold
+crossing the hold's end. Positive support gaps retain a separate 0.0001-unit
+separation limit, so a stationary but unsupported body cannot pass. The centered
+support-position guards also remain unchanged. The 0.1-unit penetration limit
+is a provisional review threshold requested during milestone 12; the original
+0.0001-unit penetration criterion remains recorded in historical evidence.
+Neither threshold changes solver correction settings. It reports hold
 duration, sample count, and peak speeds. Residual motion after 15 seconds is
 also recorded for all cases; offset motion has no settling requirement.
 

@@ -13,7 +13,7 @@ priority order.
 | 2 | Asset and resource ownership | Complete |
 | 3 | COM, inertia, and origin semantics | Complete |
 | 4 | Cross-path feature parity | Complete by user acceptance; recorded verification exceptions remain |
-| 12 | Real-time physics pipeline rework | Highest unfinished priority; goals 1–6 complete; goal 6 awaiting review/commit |
+| 12 | Real-time physics pipeline rework | Highest unfinished priority; goals 1–6 complete; collision optimization goals 7–10 next |
 | 11 | Soft-body correctness and real-time performance | Superseded by milestone 12; not complete; evidence preserved |
 | 6 | Physics robustness | Goals 1–4 accepted; goal 5 failed verification |
 | — | [C game experiment](#c-game-experiment) | Pending; agree concept and completion criteria when starting |
@@ -40,8 +40,9 @@ contract, with the full car run explicitly stopped by the user and retained as
 incomplete. Goal 2 is complete with a limited spring-preparation cleanup and
 verified unchanged trajectories. Goals 3 and 4 preserve integration settings and
 verified trajectory parity. Goal 5's joint gathering is committed; Goal 6's
-rigid-contact solving is complete and awaiting review/commit, including the
-requested tick-rate experiments. The C game experiment has not started.
+rigid-contact solving is committed at `479d50a2`, including the requested
+tick-rate experiments. Four new collision optimization goals come next,
+preserving the selected penetration limits. The C game experiment has not started.
 
 Regression checks and relevant sanitizer checks remain mandatory throughout
 physics, the C game experiment, and runtime isolation. Deferring the broader
@@ -519,7 +520,9 @@ accuracy and behavior against the reference and choose an acceptable middle
 ground. This is the highest unfinished priority and supersedes milestone 11,
 whose failed attempts, experiments, executables, and evidence remain preserved.
 
-**Status: goals 1–6 complete; goal 6 awaiting review/commit.** Goal 2's
+**Status: goals 1–6 complete; new goals 7–10 are next and have not started.**
+Goal 6 is committed at `479d50a2`. The former goals 7–11 are now goals 11–15;
+completed goal numbers and evidence directories remain unchanged. Goal 2's
 [force-preparation report](docs/physics_force_preparation.md) records the limited
 spring scan/COM-offset cleanup and the decision to retain the other force passes.
 Fourteen Linux and fourteen ASan/UBSan regressions pass, Windows cross-builds
@@ -586,8 +589,10 @@ ASan/UBSan regressions, Windows cross-builds and independent installed-SDK
 examples pass. All 219 timed scenarios plus four calibrations, the ten-second
 car prefix and full pit preserve the existing numerical/state/work comparisons.
 The soft-body delayed CPU comparison still fails at 364.860 ms versus 50 ms.
-The user selected two particle-only passes plus 0.5-unit slack as the working
-candidate; it remains a preserved experiment, with final tolerances open.
+The user considered the two-particle-pass candidate, then clarified that
+"0.5 slack" means a penetration-review threshold, not increased solver
+correction slack. The 0.5/1.0 solver-slack variants remain historical experiments
+based on the agent's misinterpretation, not approved runtime configurations.
 Corrected full-pit trials show 44.8% less CPU time versus the instrumented
 eight-pass control. Reducing configured subdivisions from four to one gives
 roughly 50 updates/s headlessly, but p95 physics work is 28.382 ms, particle
@@ -601,7 +606,22 @@ tick rate. Exclusive profiles identify gathering,
 sweeps and response as the remaining dominant costs. A further owned-field
 copying experiment offers no established benefit and is not selected. Production
 settings, public APIs and ownership remain unchanged; evidence is under
-`sandbox/milestone_12/goal_6/`. Goal 7 has not started.
+`sandbox/milestone_12/goal_6/`.
+
+**User-directed priority insertion:** optimize the four expensive collision
+categories before joint solving and the remaining pipeline work. The detailed
+[collision breakdown](docs/physics_rigid_contact_solving.md#collision-breakdown-and-follow-up-priorities)
+records exclusive milliseconds over the same twelve simulated seconds, not
+per-frame milliseconds. At 240/120/60 Hz, particle–particle response costs
+3,379/2,271/1,409 ms, particle–rigid response 1,903/1,155/699 ms, shared sweep
+preparation/traversal 2,664/1,405/830 ms, and shared gathering broadphase/filtering
+3,849/2,185/1,336 ms. These single instrumented trials identify priorities;
+1,000 ms over the run is not a new per-frame budget or acceptance threshold.
+Review particle–particle pit penetration against 0.5 units. The user separately
+sets all Milestone 6 extreme-fixture penetration checks to 0.1 units for now.
+These are review thresholds only; solver correction settings remain unchanged.
+The timings above used experimental solver slack and must be remeasured with
+the original correction settings before selecting subsequent optimizations.
 
 Goal 1's
 [measurement contract](docs/physics_measurement_contract.md) records reference
@@ -653,19 +673,56 @@ finding.
    retained contact state. Evaluate simpler execution and data layouts,
    iteration requirements and convergence behavior. Measure effects on mass
    ratios, impacts, stacks and dense particle piles.
-7. [ ] **Analyze and rework joint solving.** Cover pin/weld response, spring
+7. [ ] **Optimize particle–particle response.** Profile executed response and
+   skipped-pass overhead separately. Evaluate repeated calculations, data access,
+   contact-state reuse and safe batching while preserving sequential effects on
+   shared entities, friction, restitution and lifetime safety. Use the selected
+   two-particle-pass idea for evaluation while retaining the original solver
+   correction settings. Re-establish the baseline after the clarified review
+   policy; the 0.5-unit review threshold is not a solver input. Measure full-pit behavior and relevant
+   impact, mass-ratio and pile regressions, plus car effects. Select a change
+   only with repeatable exclusive and total physics savings under the shared
+   verification contract.
+   Include the dedicated head-on regression: two diameter-5 particles moving
+   at 1,000 units/s each, restitution 0.5, no gravity, and measured overlap
+   at most 0.5 units at every completed substep. Cover normal and delayed
+   updates across impact; reject pass-through and missed collision response.
+8. [ ] **Optimize particle–rigid response.** Separately measure particle–wall
+   and particle–moving-body response, including geometry/manifold work, offsets,
+   impulses and position correction. Reduce repeated work without applying the
+   particle-only pass reduction to mixed contacts or increase solver correction
+   slack. Apply the provisional 0.1-unit extreme-fixture penetration review
+   threshold, preserving friction/restitution and rigid
+   rotation. Verify impacts, floors, thin barriers, mass ratios and car contacts;
+   record exclusive and end-to-end savings with all elapsed time consumed.
+9. [ ] **Optimize shared sweep preparation and traversal.** Cover repeated
+   entity scans, bounds preparation, swept-tree construction/update, tree queries
+   and eligibility filtering. Evaluate conservative reuse and invalidation
+   across adaptive subdivisions. Keep pair geometry costs separately measured;
+   preserve moving-body coverage, earliest-contact protection and complete
+   elapsed-time consumption. Measure missed contacts, tunneling and full-run
+   penetration against the retained limits, alongside exclusive and total cost.
+10. [ ] **Optimize shared contact-gathering broadphase and filtering.** Cover
+    tree build/refit, query traversal, duplicate checks, pair filtering and
+    particle queueing. Evaluate reuse and compact data without stale entities,
+    missed pairs or changed standalone-stage semantics. Keep narrowphase and
+    publication costs distinguishable from shared discovery work. Verify
+    unchanged collision coverage, retained penetration limits and contact
+    lifetime safety; measure candidate work, exclusive savings and total physics
+    cost in the unchanged pit and car.
+11. [ ] **Analyze and rework joint solving.** Cover pin/weld response, spring
    coupling and transform locks. Measure constraint error, energy behavior and
    cost under the existing high-speed, high-rotation fixtures. Preserve
    documented ownership and lock semantics.
-8. [ ] **Analyze and rework soft-body constraint solving.** Cover node–rigid,
+12. [ ] **Analyze and rework soft-body constraint solving.** Cover node–rigid,
    beam–rigid and beam–beam response, self-collision and contact refresh.
    Evaluate how rigid corrections and soft contacts interact. Measure
    deformation, seam penetration, tunneling, energy and car behavior.
-9. [ ] **Analyze and rework pipeline orchestration and finalization.** Integrate
+13. [ ] **Analyze and rework pipeline orchestration and finalization.** Integrate
    the revised stages. Review their execution order, shared caches, invalidation,
    repeated passes, interaction publication and reporting overhead. Verify
    standalone stages and complete updates remain correctly composed.
-10. [ ] **Meet the combined real-time gates.** Resolve remaining integration
+14. [ ] **Meet the combined real-time gates.** Resolve remaining integration
     bottlenecks and select measured runtime settings. Verify both the car and
     particle pit meet the performance contract below. Produce visual previews
     and obtain motion/window-switch review. Numerical deviations remain
@@ -673,7 +730,7 @@ finding.
     Reconcile the existing car benchmark's jump-force lifetime handling before
     final motion/playback acceptance; preserve the historical fixture traces.
     See the [Goal 3 clock-ownership finding](docs/physics_integration_subdivision.md#clock-ownership-follow-up).
-11. [ ] **Compare with the reference and select the middle ground.** Compare
+15. [ ] **Compare with the reference and select the middle ground.** Compare
     the real-time implementation against the frozen reference across all physics
     scenarios. Present accuracy, behavior and performance tradeoffs for user
     selection. Implement the selected balance, retain real-time performance,
@@ -709,6 +766,33 @@ finding.
 - Physics tick rate, configured substeps and solver iterations may be tuned.
   Record every configuration; do not alter scene geometry, body counts or
   materials to manufacture performance.
+- **Clarified penetration review policy:** flag particle–particle penetration
+  in the diameter-5 pit only when the measured full-run maximum exceeds
+  **0.5 units**. Set the Milestone 6 extreme-drop, thin-barrier, stack, joint
+  and soft-body fixture penetration checks to **0.1 units for now**, including
+  their particle–rigid contacts. A value equal to the threshold passes the
+  penetration check; unrelated failures still fail. These thresholds do not
+  change solver correction slack, contact detection, geometry or dynamics.
+  The new two-particle head-on regression uses the explicitly requested
+  0.5-unit particle-pair threshold, rather than the 0.1 extreme-fixture override.
+  No general particle–wall limit for the pit is invented by this change.
+  Keep tunneling, nonfinite-state, support, energy, rebound and joint-error
+  requirements separate and unchanged. Report numerical maxima even below
+  the thresholds, and preserve original criteria/results as historical evidence.
+  The 0.5/1.0 solver-slack experiments arose from a misinterpretation and are
+  not approved configurations. Rebaseline new goals with original correction
+  settings. Do not round overshoots into a pass.
+  The earlier 0.501142-unit result and the larger reduced-subdivision/tick-rate
+  errors remain recorded failures of a strict 0.5 bound. A selected result for
+  these goals must respect the review thresholds; faster failing
+  experiments remain diagnostics, not accepted configurations.
+- Compare each new optimization with its immediate parent at matched settings
+  and retain the frozen-reference comparison. Record exclusive response,
+  sweep and gathering costs by pair type plus shared overhead, full-run error
+  maxima, work counts, total physics time and p95 update work. Use 240/120/60 Hz
+  diagnostics with explicit configurations to expose tradeoffs; none of those
+  tick rates is newly selected by adding the goals. Retain existing failures
+  and require repeatable savings before adopting an optimization.
 - Existing numerical tolerances and extreme-fixture CPU budgets become
   **comparison criteria during rework**, not mandatory intermediate completion
   gates. Keep their failures visible; do not silently redefine a pass. This
@@ -717,7 +801,7 @@ finding.
   recorded status.
 - Public APIs and ownership contracts remain unchanged. Any necessary API
   redesign requires a separate decision.
-- Final tolerance changes require explicit user acceptance in goal 11. Prefer
+- Final tolerance changes require explicit user acceptance in goal 15. Prefer
   the most accurate accepted configuration that still meets both real-time
   gates. Update milestone 6's status only after the selected balance and agreed
   final tolerances are verified.
@@ -987,7 +1071,26 @@ The AABB-tree broad phase and live-entity iteration are already implemented.
 continue running all five fixtures. Numerical tolerances and extreme-fixture CPU
 budgets are comparison criteria, not intermediate rework completion gates;
 failures remain visible. Final tolerance changes require explicit user acceptance
-in milestone 12 goal 11, followed by verification before this status is updated.
+in milestone 12 goal 15, followed by verification before this status is updated.
+**Current user-approved override:** every extreme-fixture penetration check now
+uses 0.1 units provisionally, replacing the original drop 0.0001, thin-barrier
+0.001 and soft-body 0.02 limits; stack and joint collision checks already use
+0.1. This changes review/verdict thresholds only. Original criteria and dated
+results below remain historical evidence. Positive support separation, centered
+support retention, tunneling, energy, settling and joint-error requirements are
+unchanged. The separate particle–particle pit review threshold is 0.5 units;
+neither threshold changes solver correction slack.
+
+**Review-policy update verified:** the 219 existing timed scenarios and four
+rebound calibrations pass with unchanged state/work traces against the Goal 6
+build. The new two-particle head-on regression passes all five schedules,
+with worst overlap 0.000500202179 units against its 0.5 limit. The three changed
+fixture suites and the new regression also pass ASan/UBSan: 193 timed scenarios
+plus four calibrations, with Linux/sanitizer trace parity. Windows cross-builds
+and independent installed-SDK drop-demo observation/control checks pass;
+native Windows execution was not performed. No engine source or solver setting
+changes. Evidence is under `sandbox/milestone_12/penetration_review/`. These
+checks do not rerun rendered acceptance or clear the existing CPU-budget failure.
 
 Run all five fixtures at 30, 60, and 120 updates per second, plus a 60 Hz run with
 one 100 ms stall and one 1 s stall. Process all elapsed time in the immediately

@@ -64,9 +64,9 @@ static bool text_set(DropDemo *demo, size_t index, const char *value) {
 static bool display_update(DropDemo *demo) {
     char line[512];
     DropFixture *f = &demo->fixture;
-    snprintf(line, sizeof(line), "%s | CASE %u | %u Hz | t=%.6f s | %u updates | peak sampled depth %.9g (limit 0.0001)",
+    snprintf(line, sizeof(line), "%s | CASE %u | %u Hz | t=%.6f s | %u updates | peak sampled depth %.9g (limit %.9g)",
         f->halted ? "HALTED - R to restart" : demo->paused ? "PAUSED" : "RUNNING",
-        f->case_index + 1, f->rate, f->time, f->steps, f->maximum_depth);
+        f->case_index + 1, f->rate, f->time, f->steps, f->maximum_depth, DROP_PENETRATION_LIMIT);
     if(!text_set(demo, 2, line)) return false;
     for(size_t i = 0; i < DROP_BODY_COUNT; ++i) {
         DropBody *b = &f->bodies[i];
@@ -80,8 +80,8 @@ static bool display_update(DropDemo *demo) {
     if(!text_set(demo, 6, line)) return false;
     if(f->halted) snprintf(line, sizeof(line), "STOPPED: %s", f->failure);
     else if(f->first_violation_time >= 0)
-        snprintf(line, sizeof(line), "VIOLATION retained: first penetration >0.0001 at t=%.6f s. Floor moved: %s. Motion remains unrestricted.",
-            f->first_violation_time, f->floor_moved ? "YES" : "no");
+        snprintf(line, sizeof(line), "VIOLATION retained: first penetration >%.9g at t=%.6f s. Floor moved: %s. Motion remains unrestricted.",
+            DROP_PENETRATION_LIMIT, f->first_violation_time, f->floor_moved ? "YES" : "no");
     else snprintf(line, sizeof(line), "No penetration violation observed yet. Floor moved: %s. This is not physics acceptance.",
         f->floor_moved ? "YES" : "no");
     return text_set(demo, 7, line);

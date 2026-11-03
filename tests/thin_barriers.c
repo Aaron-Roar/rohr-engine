@@ -64,7 +64,7 @@ static void observe(double dt, void *context) {
     o->maximum_spin=fmax(o->maximum_spin,fabs(spin));
     o->energy_error=fmax(o->energy_error,((double)v.x*v.x+(double)v.y*v.y)/(o->speed*o->speed)-1);
     if(!isfinite(p.x) || !isfinite(p.y) || !isfinite(v.x) || !isfinite(v.y) ||
-            !isfinite(angle) || !isfinite(spin) || depth > .001 ||
+            !isfinite(angle) || !isfinite(spin) || depth > .1 ||
             fabs(p.y) + extent >= 20000 ||
             positions[o->wall_index].x != 0 || positions[o->wall_index].y != 0 ||
             orientations[o->wall_index] != 0 ||

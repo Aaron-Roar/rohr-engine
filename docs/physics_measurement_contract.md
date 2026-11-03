@@ -226,7 +226,33 @@ Finite numerical failures continue to the declared endpoint. Invalid/nonfinite
 state, fatal errors, inability to advance time and interruption are incomplete,
 even if a process prints an endpoint. Check trace validity and observer/report
 counts alongside endpoint status. Keep original tolerances and their failures
-visible; only Goal 11 may adopt user-approved final tolerances.
+visible; only Goal 15 (formerly Goal 11) may adopt user-approved final overall
+tolerances. The user has provisionally changed the penetration-review thresholds:
+particle–particle pit penetration is flagged only above 0.5 units, while all
+Milestone 6 extreme-fixture penetration checks use 0.1 units. Equality passes
+that check; unrelated failures remain failures. These are review criteria,
+not solver correction settings. Preserve original criteria and measurements as
+historical evidence; do not relabel old runs as reruns under the new policy.
+Keep support, tunneling, energy, rebound, joint-error and nonfinite-state checks
+unchanged. No new particle–wall pit threshold is implied. New goals 7–10 must
+rebaseline with original correction settings: the 0.5/1.0 solver-slack prototypes
+were based on a misinterpretation of "slack" and are not approved configurations.
+Their comparisons separate
+particle–particle, particle–rigid and rigid–rigid costs from shared preparation,
+traversal and filtering, using exclusive timings and unchanged fixtures.
+
+The additional `particle_head_on` regression has its own requested 0.5-unit
+penetration-review threshold: two mass-1, diameter-5, 16-vertex particles start
+at x = -252.5 and +252.5, with velocities +1000 and -1000 units/s, restitution
+0.5, friction 0.5 and no gravity. Nominal impact is at 0.25 seconds; each run
+ends at 2.5 seconds. Use one configured subdivision and eight solver rounds,
+with the original correction settings. Run at 30/60/120 updates/s and two
+60 updates/s schedules with 100 ms then 1 s delays, or the reverse, starting
+at 0.2 and 1.3 seconds. Record independent geometric overlap after every
+completed substep, contact occurrence, ordering/pass-through, finite state,
+rebound error, peak energy ratio and full elapsed-time accounting. Preserve
+the full-run maximum even after a finite numerical failure. This regression's
+0.5 threshold is an explicit exception to the 0.1 extreme-fixture override.
 
 ## Goal 1 evidence status
 

@@ -1,8 +1,9 @@
 # Milestone 12 Goal 6 — Rigid-contact solving
 
-Goal 6 is complete and ready for review. The requested 120 Hz and 60 Hz trials
-are preserved as experiments; no changed tolerance or global tick rate is
-accepted. The frozen reference is
+Goal 6 is complete and committed at `479d50a2`. The requested 120 Hz and 60 Hz trials
+are preserved as experiments; production defaults remain unchanged. The
+subsequent priority insertion and retained penetration limits are recorded
+below. The frozen reference is
 `physics-pipelines-overoptimized` at
 `6f283268aa4bf038c4ed78271baeb9d5986bd7d9`; the immediate parent is Goal 5 commit
 `6aba1548`. Exclude `main`. Scripts, SDKs, binaries, logs and traces are preserved
@@ -213,11 +214,15 @@ CPU time relative to 0.5, with final height 80.1068 and mean height 37.3351.
 Both allowances are exceeded slightly during the run, so neither demonstrates
 a strict hard maximum equal to its configured value.
 
-The user selected two passes plus 0.5 as the working candidate. Retain it for
-later repeated timing, car/scenario coverage and visual motion review. No prototype setting or tolerance is adopted
-in production; the original eight-pass trajectory remains the verified change.
-A general policy also needs a size-relative cap for smaller particles. Final
-acceptance of changed tolerances remains the user's Goal 11 decision.
+The user initially considered this candidate, then clarified that "0.5 slack"
+meant the maximum penetration before review flags a violation, not solver
+correction slack. The agent misinterpreted that request. Retain these runs as
+historical experiments, not approved runtime configurations. Production settings
+were never changed; the original eight-pass trajectory remains the verified
+change. The two-particle-pass idea may still be evaluated with original solver
+correction settings. Rebaseline subsequent optimizations accordingly. Final
+overall tolerance acceptance remains the user's Goal 15 decision (formerly
+Goal 11); the provisional review thresholds below are explicitly approved now.
 
 The first version of the experimental oracle incorrectly read the dynamically
 sized component-mask array up to `MAX_ENTITIES` before checking liveness. ASan
@@ -325,6 +330,70 @@ the user's final tolerance decision. Sources, binaries and serial runners are
 under `particle_tradeoffs/` and `build/particle_tradeoffs/`; logs are
 `logs/particle_ticks_2.log` and `logs/particle_ticks_1.log`. The machine-readable
 comparison is `particle_tick_summary.json`.
+
+### Collision breakdown and follow-up priorities
+
+After Goal 6, the user requested exclusive timings by pair type and then four
+new optimization goals before the remaining milestone work. The following are
+milliseconds over twelve simulated seconds in the unchanged 800-particle pit,
+with one configured subdivision, eight main passes, two particle passes and
+0.5-unit particle-only slack. Each column is one serial AC-powered diagnostic.
+
+| Stage / pair type | 240 Hz | 120 Hz | 60 Hz |
+| --- | ---: | ---: | ---: |
+| Response: particle–particle | 3379 | 2271 | 1409 |
+| Response: particle–rigid | 1903 | 1155 | 699 |
+| Response: rigid–rigid | 14 | 8 | 4 |
+| Response: shared overhead | 536 | 309 | 183 |
+| Sweeps: particle–particle | 286 | 162 | 95 |
+| Sweeps: particle–rigid | 223 | 122 | 72 |
+| Sweeps: rigid–rigid | 0 | 0 | 0 |
+| Sweeps: shared preparation/traversal | 2664 | 1405 | 830 |
+| Gathering: particle–particle | 684 | 398 | 236 |
+| Gathering: particle–rigid | 163 | 89 | 52 |
+| Gathering: rigid–rigid | 5 | 3 | 1 |
+| Gathering: shared broadphase/filtering | 3849 | 2185 | 1336 |
+
+Particle means a nonrotating body carrying particle properties. Gathering pair
+buckets include narrowphase and publication; particle batches remain ordered.
+Shared gathering includes tree construction/refit, traversal, duplicate checks,
+filtering and queueing. Shared sweeps include scans, bounds/tree preparation,
+queries and eligibility filtering. Shared response includes dispatch, skipped
+passes and block-solver overhead. Nested costs are counted only once. Static
+rigid pairs can still incur gathering/response checks without moving bodies;
+no eligible rigid–rigid swept pair is tested in this pit.
+
+All three runs reach the endpoint and exactly match the preceding per-update
+state/work traces. Timing instrumentation adds overhead; these single profiles
+identify priorities and do not establish rendered acceptance or a speedup.
+The independent penetration oracle is disabled in these profiles; preceding
+quality failures still apply. Scripts, source snapshots, binaries, traces,
+accounting checks and hashes are preserved under
+`sandbox/milestone_12/goal_6/collision_breakdown/`; `summary.json` and
+`summary.csv` contain the unrounded results.
+
+New goals 7–10 optimize, in order: particle–particle response, particle–rigid
+response, shared sweep preparation/traversal, and shared gathering
+broadphase/filtering. They precede the former goals 7–11, now 11–15. The
+1,000 ms concern is a prioritization of total work over the run, not a new
+per-frame threshold. No new optimization goal starts with this roadmap update.
+
+The user clarified that 0.5 is a particle–particle penetration-review threshold
+for the diameter-5 pit, not a requested solver correction setting. Flag only
+values above it; even the earlier 0.501142 result exceeds it. All Milestone 6
+extreme-fixture penetration checks now provisionally use 0.1 units, including
+particle–rigid contacts in those fixtures. Stack and joint collision checks
+already used 0.1; drop, thin-barrier and soft-body checks previously used
+0.0001, 0.001 and 0.02 respectively. Historical measurements and criteria remain
+preserved. No separate particle–wall pit threshold has been selected.
+
+The displayed breakdowns used the misinterpreted solver-slack prototype. They
+remain evidence about that prototype and must not be represented as the cost
+of an approved configuration. New goals re-establish matched baselines with
+the original correction settings. Report full-run maxima even below review
+thresholds, preserve unrelated support/tunneling/energy/joint-error checks, and
+do not round violations into a pass. Production solver settings remain unchanged;
+final overall tolerance acceptance remains Goal 15.
 
 ### Preserved evidence
 

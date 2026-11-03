@@ -9,7 +9,9 @@
 #define DROP_BODY_COUNT 3
 #define DROP_PAIR_COUNT 3
 #define DROP_CASE_COUNT 5
-#define DROP_PENETRATION_LIMIT 0.0001
+/* Review threshold only; does not change solver correction or fixture geometry. */
+#define DROP_PENETRATION_LIMIT 0.1
+#define DROP_SUPPORT_SEPARATION_LIMIT 0.0001
 
 typedef struct DropBody {
     Entity entity;
