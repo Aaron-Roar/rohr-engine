@@ -190,6 +190,14 @@ consume all elapsed time without limiting speed. Reports count actual subdivisio
 `physics_pipeline_substep(dt)` entry point still executes exactly one caller-sized
 step, for manual pipeline composition.
 
+Joint gathering replaces the current pin/weld membership list with borrowed,
+generation-checked entity handles. Deleting a gathered joint cannot select a
+replacement that later occupies its slot; gather again to include the new joint.
+A surviving joint uses its current type, anchors and body state during solving,
+including edits between manual stages. Gathering does not freeze world anchors,
+effective masses or solver matrices. Incomplete joints retain their definitions
+and report unavailable endpoints when their contribution is attempted.
+
 Rigid penetration slop is the smaller of 0.01 units and 0.0001 times the smaller
 collider thickness along the contact normal. Reciprocal polygon contact
 collections of up to 32 pairs can use simultaneous support solves, with at most
@@ -550,7 +558,15 @@ cross-builds pass. All fixture and diagnostic workload state/contact/subdivision
 traces match the frozen reference; candidate work decreases. Settings and
 tolerances remain unchanged. Battery/headless diagnostics do not establish
 real-time acceptance; the soft-body delayed CPU comparison still fails at
-368.877 ms versus 50 ms. Goal 5 has not started.
+368.877 ms versus 50 ms. Goal 5's
+[joint-gathering analysis](physics_joint_gathering.md) retains the small existing
+scan and corrects stale joint slot reuse between manual gathering and solving.
+It is complete: sixteen Linux and sixteen ASan/UBSan regressions and Windows
+cross-builds pass. Full fixture numerical records and diagnostic car/pit traces
+retain parent/reference parity under the existing comparison rules. Collection
+cost remains below 0.04% of workload physics time; no new cache or speedup is
+claimed. The soft-body delayed CPU comparison still fails at 382.453 ms versus
+50 ms. Goal 6 has not started.
 [Milestone 11](../NEXT_STEPS.md#11-soft-body-correctness-and-real-time-performance)
 is superseded, not complete; its executables, experiments and evidence remain
 preserved. Passing contact regressions does not establish real-time performance

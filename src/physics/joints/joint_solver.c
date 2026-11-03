@@ -295,7 +295,7 @@ static void physics_step_joint_constraints_gather(Report *report) {
             Entity source = 0;
             (void)physics_step_entity_from_index_get(joint_entity, &source);
             physics_report_counter_add(report, ROHR_REPORT_PROCESSED_COUNT, 1);
-            if(!joint_constraint_list_append(&physics_step_joint_constraints, joint_entity)) {
+            if(!joint_constraint_list_append(&physics_step_joint_constraints, source)) {
                 physics_report_issue_add(report, ROHR_PHYSICS_JOINT_GATHER, ROHR_REPORT_SEVERITY_FATAL,
                     ERROR_MEMORY_POOL_ALLOCATION_FAILED, ROHR_REPORT_UPDATE_ABORTED,
                     source, 0, "could not allocate joint constraint");
@@ -307,10 +307,11 @@ static void physics_step_joint_constraints_gather(Report *report) {
 
 static void physics_step_joint_constraints_apply(Report *report) {
     for(size_t i = 0; i < physics_step_joint_constraints.count; i += 1) {
-        EntityIndex joint_entity = physics_step_joint_constraints.values[i];
+        EntityIndex joint_entity;
         if(report != NULL && report->has_fatal) return;
 
-        if(!entity_index_alive_check(joint_entity) ||
+        if(!entity_index_get(physics_step_joint_constraints.values[i], &joint_entity) ||
+                !entity_index_alive_check(joint_entity) ||
                 !entity_index_components_check(joint_entity, ROHR_JOINT)) continue;
         if(joints[joint_entity].type == JOINT_PIN) {
             system_rigid_joint_apply(joint_entity, report);

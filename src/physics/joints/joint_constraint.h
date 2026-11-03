@@ -11,7 +11,8 @@
 #include "entity_components.h"
 
 typedef struct JointConstraintList {
-    EntityIndex *values;
+    /* Borrowed identities, not slots: manual stages may delete/recreate joints. */
+    Entity *values;
     size_t count;
     size_t capacity;
 } JointConstraintList;
@@ -24,7 +25,7 @@ void joint_constraint_list_destroy(JointConstraintList *list);
 void joint_constraint_list_clear(JointConstraintList *list);
 bool joint_constraint_list_append(
     JointConstraintList *list,
-    EntityIndex joint
+    Entity joint
 );
 
 #endif

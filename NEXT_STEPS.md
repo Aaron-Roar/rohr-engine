@@ -13,7 +13,7 @@ priority order.
 | 2 | Asset and resource ownership | Complete |
 | 3 | COM, inertia, and origin semantics | Complete |
 | 4 | Cross-path feature parity | Complete by user acceptance; recorded verification exceptions remain |
-| 12 | Real-time physics pipeline rework | Highest unfinished priority; goals 1–4 complete; goal 4 ready for review and commit |
+| 12 | Real-time physics pipeline rework | Highest unfinished priority; goals 1–5 complete; goal 5 ready for review and commit |
 | 11 | Soft-body correctness and real-time performance | Superseded by milestone 12; not complete; evidence preserved |
 | 6 | Physics robustness | Goals 1–4 accepted; goal 5 failed verification |
 | — | [C game experiment](#c-game-experiment) | Pending; agree concept and completion criteria when starting |
@@ -39,8 +39,8 @@ comparisons. Milestone 12 goal 1 establishes the reference and measurement
 contract, with the full car run explicitly stopped by the user and retained as
 incomplete. Goal 2 is complete with a limited spring-preparation cleanup and
 verified unchanged trajectories. Goals 3 and 4 preserve integration settings and
-verified trajectory parity. Goal 4's contact gathering is ready for review and
-commit; the C game experiment has not started.
+verified trajectory parity. Goal 5's joint gathering is complete for review and
+commit. The C game experiment has not started.
 
 Regression checks and relevant sanitizer checks remain mandatory throughout
 physics, the C game experiment, and runtime isolation. Deferring the broader
@@ -518,7 +518,7 @@ accuracy and behavior against the reference and choose an acceptable middle
 ground. This is the highest unfinished priority and supersedes milestone 11,
 whose failed attempts, experiments, executables, and evidence remain preserved.
 
-**Status: goals 1–4 complete; goal 4 ready for review and commit.** Goal 2's
+**Status: goals 1–5 complete; goal 5 ready for review and commit.** Goal 2's
 [force-preparation report](docs/physics_force_preparation.md) records the limited
 spring scan/COM-offset cleanup and the decision to retain the other force passes.
 Fourteen Linux and fourteen ASan/UBSan regressions pass, Windows cross-builds
@@ -561,7 +561,21 @@ exact state/contact/subdivision traces and numerical records against the frozen
 reference. Candidate counts intentionally decrease. The soft-body delayed CPU
 comparison still fails at 368.877 ms versus 50 ms. Settings, APIs and tolerances
 remain unchanged. Evidence is under
-`sandbox/milestone_12/goal_4/`; Goal 5 has not started.
+`sandbox/milestone_12/goal_4/`.
+
+Goal 5's [joint-gathering report](docs/physics_joint_gathering.md) retains the
+identity-only scan: collection costs only 0.038% of car physics time and 0.0069%
+of pit time in the diagnostic runs. Gathered entries now retain generation-checked
+handles, preventing a deleted joint's slot replacement from being solved before
+it is gathered. Current anchor/type/motion edits remain visible to surviving
+joints; no topology or geometry cache is added. Sixteen Linux and sixteen
+ASan/UBSan regressions and Windows cross-builds pass. All 219 timed scenarios
+plus four calibrations finish. Numerical records and state/work traces for the
+ten-second car prefix and full pit match the parent and frozen reference under the existing
+comparison rules. The soft-body delayed CPU comparison still fails at 382.453 ms
+versus 50 ms. No speedup or rendered acceptance is claimed; settings, ownership,
+public APIs and tolerances remain unchanged. Evidence is under
+`sandbox/milestone_12/goal_5/`; Goal 6 has not started.
 
 Goal 1's
 [measurement contract](docs/physics_measurement_contract.md) records reference
@@ -604,7 +618,7 @@ finding.
    and update, candidate filtering, narrowphase geometry, rigid contacts,
    particle contacts, soft boundaries and beam pairs. Reduce repeated discovery
    and geometry work while measuring missed contacts, penetration and tunneling.
-5. [ ] **Analyze and rework joint gathering.** Cover anchor resolution, pin/weld
+5. [x] **Analyze and rework joint gathering.** Cover anchor resolution, pin/weld
    constraint assembly, validation and reusable joint data. Separate data that
    changes with topology from data that changes with motion, preserving
    entity-lifetime safety and manual gathering semantics.

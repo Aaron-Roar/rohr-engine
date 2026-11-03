@@ -10,7 +10,7 @@ static bool joint_constraint_list_reserve(
     JointConstraintList *list,
     size_t requested
 ) {
-    EntityIndex *values;
+    Entity *values;
     size_t capacity;
 
     if(list == NULL) return false;
@@ -49,7 +49,7 @@ void joint_constraint_list_clear(JointConstraintList *list) {
 
 bool joint_constraint_list_append(
     JointConstraintList *list,
-    EntityIndex joint
+    Entity joint
 ) {
     if(list == NULL || !joint_constraint_list_reserve(list, list->count + 1)) {
         return false;
