@@ -14,8 +14,9 @@ selection, not additions or automatic changes to the milestone order.
 
 **Subsequent roadmap decision:** the user inserted
 [Goal 10](physics_bottleneck_investigation_plan.md) to investigate each ranked
-question and its potential solutions before implementation. It is planned,
-not started. Forward references below use the renumbered implementation Goals
+question and its potential solutions before implementation. It is now
+[complete for review](physics_bottleneck_investigation.md). Forward references
+below use the renumbered implementation Goals
 11–17. Goal 9's archived report and evidence retain their original numbering;
 the new investigation does not imply that any proposed solution is adopted.
 

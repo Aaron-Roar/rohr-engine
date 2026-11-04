@@ -10,7 +10,8 @@ goals. The authoritative ordering remains in [NEXT_STEPS.md](../NEXT_STEPS.md).
 The user subsequently added [Goal 10](physics_bottleneck_investigation_plan.md)
 for focused investigation of each ranked question and its solutions. Forward
 references here use the resulting Goals 11–17; the completed Goal 9 evidence
-and original plan snapshot are preserved. Goal 10 has not started.
+and original plan snapshot are preserved. Goal 10 is now
+[complete for review](physics_bottleneck_investigation.md); no solution is adopted.
 
 ## Outcome and boundaries
 

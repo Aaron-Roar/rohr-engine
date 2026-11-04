@@ -13,7 +13,7 @@ priority order.
 | 2 | Asset and resource ownership | Complete |
 | 3 | COM, inertia, and origin semantics | Complete |
 | 4 | Cross-path feature parity | Complete by user acceptance; recorded verification exceptions remain |
-| 12 | Real-time physics pipeline rework | Highest unfinished priority; goals 1–9 complete; goal 10 planned next; goals 10–17 not started |
+| 12 | Real-time physics pipeline rework | Highest unfinished priority; goals 1–10 complete; goal 10 ready for review; goals 11–17 not started |
 | 11 | Soft-body correctness and real-time performance | Superseded by milestone 12; not complete; evidence preserved |
 | 6 | Physics robustness | Goals 1–4 accepted; goal 5 failed verification |
 | — | [C game experiment](#c-game-experiment) | Pending; agree concept and completion criteria when starting |
@@ -47,10 +47,11 @@ pit CPU falls 4.24%, while the car-prefix CPU median is 1.81% higher.
 Goal 9's [global algorithm audit](docs/physics_algorithm_audit.md) is complete
 for review, following its [investigation plan](docs/physics_algorithm_audit_plan.md).
 It ranks measured causes and alternatives for user selection, retaining sweep
-protection and production behavior. New
-[Goal 10](docs/physics_bottleneck_investigation_plan.md) investigates each
-ranked question and its potential solutions before implementation. The former
-Goals 10–16 are now 11–17; the investigation has not started.
+protection and production behavior.
+[Goal 10's focused investigation](docs/physics_bottleneck_investigation.md) is
+complete for review, with causal tests and ranked solution tradeoffs for all
+five questions. No production optimization is adopted. The former Goals 10–16
+are now 11–17; Goal 11 remains next and has not started.
 The selected penetration limits remain in force. The C game experiment has not started.
 
 Regression checks and relevant sanitizer checks remain mandatory throughout
@@ -529,9 +530,9 @@ accuracy and behavior against the reference and choose an acceptable middle
 ground. This is the highest unfinished priority and supersedes milestone 11,
 whose failed attempts, experiments, executables, and evidence remain preserved.
 
-**Status: goals 1–9 complete; Goal 8 is committed at `f6146a0a`. Goal 9's
-investigation against parent `ab3c634b` is complete for review;
-Goal 10 is planned next; Goals 10–17 have not started.**
+**Status: goals 1–10 complete; Goal 8 is committed at `f6146a0a`. Goal 9's
+investigation uses parent `ab3c634b`; Goal 10 against parent `f9abe365` is
+complete for review. Goals 11–17 have not started.**
 The user now limits runtime candidates and new workload experiments to **60 Hz
 physics and below**. Higher-rate evidence remains historical; production defaults
 are unchanged during the audit. The requested isolated comparison uses 60 Hz,
@@ -737,11 +738,18 @@ is reused and 222,314 historical reference updates are rechecked. All selected
 runs, diagnostic limitations and nonadditive work estimates are preserved under
 `sandbox/milestone_12/goal_9/`. No production optimization, tolerance change or
 new implementation ordering was adopted by the audit itself. The user has
-since selected a new investigation Goal 10 before the remaining implementation
-goals. Follow its [ordered plan](docs/physics_bottleneck_investigation_plan.md)
-to test each ranked question and evaluate potential solutions. This roadmap
-update defines the work without starting it. Former Goals 10–16 become 11–17;
-existing completion status and archived evidence remain unchanged.
+since selected investigation Goal 10 before the remaining implementation goals.
+Its [completed report](docs/physics_bottleneck_investigation.md) follows the
+[ordered plan](docs/physics_bottleneck_investigation_plan.md). It identifies
+repeated unchanged-pose/beam discovery, a near-collapsed tire beam's conservative
+sweep/response mismatch, useful later response passes, limited pit isolation,
+and traversal/layout opportunities. Eight observer workloads preserve exact
+state/work traces; all four observer SDKs pass 22 sanitizer regressions each.
+Snapshot comparisons favor testing retained topology and compact particle data,
+without establishing a whole-update speedup. Streaming-active diagnostics from
+Q2 onward are separated from the controlled baseline. Evidence is preserved
+under `sandbox/milestone_12/goal_10/`; no solution is adopted. Former Goals 10–16
+are now 11–17; Goal 11 remains next pending review and explicit instruction.
 
 1. [x] **Establish the reference and measurement contract.** Pin the reference
    commit, preserve its executables and evidence, and establish repeatable
@@ -812,7 +820,7 @@ existing completion status and archived evidence remain unchanged.
    measurement contract. **Investigation only:** do not adopt prototypes,
    create/reorder implementation goals or start them. Present candidate goals
    and their relationship to Goals 11–17 for the user's later selection.
-10. [ ] **Investigate the ranked bottleneck questions and potential solutions.**
+10. [x] **Investigate the ranked bottleneck questions and potential solutions.**
     Follow the [Goal 10 plan](docs/physics_bottleneck_investigation_plan.md), in
     order: repeated contact discovery; adaptive restrictions; unnecessary
     response/overlap work; unrelated bodies repeating work; candidate growth

@@ -58,6 +58,16 @@ car/pit copies submit one tick per displayed update and retain four configured
 substeps and eight solver passes. This audit does not change production defaults;
 see the [algorithm audit](physics_algorithm_audit.md) for configurations and limits.
 
+During Goal 10, the user authorized diagnostic testing while streaming from the
+same PC. Q1 preceded that change; Q2 onward records streaming active, keeps runs
+serial and separate from builds, and omits the runner's `--controlled`
+confirmation. Record power and observer overhead as before. These traces and
+snapshot comparisons can support causal findings, but are not clean speedup
+comparisons with the controlled baseline or final rendered acceptance. Final
+measurements still require three serial runs per workload/version on AC power,
+streaming closed and no concurrent builds. See the
+[focused investigation](physics_bottleneck_investigation.md) for this boundary.
+
 ## Exclusive stage accounting
 
 [`tools/physics_measurement`](../tools/physics_measurement/CMakeLists.txt) builds

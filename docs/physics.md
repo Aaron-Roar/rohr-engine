@@ -619,10 +619,15 @@ distinct from its sustained 0.804 ms elastic cap. All eight solver iterations
 execute on every step in both scenes. The report separates these multipliers
 from their expensive discovery/response work and proposes future goals for
 user selection. Prototypes remain isolated; no production change is adopted.
-The next [Goal 10 investigation](physics_bottleneck_investigation_plan.md)
-will examine each ranked question and its potential solutions with focused
-causal tests. It is planned, not started; production adoption awaits review.
-Sweep and gathering optimization are now Goals 11–12; Goals 10–17 have not
+The [Goal 10 investigation](physics_bottleneck_investigation.md) is complete
+for review. Its five causal tests favor affected contact refresh, response-aware
+beam bounds and retained broadphase topology. Later passes still change the
+state, and future contacts connect almost the entire pit; blanket pass cuts and
+local stepping are not established solutions. Eight observer workloads retain
+exact state/work traces and four observer SDKs pass all 22 sanitizer regressions
+each. Q2 onward records streaming-active diagnostics; no clean whole-update
+speedup or production adoption is claimed.
+Sweep and gathering optimization are now Goals 11–12; Goals 11–17 have not
 started. The user limits new runtime candidates to 60 Hz physics and
 below, retaining higher-rate results as history. The isolated 60 Hz experiment
 retains four configured substeps and other adaptive limits while removing

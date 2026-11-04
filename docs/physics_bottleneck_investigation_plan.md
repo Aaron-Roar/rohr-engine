@@ -1,6 +1,7 @@
 # Milestone 12 Goal 10 — Investigate ranked bottlenecks and solutions
 
-**Status: planned, not started.** Follow the five questions in the order below,
+**Status: complete for review.** The [investigation report](physics_bottleneck_investigation.md)
+records all five causal tests and solution recommendations. The questions were followed in order,
 using the completed [Goal 9 audit](physics_algorithm_audit.md) as the starting
 evidence. [NEXT_STEPS.md](../NEXT_STEPS.md#12-real-time-physics-pipeline-rework)
 is authoritative. Inserting this goal moves the former Goals 10–16 to 11–17;
@@ -33,7 +34,7 @@ exclusion and existing-contact-rule removal remain failure evidence.
 
 ## Ordered question checklist
 
-1. [ ] **Repeated contact discovery: what actually needs refreshing?** Trace
+1. [x] **Repeated contact discovery: what actually needs refreshing?** Trace
    correction → invalidation → collider/beam visit → candidate query → geometry
    refresh → new or retained contact. Measure changed versus visited bodies,
    correction-created contacts and initial versus solver-triggered work.
@@ -44,7 +45,7 @@ exclusion and existing-contact-rule removal remain failure evidence.
    changes and entity deletion/reuse. Determine whether maintenance replaces
    the supposedly removed work. Map viable changes to shared gathering
    **Goal 12**, soft consequences **Goal 14** and composition **Goal 15**.
-2. [ ] **Adaptive restrictions: why are steps so small, and which can be
+2. [x] **Adaptive restrictions: why are steps so small, and which can be
    improved safely?** Reproduce the worst car update and identify the actual
    entities behind Goal 9's recorded pair `(350, 0)`; runtime indices alone are
    not stable identities. Record each limiting sweep branch, proxy geometry,
@@ -61,7 +62,7 @@ exclusion and existing-contact-rule removal remain failure evidence.
    clamp tiny steps or remove protection as an unexplained optimization. Map
    shared sweep work to **Goal 11**, soft numerics to **Goal 14**, and scheduling
    to **Goal 15**; an integrator redesign requires a separate user decision.
-3. [ ] **Response and overlap work: are later passes still useful?** Measure
+3. [x] **Response and overlap work: are later passes still useful?** Measure
    positional, normal-velocity and friction residuals, useful corrections,
    retained contact state and contact churn after each pass. Explain the dense
    particle path's missing convergence coverage and distinguish velocity changes
@@ -72,7 +73,7 @@ exclusion and existing-contact-rule removal remain failure evidence.
    alone cannot establish acceptable rebound, energy or support. Map composition
    to **Goal 15**, joint/soft coupling to **Goals 13–14**, and any renewed particle
    response implementation to a separately selected follow-up.
-4. [ ] **Unrelated bodies: how much global work is safely separable?** Measure
+4. [x] **Unrelated bodies: how much global work is safely separable?** Measure
    dynamic dependency groups, the fraction of work outside the restricting
    group, and conservative future contact/merge boundaries in the actual car
    and pit. Shared static supports alone must not join independent dynamics;
@@ -84,7 +85,7 @@ exclusion and existing-contact-rule removal remain failure evidence.
    their small savings to a dense connected pile. Quantify the safely avoidable
    work before proposing a full scheduler. Map to **Goal 15**, with prerequisites
    from **Goals 11–14**.
-5. [ ] **Candidate growth and data access: is the bottleneck traversal,
+5. [x] **Candidate growth and data access: is the bottleneck traversal,
    layout, arithmetic or dispatch?** Separate count/density effects from impact
    phase, adaptive-step count and solver repetition. Measure candidate yield,
    duplication, memory footprint and data/branch behavior. Use hardware counters
@@ -121,6 +122,11 @@ understood. Final performance claims require three serial AC-powered runs per
 workload/version, streaming closed and no concurrent builds, plus clean builds
 without diagnostic timing overhead.
 
+The user authorized streaming-active diagnostics during this investigation.
+Q1 preceded that change; Q2 onward records streaming active and cannot be used
+as a clean comparison with the controlled baseline. Final acceptance conditions
+remain unchanged.
+
 Use the unchanged twelve-second 800-particle pit and authorized 600-update car
 prefix for diagnostics. The prefix does not satisfy the full sixty-second car
 endpoint. Do not restart user-stopped full-car or rendered trials during this
@@ -154,4 +160,4 @@ automatically changing their scope/order. Full rendered acceptance remains
 **Goal 16** and final reference/tolerance selection **Goal 17**.
 
 Stop for review and the user's commit before implementation or another goal.
-This roadmap update defines Goal 10; it does not start the investigation.
+Completion does not adopt a solution or start Goal 11.
