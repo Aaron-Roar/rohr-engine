@@ -86,6 +86,11 @@ void physics_rigid_transform_constraints_apply(Report *report);
 void physics_rigid_accelerations_clear(void);
 void physics_rigid_gravity_apply(Acceleration gravity, Report *report);
 void physics_rigid_constraints_gather(Report *report);
+/* Only complete synchronous substeps opt into pose-commit tracking. Manual
+ * stages retain exact pose scans. This consumer owns its pending changes;
+ * refreshing world hitboxes must not consume pending gathering work. */
+void physics_rigid_gather_tracking_set(bool enabled);
+void physics_rigid_gather_pose_dirty_add(EntityIndex index);
 float physics_rigid_contact_slop_get(EntityIndex first, EntityIndex second, Vec2D normal);
 bool physics_rigid_contact_block_solve_check(ContactConstraintList *list,
     float position_fraction, Report *report, bool *converged);

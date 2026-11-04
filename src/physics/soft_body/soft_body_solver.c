@@ -457,6 +457,11 @@ typedef struct SoftBoundaryGatherContext {
 } SoftBoundaryGatherContext;
 
 static bool boundary_gather_cached;
+/* Query bounds share the exact endpoint checks and per-solve lifetime below.
+ * The full collision shape remains pair-specific and is prepared on demand. */
+static AABB boundary_gather_bounds[MAX_ENTITIES];
+static float boundary_gather_radii[MAX_ENTITIES];
+static bool boundary_gather_valid[MAX_ENTITIES];
 static Position boundary_gather_starts[MAX_ENTITIES], boundary_gather_ends[MAX_ENTITIES];
 static Position boundary_gather_rigid_positions[MAX_ENTITIES];
 static Orientation boundary_gather_rigid_orientations[MAX_ENTITIES];
@@ -470,6 +475,43 @@ static bool system_soft_boundary_gather(Entity entity, void *context) {
     if(gather->unchanged_beam && entity_index_get(entity, &rigid) &&
             !boundary_gather_rigid_changed[rigid]) return true;
     return system_soft_boundary_pair_apply(entity, gather->query, gather->report);
+}
+
+/* Summarize this consumer's own pose changes, independently of rigid
+ * gathering and of hit-box refresh. Keep original traversal order. */
+static bool boundary_gather_subtree_changed[2 * MAX_ENTITIES];
+static bool system_soft_boundary_changes_prepare(uint32_t index) {
+    const AABBTreeNode *node = &physics_broadphase_tree.nodes[index];
+    bool changed;
+    if(aabb_tree_node_leaf_check(node)) {
+        EntityIndex rigid;
+        changed = !entity_index_get(node->entity, &rigid) || boundary_gather_rigid_changed[rigid];
+    } else {
+        bool left = system_soft_boundary_changes_prepare(node->left);
+        bool right = system_soft_boundary_changes_prepare(node->right);
+        changed = left || right;
+    }
+    boundary_gather_subtree_changed[index] = changed;
+    return changed;
+}
+
+static bool system_soft_boundary_changed_query(AABB bounds, SoftBoundaryGatherContext *context) {
+    if(physics_broadphase_tree.root == AABB_TREE_NODE_INVALID) return false;
+    size_t count = 0;
+    physics_broadphase_tree.query_stack[count++] = physics_broadphase_tree.root;
+    while(count) {
+        uint32_t index = physics_broadphase_tree.query_stack[--count];
+        if(!boundary_gather_subtree_changed[index]) continue;
+        const AABBTreeNode *node = &physics_broadphase_tree.nodes[index];
+        if(!math_aabb_overlap(bounds, node->bounds)) continue;
+        if(aabb_tree_node_leaf_check(node)) {
+            if(!system_soft_boundary_gather(node->entity, context)) return false;
+        } else {
+            physics_broadphase_tree.query_stack[count++] = node->left;
+            physics_broadphase_tree.query_stack[count++] = node->right;
+        }
+    }
+    return true;
 }
 
 static void system_soft_body_boundary_collisions_apply(Report *report) {
@@ -487,6 +529,8 @@ static void system_soft_body_boundary_collisions_apply(Report *report) {
                 physics_step_entity_components_check(i, ROHR_HIT_BOX);
         }
     }
+    if(cached && rigid_changed && physics_broadphase_tree.root != AABB_TREE_NODE_INVALID)
+        (void)system_soft_boundary_changes_prepare(physics_broadphase_tree.root);
     for(EntityIndex beam_index = 0; beam_index < soft_body_beams_pool.capacity; ++beam_index) {
         if(!soft_body_beams_pool.used[beam_index] || !physics_step_entity_alive_check(beam_index)) continue;
         {
@@ -518,12 +562,22 @@ static void system_soft_body_boundary_collisions_apply(Report *report) {
                 .end = positions[b],
                 .radius = beam.collision_thickness * 0.5f
             };
-            query.shape = soft_body_boundary_shape_create(
-                query.start, query.end, query.radius, 0.0f, 0.0f);
-            if(query.shape.amount_of_vertices == 0) continue;
+            /* Gathering needs only bounds until a rigid candidate reaches
+             * pair geometry. That callback constructs its current full shape. */
+            if(!unchanged || boundary_gather_radii[beam_index] != query.radius) {
+                Shape shape = soft_body_boundary_shape_create(
+                    query.start, query.end, query.radius, 0.0f, 0.0f);
+                boundary_gather_valid[beam_index] = shape.amount_of_vertices != 0;
+                boundary_gather_bounds[beam_index] = math_aabb_create(shape);
+                boundary_gather_radii[beam_index] = query.radius;
+            }
+            if(!boundary_gather_valid[beam_index]) continue;
             SoftBoundaryGatherContext context = {&query, report, unchanged};
-            (void)aabb_tree_query(&physics_broadphase_tree,
-                math_aabb_create(query.shape), system_soft_boundary_gather, &context);
+            if(unchanged)
+                (void)system_soft_boundary_changed_query(boundary_gather_bounds[beam_index], &context);
+            else
+                (void)aabb_tree_query(&physics_broadphase_tree,
+                    boundary_gather_bounds[beam_index], system_soft_boundary_gather, &context);
             if(report->has_fatal) return;
         }
     }

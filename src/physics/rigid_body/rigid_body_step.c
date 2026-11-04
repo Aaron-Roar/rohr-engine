@@ -12,6 +12,7 @@
 #include <float.h>
 #include <math.h>
 #include <string.h>
+#include <SDL3/SDL_bits.h>
 
 #define RIGID_CONTACT_PENETRATION_SLOP 0.01f
 #define RIGID_CONTACT_RELATIVE_SLOP 0.0001f
@@ -849,6 +850,47 @@ static ContactInfo system_resolve_collision_manifold(
 
 static bool broadphase_refit, broadphase_changed[MAX_ENTITIES];
 static uint32_t broadphase_query_order[MAX_ENTITIES];
+/* Prepared query sources retain collider iteration order for this gather. */
+static EntityIndex broadphase_query_indices[MAX_ENTITIES];
+static uint32_t broadphase_query_count;
+/* Only complete synchronous substeps can rely on engine pose commits.
+ * Manual stages still scan current poses, including direct-array edits. */
+static bool broadphase_tracking;
+static uint32_t broadphase_pose_pending[(MAX_ENTITIES + 31) / 32];
+static uint32_t broadphase_pose_order[MAX_ENTITIES];
+static EntityIndex broadphase_pose_indices[MAX_ENTITIES];
+static uint32_t broadphase_pose_count;
+
+void physics_rigid_gather_tracking_set(bool enabled) {
+    broadphase_tracking = enabled;
+    memset(broadphase_pose_pending, 0, sizeof(broadphase_pose_pending));
+}
+
+void physics_rigid_gather_pose_dirty_add(EntityIndex index) {
+    if(!broadphase_tracking || !physics_step_entities_active_check() ||
+            index >= MAX_ENTITIES ||
+            !physics_step_entity_components_check(index, ROHR_HIT_BOX)) return;
+    uint32_t order = broadphase_pose_order[index];
+    broadphase_pose_pending[order / 32] |= UINT32_C(1) << (31 - order % 32);
+}
+
+static void system_broadphase_pose_sources_prepare(void) {
+    broadphase_pose_count = 0;
+    uint32_t count = physics_step_collider_iteration_count_get();
+    for(uint32_t word = 0; word < (count + 31) / 32; ++word) {
+        uint32_t pending = broadphase_pose_pending[word];
+        broadphase_pose_pending[word] = 0;
+        while(pending) {
+            unsigned bit = (unsigned)SDL_MostSignificantBitIndex32(pending);
+            uint32_t order = word * 32 + 31 - bit;
+            pending &= ~(UINT32_C(1) << bit);
+            EntityIndex index;
+            if(physics_step_collider_index_at(order, &index))
+                broadphase_pose_indices[broadphase_pose_count++] = index;
+        }
+    }
+}
+
 /* Valid only with the matching broadphase leaf: refreshed on build/refit and
  * borrowed during a gather, whose callbacks never mutate poses or geometry. */
 static PhysicsParticleCircle broadphase_circles[MAX_ENTITIES];
@@ -1167,7 +1209,18 @@ static void system_rigid_contact_constraint_solve(
 }
 
 static AABB system_broadphase_bounds_get(EntityIndex index) {
-    AABB bounds = math_aabb_create(world_hit_boxes[index]);
+    /* Read only the live vertices; do not copy a full fixed-capacity Shape. */
+    const Shape *shape = &world_hit_boxes[index];
+    AABB bounds = {.min_x = FLT_MAX, .max_x = -FLT_MAX,
+        .min_y = FLT_MAX, .max_y = -FLT_MAX};
+    if(shape->amount_of_vertices == 0) bounds = (AABB){0};
+    for(uint16_t n = 0; n < shape->amount_of_vertices; ++n) {
+        Vec2D vertex = shape->vertices[n];
+        if(vertex.x < bounds.min_x) bounds.min_x = vertex.x;
+        if(vertex.x > bounds.max_x) bounds.max_x = vertex.x;
+        if(vertex.y < bounds.min_y) bounds.min_y = vertex.y;
+        if(vertex.y > bounds.max_y) bounds.max_y = vertex.y;
+    }
 
     if(physics_step_entity_components_check(index, ROHR_PARTICLE)) {
         Position center = physics_particle_world_origin_by_index_get(index);
@@ -1189,11 +1242,17 @@ static void system_broadphase_build(Report *report) {
     bool refit = broadphase_reuse_allowed && physics_step_contact_constraints.solving &&
         physics_step_contact_constraints.rigid_gathered;
     broadphase_refit = refit;
+    broadphase_query_count = 0;
     memset(broadphase_changed, 0, sizeof(broadphase_changed));
     if(refit) {
-        for(uint32_t n = 0; n < physics_step_collider_iteration_count_get(); ++n) {
+        bool tracked = broadphase_tracking && physics_step_entities_active_check();
+        if(tracked) system_broadphase_pose_sources_prepare();
+        uint32_t count = tracked ? broadphase_pose_count : physics_step_collider_iteration_count_get();
+        for(uint32_t n = 0; n < count; ++n) {
             EntityIndex i;
-            if(!physics_step_collider_index_at(n, &i) || broadphase_leaves[i] == AABB_TREE_NODE_INVALID) continue;
+            if(tracked) i = broadphase_pose_indices[n];
+            else if(!physics_step_collider_index_at(n, &i)) continue;
+            if(broadphase_leaves[i] == AABB_TREE_NODE_INVALID) continue;
             if(positions[i].x == broadphase_positions[i].x &&
                     positions[i].y == broadphase_positions[i].y &&
                     orientations[i] == broadphase_orientations[i]) continue;
@@ -1203,10 +1262,12 @@ static void system_broadphase_build(Report *report) {
             broadphase_positions[i] = positions[i];
             broadphase_orientations[i] = orientations[i];
             broadphase_changed[i] = true;
-            broadphase_query_order[i] = n;
+            broadphase_query_order[i] = tracked ? broadphase_pose_order[i] : n;
+            broadphase_query_indices[broadphase_query_count++] = i;
         }
         return;
     }
+    memset(broadphase_pose_pending, 0, sizeof(broadphase_pose_pending));
     aabb_tree_clear(&physics_broadphase_tree);
     memset(broadphase_leaves, 0xff, sizeof(broadphase_leaves));
     for(uint32_t alive_position = 0;
@@ -1218,6 +1279,7 @@ static void system_broadphase_build(Report *report) {
         if(!physics_step_collider_index_at(alive_position, &index) ||
                 !physics_step_entity_components_check(index, ROHR_HIT_BOX) ||
                 !physics_step_entity_from_index_get(index, &entity)) continue;
+        broadphase_pose_order[index] = alive_position;
         if(!physics_step_hitbox_update(index, report)) continue;
         physics_report_counter_add(report, ROHR_REPORT_COLLIDER_COUNT, 1);
         uint32_t leaf = (uint32_t)physics_broadphase_tree.count;
@@ -1230,33 +1292,67 @@ static void system_broadphase_build(Report *report) {
             return;
         }
         broadphase_leaves[index] = leaf;
+        broadphase_query_indices[broadphase_query_count++] = index;
         broadphase_positions[index] = positions[index];
         broadphase_orientations[index] = orientations[index];
     }
     broadphase_reuse_allowed = physics_step_contact_constraints.solving;
 }
 
+/* Maximum eligible-order key in each current subtree. An unchanged target
+ * uses UINT32_MAX during refits, because only its moved partner will query. */
+static uint32_t broadphase_subtree_limits[2 * MAX_ENTITIES];
+static uint32_t system_broadphase_limit_prepare(uint32_t index) {
+    const AABBTreeNode *node = &physics_broadphase_tree.nodes[index];
+    uint32_t limit;
+    if(aabb_tree_node_leaf_check(node)) {
+        limit = node->entity;
+        if(broadphase_refit) {
+            EntityIndex entity_index;
+            limit = entity_index_get(node->entity, &entity_index) && broadphase_changed[entity_index]
+                ? broadphase_query_order[entity_index] + 1 : UINT32_MAX;
+        }
+    } else {
+        uint32_t left = system_broadphase_limit_prepare(node->left);
+        uint32_t right = system_broadphase_limit_prepare(node->right);
+        limit = left > right ? left : right;
+    }
+    broadphase_subtree_limits[index] = limit;
+    return limit;
+}
+
+static bool system_broadphase_query(AABB bounds, SystemBroadphaseQuery *query) {
+    if(physics_broadphase_tree.root == AABB_TREE_NODE_INVALID) return false;
+    uint32_t threshold = query->refit ? broadphase_query_order[query->source_index] + 1 : query->source;
+    size_t count = 0;
+    physics_broadphase_tree.query_stack[count++] = physics_broadphase_tree.root;
+    while(count) {
+        uint32_t index = physics_broadphase_tree.query_stack[--count];
+        if(broadphase_subtree_limits[index] <= threshold) continue;
+        const AABBTreeNode *node = &physics_broadphase_tree.nodes[index];
+        if(!math_aabb_overlap(bounds, node->bounds)) continue;
+        if(aabb_tree_node_leaf_check(node)) {
+            if(!system_broadphase_pair_apply(node->entity, query)) return false;
+        } else {
+            physics_broadphase_tree.query_stack[count++] = node->left;
+            physics_broadphase_tree.query_stack[count++] = node->right;
+        }
+    }
+    return true;
+}
+
 static void system_broadphase_collisions_apply(Report *report) {
     SystemBroadphaseQuery query = {.report = report, .refit = broadphase_refit};
-    for(uint32_t alive_position = 0;
-            alive_position < physics_step_collider_iteration_count_get();
-            alive_position += 1) {
-        EntityIndex index;
+    if(broadphase_query_count && physics_broadphase_tree.root != AABB_TREE_NODE_INVALID)
+        (void)system_broadphase_limit_prepare(physics_broadphase_tree.root);
+    for(uint32_t n = 0; n < broadphase_query_count; ++n) {
+        EntityIndex index = broadphase_query_indices[n];
         Entity entity;
-
-        if(!physics_step_collider_index_at(alive_position, &index) ||
-                !physics_step_entity_components_check(index, ROHR_HIT_BOX) ||
-                !physics_step_entity_from_index_get(index, &entity)) continue;
-        if(broadphase_refit && !broadphase_changed[index]) continue;
-        if(world_hit_boxes[index].amount_of_vertices == 0) continue;
+        if(!physics_step_entity_from_index_get(index, &entity)) continue;
         query.source = entity;
         query.source_index = index;
-        (void)aabb_tree_query(
-            &physics_broadphase_tree,
-            physics_broadphase_tree.nodes[broadphase_leaves[index]].bounds,
-            system_broadphase_pair_apply,
-            &query
-        );
+        (void)system_broadphase_query(
+            physics_broadphase_tree.nodes[broadphase_leaves[index]].bounds, &query);
         if(report->has_fatal) return;
     }
     (void)system_broadphase_particles_flush(&query);

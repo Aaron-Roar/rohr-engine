@@ -628,7 +628,7 @@ exact state/work traces and four observer SDKs pass all 22 sanitizer regressions
 each. Q2 onward records streaming-active diagnostics; no clean whole-update
 speedup or production adoption is claimed.
 Sweep and gathering optimization are now Goals 11–12. Goal 11's
-[shared sweep rework](physics_sweep_preparation.md) is complete for review
+[shared sweep rework](physics_sweep_preparation.md) is committed at `506b696a`
 against parent `43f49903`. It prepares rigid swept bounds once, retains a
 separate tree's topology with current-bound refitting and membership/quality
 validation, and reuses prepared soft geometry within each selector call.
@@ -640,16 +640,30 @@ the larger early pit saving is not established. All 23 Linux and 23 sanitizer
 regressions, 219 timed scenarios plus four calibrations per platform,
 independent SDK example checks and Windows cross-builds pass. Numerical
 checks do not erase the existing extreme-fixture CPU failures or complete
-rendered acceptance. Goals 12–17 have not started. The user added
+rendered acceptance. Goal 11 is committed at `506b696a`.
+Goal 12's [contact-discovery rework](physics_contact_discovery.md) is complete
+for review against that parent. It tracks committed pose changes, preserves
+manual-stage pose scans, prunes duplicate/unchanged tree branches and reuses
+beam query bounds while retaining current pair geometry and contact order.
+All tested state/work traces and geometric oracles match the parent. Three
+streaming-active timing pairs reduce pit CPU median 5.54%; car timing is
+inconclusive despite an 8.26% lower median, with two pairs slower. Both worst
+update times increase; no rendered performance claim is made. Fresh Linux and
+sanitizer checks pass all 23 regressions, 219 stress endpoints plus four
+calibrations and 1,000 cache-lifetime cycles per platform. Windows cross-builds
+and independent installed-SDK examples pass. Existing CPU-comparison failures
+remain visible. Goals 13–17 have not started. The user added
 [recompute-only-when-needed investigations](../NEXT_STEPS.md#recompute-only-when-needed-investigation-requirements-for-goals-1115)
 to Goals 11–15: reuse valid sweep preparation, separate particle circles from
 transformed polygon geometry, cache only valid joint data, refresh affected
 beams, and define shared-cache ownership and deferred geometry/publication
 boundaries. Each goal must measure requests, recomputations, reuse, invalidation
 and complete-update cost, preserving current collision positions, lifecycle,
-manual-stage and callback semantics. Goal 11's selected reuse is documented
-above; the additions for Goals 12–15 remain planned investigations. No accuracy
-reduction is selected.
+manual-stage and callback semantics. Goals 11–12's selected reuse is documented
+above; the additions for Goals 13–15 remain planned investigations. Full
+particle-circle/polygon separation was investigated in Goal 12 and remains
+cross-consumer deferred-geometry work under Goal 15. No accuracy reduction is
+selected.
 The user limits new runtime candidates to 60 Hz physics and
 below, retaining higher-rate results as history. The isolated 60 Hz experiment
 retains four configured substeps and other adaptive limits while removing

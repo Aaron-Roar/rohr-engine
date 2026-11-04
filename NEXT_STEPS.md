@@ -13,7 +13,7 @@ priority order.
 | 2 | Asset and resource ownership | Complete |
 | 3 | COM, inertia, and origin semantics | Complete |
 | 4 | Cross-path feature parity | Complete by user acceptance; recorded verification exceptions remain |
-| 12 | Real-time physics pipeline rework | Highest unfinished priority; goals 1–11 complete; goals 12–17 not started |
+| 12 | Real-time physics pipeline rework | Highest unfinished priority; goals 1–12 complete; goals 13–17 not started |
 | 11 | Soft-body correctness and real-time performance | Superseded by milestone 12; not complete; evidence preserved |
 | 6 | Physics robustness | Goals 1–4 accepted; goal 5 failed verification |
 | — | [C game experiment](#c-game-experiment) | Pending; agree concept and completion criteria when starting |
@@ -52,11 +52,18 @@ protection and production behavior.
 committed at `43f49903`, with causal tests and ranked solution tradeoffs for all
 five questions. No production optimization is adopted. The former Goals 10–16
 are now 11–17. Goal 11's [shared sweep rework](docs/physics_sweep_preparation.md)
-is complete for review: retain rigid-tree topology, prepare swept bounds once,
+is committed at `506b696a`: retain rigid-tree topology, prepare swept bounds once,
 and reuse soft geometry within each selector call. Tested trajectories and
 settings are unchanged. Streaming-active clean CPU medians improve 1.56% in
 the pit and 6.97% in the car prefix, with mixed paired results; the larger early
-pit saving is not established. Goals 12–17 have not started.
+pit saving is not established. Goal 11 is committed at `506b696a`.
+[Goal 12's contact-discovery rework](docs/physics_contact_discovery.md) is complete
+for review against that parent: track committed pose changes, prune redundant
+tree traversal and reuse unchanged beam query bounds, preserving tested state
+and collision work. Three streaming-active timing pairs reduce pit CPU median
+5.54%. The car median is 8.26% lower, but two of three pairs are slower, so a
+consistent car gain is not established. Both worst-update timings increase;
+these remain diagnostics, not rendered acceptance. Goals 13–17 have not started.
 The selected penetration limits remain in force. The C game experiment has not started.
 
 Regression checks and relevant sanitizer checks remain mandatory throughout
@@ -535,10 +542,10 @@ accuracy and behavior against the reference and choose an acceptable middle
 ground. This is the highest unfinished priority and supersedes milestone 11,
 whose failed attempts, experiments, executables, and evidence remain preserved.
 
-**Status: goals 1–11 complete; Goal 8 is committed at `f6146a0a`. Goal 9's
+**Status: goals 1–12 complete; Goal 8 is committed at `f6146a0a`. Goal 9's
 investigation uses parent `ab3c634b`; Goal 10 against parent `f9abe365` is
-committed at `43f49903`. Goal 11 against parent `43f49903` is complete for review;
-Goals 12–17 have not started.**
+committed at `43f49903`. Goal 11 is committed at `506b696a`; Goal 12 is complete
+for review against that parent. Goals 13–17 have not started.**
 The user now limits runtime candidates and new workload experiments to **60 Hz
 physics and below**. Higher-rate evidence remains historical; production defaults
 are unchanged during the audit. The requested isolated comparison uses 60 Hz,
@@ -767,7 +774,20 @@ claimed. All 23 Linux and 23 sanitizer regressions, 219 timed scenarios plus
 four calibrations per platform, Windows cross-builds and installed-SDK example
 checks pass; existing soft-body CPU-budget failures remain visible. Evidence
 is preserved under `sandbox/milestone_12/goal_11/`, including the approved
-roadmap additions that were uncommitted at its parent `43f49903`. Goal 12 has
+roadmap additions that were uncommitted at its parent `43f49903`.
+Goal 12's [contact-discovery report](docs/physics_contact_discovery.md) records
+seven candidates, including the selected combination. Exact pose worklists,
+duplicate/unchanged subtree pruning and reusable beam query bounds preserve
+all tested trajectories and collision work. Pit CPU improves in all three
+streaming-active pairs (median reduction 5.54%); car timing is inconclusive
+despite an 8.26% lower median, with two pairs slower. Worst update times increase
+in both workloads. All 23 Linux and 23 sanitizer regressions, 219 stress endpoints
+plus four calibrations per platform, 1,000 cache-lifetime cycles per platform,
+Windows cross-builds and independent SDK checks pass. Penetration limits and
+existing CPU-comparison failures remain visible. Full particle/polygon geometry
+separation was investigated and remains cross-consumer work under Goal 15;
+no benefit for that unimplemented design is claimed. Evidence is preserved
+under `sandbox/milestone_12/goal_12/`. Goal 12 is complete for review; Goal 13 has
 not started.
 
 1. [x] **Establish the reference and measurement contract.** Pin the reference
@@ -868,7 +888,7 @@ not started.
    velocity, acceleration and proposed-duration changes; current-pose bounds
    and swept bounds must retain their distinct meanings. Apply the shared
    recomputation investigation requirements below.
-12. [ ] **Optimize shared contact-gathering broadphase and filtering.** Cover
+12. [x] **Optimize shared contact-gathering broadphase and filtering.** Cover
     tree build/refit, query traversal, duplicate checks, pair filtering and
     particle queueing. Evaluate reuse and compact data without stale entities,
     missed pairs or changed standalone-stage semantics. Keep narrowphase and

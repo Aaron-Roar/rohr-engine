@@ -94,8 +94,10 @@ bool physics_changes_commit(PhysicsChange *changes, size_t count, Report *report
         if(f & PHYSICS_CHANGE_ANGULAR_ACCELERATION) angular_accelerations[i] = c->angular_acceleration;
         if(f & PHYSICS_CHANGE_FORCE_ACCELERATION) force_accelerations[i] = c->force_acceleration;
         if(f & PHYSICS_CHANGE_TORQUE_ACCELERATION) torque_angular_accelerations[i] = c->torque_acceleration;
-        if(geometry_changed)
+        if(geometry_changed) {
             physics_step_hitbox_dirty_add(i);
+            physics_rigid_gather_pose_dirty_add(i);
+        }
     }
     return true;
 }

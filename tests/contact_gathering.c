@@ -4,6 +4,7 @@
 #include "rohr.h"
 #include "physics/physics_step_internal.h"
 #include <assert.h>
+#include "physics/physics_operation.h"
 #include <math.h>
 #include <string.h>
 
@@ -197,7 +198,151 @@ static void particle_batch_failure(void) {
 }
 #endif
 
+static void pose_commit(EntityIndex index, Position position, Report *report) {
+    PhysicsChange change = physics_change_get(index, PHYSICS_CHANGE_POSITION);
+    change.position = position;
+    assert(physics_changes_commit(&change, 1, report, ROHR_PHYSICS_POSITION_CORRECTION, 0, 0));
+}
+
+static void tracked_correction_pairs(bool reuse_slot) {
+    OK(rohr_engine_start());
+    /* Cross dirty-bitmap word boundaries and reverse handle/iteration order. */
+    Entity first = particle((Position){0, 0});
+    for(unsigned i = 0; i < 70; ++i)
+        (void)particle((Position){100 + 4 * (float)i, 100});
+    Entity second = particle((Position){1.5f, 1.5f});
+    if(reuse_slot) {
+        OK(rohr_entity_delete(first));
+        first = particle((Position){0, 0});
+    }
+    EntityIndex a = rohr_entity_index_get(first).result.value;
+    EntityIndex b = rohr_entity_index_get(second).result.value;
+    physics_step_entities_begin();
+    physics_rigid_gather_tracking_set(true);
+    physics_step_hitbox_cache_begin();
+    physics_step_contact_constraints.solving = true;
+    Report report = gather();
+    assert(candidates(&report) == 1 && physics_step_contact_constraints.count == 0);
+
+    PhysicsChange velocity = physics_change_get(b, PHYSICS_CHANGE_VELOCITY);
+    velocity.velocity.x = 1000;
+    assert(physics_changes_commit(&velocity, 1, &report, ROHR_PHYSICS_VELOCITY, first, second));
+    report = gather();
+    assert(candidates(&report) == 0);
+    pose_commit(b, (Position){1.625f, 1.5f}, &report);
+    pose_commit(a, (Position){.125f, 0}, &report);
+    /* Another consumer may refresh geometry before gathering consumes its
+     * own pending corrections. Both moved: still exactly one tested miss. */
+    physics_step_hitbox_dirty_flush(&report);
+    report = gather();
+    assert(candidates(&report) == 1 && physics_step_contact_constraints.count == 0);
+    pose_commit(b, (Position){1.75f, 1.5f}, &report);
+    pose_commit(b, (Position){1.625f, 1.5f}, &report);
+    report = gather();
+    assert(candidates(&report) == 0);
+    pose_commit(b, (Position){1.25f, 1.25f}, &report);
+    pose_commit(a, (Position){.25f, .25f}, &report);
+    physics_step_hitbox_dirty_flush(&report);
+    report = gather();
+    assert(candidates(&report) == 1 && physics_step_contact_constraints.count == 1);
+    const SystemContactConstraint *contact = &physics_step_contact_constraints.values[0];
+    assert(contact->value.rigid.first == (first < second ? first : second));
+    assert(contact->value.rigid.second == (first < second ? second : first));
+    assert(!contact->value.rigid.responds);
+    physics_rigid_gather_tracking_set(false);
+    physics_step_entities_end();
+    physics_step_hitbox_cache_end();
+    physics_step_contact_constraints.solving = false;
+    /* The next independently invoked stage must see external edits. */
+    OK(rohr_physics_particle_origin_set(second, (Position){100, 0}));
+    physics_pipeline_substep_begin();
+    report = rohr_physics_pipeline_contacts_gather();
+    assert(!report.has_fatal && physics_step_contact_constraints.count == 0);
+    rohr_engine_stop();
+}
+
+static bool beam_target_contact_check(Entity beam, Entity target) {
+    EntityIndex b = rohr_entity_index_get(beam).result.value;
+    for(size_t n = 0; n < physics_step_contact_constraints.count; ++n) {
+        const SystemContactConstraint *c = &physics_step_contact_constraints.values[n];
+        if(c->type == SYSTEM_CONTACT_CONSTRAINT_SOFT_BOUNDARY &&
+                c->value.soft.beam_index == b && c->value.soft.rigid_entity == target)
+            return c->value.soft.overlap.detected;
+    }
+    return false;
+}
+
+static void soft_gather_corrections(bool move_beam) {
+    OK(rohr_engine_start());
+    EntityResult owner = rohr_physics_soft_body_add((SoftBodyDescription){0});
+    OK(owner);
+    Entity nodes[2];
+    EntityIndex indices[2];
+    for(unsigned n = 0; n < 2; ++n) {
+        EntityResult node = rohr_physics_soft_body_node_add((SoftBodyNodeDescription){
+            .owner = owner.result.value, .position = {n ? 10 : -10, 0},
+            .mass = 1, .radius = .1f});
+        OK(node);
+        nodes[n] = node.result.value;
+        indices[n] = rohr_entity_index_get(nodes[n]).result.value;
+    }
+    EntityResult beam = rohr_physics_soft_body_beam_add((SoftBodyBeamDescription){
+        .owner = owner.result.value, .node_a = nodes[0], .node_b = nodes[1],
+        .collision = {.enabled = true, .thickness = 2,
+            .filter = {.category = 1, .responds_to = 0}}});
+    OK(beam);
+    Entity target = particle((Position){0, 5});
+    for(unsigned n = 0; n < 40; ++n)
+        (void)particle((Position){100 + 4 * (float)n, 100});
+    EntityIndex rigid = rohr_entity_index_get(target).result.value;
+    physics_step_entities_begin();
+    physics_rigid_gather_tracking_set(true);
+    physics_step_hitbox_cache_begin();
+    physics_step_contact_constraints.solving = true;
+    physics_soft_body_gather_cache_reset();
+    Report report = gather();
+    physics_soft_body_constraints_gather(&report);
+    assert(!report.has_fatal && !beam_target_contact_check(beam.result.value, target));
+    if(move_beam) {
+        pose_commit(indices[0], (Position){-10, 5}, &report);
+        pose_commit(indices[1], (Position){10, 5}, &report);
+    } else pose_commit(rigid, (Position){0, 0}, &report);
+    physics_step_hitbox_dirty_flush(&report);
+    report = gather();
+    physics_soft_body_constraints_gather(&report);
+    assert(!report.has_fatal && beam_target_contact_check(beam.result.value, target));
+    size_t contacts = physics_step_contact_constraints.count;
+    physics_soft_body_constraints_gather(&report);
+    assert(!report.has_fatal && contacts == physics_step_contact_constraints.count);
+    physics_rigid_gather_tracking_set(false);
+    physics_step_entities_end();
+    physics_step_hitbox_cache_end();
+    physics_step_contact_constraints.solving = false;
+    /* Independent gathers must invalidate cached bounds after a parameter
+     * edit, even when both beam endpoints retain their exact previous pose. */
+    Position target_position = {0, positions[indices[0]].y + 3};
+    OK(rohr_physics_position_set(target, target_position));
+    OK(rohr_physics_soft_body_beam_collision_thickness_set(beam.result.value, .1f));
+    physics_pipeline_substep_begin();
+    report = rohr_physics_pipeline_contacts_gather();
+    assert(!report.has_fatal && !beam_target_contact_check(beam.result.value, target));
+    OK(rohr_physics_soft_body_beam_collision_thickness_set(beam.result.value, 6));
+    physics_pipeline_substep_begin();
+    report = rohr_physics_pipeline_contacts_gather();
+    assert(!report.has_fatal && beam_target_contact_check(beam.result.value, target));
+    OK(rohr_entity_delete(target));
+    target = particle(target_position);
+    physics_pipeline_substep_begin();
+    report = rohr_physics_pipeline_contacts_gather();
+    assert(!report.has_fatal && beam_target_contact_check(beam.result.value, target));
+    rohr_engine_stop();
+}
+
 int main(void) {
+    tracked_correction_pairs(false);
+    tracked_correction_pairs(true);
+    soft_gather_corrections(false);
+    soft_gather_corrections(true);
     particle_batch_parity();
     refit_pairs(false);
     refit_pairs(true);

@@ -27,6 +27,7 @@ static Report physics_pipeline_substep_internal(double *duration, bool adaptive)
     }
     physics_pipeline_substep_begin();
     physics_step_entities_begin();
+    physics_rigid_gather_tracking_set(true);
     physics_step_hitbox_cache_begin();
     physics_pipeline_accelerations_clear();
     physics_rigid_gravity_apply(physics_gravity_get(), &report);
@@ -51,6 +52,7 @@ static Report physics_pipeline_substep_internal(double *duration, bool adaptive)
     child = physics_pipeline_constraints_solve(physics_solver_iterations_get());
     (void)report_merge(&report, &child);
 done:
+    physics_rigid_gather_tracking_set(false);
     physics_step_entities_end();
     physics_step_hitbox_cache_end();
     physics_report_finish(&report, started);
