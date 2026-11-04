@@ -13,7 +13,7 @@ priority order.
 | 2 | Asset and resource ownership | Complete |
 | 3 | COM, inertia, and origin semantics | Complete |
 | 4 | Cross-path feature parity | Complete by user acceptance; recorded verification exceptions remain |
-| 12 | Real-time physics pipeline rework | Highest unfinished priority; goals 1–8 complete; goal 9 next |
+| 12 | Real-time physics pipeline rework | Highest unfinished priority; goals 1–9 complete; goals 10–16 not started |
 | 11 | Soft-body correctness and real-time performance | Superseded by milestone 12; not complete; evidence preserved |
 | 6 | Physics robustness | Goals 1–4 accepted; goal 5 failed verification |
 | — | [C game experiment](#c-game-experiment) | Pending; agree concept and completion criteria when starting |
@@ -43,11 +43,11 @@ verified trajectory parity. Goal 5's joint gathering is committed; Goal 6's
 rigid-contact solving is committed at `479d50a2`, including the requested
 tick-rate experiments. Goal 7's particle-response optimization is committed at `13ac660e`: unwrapped pit CPU falls 5.15% with unchanged tested trajectories and
 settings. Goal 8, particle–rigid response, is committed at `f6146a0a`: unwrapped
-pit CPU falls 4.24%, while the car-prefix CPU median is 1.81% higher. The newly inserted
-Goal 9 audits global algorithms and adaptive stepping before further local
-optimization, following its [investigation plan](docs/physics_algorithm_audit_plan.md).
-It produces evidence and alternatives for user selection; it does not adopt
-experimental changes. The former Goals 9–15 are now 10–16.
+pit CPU falls 4.24%, while the car-prefix CPU median is 1.81% higher.
+Goal 9's [global algorithm audit](docs/physics_algorithm_audit.md) is complete
+for review, following its [investigation plan](docs/physics_algorithm_audit_plan.md).
+It ranks measured causes and alternatives for user selection, retaining sweep
+protection and production behavior. The former Goals 9–15 are now 10–16.
 The selected penetration limits remain in force. The C game experiment has not started.
 
 Regression checks and relevant sanitizer checks remain mandatory throughout
@@ -526,8 +526,18 @@ accuracy and behavior against the reference and choose an acceptable middle
 ground. This is the highest unfinished priority and supersedes milestone 11,
 whose failed attempts, experiments, executables, and evidence remain preserved.
 
-**Status: goals 1–8 complete; Goal 8 is committed at `f6146a0a`. Goals 9–16 have
-not started; the investigation-only global algorithm audit is planned next.**
+**Status: goals 1–9 complete; Goal 8 is committed at `f6146a0a`. Goal 9's
+investigation against parent `ab3c634b` is complete for review;
+Goals 10–16 have not started.**
+The user now limits runtime candidates and new workload experiments to **60 Hz
+physics and below**. Higher-rate evidence remains historical; production defaults
+are unchanged during the audit. The requested isolated comparison uses 60 Hz,
+four configured substeps and eight solver passes, with particle–particle sweep
+restrictions disabled versus retained. Other adaptive limits and the agreed
+penetration-review limits remain in force.
+After the first comparison, the user explicitly selected **keeping existing
+particle–particle sweep protection** and continuing the five-question audit.
+The no-sweep version remains rejected diagnostic evidence.
 Goal 7 is committed at `13ac660e`.
 Goal 6 is committed at `479d50a2`. The original goals 7–11 are now goals 12–16;
 completed goal numbers and evidence directories remain unchanged. Goal 2's
@@ -651,10 +661,12 @@ under `sandbox/milestone_12/goal_<n>/` without replacing earlier evidence.
 **User-directed algorithm audit insertion:** Goal 9 follows completed Goal 8
 before further subsystem optimization. Existing Goals 9–15 become
 10–16; completed goals and their evidence paths retain their numbers. The
-specific experiment excludes particle–particle speed from adaptive timestep
+initial experiment excluded particle–particle speed from adaptive timestep
 restrictions while retaining particle–rigid and rigid–rigid protection, subject
-to the existing penetration and no-tunneling checks. This roadmap update does
-not start Goal 9 or change stepping behavior. The user subsequently specified
+to the existing penetration and no-tunneling checks. During the audit, the user
+clarified that high-speed protection must remain, requested the isolated 60 Hz
+comparison, and then selected retaining existing sweep protection. The
+investigation does not change production stepping behavior. The user specified
 an investigation-only goal: explain each problem's current benefits and costs,
 compare alternatives and tradeoffs, and propose future goals for later selection.
 
@@ -697,11 +709,29 @@ independent installed-SDK examples pass their relevant checks. The historical
 soft-body delayed CPU comparison still fails at 367.545 ms versus 50 ms.
 The extra car classification finds 6,866,172 moving-polygon overlap-only visits
 (3569.629 ms), versus 3,629 responding visits (8.202 ms): the earlier mixed timer
-included overlap refresh. The next audit must distinguish these paths.
+included overlap refresh. Goal 9 distinguishes these paths.
 The 120/60 Hz two-pass pit diagnostics still exceed 0.5 particle overlap; no
 runtime tuning is adopted. Full car and rendered real-time acceptance remain
 open. Interrupted/battery trials are preserved and excluded from controlled
 comparisons. Evidence is under `sandbox/milestone_12/goal_8/`.
+
+Goal 9's [decision report](docs/physics_algorithm_audit.md) ranks the questions
+by likely runtime contribution: repeated discovery, adaptive restrictions,
+unnecessary response/overlap work, unrelated world work, then candidate/data
+costs. It adds explicit hypotheses and disproof tests. Three clean serial
+60/4/8 trials give median physics CPU 34465.826 ms over twelve pit seconds and
+68498.759 ms over the ten-second car prefix; p95 is 93.306 / 200.970 ms.
+Both remain far from real time. The audit measures eight iterations on every
+step, a speed-independent car elastic cap of 0.804 ms, and 1,438 restrictions
+from one soft pair in the worst car update. Repeated rigid/soft discovery and
+particle response are major downstream costs. Existing sweep protection is
+retained; blanket exclusion and the narrower existing-contact-rule removal are
+rejected by high-speed crossing evidence. Twenty-two new Linux and twenty-two
+sanitizer observer regressions pass; exact-source Goal 8 stress/platform evidence
+is reused and 222,314 historical reference updates are rechecked. All selected
+runs, diagnostic limitations and nonadditive work estimates are preserved under
+`sandbox/milestone_12/goal_9/`. No production optimization, tolerance change or
+new implementation ordering is adopted. The user chooses any proposed follow-up.
 
 1. [x] **Establish the reference and measurement contract.** Pin the reference
    commit, preserve its executables and evidence, and establish repeatable
@@ -753,7 +783,7 @@ comparisons. Evidence is under `sandbox/milestone_12/goal_8/`.
    threshold, preserving friction/restitution and rigid
    rotation. Verify impacts, floors, thin barriers, mass ratios and car contacts;
    record exclusive and end-to-end savings with all elapsed time consumed.
-9. [ ] **Audit global physics algorithms and adaptive stepping.** Follow the
+9. [x] **Audit global physics algorithms and adaptive stepping.** Follow the
    [ordered investigation plan](docs/physics_algorithm_audit_plan.md): freeze
    the baseline, instrument causes, measure workload/scaling costs, explain
    each problem and alternatives, run isolated experiments, then deliver a
@@ -763,8 +793,8 @@ comparisons. Evidence is under `sandbox/milestone_12/goal_8/`.
    and drawbacks, alternatives including retaining the design, tradeoffs,
    experimental results, and a recommendation with proposed future acceptance
    criteria. Distinguish shared root causes from symptoms; do not double-count
-   potential savings. Test excluding particle–particle speed-driven adaptive
-   restrictions while retaining particle–rigid/rigid–rigid protection, without
+   potential savings. Test more selective particle–particle adaptive triggers
+   while retaining high-speed crossing and particle–rigid/rigid–rigid protection, without
    implicitly changing ticks, configured subdivisions, passes or correction.
    Preserve the 0.5 particle and 0.1 extreme-fixture review limits, high-speed
    head-on protection, elapsed time, ownership and APIs. Keep failed experiments

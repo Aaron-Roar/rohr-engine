@@ -1,6 +1,7 @@
 # Milestone 12 Goal 8 — Particle–rigid response
 
-Goal 8 is complete and committed at `f6146a0a`. Goal 9 has not started.
+Goal 8 is complete and committed at `f6146a0a`. Goal 9's
+[global algorithm audit](physics_algorithm_audit.md) is complete for review.
 The immediate parent is `13ac660e`; the frozen reference
 remains `physics-pipelines-overoptimized` at
 `6f283268aa4bf038c4ed78271baeb9d5986bd7d9`. Exclude `main`. Sources, SDKs,
@@ -253,8 +254,8 @@ candidates to investigate, not selected designs. Goal 8 changes none of these
 scheduling rules. The user approved inserting this audit as the next Goal 9,
 before more local optimization. Existing Goals 9–15 become 10–16. Goal 8
 verification was briefly paused for the documentation update and then resumed
-as requested. Goal 9 has not started. Its subsequently agreed
-[investigation plan](physics_algorithm_audit_plan.md) requires a report of each
+as requested. Goal 9 subsequently followed its agreed
+[investigation plan](physics_algorithm_audit_plan.md), which requires a report of each
 problem's benefits, costs, alternatives and tradeoffs, with isolated experiments
 where needed. Production changes and future implementation goals await user
 selection after that report.
@@ -298,5 +299,6 @@ and `manifest.json` preserve final source/artifact provenance. SDKs, binaries,
 logs and traces remain under this goal's directory. Profiling wrappers are
 confined to diagnostics and are absent from production engine sources.
 
-Goal 9 requires a separate instruction to start. Full rendered car/pit acceptance,
+Goal 9's investigation-only audit is complete for review, with production
+behavior retained and proposed implementations awaiting selection. Full rendered car/pit acceptance,
 uncapped rendered headroom and final tolerance selection remain Goals 15–16.

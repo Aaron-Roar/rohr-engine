@@ -51,6 +51,13 @@ change geometry, body counts or materials to improve performance. Later goals
 may tune ticks, subdivisions and iterations, but every tested configuration must
 be explicit. Shorter runs and smaller particle counts are diagnostics only.
 
+During Goal 9, the user limited new workload experiments and runtime candidates
+to **60 Hz physics and below**. Higher-rate results and the unchanged stress
+fixture schedules remain reference/regression evidence. The isolated 60 Hz
+car/pit copies submit one tick per displayed update and retain four configured
+substeps and eight solver passes. This audit does not change production defaults;
+see the [algorithm audit](physics_algorithm_audit.md) for configurations and limits.
+
 ## Exclusive stage accounting
 
 [`tools/physics_measurement`](../tools/physics_measurement/CMakeLists.txt) builds

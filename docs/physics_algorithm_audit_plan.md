@@ -1,6 +1,8 @@
 # Milestone 12 Goal 9 — Global physics algorithm audit plan
 
-**Status: planned, not started.** This is an investigation and decision report.
+**Status: complete for review; parent pinned at `ab3c634b`.** The
+[decision report](physics_algorithm_audit.md) contains the measured findings.
+This is an investigation and decision report.
 Do not adopt experimental engine changes or start solution goals during this
 audit. The user will review the findings and select any future implementation
 goals. The authoritative ordering remains in [NEXT_STEPS.md](../NEXT_STEPS.md).
@@ -27,15 +29,18 @@ not proof of a root cause or a guaranteed optimization benefit.
 
 ## Ordered investigation checklist
 
-1. [ ] **Freeze the baseline and questions.** Record source/binary hashes,
-   configurations, hardware and run conditions. Use 240 Hz, four configured
-   subdivisions and eight solver passes as the primary baseline. Reuse valid
+1. [x] **Freeze the baseline and questions.** Record source/binary hashes,
+   configurations, hardware and run conditions. Following the user's direction
+   during the audit, use 60 Hz, four configured subdivisions and eight solver
+   passes as the primary experimental baseline. Pursue only 60 Hz and below;
+   preserve higher-rate results as historical comparisons, not future runtime
+   candidates. This changes experiment scope, not production defaults. Reuse valid
    historical evidence only with its exact provenance and limitations. Keep
    the full twelve-second 800-particle pit and the existing 600-update car
    prefix as audit diagnostics. The car prefix is not the sixty-second car
    endpoint. Do not restart user-stopped full-car or rendered trials as part
    of this audit. Keep the original acceptance fixtures and their final gates.
-2. [ ] **Map the work and instrument its causes.** Draw the tick → configured
+2. [x] **Map the work and instrument its causes.** Draw the tick → configured
    subdivision → adaptive subdivision → solver iteration → refresh hierarchy.
    Attribute exclusive time and calls at each level. Separate initial contact
    discovery from solver-triggered refresh, tree preparation/query/filtering
@@ -48,7 +53,7 @@ not proof of a root cause or a guaranteed optimization benefit.
    unique pairs, contact visits, successful responses and cache reuse/misses.
    Validate observational instrumentation against baseline state/work traces;
    exclusive totals must reconcile with an independently measured root.
-3. [ ] **Measure workloads and scaling.** Rank exclusive stage costs in both
+3. [x] **Measure workloads and scaling.** Rank exclusive stage costs in both
    workloads; report total ms per simulated second, mean/p95 update work,
    counts per tick/substep/iteration, and instrumentation overhead. Identify
    drop/impact and settled-pile phases separately without hiding full-run
@@ -60,15 +65,29 @@ not proof of a root cause or a guaranteed optimization benefit.
    and a fast pair spatially separated from a slow group to expose wake and
    global-subdivision coupling. These are diagnostics, not altered acceptance
    scenes. If a run cannot finish, retain its reason and partial scope.
-4. [ ] **Explain each problem and compare alternatives.** Complete the problem
+4. [x] **Explain each problem and compare alternatives.** Complete the problem
    records below for all five investigation areas. Connect repeated costs to
    shared causes, estimate the maximum removable portion of measured runtime,
    and avoid adding overlapping savings. Preserve findings that refute the
    initial hypothesis. Classify claims as measured, source-supported inference,
    or untested; every remaining uncertainty needs a specific validation task.
-5. [ ] **Run isolated experiments where needed.** First test the user's proposed
-   exclusion of particle–particle speed-driven adaptive restrictions, retaining
+5. [x] **Run isolated experiments where needed.** Investigate a more selective
+   particle–particle subdivision policy, retaining high-speed crossing protection,
    particle–rigid/rigid–rigid restrictions and other stability protections.
+   The user clarified during the audit that high-speed collisions must still
+   trigger substepping; the question is whether ordinary motion triggers it
+   unnecessarily. The initial blanket-exclusion experiment is a rejected control,
+   not the intended solution. The user also requested a diagnostic at 60 Hz
+   removing all particle–particle sweep restrictions while retaining four
+   configured substeps and every other adaptive limit. Compare it with the
+   unchanged policy at the same 60 Hz; this is not approval to ship the policy
+   or waive penetration/tunneling checks. After the initial comparison, the user
+   explicitly selected keeping existing sweep protection and continuing the
+   five-question investigation. Preserve the exclusion experiment as rejected
+   evidence. Distinguish separated approaching pairs, existing
+   contact deepening, relative acceleration and joint/soft stability restrictions.
+   Define risk using proposed relative travel, size, separation and penetration
+   or crossing risk rather than an unexplained absolute-speed cutoff.
    Explain exactly which duration rules change; do not conflate disabling a
    restriction with removing collision detection. Hold tick rate, configured
    subdivisions, solver passes and correction settings fixed. Then prioritize
@@ -79,7 +98,7 @@ not proof of a root cause or a guaranteed optimization benefit.
    to complete the audit. Label unbuilt alternatives and estimated benefits
    explicitly. Tick/subdivision/pass tuning, if needed for comparison, must
    be a separately labeled experiment and cannot stand in for causal analysis.
-6. [ ] **Deliver the decision report and stop.** Produce a ranked root-cause
+6. [x] **Deliver the decision report and stop.** Produce a ranked root-cause
    summary, one problem record per area, experiment results including failures,
    and candidate implementation goals with prerequisites and acceptance checks.
    Map candidates to existing Goals 10–16: indicate potential reuse, replacement
@@ -89,15 +108,24 @@ not proof of a root cause or a guaranteed optimization benefit.
 
 ## Questions and alternatives to cover
 
+The user subsequently requested ordering these questions by likely contribution
+to total runtime. The measured ranking is below: repeated discovery, adaptive
+restrictions, unnecessary response/overlap work, unrelated work, then candidate
+growth/data access. The report distinguishes car/pit priorities and confidence;
+this does not reorder the six investigation steps or future implementation goals.
+Additional hypotheses require explicit disproof tests, including worst-frame
+causes, sweep/response consistency, per-pass convergence, dynamic coupling rather
+than shared static supports, and costs moved into cache/scheduling maintenance.
+
 | Investigation area | Required explanation | Alternatives to assess |
 | --- | --- | --- |
 | Repeated contact discovery | Why rigid/soft gathering repeats within solving; which corrections or invalidations require it; proportion of genuinely new contacts | Retain current refresh; retain conservative candidate sets; refresh only affected geometry/pairs; incremental broadphase updates |
-| Adaptive duration restrictions | Which restrictions win and multiply world work; how configured subdivision differs from adaptive overhead | Retain current limits; exclude particle-pair speed restrictions; targeted continuous collision handling with explicit response guarantees |
-| Unrelated bodies repeating work | Whether a fast pair, joint or soft body reschedules unrelated bodies; how interactions reconnect groups | Retain global execution; separate execution schedules; local subdivision of connected interacting groups |
+| Adaptive duration restrictions | Which restrictions win and multiply world work; how configured subdivision differs from adaptive overhead | Retain current limits; more selective particle-pair risk triggers preserving high-speed protection; targeted continuous collision handling with explicit response guarantees; blanket exclusion only as a control |
 | Unnecessary contact/overlap work | Cost of unchanged geometry, settled contacts, solver convergence and overlap-only refresh; why each is currently repeated | Retain current behavior; contact/manifold reuse; dirty propagation; sleeping with verified wake propagation; less frequent overlap refresh with explicit publication tradeoffs |
+| Unrelated bodies repeating work | Whether a fast pair, joint or soft body reschedules unrelated bodies; how interactions reconnect groups | Retain global execution; separate execution schedules; local subdivision of connected interacting groups |
 | Candidate growth and data access | Scaling with count/density, candidates per real contact, pair duplication, memory access and dispatch overhead | Retain current tree/layout; spatial partitioning changes; compact arrays; SIMD geometry batches; parallel execution only if dependency and synchronization costs are explained |
 
-The existing pit has 13,091 actual versus 11,520 configured substeps over twelve
+The historical 240 Hz pit has 13,091 actual versus 11,520 configured substeps over twelve
 seconds, while the car prefix has 37,113 versus 9,600. Removing adaptive overhead
 alone therefore cannot be assumed to solve both workloads. The pit's 100,417
 rigid-gather calls and the car's 630,413 rigid-gather calls also require examining
@@ -165,4 +193,4 @@ selection. Save the findings in `docs/physics_algorithm_audit.md`, with raw
 logs/traces, configurations, prototype patches, executable hashes and a
 reproduction procedure under the Goal 9 evidence directory. Reconcile the
 roadmap/status documentation, recommend one reviewable audit commit, and stop.
-This plan update alone does not start Goal 9.
+The completed audit does not start any proposed implementation goal.

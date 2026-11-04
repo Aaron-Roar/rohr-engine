@@ -608,13 +608,24 @@ Windows cross-builds and installed-SDK examples pass. Historical soft-body CPU
 and rendered real-time gates remain unmet. Its refined car classification
 attributes 3569.629 ms to moving-polygon overlap-only refresh and only 8.202 ms
 to responding visits in a separate ten-second diagnostic.
-Goal 9 follows the [global algorithm audit plan](physics_algorithm_audit_plan.md),
-including the particle–particle speed restriction experiment. It is an
-investigation and decision report: explain each bottleneck's current benefits
-and costs, compare alternatives and tradeoffs, and propose future goals for
-user selection. Prototypes remain isolated; no production change is adopted
-and no implementation goal is started automatically. Sweep and
-gathering optimization are now Goals 10–11. None has started. The
+Goal 9's [global algorithm audit](physics_algorithm_audit.md) is complete for
+review under its [investigation plan](physics_algorithm_audit_plan.md). It ranks
+repeated discovery, adaptive restrictions, unnecessary response/overlap work,
+unrelated work and candidate/data costs, with explicit hypotheses and disproof
+tests. Clean 60/4/8 median physics work is 34465.826 ms for the twelve-second pit
+and 68498.759 ms for the ten-second car prefix; p95 is 93.306 / 200.970 ms.
+The car's worst update has 1,438 soft restrictions from one recorded pair,
+distinct from its sustained 0.804 ms elastic cap. All eight solver iterations
+execute on every step in both scenes. The report separates these multipliers
+from their expensive discovery/response work and proposes future goals for
+user selection. Prototypes remain isolated; no production change is adopted.
+Sweep and gathering optimization are now Goals 10–11; Goals 10–16 have not
+started. The user limits new runtime candidates to 60 Hz physics and
+below, retaining higher-rate results as history. The isolated 60 Hz experiment
+retains four configured substeps and other adaptive limits while removing
+particle–particle sweep restrictions; production defaults remain unchanged.
+The user subsequently selected keeping existing sweep protection; exclusion
+remains a rejected diagnostic. The
 remaining joint, soft-body, orchestration, real-time and final-comparison goals
 are now 12–16. Flag particle–particle penetration in the diameter-5 pit only
 above 0.5 units. The user provisionally sets penetration checks in all Milestone
