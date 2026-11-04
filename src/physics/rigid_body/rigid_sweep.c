@@ -13,6 +13,89 @@ typedef struct SweepQuery {
     double earliest;
 } SweepQuery;
 
+/* Scratch is valid only during one synchronous selector invocation. Bounds
+ * are prepared once for insertion and query, never retained across motion. */
+typedef struct SweepCollider {
+    Entity entity;
+    EntityIndex index;
+    AABB bounds;
+} SweepCollider;
+static SweepCollider sweep_colliders[MAX_ENTITIES];
+
+/* Only tree topology survives selector calls. Every current collider and bound
+ * is prepared again before any query; contact gathering owns a different tree.
+ * Fixed scratch storage cannot allocate or retain a pointer into entity pools. */
+static AABBTreeNode sweep_tree_nodes[2*MAX_ENTITIES];
+static uint32_t sweep_tree_stack[2*MAX_ENTITIES],sweep_tree_leaves[MAX_ENTITIES];
+static Entity sweep_tree_entities[MAX_ENTITIES];
+static AABBTree sweep_tree={.nodes=sweep_tree_nodes,.query_stack=sweep_tree_stack,
+    .capacity=2*MAX_ENTITIES,.root=AABB_TREE_NODE_INVALID};
+static unsigned sweep_tree_count;
+static bool sweep_tree_ready;
+static double sweep_tree_quality;
+
+static double sweep_tree_quality_get(void) {
+    if(sweep_tree.root==AABB_TREE_NODE_INVALID)return 0;
+    AABB root=sweep_tree.nodes[sweep_tree.root].bounds;
+    double span=(double)root.max_x-root.min_x+(double)root.max_y-root.min_y;
+    if(!(span>0))return 0;
+    double total=0;
+    for(uint32_t n=0;n<sweep_tree.count;++n) {
+        const AABBTreeNode *node=&sweep_tree.nodes[n];
+        if(aabb_tree_node_leaf_check(node))continue;
+        total+=(double)node->bounds.max_x-node->bounds.min_x+
+            (double)node->bounds.max_y-node->bounds.min_y;
+    }
+    return total/span;
+}
+
+static bool sweep_tree_prepare(unsigned count,Report *report) {
+    bool finite=true,reuse=sweep_tree_ready&&count==sweep_tree_count;
+    for(unsigned n=0;n<count;++n) {
+        const SweepCollider *collider=&sweep_colliders[n];
+        AABB bounds=collider->bounds;
+        finite&=isfinite(bounds.min_x)&&isfinite(bounds.max_x)&&
+            isfinite(bounds.min_y)&&isfinite(bounds.max_y);
+        reuse&=collider->entity==sweep_tree_entities[n];
+    }
+    reuse&=finite;
+    if(reuse) {
+        for(unsigned n=0;n<count;++n) {
+            AABB old=sweep_tree.nodes[sweep_tree_leaves[n]].bounds,bounds=sweep_colliders[n].bounds;
+            if(old.min_x==bounds.min_x&&old.max_x==bounds.max_x&&
+                    old.min_y==bounds.min_y&&old.max_y==bounds.max_y)continue;
+            if(!aabb_tree_leaf_bounds_set(&sweep_tree,sweep_tree_leaves[n],bounds)) {
+                reuse=false;break;
+            }
+        }
+        /* Retaining a poor topology is correct but can make traversal slower.
+         * Rebuild after a substantial increase in normalized internal span. */
+        if(reuse&&sweep_tree_quality_get()<=1.5*sweep_tree_quality)return true;
+    }
+    sweep_tree_ready=false;
+    aabb_tree_clear(&sweep_tree);
+    for(unsigned n=0;n<count;++n) {
+        const SweepCollider *collider=&sweep_colliders[n];
+        AABB bounds=collider->bounds;
+        if(!isfinite(bounds.min_x)||!isfinite(bounds.max_x)||
+                !isfinite(bounds.min_y)||!isfinite(bounds.max_y))continue;
+        sweep_tree_entities[n]=collider->entity;
+        sweep_tree_leaves[n]=(uint32_t)sweep_tree.count;
+        EngineResult result=aabb_tree_insert(&sweep_tree,collider->entity,bounds);
+        if(result.kind==ERROR_RESULT_ERROR) {
+            physics_report_issue_add(report,ROHR_PHYSICS_BROADPHASE,ROHR_REPORT_SEVERITY_FATAL,
+                result.result.error,ROHR_REPORT_UPDATE_ABORTED,collider->entity,0,
+                "could not build swept broadphase tree");
+            return false;
+        }
+    }
+    sweep_tree_count=count;
+    sweep_tree_quality=sweep_tree_quality_get();
+    sweep_tree_ready=finite;
+    return true;
+}
+
+
 static Vec2D sweep_displacement_get(EntityIndex index, double dt) {
     if(!physics_entity_movable_get(index)) return (Vec2D){0};
     return (Vec2D){
@@ -273,7 +356,7 @@ double physics_rigid_sweep_duration_get(double dt, Report *report) {
             (!(categories & moving_responses) && !(moving_categories & responses))) return dt;
     /* Delayed collision updates consume all time as bounded integration steps. */
     dt = fmin(dt, 1.0 / 60.0);
-    aabb_tree_clear(&physics_broadphase_tree);
+    unsigned prepared_count = 0;
     for(uint32_t n = 0; n < entity_alive_count_get(); ++n) {
         EntityIndex index;
         Entity entity;
@@ -281,27 +364,15 @@ double physics_rigid_sweep_duration_get(double dt, Report *report) {
                 !entity_index_components_check(index, ROHR_HIT_BOX | ROHR_COLLISION) ||
                 !physics_step_entity_from_index_get(index, &entity) ||
                 !physics_step_hitbox_update(index, report)) continue;
-        AABB bounds = sweep_bounds_get(index, dt);
-        if(!isfinite(bounds.min_x) || !isfinite(bounds.min_y) ||
-                !isfinite(bounds.max_x) || !isfinite(bounds.max_y)) continue;
-        EngineResult result = aabb_tree_insert(&physics_broadphase_tree, entity, bounds);
-        if(result.kind == ERROR_RESULT_ERROR) {
-            physics_report_issue_add(report, ROHR_PHYSICS_BROADPHASE, ROHR_REPORT_SEVERITY_FATAL,
-                result.result.error, ROHR_REPORT_UPDATE_ABORTED, entity, 0,
-                "could not build swept broadphase tree");
-            return dt;
-        }
+        sweep_colliders[prepared_count++] = (SweepCollider){entity, index, sweep_bounds_get(index, dt)};
     }
+    if(!sweep_tree_prepare(prepared_count,report))return dt;
     double earliest = dt;
-    for(uint32_t n = 0; n < entity_alive_count_get(); ++n) {
-        EntityIndex index;
-        Entity entity;
-        if(!physics_step_alive_index_at(n, &index) ||
-                !entity_index_components_check(index, ROHR_HIT_BOX | ROHR_COLLISION) ||
-                !physics_step_entity_from_index_get(index, &entity) ||
-                !world_hit_boxes[index].amount_of_vertices) continue;
-        SweepQuery query = {.source = entity, .index = index, .duration = dt, .earliest = earliest};
-        (void)aabb_tree_query(&physics_broadphase_tree, sweep_bounds_get(index, dt), sweep_pair_visit, &query);
+    for(unsigned n = 0; n < prepared_count; ++n) {
+        const SweepCollider *collider = &sweep_colliders[n];
+        SweepQuery query = {.source = collider->entity, .index = collider->index,
+            .duration = dt, .earliest = earliest};
+        (void)aabb_tree_query(&sweep_tree, collider->bounds, sweep_pair_visit, &query);
         earliest = query.earliest;
     }
     return earliest;

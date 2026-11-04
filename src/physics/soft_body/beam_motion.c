@@ -278,6 +278,13 @@ static double soft_pair_duration_get(const SoftSweep *original_a,const SoftSweep
 static AABB soft_sweep_bounds[MAX_ENTITIES];
 static bool soft_sweep_valid[MAX_ENTITIES];
 static EntityIndex soft_sweep_indices[MAX_ENTITIES];
+/* Prepared geometry is immutable during this synchronous selector. Reuse it
+ * for candidate checks; validity is reset before any later call can use a
+ * borrowed pointer. No entity storage is owned by this scratch.
+ * Broad angular bounds include acceleration, while pair response keeps its
+ * existing instantaneous angular allowance. Store those separately. */
+static SoftSweep soft_sweep_shapes[MAX_ENTITIES];
+static double soft_sweep_rigid_angular[MAX_ENTITIES];
 static AABB soft_sweep_bounds_get(const SoftSweep *s,double dt) {
     AABB box={.min_x=FLT_MAX,.max_x=-FLT_MAX,.min_y=FLT_MAX,.max_y=-FLT_MAX};
     const Position *vertices=soft_sweep_vertices_get(s);
@@ -313,6 +320,7 @@ double physics_soft_sweep_duration_get(double dt,Report *report) {
     for(uint32_t n=0;n<entity_alive_count_get();++n) {
         EntityIndex j;if(!physics_step_alive_index_at(n,&j))continue;
         SoftSweep s={0};
+        double angular_speed=0;
         if(entity_index_components_check(j,ROHR_SOFT_BODY_BEAM)) {
             SoftBodyBeam beam=soft_body_beams[j];EntityIndex a,b;
             if(!beam.collision_enabled||!entity_index_get(beam.node_a,&a)||!entity_index_get(beam.node_b,&b)||
@@ -326,6 +334,7 @@ double physics_soft_sweep_duration_get(double dt,Report *report) {
                 Position com=physics_com_local_by_index_get(j);
                 for(unsigned v=0;v<hit_boxes[j].amount_of_vertices;++v)
                     radius=fmax(radius,hypot(hit_boxes[j].vertices[v].x-com.x,hit_boxes[j].vertices[v].y-com.y));
+                angular_speed=radius*fabs(angular_velocities[j])*.017453292519943295;
                 /* Include prepared angular acceleration in the broad bound. */
                 s.angular_speed=radius*(fabs(angular_velocities[j])+
                     fabs(angular_accelerations[j]+torque_angular_accelerations[j])*dt)*.017453292519943295;
@@ -333,6 +342,8 @@ double physics_soft_sweep_duration_get(double dt,Report *report) {
         }
         if(!soft_sweep_vertex_count_get(&s))continue;
         soft_sweep_bounds[j]=soft_sweep_bounds_get(&s,dt);
+        soft_sweep_shapes[j]=s;
+        soft_sweep_rigid_angular[j]=angular_speed;
         soft_sweep_valid[j]=true;
         soft_sweep_indices[candidate_count++]=j;
     }
@@ -341,7 +352,8 @@ double physics_soft_sweep_duration_get(double dt,Report *report) {
         SoftBodyBeam beam=soft_body_beams[i];EntityIndex a,b;
         if(!beam.collision_enabled||!entity_index_get(beam.node_a,&a)||!entity_index_get(beam.node_b,&b)||
             !entity_index_alive_check(a)||!entity_index_alive_check(b))continue;
-        SoftSweep first=soft_sweep_beam_get(i,a,b);
+        if(!soft_sweep_valid[i])continue;
+        SoftSweep first=soft_sweep_shapes[i];
         for(unsigned n=0;n<candidate_count;++n) {
             EntityIndex j=soft_sweep_indices[n];if(j==a||j==b)continue;
             if(!soft_sweep_valid[i]||!soft_sweep_valid[j]||
@@ -352,15 +364,23 @@ double physics_soft_sweep_duration_get(double dt,Report *report) {
                 SoftBodyBeam target=soft_body_beams[j];EntityIndex c,d;
                 if(!target.collision_enabled||!entity_index_get(target.node_a,&c)||!entity_index_get(target.node_b,&d)||
                     !entity_index_alive_check(c)||!entity_index_alive_check(d)||a==c||a==d||b==c||b==d)continue;
-                second=soft_sweep_beam_get(j,c,d);
+                second=soft_sweep_shapes[j];
             } else if(entity_index_components_check(j,ROHR_COLLISION|ROHR_HIT_BOX)) {
-                if(!physics_step_hitbox_update(j,report))continue;
-                second=(SoftSweep){.rigid_shape=&world_hit_boxes[j],.nodes={j},.count=1,.feature=first.feature};
-                if(physics_entity_movable_get(j)&&!entity_index_components_check(j,ROHR_PARTICLE)) {
-                    Position com=physics_com_local_by_index_get(j);
-                    double radius=0;for(unsigned v=0;v<hit_boxes[j].amount_of_vertices;++v)
-                        radius=fmax(radius,hypot(hit_boxes[j].vertices[v].x-com.x,hit_boxes[j].vertices[v].y-com.y));
-                    second.angular_speed=radius*fabs(angular_velocities[j])*.017453292519943295;
+                if(soft_sweep_shapes[j].count==1) {
+                    second=soft_sweep_shapes[j];
+                    second.feature=first.feature;
+                    second.angular_speed=soft_sweep_rigid_angular[j];
+                } else {
+                    /* A beam can also carry rigid components; its preparation
+                     * followed the beam path, so preserve the rigid fallback. */
+                    if(!physics_step_hitbox_update(j,report))continue;
+                    second=(SoftSweep){.rigid_shape=&world_hit_boxes[j],.nodes={j},.count=1,.feature=first.feature};
+                    if(physics_entity_movable_get(j)&&!entity_index_components_check(j,ROHR_PARTICLE)) {
+                        Position com=physics_com_local_by_index_get(j);
+                        double radius=0;for(unsigned v=0;v<hit_boxes[j].amount_of_vertices;++v)
+                            radius=fmax(radius,hypot(hit_boxes[j].vertices[v].x-com.x,hit_boxes[j].vertices[v].y-com.y));
+                        second.angular_speed=radius*fabs(angular_velocities[j])*.017453292519943295;
+                    }
                 }
             }
             next=fmin(next,soft_pair_duration_get(&first,&second,dt));

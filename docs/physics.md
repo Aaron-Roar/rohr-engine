@@ -619,16 +619,38 @@ distinct from its sustained 0.804 ms elastic cap. All eight solver iterations
 execute on every step in both scenes. The report separates these multipliers
 from their expensive discovery/response work and proposes future goals for
 user selection. Prototypes remain isolated; no production change is adopted.
-The [Goal 10 investigation](physics_bottleneck_investigation.md) is complete
-for review. Its five causal tests favor affected contact refresh, response-aware
+The [Goal 10 investigation](physics_bottleneck_investigation.md) is committed at
+`43f49903`. Its five causal tests favor affected contact refresh, response-aware
 beam bounds and retained broadphase topology. Later passes still change the
 state, and future contacts connect almost the entire pit; blanket pass cuts and
 local stepping are not established solutions. Eight observer workloads retain
 exact state/work traces and four observer SDKs pass all 22 sanitizer regressions
 each. Q2 onward records streaming-active diagnostics; no clean whole-update
 speedup or production adoption is claimed.
-Sweep and gathering optimization are now Goals 11–12; Goals 11–17 have not
-started. The user limits new runtime candidates to 60 Hz physics and
+Sweep and gathering optimization are now Goals 11–12. Goal 11's
+[shared sweep rework](physics_sweep_preparation.md) is complete for review
+against parent `43f49903`. It prepares rigid swept bounds once, retains a
+separate tree's topology with current-bound refitting and membership/quality
+validation, and reuses prepared soft geometry within each selector call.
+Tested trajectories, subdivision counts and settings remain unchanged.
+Detailed rigid-sweep probes improve 10.22% in the pit and 18.18% in the car.
+Three serial streaming-active clean trials per version give total CPU median
+improvements of 1.56% / 6.97%, with mixed paired results and worse pit p95;
+the larger early pit saving is not established. All 23 Linux and 23 sanitizer
+regressions, 219 timed scenarios plus four calibrations per platform,
+independent SDK example checks and Windows cross-builds pass. Numerical
+checks do not erase the existing extreme-fixture CPU failures or complete
+rendered acceptance. Goals 12–17 have not started. The user added
+[recompute-only-when-needed investigations](../NEXT_STEPS.md#recompute-only-when-needed-investigation-requirements-for-goals-1115)
+to Goals 11–15: reuse valid sweep preparation, separate particle circles from
+transformed polygon geometry, cache only valid joint data, refresh affected
+beams, and define shared-cache ownership and deferred geometry/publication
+boundaries. Each goal must measure requests, recomputations, reuse, invalidation
+and complete-update cost, preserving current collision positions, lifecycle,
+manual-stage and callback semantics. Goal 11's selected reuse is documented
+above; the additions for Goals 12–15 remain planned investigations. No accuracy
+reduction is selected.
+The user limits new runtime candidates to 60 Hz physics and
 below, retaining higher-rate results as history. The isolated 60 Hz experiment
 retains four configured substeps and other adaptive limits while removing
 particle–particle sweep restrictions; production defaults remain unchanged.

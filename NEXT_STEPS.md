@@ -13,7 +13,7 @@ priority order.
 | 2 | Asset and resource ownership | Complete |
 | 3 | COM, inertia, and origin semantics | Complete |
 | 4 | Cross-path feature parity | Complete by user acceptance; recorded verification exceptions remain |
-| 12 | Real-time physics pipeline rework | Highest unfinished priority; goals 1–10 complete; goal 10 ready for review; goals 11–17 not started |
+| 12 | Real-time physics pipeline rework | Highest unfinished priority; goals 1–11 complete; goals 12–17 not started |
 | 11 | Soft-body correctness and real-time performance | Superseded by milestone 12; not complete; evidence preserved |
 | 6 | Physics robustness | Goals 1–4 accepted; goal 5 failed verification |
 | — | [C game experiment](#c-game-experiment) | Pending; agree concept and completion criteria when starting |
@@ -49,9 +49,14 @@ for review, following its [investigation plan](docs/physics_algorithm_audit_plan
 It ranks measured causes and alternatives for user selection, retaining sweep
 protection and production behavior.
 [Goal 10's focused investigation](docs/physics_bottleneck_investigation.md) is
-complete for review, with causal tests and ranked solution tradeoffs for all
+committed at `43f49903`, with causal tests and ranked solution tradeoffs for all
 five questions. No production optimization is adopted. The former Goals 10–16
-are now 11–17; Goal 11 remains next and has not started.
+are now 11–17. Goal 11's [shared sweep rework](docs/physics_sweep_preparation.md)
+is complete for review: retain rigid-tree topology, prepare swept bounds once,
+and reuse soft geometry within each selector call. Tested trajectories and
+settings are unchanged. Streaming-active clean CPU medians improve 1.56% in
+the pit and 6.97% in the car prefix, with mixed paired results; the larger early
+pit saving is not established. Goals 12–17 have not started.
 The selected penetration limits remain in force. The C game experiment has not started.
 
 Regression checks and relevant sanitizer checks remain mandatory throughout
@@ -530,9 +535,10 @@ accuracy and behavior against the reference and choose an acceptable middle
 ground. This is the highest unfinished priority and supersedes milestone 11,
 whose failed attempts, experiments, executables, and evidence remain preserved.
 
-**Status: goals 1–10 complete; Goal 8 is committed at `f6146a0a`. Goal 9's
+**Status: goals 1–11 complete; Goal 8 is committed at `f6146a0a`. Goal 9's
 investigation uses parent `ab3c634b`; Goal 10 against parent `f9abe365` is
-complete for review. Goals 11–17 have not started.**
+committed at `43f49903`. Goal 11 against parent `43f49903` is complete for review;
+Goals 12–17 have not started.**
 The user now limits runtime candidates and new workload experiments to **60 Hz
 physics and below**. Higher-rate evidence remains historical; production defaults
 are unchanged during the audit. The requested isolated comparison uses 60 Hz,
@@ -749,7 +755,20 @@ Snapshot comparisons favor testing retained topology and compact particle data,
 without establishing a whole-update speedup. Streaming-active diagnostics from
 Q2 onward are separated from the controlled baseline. Evidence is preserved
 under `sandbox/milestone_12/goal_10/`; no solution is adopted. Former Goals 10–16
-are now 11–17; Goal 11 remains next pending review and explicit instruction.
+are now 11–17. Goal 11's [completed sweep report](docs/physics_sweep_preparation.md)
+records five measured alternatives. The selected implementation retains only
+rigid-tree topology across calls, refits current swept bounds, and reuses soft
+geometry within each call. Bounds calculations halve, with unchanged tested
+state/work traces and subdivision counts. Final detailed rigid-sweep probes
+improve 10.22% in the pit and 18.18% in the car; clean total CPU medians improve
+1.56% / 6.97%, with substantial streaming-active variation and mixed paired
+results. No consistent large whole-workload gain or rendered acceptance is
+claimed. All 23 Linux and 23 sanitizer regressions, 219 timed scenarios plus
+four calibrations per platform, Windows cross-builds and installed-SDK example
+checks pass; existing soft-body CPU-budget failures remain visible. Evidence
+is preserved under `sandbox/milestone_12/goal_11/`, including the approved
+roadmap additions that were uncommitted at its parent `43f49903`. Goal 12 has
+not started.
 
 1. [x] **Establish the reference and measurement contract.** Pin the reference
    commit, preserve its executables and evidence, and establish repeatable
@@ -836,13 +855,19 @@ are now 11–17; Goal 11 remains next pending review and explicit instruction.
     mapped to Goals 11–17 for user selection. **Investigation only:** preserve
     evidence under `sandbox/milestone_12/goal_10/`, keep production unchanged,
     and stop for review before adopting solutions or starting another goal.
-11. [ ] **Optimize shared sweep preparation and traversal.** Cover repeated
+11. [x] **Optimize shared sweep preparation and traversal.** Cover repeated
    entity scans, bounds preparation, swept-tree construction/update, tree queries
    and eligibility filtering. Evaluate conservative reuse and invalidation
    across adaptive subdivisions. Keep pair geometry costs separately measured;
    preserve moving-body coverage, earliest-contact protection and complete
    elapsed-time consumption. Measure missed contacts, tunneling and full-run
    penetration against the retained limits, alongside exclusive and total cost.
+   Investigate separating reusable shape information from motion-dependent
+   bounds, sharing per-body motion preparation across candidate checks, and
+   retaining tree topology across subdivisions. Define validity against pose,
+   velocity, acceleration and proposed-duration changes; current-pose bounds
+   and swept bounds must retain their distinct meanings. Apply the shared
+   recomputation investigation requirements below.
 12. [ ] **Optimize shared contact-gathering broadphase and filtering.** Cover
     tree build/refit, query traversal, duplicate checks, pair filtering and
     particle queueing. Evaluate reuse and compact data without stale entities,
@@ -851,18 +876,44 @@ are now 11–17; Goal 11 remains next pending review and explicit instruction.
     unchanged collision coverage, retained penetration limits and contact
     lifetime safety; measure candidate work, exclusive savings and total physics
     cost in the unchanged pit and car.
+    Investigate updating particle centers/radii independently of transformed
+    polygon vertices, producing detailed geometry only for consumers that need
+    it. Evaluate conservative bounds reused until motion or correction leaves
+    their envelope, precise pose versus velocity-only invalidation, and affected
+    collider/beam worklists. Reusing bounds must still test current collision
+    positions and discover correction-created pairs; do not freeze hitboxes
+    through substeps. Apply the shared recomputation requirements below.
 13. [ ] **Analyze and rework joint solving.** Cover pin/weld response, spring
    coupling and transform locks. Measure constraint error, energy behavior and
    cost under the existing high-speed, high-rotation fixtures. Preserve
    documented ownership and lock semantics.
+   Investigate separating connected-entity/local-anchor/parameter data from
+   current world anchors and solver state. Measure repeated anchor transforms
+   and mass calculations before adding caches; retain motion-dependent terms
+   and refresh on parameter, mass/inertia, origin, topology and lifetime changes.
+   Reuse existing Goal 5 data where valid. Apply the shared recomputation
+   requirements below; retain the design if savings do not justify maintenance.
 14. [ ] **Analyze and rework soft-body constraint solving.** Cover node–rigid,
    beam–rigid and beam–beam response, self-collision and contact refresh.
    Evaluate how rigid corrections and soft contacts interact. Measure
    deformation, seam penetration, tunneling, energy and car behavior.
+   Investigate node-to-beam dependencies, cheap conservative beam bounds before
+   detailed geometry, and geometry reuse across sweep, gathering and response
+   only where their pose/shape assumptions agree. Refresh affected beams and
+   contacts, including unchanged beams approached by moved rigid bodies.
+   Investigate Goal 10's collapsed-beam sweep/response mismatch with conservative
+   fallbacks and retained node/beam collision coverage. Apply the shared
+   recomputation requirements below.
 15. [ ] **Analyze and rework pipeline orchestration and finalization.** Integrate
    the revised stages. Review their execution order, shared caches, invalidation,
    repeated passes, interaction publication and reporting overhead. Verify
    standalone stages and complete updates remain correctly composed.
+   Investigate shared-cache ownership and per-consumer validity, deduplicating
+   refresh requests, deferring unused derived geometry until needed, and avoiding
+   redundant intermediate interaction work. One consumer must not clear another
+   consumer's pending invalidation. Preserve callback-visible state, reporting,
+   overlap/contact publication and manual-stage semantics. Apply the shared
+   recomputation requirements below.
 16. [ ] **Meet the combined real-time gates.** Resolve remaining integration
     bottlenecks and select measured runtime settings. Verify both the car and
     particle pit meet the performance contract below. Produce visual previews
@@ -876,6 +927,37 @@ are now 11–17; Goal 11 remains next pending review and explicit instruction.
     scenarios. Present accuracy, behavior and performance tradeoffs for user
     selection. Implement the selected balance, retain real-time performance,
     and verify the agreed final tolerances before updating milestone 6's status.
+
+#### Recompute only when needed: investigation requirements for Goals 11–15
+
+These user-approved additions define investigations within the existing goals;
+they do not start a goal, reorder implementation, adopt a cache or authorize a
+numerical approximation. Check existing reuse before proposing another layer.
+For each opportunity:
+
+- Identify which data depends on topology, shape/parameters, pose or motion,
+  which consumers need it, and the exact invalidation and consumption boundaries.
+  Preserve current geometry/response where required; investigate cheaper
+  boolean overlap checks or conservative bounds when a caller does not need
+  detailed geometry. This does not authorize a public API redesign.
+- Count refresh requests, actual recomputations, successful reuse and reasons
+  for invalidation. Measure exclusive cost and complete-update time, including
+  lookup, deduplication, storage, validation, conversion and fallback costs.
+  Distinguish avoided scans from avoided geometry work; do not add overlapping
+  savings or assume fewer calculations guarantee a useful speedup.
+- Verify corrections and high-speed motion, bound expansion/fallback, shape,
+  radius, origin, mass and filter edits as applicable, entity deletion/reuse,
+  and independently invoked stages. Conservative envelopes must trigger refresh
+  before reuse becomes invalid. Keep error detection and lifetime safety intact.
+- Compare current and proposed paths under the existing measurement contract,
+  with full-run behavior checks and relevant platform/sanitizer verification.
+  Document a measured no-change decision when maintenance outweighs savings.
+
+Particle geometry separation, precise invalidation and affected-beam refresh
+are priority hypotheses within their assigned goals, not established speedups.
+Preserve the 0.5 particle-pair and 0.1 extreme-fixture review limits, existing
+sweep protection and current settings unless a separate measured settings
+experiment is explicitly identified. No new accuracy tradeoff is selected here.
 
 #### Performance and verification contract
 
