@@ -252,7 +252,9 @@ removing the latter may require a different response method. Contact reuse,
 local subdivision of connected bodies and sleeping/wake propagation are
 candidates to investigate, not selected designs. Goal 8 changes none of these
 scheduling rules. The user approved inserting this audit as the next Goal 9,
-before more local optimization. Existing Goals 9–15 become 10–16. Goal 8
+before more local optimization. That insertion moved the then-existing
+Goals 9–15 to 10–16.
+The later Goal 10 investigation moves those remaining goals to 11–17. Goal 8
 verification was briefly paused for the documentation update and then resumed
 as requested. Goal 9 subsequently followed its agreed
 [investigation plan](physics_algorithm_audit_plan.md), which requires a report of each
@@ -301,4 +303,4 @@ confined to diagnostics and are absent from production engine sources.
 
 Goal 9's investigation-only audit is complete for review, with production
 behavior retained and proposed implementations awaiting selection. Full rendered car/pit acceptance,
-uncapped rendered headroom and final tolerance selection remain Goals 15–16.
+uncapped rendered headroom and final tolerance selection remain Goals 16–17.

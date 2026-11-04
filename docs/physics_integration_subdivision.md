@@ -195,6 +195,6 @@ preserves it. Code inspection found that the car's benchmark branch also omits
 not expire through physics updates alone. This is an existing benchmark-path
 concern, not a changed integration behavior or a measured explanation for the
 baseline slowdown. The unchanged benchmark remains useful for paired engine
-comparisons, but its jump/lifecycle handling needs review before Goal 15's final
+comparisons, but its jump/lifecycle handling needs review before Goal 16's final
 motion and playback acceptance. Preserve the existing traces when reconciling
 that fixture; do not silently replace its historical evidence.

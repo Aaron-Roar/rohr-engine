@@ -12,6 +12,13 @@ five problem records. [NEXT_STEPS.md](../NEXT_STEPS.md#12-real-time-physics-pipe
 remains authoritative. Proposed implementation goals below are options for later
 selection, not additions or automatic changes to the milestone order.
 
+**Subsequent roadmap decision:** the user inserted
+[Goal 10](physics_bottleneck_investigation_plan.md) to investigate each ranked
+question and its potential solutions before implementation. It is planned,
+not started. Forward references below use the renumbered implementation Goals
+11–17. Goal 9's archived report and evidence retain their original numbering;
+the new investigation does not imply that any proposed solution is adopted.
+
 ## Questions ranked by likely contribution
 
 The user requested that the questions be ordered by likely culprit. This is
@@ -469,8 +476,8 @@ an inference, not an implemented lifetime proof.
 
 **Recommendation.** Prioritize a small internal dirty-worklist experiment, then
 consider bounded candidate reuse if traversal remains dominant. Map this to
-Goal 11 (shared gathering), with Goal 13 covering soft-contact consequences and
-Goal 14 covering invalidation/composition. Acceptance should include measured
+Goal 12 (shared gathering), with Goal 14 covering soft-contact consequences and
+Goal 15 covering invalidation/composition. Acceptance should include measured
 changed/visited ratios, total update cost, correction-created contacts, manual
 stages, deletion/reuse and the retained penetration limits. These are proposed
 follow-up tasks, not work adopted during this audit.
@@ -584,11 +591,11 @@ the current policy, including dense and grazing cases. Do not spend more on
 rejection than the pair math it replaces.
 
 **Recommendation.** Keep protection, as the user selected. Prioritize shared
-sweep preparation/traversal (Goal 10); use the measured winning causes to decide
+sweep preparation/traversal (Goal 11); use the measured winning causes to decide
 whether a separate risk-policy goal is worthwhile. A future policy must pass
 all existing head-on schedules, initial-overlap/accelerated/grazing controls,
 time consumption and the stated penetration limits before performance claims
-make it a candidate. Soft stability restrictions belong with Goal 13; removing
+make it a candidate. Soft stability restrictions belong with Goal 14; removing
 PP restrictions cannot remove their repeated work.
 
 ## 3. Unnecessary contact and overlap work
@@ -625,8 +632,8 @@ to a local velocity kick, without hiding earlier impact peaks.
 | Defer overlap-only refresh to publication | Reduces repeated nonresponse work inside solving | May change manual-stage or mid-solve query observations; must establish ownership/publication semantics first |
 
 **Recommendation.** Separate dirty propagation and overlap publication analysis
-from numerical convergence changes. Small cache/dirty changes fit Goals 11/14;
-soft/joint wake propagation belongs with Goals 12/13. A sleeping or convergence
+from numerical convergence changes. Small cache/dirty changes fit Goals 12/15;
+soft/joint wake propagation belongs with Goals 13/14. A sleeping or convergence
 change should be its own user-selected goal with perturbation, external-load,
 contact-chain, teleport/filter-change and entity-reuse checks. Do not silently
 reduce iterations or loosen correction settings under an optimization label.
@@ -662,7 +669,7 @@ repeat global work; they do not measure a hypothetical island scheduler's gain.
 not an incidental change to gathering. Before proposing implementation, record
 actual/predicted component sizes and the fraction of work outside the winning
 component. If most of the pile is connected, pursue discovery/data-layout work
-first. Map to Goal 14 orchestration with prerequisites from Goals 10–13. The
+first. Map to Goal 15 orchestration with prerequisites from Goals 11–14. The
 removable bound is work demonstrably outside a restricted component, not the
 entire adaptive overhead. This audit does not claim that bound has been measured
 for the car, nor that a production island design is validated.
@@ -709,8 +716,8 @@ small circle test cannot remove the surrounding CPU world passes.
 
 **Recommendation.** Prioritize measured shared traversal/filtering and compact
 response data experiments over speculative GPU migration. Map spatial discovery
-to Goals 10/11, response storage to a separately selected extension of the
-completed response work, and composition to Goal 14. Accept only whole-workload
+to Goals 11/12, response storage to a separately selected extension of the
+completed response work, and composition to Goal 15. Accept only whole-workload
 improvement at 60 Hz or below with mixed/soft/joint correctness and lifecycle
 checks. If hardware profiling is needed to choose between layout and arithmetic,
 make cache/branch/bandwidth sampling a concrete prerequisite, not an assumed fact.
@@ -724,14 +731,14 @@ does not claim to have proved a globally optimal engine design.
 
 | Priority for consideration | Proposed commit-sized goal | Why this is worth testing | Prerequisites and acceptance checks | Existing milestone overlap |
 | --- | --- | --- | --- | --- |
-| 1 | Replace full collider scans during solver refits with an explicit changed-pose worklist | Most inspected car poses are unchanged; avoids work without changing numerical integration | Preserve manual gather, shape/filter edits, correction-created pairs, deterministic order and generation-safe deletion/reuse. Compare all state/work fields except intentionally reduced discovery counts. Require lower full-workload CPU, not only faster refits, plus Linux/sanitizer/Windows/SDK checks | Goal 11; invalidation composition in Goal 14 |
-| 2 | Add a particle-specific convergence diagnostic, then an isolated early-exit candidate | Dense particles cannot use the existing block-solver convergence path; eight passes are executed even when a useful residual might already be satisfied | First measure contact-normal, friction and positional residuals after every pass. Compare early-exit decision cost with saved passes. Keep pit/head-on 0.5, extreme-fixture 0.1, impact/rebound/energy/support and lifetime checks; no automatic tolerance changes | New response follow-up if selected; Goal 14 convergence/composition |
-| 3 | Explain the worst car update's repeated soft-pair restriction | One recorded pair wins 1,438 soft restrictions in a single update, far below the elastic timestep | Replay that update with branch/proxy/contact/motion observations and unchanged traces. Distinguish necessary collision resolution from conservative false positives or sweep/response mismatch. Deliver a minimal reproduction and a separate proposed fix with penetration, energy and timing checks; do not simply clamp the step | Goal 13 investigation; Goal 14 scheduling consequences |
-| 4 | Prototype local elastic integration for one soft body, with explicit contact-coupling boundaries | The car's 0.804 ms elastic cap multiplies unrelated world work even at low speeds | First measure component sizes, work outside the restricted component and alternative limiting bounds; separate the worst soft-pair spike from sustained stability cost. Retain all elapsed time, authored stiffness/mass/materials, force ownership and all external contact restrictions. Compare deformation, energy, beam/seam penetration, delayed updates and car controls before adopting any new integrator. A different implicit/constraint formulation requires a separate physics-design choice | Goals 13–14; may require a user-selected integration follow-up rather than silently changing Goal 10 |
-| 5 | Reuse swept-tree topology and refit bounds, retaining all pair restrictions | Shared sweep preparation and traversal are expensive even when circle math is cheap | Prove swept bounds through acceleration/rotation/locks and handle reuse; preserve high-speed, thin-barrier and soft/joint fixtures. Measure construction, traversal and total CPU; a faster build that increases candidates is not automatically a win | Goal 10 |
-| 6 | Prototype conservative candidate reuse across a bounded solver correction interval | Repeated traversal finds comparatively few new rigid records | Needs a conservative correction envelope or reliable expansion/fallback, including joints and soft bodies. Preserve newly created contacts and retained impact state. Compare maintenance cost, memory peak, penetration and full update time | Goal 11, with Goals 12–14 dependencies |
-| 7 | Prototype compact particle-contact storage without changing solve order | Common records carry much more data than a circle response needs | First measure memory/branch behavior. Preserve retained impulse/rebound targets, query orientation, shared-entity ordering and lifecycle. Require whole-pit improvement and no unexplained car regression; SIMD response must use proven independent batches or separately accepted convergence changes | Separately selected response follow-up; Goal 14 integration |
-| 8 | Audit which overlap-only refreshes can move to publication without changing observable interactions | Avoids nonresponse geometry inside repeated solver passes | Prove full-update and standalone-stage publication semantics, including transient overlaps, entered/stayed/exited queries and deletion/filter changes. Retain current cadence if equivalence cannot be established | Goal 14; overlap with Goal 11 caches |
+| 1 | Replace full collider scans during solver refits with an explicit changed-pose worklist | Most inspected car poses are unchanged; avoids work without changing numerical integration | Preserve manual gather, shape/filter edits, correction-created pairs, deterministic order and generation-safe deletion/reuse. Compare all state/work fields except intentionally reduced discovery counts. Require lower full-workload CPU, not only faster refits, plus Linux/sanitizer/Windows/SDK checks | Goal 12; invalidation composition in Goal 15 |
+| 2 | Add a particle-specific convergence diagnostic, then an isolated early-exit candidate | Dense particles cannot use the existing block-solver convergence path; eight passes are executed even when a useful residual might already be satisfied | First measure contact-normal, friction and positional residuals after every pass. Compare early-exit decision cost with saved passes. Keep pit/head-on 0.5, extreme-fixture 0.1, impact/rebound/energy/support and lifetime checks; no automatic tolerance changes | New response follow-up if selected; Goal 15 convergence/composition |
+| 3 | Explain the worst car update's repeated soft-pair restriction | One recorded pair wins 1,438 soft restrictions in a single update, far below the elastic timestep | Replay that update with branch/proxy/contact/motion observations and unchanged traces. Distinguish necessary collision resolution from conservative false positives or sweep/response mismatch. Deliver a minimal reproduction and a separate proposed fix with penetration, energy and timing checks; do not simply clamp the step | Goal 14 investigation; Goal 15 scheduling consequences |
+| 4 | Prototype local elastic integration for one soft body, with explicit contact-coupling boundaries | The car's 0.804 ms elastic cap multiplies unrelated world work even at low speeds | First measure component sizes, work outside the restricted component and alternative limiting bounds; separate the worst soft-pair spike from sustained stability cost. Retain all elapsed time, authored stiffness/mass/materials, force ownership and all external contact restrictions. Compare deformation, energy, beam/seam penetration, delayed updates and car controls before adopting any new integrator. A different implicit/constraint formulation requires a separate physics-design choice | Goals 14–15; may require a user-selected integration follow-up rather than silently changing Goal 11 |
+| 5 | Reuse swept-tree topology and refit bounds, retaining all pair restrictions | Shared sweep preparation and traversal are expensive even when circle math is cheap | Prove swept bounds through acceleration/rotation/locks and handle reuse; preserve high-speed, thin-barrier and soft/joint fixtures. Measure construction, traversal and total CPU; a faster build that increases candidates is not automatically a win | Goal 11 |
+| 6 | Prototype conservative candidate reuse across a bounded solver correction interval | Repeated traversal finds comparatively few new rigid records | Needs a conservative correction envelope or reliable expansion/fallback, including joints and soft bodies. Preserve newly created contacts and retained impact state. Compare maintenance cost, memory peak, penetration and full update time | Goal 12, with Goals 13–15 dependencies |
+| 7 | Prototype compact particle-contact storage without changing solve order | Common records carry much more data than a circle response needs | First measure memory/branch behavior. Preserve retained impulse/rebound targets, query orientation, shared-entity ordering and lifecycle. Require whole-pit improvement and no unexplained car regression; SIMD response must use proven independent batches or separately accepted convergence changes | Separately selected response follow-up; Goal 15 integration |
+| 8 | Audit which overlap-only refreshes can move to publication without changing observable interactions | Avoids nonresponse geometry inside repeated solver passes | Prove full-update and standalone-stage publication semantics, including transient overlaps, entered/stayed/exited queries and deletion/filter changes. Retain current cadence if equivalence cannot be established | Goal 15; overlap with Goal 12 caches |
 
 These implementation priorities account for risk and prerequisites as well as
 likely runtime contribution; they are distinct from the ranked questions above.
@@ -782,9 +789,9 @@ enough to justify the change. SIMD batch collision checks are feasible, and
 circle gathering already uses them; shared-body response dependencies need a
 different execution design. Atomics alone are not that design.
 
-Goals 12 and 13 still own joint and soft response accuracy. Goal 14 owns final
-composition, invalidation and publication. Goal 15 still requires the full
-rendered car/pit gates and motion/window-switch review; Goal 16 still requires
+Goals 13 and 14 still own joint and soft response accuracy. Goal 15 owns final
+composition, invalidation and publication. Goal 16 still requires the full
+rendered car/pit gates and motion/window-switch review; Goal 17 still requires
 reference tradeoff selection and explicit acceptance of any final tolerance
 changes. Completing this audit changes none of those statuses.
 

@@ -7,6 +7,11 @@ Do not adopt experimental engine changes or start solution goals during this
 audit. The user will review the findings and select any future implementation
 goals. The authoritative ordering remains in [NEXT_STEPS.md](../NEXT_STEPS.md).
 
+The user subsequently added [Goal 10](physics_bottleneck_investigation_plan.md)
+for focused investigation of each ranked question and its solutions. Forward
+references here use the resulting Goals 11–17; the completed Goal 9 evidence
+and original plan snapshot are preserved. Goal 10 has not started.
+
 ## Outcome and boundaries
 
 Explain the main causes of physics cost in the unchanged car and particle pit,
@@ -101,7 +106,7 @@ not proof of a root cause or a guaranteed optimization benefit.
 6. [x] **Deliver the decision report and stop.** Produce a ranked root-cause
    summary, one problem record per area, experiment results including failures,
    and candidate implementation goals with prerequisites and acceptance checks.
-   Map candidates to existing Goals 10–16: indicate potential reuse, replacement
+   Map candidates to existing Goals 11–17: indicate potential reuse, replacement
    or overlap without changing their order or marking anything superseded.
    Stop for user selection; creating or pursuing those goals requires a later
    instruction. The report may recommend retaining an existing algorithm.

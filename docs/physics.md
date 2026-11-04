@@ -595,8 +595,8 @@ increases to 1.041389/1.617722 and floor penetration to 0.350550/0.982507.
 These complete headless trials exceed both proposed particle-overlap limits.
 Final tolerances, rendered acceptance and global tick/subdivision selection
 remain open. The user has inserted four next goals: 7, particle–particle
-response; 8, particle–rigid response; 10, shared sweep preparation/traversal;
-and 11, shared gathering broadphase/filtering. Goal 7's
+response; 8, particle–rigid response; 11, shared sweep preparation/traversal;
+and 12, shared gathering broadphase/filtering. Goal 7's
 [particle-response rework](physics_particle_response.md) is committed at
 `13ac660e`; Goal 8
 [particle–rigid response](physics_particle_rigid_response.md) is committed at
@@ -619,7 +619,10 @@ distinct from its sustained 0.804 ms elastic cap. All eight solver iterations
 execute on every step in both scenes. The report separates these multipliers
 from their expensive discovery/response work and proposes future goals for
 user selection. Prototypes remain isolated; no production change is adopted.
-Sweep and gathering optimization are now Goals 10–11; Goals 10–16 have not
+The next [Goal 10 investigation](physics_bottleneck_investigation_plan.md)
+will examine each ranked question and its potential solutions with focused
+causal tests. It is planned, not started; production adoption awaits review.
+Sweep and gathering optimization are now Goals 11–12; Goals 10–17 have not
 started. The user limits new runtime candidates to 60 Hz physics and
 below, retaining higher-rate results as history. The isolated 60 Hz experiment
 retains four configured substeps and other adaptive limits while removing
@@ -627,7 +630,7 @@ particle–particle sweep restrictions; production defaults remain unchanged.
 The user subsequently selected keeping existing sweep protection; exclusion
 remains a rejected diagnostic. The
 remaining joint, soft-body, orchestration, real-time and final-comparison goals
-are now 12–16. Flag particle–particle penetration in the diameter-5 pit only
+are now 13–17. Flag particle–particle penetration in the diameter-5 pit only
 above 0.5 units. The user provisionally sets penetration checks in all Milestone
 6 extreme fixtures to 0.1 units (drop, thin barriers, stack, joint collisions
 and soft bodies). These are review thresholds, not solver settings; equality
@@ -684,12 +687,12 @@ Continue milestone 6 goals 1–5 and relevant regressions to their declared
 endpoints, recording full-run worst errors even after numerical failures.
 Existing numerical tolerances and extreme-fixture CPU budgets are comparison
 criteria during rework, not mandatory intermediate gates; their failures remain
-visible. New goals 7–10 specifically require their selected result to respect
-the clarified review thresholds; changing these does not authorize changes to
+visible. Collision optimization Goals 7–8 and 11–12 require their selected
+result to respect the clarified review thresholds; changing these does not authorize changes to
 solver correction slack.
 Invalid/nonfinite state, fatal errors, inability to advance time or
 interruption remain incomplete. Safety and lifecycle verification remain
-mandatory. Final tolerance changes require explicit user acceptance in goal 16
+mandatory. Final tolerance changes require explicit user acceptance in goal 17
 and verification before updating milestone 6's status. New executables and
 evidence belong under `sandbox/milestone_12/goal_<n>/`.
 

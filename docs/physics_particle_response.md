@@ -193,7 +193,7 @@ seconds, matching the existing float tick duration and both parent/reference
 traces exactly. It consumes 103948.219 ms of physics CPU, with p95 352.330 ms.
 This is neither a completed sixty-second scenario nor a repeated car performance
 comparison; no car speedup is claimed. The existing jump-force clock finding
-remains assigned to Goal 15. No stopped full-car or rendered-window trial was
+remains assigned to Goal 16. No stopped full-car or rendered-window trial was
 restarted.
 
 Linux engine execution, sanitized car/pit smokes, Windows cross-builds and

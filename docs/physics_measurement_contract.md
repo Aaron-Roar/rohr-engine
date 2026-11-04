@@ -233,7 +233,7 @@ Finite numerical failures continue to the declared endpoint. Invalid/nonfinite
 state, fatal errors, inability to advance time and interruption are incomplete,
 even if a process prints an endpoint. Check trace validity and observer/report
 counts alongside endpoint status. Keep original tolerances and their failures
-visible; only Goal 16 (originally Goal 11) may adopt user-approved final overall
+visible; only Goal 17 (originally Goal 11) may adopt user-approved final overall
 tolerances. The user has provisionally changed the penetration-review thresholds:
 particle–particle pit penetration is flagged only above 0.5 units, while all
 Milestone 6 extreme-fixture penetration checks use 0.1 units. Equality passes
@@ -241,7 +241,8 @@ that check; unrelated failures remain failures. These are review criteria,
 not solver correction settings. Preserve original criteria and measurements as
 historical evidence; do not relabel old runs as reruns under the new policy.
 Keep support, tunneling, energy, rebound, joint-error and nonfinite-state checks
-unchanged. No new particle–wall pit threshold is implied. New goals 7–10 must
+unchanged. No new particle–wall pit threshold is implied. Collision optimization
+Goals 7–8 and 11–12 must
 rebaseline with original correction settings: the 0.5/1.0 solver-slack prototypes
 were based on a misinterpretation of "slack" and are not approved configurations.
 Their comparisons separate
