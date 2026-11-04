@@ -42,10 +42,12 @@ verified unchanged trajectories. Goals 3 and 4 preserve integration settings and
 verified trajectory parity. Goal 5's joint gathering is committed; Goal 6's
 rigid-contact solving is committed at `479d50a2`, including the requested
 tick-rate experiments. Goal 7's particle-response optimization is committed at `13ac660e`: unwrapped pit CPU falls 5.15% with unchanged tested trajectories and
-settings. Goal 8, particle–rigid response, is complete for review: unwrapped
+settings. Goal 8, particle–rigid response, is committed at `f6146a0a`: unwrapped
 pit CPU falls 4.24%, while the car-prefix CPU median is 1.81% higher. The newly inserted
 Goal 9 audits global algorithms and adaptive stepping before further local
-optimization; the former Goals 9–15 are now 10–16.
+optimization, following its [investigation plan](docs/physics_algorithm_audit_plan.md).
+It produces evidence and alternatives for user selection; it does not adopt
+experimental changes. The former Goals 9–15 are now 10–16.
 The selected penetration limits remain in force. The C game experiment has not started.
 
 Regression checks and relevant sanitizer checks remain mandatory throughout
@@ -524,8 +526,8 @@ accuracy and behavior against the reference and choose an acceptable middle
 ground. This is the highest unfinished priority and supersedes milestone 11,
 whose failed attempts, experiments, executables, and evidence remain preserved.
 
-**Status: goals 1–8 complete; Goal 8 awaits review and commit. Goals 9–16 have
-not started; the global algorithm audit is next.**
+**Status: goals 1–8 complete; Goal 8 is committed at `f6146a0a`. Goals 9–16 have
+not started; the investigation-only global algorithm audit is planned next.**
 Goal 7 is committed at `13ac660e`.
 Goal 6 is committed at `479d50a2`. The original goals 7–11 are now goals 12–16;
 completed goal numbers and evidence directories remain unchanged. Goal 2's
@@ -646,18 +648,23 @@ Pursue one goal at a time only on explicit user instruction, stopping after veri
 for review and the user's commit before advancing. Keep executables and evidence
 under `sandbox/milestone_12/goal_<n>/` without replacing earlier evidence.
 
-**User-directed algorithm audit insertion:** finish Goal 8, then pursue the new
-Goal 9 before further subsystem optimization. Existing Goals 9–15 become
+**User-directed algorithm audit insertion:** Goal 9 follows completed Goal 8
+before further subsystem optimization. Existing Goals 9–15 become
 10–16; completed goals and their evidence paths retain their numbers. The
 specific experiment excludes particle–particle speed from adaptive timestep
 restrictions while retaining particle–rigid and rigid–rigid protection, subject
 to the existing penetration and no-tunneling checks. This roadmap update does
-not start Goal 9 or change stepping behavior. Goal 8 resumes after the update.
+not start Goal 9 or change stepping behavior. The user subsequently specified
+an investigation-only goal: explain each problem's current benefits and costs,
+compare alternatives and tradeoffs, and propose future goals for later selection.
 
 Each pipeline goal includes analysis, a measured rework where justified,
 verification, and a reviewable commit. A pipeline may be retained when
 measurements show rewriting it offers no worthwhile benefit; document that
 finding.
+Goal 9 is an explicit exception to adopting a measured rework: its deliverable
+is the investigation report and proposed solutions, with prototypes isolated
+from production and implementation decisions reserved for the user.
 
 Goal 7's [particle-response report](docs/physics_particle_response.md) rebaselines
 with original solver correction settings and selects compact, atomic velocity
@@ -746,30 +753,25 @@ comparisons. Evidence is under `sandbox/milestone_12/goal_8/`.
    threshold, preserving friction/restitution and rigid
    rotation. Verify impacts, floors, thin barriers, mass ratios and car contacts;
    record exclusive and end-to-end savings with all elapsed time consumed.
-9. [ ] **Audit global physics algorithms and adaptive stepping.** Trace what
-   multiplies work across a complete update before further local optimization.
-   Attribute adaptive duration restrictions to particle–particle,
-   particle–rigid, rigid–rigid, joint and soft-body causes; record the winning
-   restriction, repeated whole-world passes, subdivisions, iterations,
-   candidates, contacts and exclusive subsystem costs. Distinguish overlap-only
-   refresh from physical response. Measure scaling in
-   separate diagnostics while keeping the acceptance car and pit unchanged.
-   Evaluate the user's proposed removal of particle–particle speed-driven
-   adaptive restrictions while retaining particle–rigid and rigid–rigid
-   protection. This experiment does not implicitly change the base tick,
-   configured subdivisions, solver passes or correction settings. Determine
-   whether remaining restrictions still repeat unrelated particle work and
-   compare appropriate alternatives such as separate execution schedules,
-   local subdivision, conservative contact reuse or sleeping/wake propagation.
-   Preserve the 0.5-unit particle overlap review, the two particles approaching
-   at 1,000 units/s each with no missed response or tunneling, and provisional
-   0.1-unit extreme-fixture penetration reviews. Preserve complete elapsed-time
-   consumption, ownership, public APIs and other numerical requirements.
-   Compare the unchanged car/pit with the immediate parent and frozen reference
-   under the shared verification contract. Explain the algorithm and measured
-   tradeoffs in a reviewable report; adopt a verified beneficial experiment or
-   explicitly reject it and recommend the next implementation direction.
-   Do not trade away the retained limits or redesign public APIs implicitly.
+9. [ ] **Audit global physics algorithms and adaptive stepping.** Follow the
+   [ordered investigation plan](docs/physics_algorithm_audit_plan.md): freeze
+   the baseline, instrument causes, measure workload/scaling costs, explain
+   each problem and alternatives, run isolated experiments, then deliver a
+   ranked decision report. Cover repeated contact discovery, adaptive limits,
+   unrelated bodies repeating work, unnecessary contact/overlap work, and
+   candidate growth/data access. For each, document evidence, current benefits
+   and drawbacks, alternatives including retaining the design, tradeoffs,
+   experimental results, and a recommendation with proposed future acceptance
+   criteria. Distinguish shared root causes from symptoms; do not double-count
+   potential savings. Test excluding particle–particle speed-driven adaptive
+   restrictions while retaining particle–rigid/rigid–rigid protection, without
+   implicitly changing ticks, configured subdivisions, passes or correction.
+   Preserve the 0.5 particle and 0.1 extreme-fixture review limits, high-speed
+   head-on protection, elapsed time, ownership and APIs. Keep failed experiments
+   visible. Compare with the pinned parent and frozen reference under the
+   measurement contract. **Investigation only:** do not adopt prototypes,
+   create/reorder implementation goals or start them. Present candidate goals
+   and their relationship to Goals 10–16 for the user's later selection.
 10. [ ] **Optimize shared sweep preparation and traversal.** Cover repeated
    entity scans, bounds preparation, swept-tree construction/update, tree queries
    and eligibility filtering. Evaluate conservative reuse and invalidation

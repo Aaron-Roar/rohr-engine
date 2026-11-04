@@ -599,8 +599,8 @@ response; 8, particle–rigid response; 10, shared sweep preparation/traversal;
 and 11, shared gathering broadphase/filtering. Goal 7's
 [particle-response rework](physics_particle_response.md) is committed at
 `13ac660e`; Goal 8
-[particle–rigid response](physics_particle_rigid_response.md) is complete for
-review and commit. It retains solver settings and tested trajectories while
+[particle–rigid response](physics_particle_rigid_response.md) is committed at
+`f6146a0a`. It retains solver settings and tested trajectories while
 reducing median unwrapped pit CPU 4.24%; the car-prefix CPU median is 1.81%
 higher, so no car speedup is established. All 22 Linux and 22 sanitizer
 regressions, 219 timed scenarios plus four calibrations, relevant impact checks,
@@ -608,8 +608,12 @@ Windows cross-builds and installed-SDK examples pass. Historical soft-body CPU
 and rendered real-time gates remain unmet. Its refined car classification
 attributes 3569.629 ms to moving-polygon overlap-only refresh and only 8.202 ms
 to responding visits in a separate ten-second diagnostic.
-The newly inserted Goal 9 audits global algorithms and adaptive stepping,
-including the particle–particle speed restriction experiment. Sweep and
+Goal 9 follows the [global algorithm audit plan](physics_algorithm_audit_plan.md),
+including the particle–particle speed restriction experiment. It is an
+investigation and decision report: explain each bottleneck's current benefits
+and costs, compare alternatives and tradeoffs, and propose future goals for
+user selection. Prototypes remain isolated; no production change is adopted
+and no implementation goal is started automatically. Sweep and
 gathering optimization are now Goals 10–11. None has started. The
 remaining joint, soft-body, orchestration, real-time and final-comparison goals
 are now 12–16. Flag particle–particle penetration in the diameter-5 pit only
