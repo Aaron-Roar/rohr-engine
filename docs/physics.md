@@ -652,18 +652,25 @@ update times increase; no rendered performance claim is made. Fresh Linux and
 sanitizer checks pass all 23 regressions, 219 stress endpoints plus four
 calibrations and 1,000 cache-lifetime cycles per platform. Windows cross-builds
 and independent installed-SDK examples pass. Existing CPU-comparison failures
-remain visible. Goals 13–18 have not started. The new
-[Goal 13 experiment plan](physics_quality_experiments_plan.md) is next: one goal
+remain visible. Goal 13's [quality/work investigation](physics_quality_experiments.md)
+is complete; Goals 14–18 have not started. The
+[Goal 13 experiment plan](physics_quality_experiments_plan.md) defines one goal
 with eight ordered sub-goals testing configured substeps, particle passes,
 global passes, tick rate, rediscovery cadence, adaptive collision restrictions,
-soft integration/collision cadence, and convergence/sleeping. Test each lever,
-then compare promising combinations with actual work counts, timing and numerical
-tradeoffs. Keep 0.5/0.1 review limits and existing scenes; prototypes do not become
-production defaults automatically. Inventory existing API controls and propose
-missing game-specific overrides with explicit runtime-change boundaries and
-cache invalidation. Defaults should remain overridable; new public controls
-require separate selection. The four-substep benchmark is distinct from the
-shipped one-substep default. This roadmap update starts no experiments.
+soft integration/collision cadence, and convergence/sleeping. All eight screens,
+including the additional conservative collision-risk triggers, are complete.
+Three combined additions lead to two numerically eligible finalists. At
+60 Hz/four substeps/four passes, three-run median physics CPU is 24.465 seconds
+per full 12-second pit and 54.354 seconds per ten-second car prefix. The
+30 Hz/four/four option costs 18.160/53.256 seconds but increases update spikes
+and pile residual motion. Neither establishes real time. Legacy delayed-fixture
+CPU failures remain visible despite numerical passes. All 24 sanitizer regression
+batches pass (391 invocations); Windows cross-builds and independent SDK checks
+pass, with capped supplementary safety prefixes kept incomplete.
+Production behavior, APIs, scene data and 0.5/0.1 review limits remain unchanged.
+Existing runtime controls are tested; proposed controls and the ranked future
+investigation remain proposals. The four-substep benchmark is distinct from the
+shipped one-substep default. No new goal is automatically inserted or started.
 The user added
 [recompute-only-when-needed investigations](../NEXT_STEPS.md#recompute-only-when-needed-investigation-requirements-for-goals-1112-and-1416)
 to Goals 11–12 and 14–16: reuse valid sweep preparation, separate particle circles from

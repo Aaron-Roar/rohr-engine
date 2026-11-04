@@ -13,7 +13,7 @@ priority order.
 | 2 | Asset and resource ownership | Complete |
 | 3 | COM, inertia, and origin semantics | Complete |
 | 4 | Cross-path feature parity | Complete by user acceptance; recorded verification exceptions remain |
-| 12 | Real-time physics pipeline rework | Highest unfinished priority; goals 1–12 complete; goal 13 quality/work experiments next; goals 13–18 not started |
+| 12 | Real-time physics pipeline rework | Highest unfinished priority; goals 1–13 complete; goal 14 next; goals 14–18 not started |
 | 11 | Soft-body correctness and real-time performance | Superseded by milestone 12; not complete; evidence preserved |
 | 6 | Physics robustness | Goals 1–4 accepted; goal 5 failed verification |
 | — | [C game experiment](#c-game-experiment) | Pending; agree concept and completion criteria when starting |
@@ -64,10 +64,14 @@ and collision work. Three streaming-active timing pairs reduce pit CPU median
 5.54%. The car median is 8.26% lower, but two of three pairs are slower, so a
 consistent car gain is not established. Both worst-update timings increase;
 these remain diagnostics, not rendered acceptance.
-The new [Goal 13 experiment plan](docs/physics_quality_experiments_plan.md) is
-next: test eight levers that reduce repeated work, then compare promising
-combinations and their numerical tradeoffs within one goal. Former Goals 13–17
-move to 14–18. Goals 13–18 have not started; this roadmap change starts no experiments.
+Goal 13's [quality/work investigation](docs/physics_quality_experiments.md) is
+complete: eight isolated screens, three combined additions and two finalists.
+At 60 Hz/four substeps/four passes, median physics CPU is 24.465 seconds per
+12-second pit and 54.354 seconds per ten-second car prefix. At 30 Hz/four/four,
+it is 18.160/53.256 seconds, with larger update spikes. Neither meets real time;
+numerical differences and legacy CPU-comparison failures remain recorded.
+Production defaults, APIs and review limits are unchanged. Goals 14–18 have not
+started; Goal 14 is next only when the user chooses to pursue it.
 The selected penetration limits remain in force. The C game experiment has not started.
 
 Regression checks and relevant sanitizer checks remain mandatory throughout
@@ -546,11 +550,12 @@ accuracy and behavior against the reference and choose an acceptable middle
 ground. This is the highest unfinished priority and supersedes milestone 11,
 whose failed attempts, experiments, executables, and evidence remain preserved.
 
-**Status: goals 1–12 complete; Goal 8 is committed at `f6146a0a`. Goal 9's
+**Status: goals 1–13 complete; Goal 8 is committed at `f6146a0a`. Goal 9's
 investigation uses parent `ab3c634b`; Goal 10 against parent `f9abe365` is
 committed at `43f49903`. Goal 11 is committed at `506b696a`; Goal 12 is committed
-at `81e76ff5` against that parent. Goal 13's quality/work experiments are next;
-Goals 13–18 have not started.**
+at `81e76ff5` against that parent. Goal 13's quality/work investigation is complete
+against parent `db1d52cb`, awaiting user review/commit; it adopts no production
+change. Goals 14–18 have not started.**
 The user now limits runtime candidates and new workload experiments to **60 Hz
 physics and below**. Higher-rate evidence remains historical; production defaults
 are unchanged during the audit. The requested isolated comparison uses 60 Hz,
@@ -684,8 +689,8 @@ under `sandbox/milestone_12/goal_<n>/` without replacing earlier evidence.
 before further subsystem optimization. That insertion moved the then-existing
 Goals 9–15 to 10–16;
 the subsequent Goal 10 insertion moved those remaining goals to 11–17.
-The later quality/work experiment insertion moves the then-unstarted Goals 13–17
-to 14–18 and makes the new Goal 13 next.
+The later quality/work experiment insertion moved the then-unstarted Goals 13–17
+to 14–18 and made the new Goal 13 next; that investigation is now complete.
 Completed goals and their evidence paths retain their numbers. The
 initial experiment excluded particle–particle speed from adaptive timestep
 restrictions while retaining particle–rigid and rigid–rigid protection, subject
@@ -794,17 +799,17 @@ Windows cross-builds and independent SDK checks pass. Penetration limits and
 existing CPU-comparison failures remain visible. Full particle/polygon geometry
 separation was investigated and remains cross-consumer work under Goal 16;
 no benefit for that unimplemented design is claimed. Evidence is preserved
-under `sandbox/milestone_12/goal_12/`. Goal 12 is committed at `81e76ff5`; Goal 13 has
-not started.
+under `sandbox/milestone_12/goal_12/`. Goal 12 is committed at `81e76ff5`; Goal 13
+is complete against parent `db1d52cb`, with its separate experiment record preserved.
 
-**User-directed quality/work experiment insertion:** the next Goal 13 follows
+**User-directed quality/work experiment insertion:** Goal 13 follows
 the [eight-lever experiment plan](docs/physics_quality_experiments_plan.md).
 All eight experiments and a combined comparison belong to one goal with one
 review/commit boundary. Numerical prototypes are permitted within this planned
 scope; production adoption and tolerance changes are separate decisions. Former
 Goals 13–17 move to 14–18; completed goals, archived reports and evidence paths
-retain their historical identities. This documentation change does not start
-Goal 13. The existing 0.5/0.1 review limits remain unchanged.
+retain their historical identities. The user subsequently authorized execution
+of the detailed plan. The existing 0.5/0.1 review limits remain unchanged.
 
 1. [x] **Establish the reference and measurement contract.** Pin the reference
    commit, preserve its executables and evidence, and establish repeatable
@@ -919,23 +924,36 @@ Goal 13. The existing 0.5/0.1 review limits remain unchanged.
     collider/beam worklists. Reusing bounds must still test current collision
     positions and discover correction-created pairs; do not freeze hitboxes
     through substeps. Apply the shared recomputation requirements below.
-13. [ ] **Experiment with physics work and quality.** Follow the
+13. [x] **Experiment with physics work and quality.** Follow the
     [experiment plan](docs/physics_quality_experiments_plan.md). Complete all eight
     ordered sub-goals within this single goal:
 
-    1. [ ] Configured substeps: 4 / 2 / 1 at 60 Hz, retaining adaptive protection.
-    2. [ ] Particle–particle passes: 8 / 4 / 2, other constraints at eight.
-    3. [ ] Global solver passes: 8 / 4 / 2, independently of particle-only changes.
-    4. [ ] Physics tick rate: 60 / 30 / 20 Hz, comparing equal simulated durations.
-    5. [ ] Contact rediscovery: every pass, every second pass, initial/final boundaries.
-    6. [ ] Adaptive collision restrictions: selective closing-motion/feature-size
+    1. [x] Configured substeps: 4 / 2 / 1 at 60 Hz, retaining adaptive protection.
+    2. [x] Particle–particle passes: 8 / 4 / 2, other constraints at eight.
+    3. [x] Global solver passes: 8 / 4 / 2, independently of particle-only changes.
+    4. [x] Physics tick rate: 60 / 30 / 20 Hz, comparing equal simulated durations.
+    5. [x] Contact rediscovery: every pass, every second pass, initial/final boundaries.
+    6. [x] Adaptive collision restrictions: selective closing-motion/feature-size
        triggers by pair type, including beam restrictions and high-speed protection.
-    7. [ ] Soft-body integration: retain small elastic steps while testing collision
+       Include the user's stricter-trigger experiment: require conservative
+       collision-risk evidence before subdivision, retaining uncertain-case
+       fallback and existing penetration review limits.
+       Allowance, beam/floor and stricter-trigger screening is complete; no
+       useful both-workload saving is established. Retain the original policy.
+    7. [x] Soft-body integration: retain small elastic steps while testing collision
        and constraint refresh every one / two / four steps with explicit fallbacks.
-    8. [ ] Convergence and sleeping: separately test residual-based early exit and
+       Both reduced schedules add stress penetration failures without an
+       established car speedup. Retain original cadence for combinations.
+    8. [x] Convergence and sleeping: separately test residual-based early exit and
        sleeping/waking thresholds, including maintenance cost and disturbed piles.
+       No pit rounds or sleeping work are removed; retain original policies.
+       All eight isolated screens, bounded combinations and final
+       sanitizer/platform verification are complete.
 
-    Then combine promising candidates incrementally and report measured cost,
+    Screen every remaining lever, then shortlist at most the top three for
+    combination testing, prioritizing savings in both workloads and labeling
+    workload-specific or incomplete evidence. Other combinations wait for the
+    user's later decision. Combine shortlisted candidates and report measured cost,
     actual work removed, full-run errors and remaining real-time gaps. Inventory
     existing public controls and propose missing game-specific overrides, including
     safe change boundaries and cache invalidation; defaults must remain overridable.
@@ -951,6 +969,26 @@ Goal 13. The existing 0.5/0.1 review limits remain unchanged.
     Preserve evidence under `sandbox/milestone_12/goal_13/`. One final report and
     review/commit boundary; no automatic production adoption, tolerance change,
     rendered-acceptance claim or advancement to Goal 14.
+    Maintain a ranked register of additional experimental factors from these
+    results and source inspection, with one proposed future experiment goal.
+    Do not add dedicated experiments for those factors in Goal 13. Use the
+    approved staged search, capped at sixteen combinations and three finalists.
+    The user now caps individual test runs at one minute of wall time. Preserve
+    capped runs as incomplete, skip repeats of the same slow candidate, and keep
+    the requested simulated endpoints unchanged. The one-substep car was stopped
+    by the user at 7.45/10 seconds; its clean repeat was skipped.
+    **Completed:** the [report](docs/physics_quality_experiments.md) records three
+    combined additions, three clean repetitions per workload for both finalists,
+    exclusive attribution, API transitions and a ranked future-factor proposal.
+    Recommend 60 Hz/four substeps/four passes as the balanced candidate; retain
+    30 Hz/four/four as a pit-focused option for later user selection. Median
+    physics costs are 24.465/54.354 seconds and 18.160/53.256 seconds respectively
+    for the 12-second pit/ten-second car prefix. Numerical finalist checks pass;
+    two delayed soft-body CPU comparisons still fail. All 24 sanitizer regression
+    batches pass (391 test invocations); Windows cross-builds and independent SDK
+    checks pass, with capped supplementary prefixes explicitly incomplete.
+    No rendered acceptance, Milestone 6 completion, default/API change, tolerance
+    change, future-goal insertion or advancement to Goal 14 occurs here.
 14. [ ] **Analyze and rework joint solving.** Cover pin/weld response, spring
    coupling and transform locks. Measure constraint error, energy behavior and
    cost under the existing high-speed, high-rotation fixtures. Preserve

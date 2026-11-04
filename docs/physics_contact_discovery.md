@@ -4,9 +4,10 @@ Milestone 12 Goal 12 uses committed Goal 11, `506b696af1d25d487a885a41737cb1a074
 as its immediate parent. The frozen reference remains
 `6f283268aa4bf038c4ed78271baeb9d5986bd7d9`; `main` is excluded.
 
-**Status: complete; committed at `81e76ff5`.** The new
-[Goal 13 quality/work experiment](physics_quality_experiments_plan.md) is next
-and has not started. Former Goals 13–17 are now 14–18. The selected combination
+**Status: complete; committed at `81e76ff5`.** The
+[Goal 13 quality/work investigation](physics_quality_experiments.md) is also
+complete, without production adoption. Former Goals 13–17 are now 14–18.
+Goal 12's selected combination
 reduces measured discovery work while retaining all tested trajectories and
 collision work. Final numerical tolerances have not changed.
 
@@ -246,7 +247,9 @@ are added to the selected result.
 The report does not establish sustained 60 FPS, rendered p95 at or below
 16.67 ms, full-car behavior, or final tolerance acceptance. Milestone 6 Goal 5
 and superseded Milestone 11 keep their existing status. Goal 13's eight-lever
-experiment is next and has not started. Goals 15–16 still own implementation of
+investigation is complete; it recommends measured settings for user selection
+and retains failed/incomplete evidence, without changing production defaults.
+Goals 15–16 still own implementation of
 the beam sweep/response mismatch and broader consumer/orchestration work;
 Goal 17 owns combined rendered acceptance, and Goal 18 owns reference tradeoff
 selection. Goal 13 supplies experimental evidence without adopting a solution.
