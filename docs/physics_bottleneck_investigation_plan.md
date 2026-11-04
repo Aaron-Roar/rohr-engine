@@ -1,5 +1,10 @@
 # Milestone 12 Goal 10 — Investigate ranked bottlenecks and solutions
 
+**Roadmap numbering note:** this completed plan retains its historical numbering.
+The later [quality/work experiment](physics_quality_experiments_plan.md) is the
+new Goal 13; historical Goals 13–17 below map to current Goals 14–18. Consult
+`NEXT_STEPS.md` for current execution order; evidence paths are unchanged.
+
 **Status: complete for review.** The [investigation report](physics_bottleneck_investigation.md)
 records all five causal tests and solution recommendations. The questions were followed in order,
 using the completed [Goal 9 audit](physics_algorithm_audit.md) as the starting

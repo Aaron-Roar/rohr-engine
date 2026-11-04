@@ -1,5 +1,10 @@
 # Milestone 12 Goal 10 — Ranked bottleneck investigation
 
+**Roadmap numbering note:** this report retains the goal numbers used when its
+experiments completed. The later [quality/work experiment](physics_quality_experiments_plan.md)
+is the new Goal 13; historical Goals 13–17 below map to current Goals 14–18.
+Results, recommendations and archived evidence are otherwise preserved.
+
 **Complete for review.** Production physics is unchanged. Parent `f9abe365e83a2e73568cb389a29adf2ef5a4439d`;
 frozen reference `6f283268aa4bf038c4ed78271baeb9d5986bd7d9`; `main` is excluded.
 Follow the [ordered plan](physics_bottleneck_investigation_plan.md).

@@ -4,7 +4,9 @@ Milestone 12 Goal 12 uses committed Goal 11, `506b696af1d25d487a885a41737cb1a074
 as its immediate parent. The frozen reference remains
 `6f283268aa4bf038c4ed78271baeb9d5986bd7d9`; `main` is excluded.
 
-**Status: complete for review.** Goal 13 has not started. The selected combination
+**Status: complete; committed at `81e76ff5`.** The new
+[Goal 13 quality/work experiment](physics_quality_experiments_plan.md) is next
+and has not started. Former Goals 13–17 are now 14–18. The selected combination
 reduces measured discovery work while retaining all tested trajectories and
 collision work. Final numerical tolerances have not changed.
 
@@ -179,7 +181,7 @@ bounds without a containment proof would lose coverage.
 
 This goal retains that shared eager preparation while removing avoidable bound
 copies and beam shapes. A separate circle-validity/derived-polygon validity
-design remains a cross-consumer opportunity under Goal 15's already planned
+design remains a cross-consumer opportunity under Goal 16's already planned
 deferred-geometry work. Its required checks are invalid/nonfinite local geometry,
 radius/origin edits, current mixed-contact geometry and callback/public-boundary
 publication. No measured whole-engine benefit for that larger separation is
@@ -200,7 +202,7 @@ grid would alter traversal/contact order and still need mixed/soft coverage.
 The prior snapshot experiments do not establish a whole-workload gain for that
 replacement. The selected subtree summaries avoid much repeated traversal
 without changing order. They still scan beams to compare endpoints; a reverse
-node-to-beam index remains Goal 14's planned investigation, with topology and
+node-to-beam index remains Goal 15's planned investigation, with topology and
 generation maintenance included. No savings from unimplemented alternatives
 are added to the selected result.
 
@@ -243,10 +245,11 @@ are added to the selected result.
 
 The report does not establish sustained 60 FPS, rendered p95 at or below
 16.67 ms, full-car behavior, or final tolerance acceptance. Milestone 6 Goal 5
-and superseded Milestone 11 keep their existing status. Goal 13 is next and
-has not started. Goals 14–15 still own the beam sweep/response mismatch and
-broader consumer/orchestration work; Goal 16 owns combined rendered acceptance,
-and Goal 17 owns reference tradeoff selection.
+and superseded Milestone 11 keep their existing status. Goal 13's eight-lever
+experiment is next and has not started. Goals 15–16 still own implementation of
+the beam sweep/response mismatch and broader consumer/orchestration work;
+Goal 17 owns combined rendered acceptance, and Goal 18 owns reference tradeoff
+selection. Goal 13 supplies experimental evidence without adopting a solution.
 
 Evidence is under `sandbox/milestone_12/goal_12/`: `reproduction.md`,
 `baseline.json`, `pilot_analysis.json`, `probe_analysis.json`,
