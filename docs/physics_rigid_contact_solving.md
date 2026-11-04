@@ -9,6 +9,11 @@ below. The frozen reference is
 `6aba1548`. Exclude `main`. Scripts, SDKs, binaries, logs and traces are preserved
 under ignored `sandbox/milestone_12/goal_6/`.
 
+The subsequent [Goal 7 particle-response report](physics_particle_response.md)
+replaces the misinterpreted solver-slack experiments as the optimization
+baseline. It uses original correction settings, preserves the review limits,
+and records the selected rework and repeated unwrapped measurements.
+
 ## Analysis and selected rework
 
 The parent pit executes 113,088,580 rigid-contact solve calls. Its diagnostic

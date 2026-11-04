@@ -99,3 +99,29 @@ bool physics_changes_commit(PhysicsChange *changes, size_t count, Report *report
     }
     return true;
 }
+
+bool physics_velocity_pair_commit(const PhysicsVelocityChange changes[2], Report *report,
+        PhysicsReportStage stage) {
+    /* Validate both sides before writing either, just like physics_changes_commit.
+     * Angular state is still validated for nonrotating particles. */
+    for(unsigned n = 0; n < 2; ++n) {
+        if(!physics_vector_finite_check(changes[n].velocity) ||
+                !isfinite(changes[n].angular_velocity)) {
+            /* Handles are only needed to report a rejected contact impulse. */
+            physics_operation_reject(report, stage, ERROR_ENGINE_STATE_INVALID,
+                physics_operation_entity_get(changes[0].index),
+                physics_operation_entity_get(changes[1].index));
+            return false;
+        }
+    }
+    for(unsigned n = 0; n < 2; ++n) {
+        const PhysicsVelocityChange *c = &changes[n];
+        EntityIndex i = c->index;
+        if(motion_tracking && (velocities[i].x != c->velocity.x ||
+                velocities[i].y != c->velocity.y || angular_velocities[i] != c->angular_velocity))
+            motion_changed = true;
+        velocities[i] = c->velocity;
+        angular_velocities[i] = c->angular_velocity;
+    }
+    return true;
+}

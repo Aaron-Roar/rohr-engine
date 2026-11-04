@@ -596,7 +596,9 @@ These complete headless trials exceed both proposed particle-overlap limits.
 Final tolerances, rendered acceptance and global tick/subdivision selection
 remain open. The user has inserted four next goals: 7, particle–particle
 response; 8, particle–rigid response; 9, shared sweep preparation/traversal;
-and 10, shared gathering broadphase/filtering. These have not started. The
+and 10, shared gathering broadphase/filtering. Goal 7's
+[particle-response rework](physics_particle_response.md) is complete for review
+and commit; goals 8–10 have not started. The
 remaining joint, soft-body, orchestration, real-time and final-comparison goals
 are now 11–15. Flag particle–particle penetration in the diameter-5 pit only
 above 0.5 units. The user provisionally sets penetration checks in all Milestone
@@ -627,6 +629,22 @@ compiler warnings or sanitizer findings. Evidence is under
 is superseded, not complete; its executables, experiments and evidence remain
 preserved. Passing contact regressions does not establish real-time performance
 or complete the milestone 6 soft-body goal.
+
+Goal 7 retains original correction settings and selects compact atomic
+velocity commits for circle pairs, rejection-only diagnostic handle lookup,
+and reuse of retained rebound targets. Three serial unwrapped pit trials per
+version show 5.15% less physics CPU time; repeated default-setting profiles show
+7.45% less exclusive particle-response time. Tested trajectories are unchanged.
+All 224 timed scenarios per platform (219 stress cases and five head-on schedules),
+four calibrations, eighteen Linux and eighteen ASan/UBSan regressions, Windows
+cross-builds and independent SDK checks pass numerically and safely. The car
+prefix remains ten seconds of its sixty-second scenario; no car speedup is
+claimed. The soft-body delayed CPU comparison remains failed at 373.020 ms.
+Two-pass probes with original correction settings retain the 0.5 particle
+review limit at 240 Hz, but fail it at 120/60 Hz with overlaps
+0.556209/0.803069. Production tick rate, subdivisions, passes and correction
+settings remain unchanged. See the report for separate dispatch timings,
+penetration/pile tradeoffs, unwrapped results and preserved evidence.
 
 Both workloads require normal 1280×720 rendered playback at sustained 60 FPS,
 p95 frame work ≤16.67 ms excluding pacing, simulated time within 1% of elapsed

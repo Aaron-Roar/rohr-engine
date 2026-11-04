@@ -431,7 +431,42 @@ Position system_collision_contact_point(Entity entity_1, Entity entity_2, Overla
     };
 }
 
-Vec2D system_friction_impulse_apply(
+static bool system_contact_impulse_commit(Entity first, Entity second, Vec2D first_offset,
+        Vec2D second_offset, Vec2D impulse, float inverse_mass_first, float inverse_mass_second,
+        float inverse_inertia_first, float inverse_inertia_second, bool particles,
+        Report *report, PhysicsReportStage stage) {
+    if(particles) {
+        PhysicsVelocityChange changes[] = {
+            {first, velocities[first], angular_velocities[first]},
+            {second, velocities[second], angular_velocities[second]}
+        };
+        changes[0].velocity.x -= impulse.x * inverse_mass_first;
+        changes[0].velocity.y -= impulse.y * inverse_mass_first;
+        changes[1].velocity.x += impulse.x * inverse_mass_second;
+        changes[1].velocity.y += impulse.y * inverse_mass_second;
+        changes[0].angular_velocity += math_radians_to_degrees(math_cross_2d(first_offset, impulse) *
+            inverse_inertia_first);
+        changes[1].angular_velocity -= math_radians_to_degrees(math_cross_2d(second_offset, impulse) *
+            inverse_inertia_second);
+        return physics_velocity_pair_commit(changes, report, stage);
+    }
+    PhysicsChange changes[] = {
+        physics_change_get(first, PHYSICS_CHANGE_VELOCITY | PHYSICS_CHANGE_ANGULAR_VELOCITY),
+        physics_change_get(second, PHYSICS_CHANGE_VELOCITY | PHYSICS_CHANGE_ANGULAR_VELOCITY)
+    };
+    changes[0].velocity.x -= impulse.x * inverse_mass_first;
+    changes[0].velocity.y -= impulse.y * inverse_mass_first;
+    changes[1].velocity.x += impulse.x * inverse_mass_second;
+    changes[1].velocity.y += impulse.y * inverse_mass_second;
+    changes[0].angular_velocity += math_radians_to_degrees(math_cross_2d(first_offset, impulse) *
+        inverse_inertia_first);
+    changes[1].angular_velocity -= math_radians_to_degrees(math_cross_2d(second_offset, impulse) *
+        inverse_inertia_second);
+    return physics_changes_commit(changes, 2, report, stage,
+        physics_operation_entity_get(first), physics_operation_entity_get(second));
+}
+
+static Vec2D system_contact_friction_apply(
     Entity entity_1,
     Entity entity_2,
     OverlapInfo collision,
@@ -442,7 +477,7 @@ Vec2D system_friction_impulse_apply(
     float inv_mass_2,
     float inv_inertia_1,
     float inv_inertia_2,
-    Vec2D previous_impulse, Report *report
+    Vec2D previous_impulse, Report *report, bool particles
 ) {
     bool moving_1 = physics_entity_movable_get(entity_1);
     bool moving_2 = physics_entity_movable_get(entity_2);
@@ -519,23 +554,21 @@ Vec2D system_friction_impulse_apply(
         .y = tangent.y * impulse_delta
     };
 
-    PhysicsChange changes[] = {
-        physics_change_get(entity_1, PHYSICS_CHANGE_VELOCITY | PHYSICS_CHANGE_ANGULAR_VELOCITY),
-        physics_change_get(entity_2, PHYSICS_CHANGE_VELOCITY | PHYSICS_CHANGE_ANGULAR_VELOCITY)
-    };
-    changes[0].velocity.x -= friction_impulse.x * inv_mass_1;
-    changes[0].velocity.y -= friction_impulse.y * inv_mass_1;
-    changes[1].velocity.x += friction_impulse.x * inv_mass_2;
-    changes[1].velocity.y += friction_impulse.y * inv_mass_2;
-
-    changes[0].angular_velocity += math_radians_to_degrees(math_cross_2d(r1, friction_impulse) * inv_inertia_1);
-    changes[1].angular_velocity -= math_radians_to_degrees(math_cross_2d(r2, friction_impulse) * inv_inertia_2);
-    if(!physics_changes_commit(changes, 2, report, ROHR_PHYSICS_FRICTION_IMPULSE,
-            physics_operation_entity_get(entity_1), physics_operation_entity_get(entity_2))) return previous_impulse;
+    if(!system_contact_impulse_commit(entity_1, entity_2, r1, r2, friction_impulse,
+            inv_mass_1, inv_mass_2, inv_inertia_1, inv_inertia_2, particles,
+            report, ROHR_PHYSICS_FRICTION_IMPULSE)) return previous_impulse;
     return (Vec2D){
         tangent.x * impulse_magnitude,
         tangent.y * impulse_magnitude
     };
+}
+
+Vec2D system_friction_impulse_apply(Entity entity_1, Entity entity_2, OverlapInfo collision,
+        Vec2D r1, Vec2D r2, float normal_impulse_magnitude, float inv_mass_1, float inv_mass_2,
+        float inv_inertia_1, float inv_inertia_2, Vec2D previous_impulse, Report *report) {
+    return system_contact_friction_apply(entity_1, entity_2, collision, r1, r2,
+        normal_impulse_magnitude, inv_mass_1, inv_mass_2, inv_inertia_1, inv_inertia_2,
+        previous_impulse, report, false);
 }
 
 static float system_contact_rebound_get(EntityIndex first,EntityIndex second,
@@ -567,7 +600,7 @@ static bool system_contact_point_solve(
     float *rebound_speed,
     Velocity *relative_velocity,
     Vec2D *normal_impulse,
-    Vec2D *friction_impulse, Report *report
+    Vec2D *friction_impulse, Report *report, bool particles
 ) {
     if(normal_impulse != NULL) *normal_impulse = previous ? previous->normal_impulse : (Vec2D){0};
     if(friction_impulse != NULL) *friction_impulse = previous ? previous->friction_impulse : (Vec2D){0};
@@ -638,31 +671,20 @@ static bool system_contact_point_solve(
         overlap.normal.x * impulse_magnitude,
         overlap.normal.y * impulse_magnitude
     };
-    PhysicsChange changes[] = {
-        physics_change_get(first, PHYSICS_CHANGE_VELOCITY | PHYSICS_CHANGE_ANGULAR_VELOCITY),
-        physics_change_get(second, PHYSICS_CHANGE_VELOCITY | PHYSICS_CHANGE_ANGULAR_VELOCITY)
-    };
-    changes[0].velocity.x -= impulse.x * inverse_mass_first;
-    changes[0].velocity.y -= impulse.y * inverse_mass_first;
-    changes[1].velocity.x += impulse.x * inverse_mass_second;
-    changes[1].velocity.y += impulse.y * inverse_mass_second;
-    changes[0].angular_velocity += math_radians_to_degrees(math_cross_2d(first_offset, impulse) *
-        inverse_inertia_first);
-    changes[1].angular_velocity -= math_radians_to_degrees(math_cross_2d(second_offset, impulse) *
-        inverse_inertia_second);
-    if(!physics_changes_commit(changes, 2, report, ROHR_PHYSICS_NORMAL_IMPULSE,
-            physics_operation_entity_get(first), physics_operation_entity_get(second))) return false;
+    if(!system_contact_impulse_commit(first, second, first_offset, second_offset, impulse,
+            inverse_mass_first, inverse_mass_second, inverse_inertia_first, inverse_inertia_second,
+            particles, report, ROHR_PHYSICS_NORMAL_IMPULSE)) return false;
     if(normal_impulse != NULL) *normal_impulse = (Vec2D){
         overlap.normal.x * accumulated_impulse_magnitude,
         overlap.normal.y * accumulated_impulse_magnitude
     };
     if(friction_impulse != NULL) {
-        *friction_impulse = system_friction_impulse_apply(
+        *friction_impulse = system_contact_friction_apply(
             first, second, overlap, first_offset, second_offset,
             accumulated_impulse_magnitude,
             inverse_mass_first, inverse_mass_second,
             inverse_inertia_first, inverse_inertia_second,
-            previous == NULL ? (Vec2D){0} : previous->friction_impulse, report);
+            previous == NULL ? (Vec2D){0} : previous->friction_impulse, report, particles);
     }
     return true;
 }
@@ -714,7 +736,11 @@ ContactInfo system_resolve_collision(
     }
     float initial_rebounds[PHYSICS_CONTACT_POINT_MAX];
     for(uint8_t i=0;i<result.point_count;++i)
-        initial_rebounds[i]=system_contact_rebound_get(first,second,result.points[i].position,overlap.normal,restitution_enabled);
+        /* A retained one-point target already describes the impact. */
+        initial_rebounds[i] = result.point_count == 1 && previous_contact != NULL &&
+            previous_contact->point_count == 1 ? previous_rebounds[0] :
+            system_contact_rebound_get(first, second, result.points[i].position,
+                overlap.normal, restitution_enabled);
     for(uint8_t i = 0; i < result.point_count; i += 1) {
         const ContactPointInfo *previous_point = NULL;
         const float *previous_rebound = &initial_rebounds[i];
@@ -738,7 +764,7 @@ ContactInfo system_resolve_collision(
             previous_point, previous_rebound, &rebounds[i],
             &result.points[i].relative_velocity,
             &result.points[i].normal_impulse,
-            &result.points[i].friction_impulse, report);
+            &result.points[i].friction_impulse, report, first_particle && second_particle);
         if(committed) *applied = true;
     }
     return result;
@@ -811,7 +837,7 @@ static ContactInfo system_resolve_collision_manifold(
                 previous_rebound, &rebounds[i],
                 &result.points[i].relative_velocity,
                 &result.points[i].normal_impulse,
-                &result.points[i].friction_impulse, report);
+                &result.points[i].friction_impulse, report, false);
             if(committed) *applied = true;
         }
     }

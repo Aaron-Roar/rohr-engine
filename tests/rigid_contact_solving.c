@@ -3,7 +3,9 @@
  */
 #include "rohr.h"
 #include "physics/physics_step_internal.h"
+#include "physics/physics_operation.h"
 #include <assert.h>
+#include <math.h>
 #include <string.h>
 #include <stdio.h>
 
@@ -148,8 +150,107 @@ static void stale_contact_identity(void) {
     rohr_engine_stop();
 }
 
+static void retained_particle_rebound(void) {
+    OK(rohr_engine_start());
+    Entity a = particle(0, false), b = particle(1.5f, false);
+    OK(rohr_physics_restitution_set(a, .5f));
+    OK(rohr_physics_restitution_set(b, .5f));
+    OK(rohr_physics_friction_set(a, 0));
+    OK(rohr_physics_friction_set(b, 0));
+    OK(rohr_physics_velocity_set(a, (Velocity){10, 0}));
+    OK(rohr_physics_velocity_set(b, (Velocity){-10, 0}));
+    physics_pipeline_substep_begin();
+    assert(!physics_pipeline_contacts_gather().has_fatal);
+    assert(physics_step_contact_constraints.count == 1);
+    SystemContactConstraint *contact = &physics_step_contact_constraints.values[0];
+    Report report = physics_report_create(ROHR_PHYSICS_CONSTRAINTS_REPORT_ID);
+    physics_rigid_contact_constraint_solve(contact, 0, &report);
+    same_float(velocities[rohr_entity_index_get(a).result.value].x, -5);
+    same_float(velocities[rohr_entity_index_get(b).result.value].x, 5);
+    same_float(contact->value.rigid.rebound_speeds[0][0], 10);
+    /* Another constraint can change the velocities before this pair's next
+     * pass. Its rebound target must still describe the original impact. */
+    OK(rohr_physics_velocity_set(a, (Velocity){20, 0}));
+    OK(rohr_physics_velocity_set(b, (Velocity){-20, 0}));
+    physics_rigid_contact_constraint_solve(contact, 0, &report);
+    same_float(velocities[rohr_entity_index_get(a).result.value].x, -5);
+    same_float(velocities[rohr_entity_index_get(b).result.value].x, 5);
+    same_float(contact->value.rigid.rebound_speeds[0][0], 10);
+    assert(!report.has_fatal && report.diagnostic_count == 0);
+    rohr_engine_stop();
+}
+
+static void particle_velocity_commit(void) {
+    OK(rohr_engine_start());
+    Entity entities[] = {particle(0, false), particle(1.5f, false)};
+    EntityIndex indices[] = {rohr_entity_index_get(entities[0]).result.value,
+        rohr_entity_index_get(entities[1]).result.value};
+    /* Cover success, no change, and rejection on either side of the pair.
+     * The compact path must preserve the generic atomicity and convergence
+     * tracking contract, including invalid angular state on particles. */
+    for(unsigned scenario = 0; scenario < 6; ++scenario) {
+        Velocity expected[2];
+        float expected_angular[2];
+        bool expected_commit = false, expected_unchanged = false;
+        unsigned expected_diagnostics = 0;
+        for(unsigned compact = 0; compact < 2; ++compact) {
+            PhysicsChange generic[2];
+            PhysicsVelocityChange pair[2];
+            for(unsigned i = 0; i < 2; ++i) {
+                velocities[indices[i]] = (Velocity){(float)i, -(float)i};
+                angular_velocities[indices[i]] = 0;
+                generic[i] = physics_change_get(indices[i],
+                    PHYSICS_CHANGE_VELOCITY | PHYSICS_CHANGE_ANGULAR_VELOCITY);
+                if(scenario != 1) generic[i].velocity.x += 3;
+                if(scenario == 2 + i) generic[i].velocity.y = INFINITY;
+                if(scenario == 4 + i) generic[i].angular_velocity = NAN;
+                pair[i] = (PhysicsVelocityChange){indices[i], generic[i].velocity,
+                    generic[i].angular_velocity};
+            }
+            Report report = physics_report_create(ROHR_PHYSICS_CONSTRAINTS_REPORT_ID);
+            physics_motion_tracking_begin();
+            bool committed = compact
+                ? physics_velocity_pair_commit(pair, &report, ROHR_PHYSICS_NORMAL_IMPULSE)
+                : physics_changes_commit(generic, 2, &report, ROHR_PHYSICS_NORMAL_IMPULSE,
+                    entities[0], entities[1]);
+            bool unchanged = physics_motion_tracking_end_check();
+            if(!compact) {
+                expected_commit = committed;
+                expected_unchanged = unchanged;
+                expected_diagnostics = report.diagnostic_count;
+            } else {
+                assert(committed == expected_commit && unchanged == expected_unchanged);
+                assert(report.diagnostic_count == expected_diagnostics);
+            }
+            assert(committed == (scenario < 2));
+            assert(unchanged == (scenario != 0));
+            if(!committed) {
+                assert(report.diagnostic_count == 1);
+                assert(report.diagnostics[0].internal_stage == ROHR_PHYSICS_NORMAL_IMPULSE);
+                assert(report.diagnostics[0].source.id == entities[0]);
+                assert(report.diagnostics[0].target.id == entities[1]);
+            }
+            for(unsigned i = 0; i < 2; ++i) {
+                if(!compact) {
+                    expected[i] = velocities[indices[i]];
+                    expected_angular[i] = angular_velocities[indices[i]];
+                } else {
+                    same_float(velocities[indices[i]].x, expected[i].x);
+                    same_float(velocities[indices[i]].y, expected[i].y);
+                    same_float(angular_velocities[indices[i]], expected_angular[i]);
+                }
+                same_float(positions[indices[i]].x, i * 1.5f);
+                same_float(positions[indices[i]].y, 0);
+            }
+        }
+    }
+    rohr_engine_stop();
+}
+
 int main(void) {
     manual_circle_edits();
+    retained_particle_rebound();
+    particle_velocity_commit();
     Snapshot cached[16], cold[16];
     for(unsigned rotating = 0; rotating < 2; ++rotating) {
         sequential_response(false, rotating, cached);

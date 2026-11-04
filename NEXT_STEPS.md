@@ -41,8 +41,10 @@ incomplete. Goal 2 is complete with a limited spring-preparation cleanup and
 verified unchanged trajectories. Goals 3 and 4 preserve integration settings and
 verified trajectory parity. Goal 5's joint gathering is committed; Goal 6's
 rigid-contact solving is committed at `479d50a2`, including the requested
-tick-rate experiments. Four new collision optimization goals come next,
-preserving the selected penetration limits. The C game experiment has not started.
+tick-rate experiments. Goal 7's particle-response optimization is complete for
+review: unwrapped pit CPU falls 5.15% with unchanged tested trajectories and
+settings. Goal 8, particle–rigid response, is next after review and commit.
+The selected penetration limits remain in force. The C game experiment has not started.
 
 Regression checks and relevant sanitizer checks remain mandatory throughout
 physics, the C game experiment, and runtime isolation. Deferring the broader
@@ -520,7 +522,7 @@ accuracy and behavior against the reference and choose an acceptable middle
 ground. This is the highest unfinished priority and supersedes milestone 11,
 whose failed attempts, experiments, executables, and evidence remain preserved.
 
-**Status: goals 1–6 complete; new goals 7–10 are next and have not started.**
+**Status: goals 1–7 complete; goal 7 awaits review and commit. Goals 8–15 have not started.**
 Goal 6 is committed at `479d50a2`. The former goals 7–11 are now goals 11–15;
 completed goal numbers and evidence directories remain unchanged. Goal 2's
 [force-preparation report](docs/physics_force_preparation.md) records the limited
@@ -645,6 +647,24 @@ verification, and a reviewable commit. A pipeline may be retained when
 measurements show rewriting it offers no worthwhile benefit; document that
 finding.
 
+Goal 7's [particle-response report](docs/physics_particle_response.md) rebaselines
+with original solver correction settings and selects compact, atomic velocity
+commits with diagnostic handles resolved only on rejection. Retained one-point
+rebound targets avoid redundant calculation. Three serial unwrapped pit trials
+per version reduce median physics CPU from 62097.934 to 58902.988 ms (5.15%).
+Exclusive particle response falls 7.45% in the repeated default-setting profile.
+All 219 stress scenarios plus four calibrations and five head-on schedules pass
+numerically on Linux and ASan/UBSan; eighteen regressions per platform, Windows
+cross-builds and installed-SDK examples pass. Default pit, car-prefix and fixture
+traces preserve parent/reference parity under the existing comparison rules.
+Head-on overlap remains 0.000500202179. Original-correction two-pass pit probes
+reach 0.189830 overlap at 240 Hz/one subdivision, but 120/60 Hz reach
+0.556209/0.803069 and fail the retained 0.5 review limit. No tuning is adopted.
+The ten-second car prefix remains incomplete relative to sixty seconds, no car
+speedup is claimed, and the soft-body delayed CPU comparison still fails at
+373.020 ms versus 50 ms. Real-time rendered acceptance remains open. Evidence is
+under `sandbox/milestone_12/goal_7/`.
+
 1. [x] **Establish the reference and measurement contract.** Pin the reference
    commit, preserve its executables and evidence, and establish repeatable
    car/pit runs. Measure each stage's exclusive cost, call counts, subdivisions,
@@ -673,7 +693,7 @@ finding.
    retained contact state. Evaluate simpler execution and data layouts,
    iteration requirements and convergence behavior. Measure effects on mass
    ratios, impacts, stacks and dense particle piles.
-7. [ ] **Optimize particle–particle response.** Profile executed response and
+7. [x] **Optimize particle–particle response.** Profile executed response and
    skipped-pass overhead separately. Evaluate repeated calculations, data access,
    contact-state reuse and safe batching while preserving sequential effects on
    shared entities, friction, restitution and lifetime safety. Use the selected

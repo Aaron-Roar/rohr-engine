@@ -34,6 +34,15 @@ typedef struct PhysicsChange {
     AngularAcceleration torque_acceleration;
 } PhysicsChange;
 
+/* Contact impulses own linear and angular velocity only. */
+typedef struct PhysicsVelocityChange {
+    EntityIndex index;
+    Velocity velocity;
+    AngularVelocity angular_velocity;
+} PhysicsVelocityChange;
+bool physics_velocity_pair_commit(const PhysicsVelocityChange changes[2], Report *report,
+    PhysicsReportStage stage);
+
 /* One source owns all coupled target changes, up to a whole soft body. */
 typedef struct PhysicsSourceChanges {
     PhysicsChange values[SOFT_BODY_MAX_NODES];
