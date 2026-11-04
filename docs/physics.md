@@ -595,12 +595,24 @@ increases to 1.041389/1.617722 and floor penetration to 0.350550/0.982507.
 These complete headless trials exceed both proposed particle-overlap limits.
 Final tolerances, rendered acceptance and global tick/subdivision selection
 remain open. The user has inserted four next goals: 7, particle–particle
-response; 8, particle–rigid response; 9, shared sweep preparation/traversal;
-and 10, shared gathering broadphase/filtering. Goal 7's
-[particle-response rework](physics_particle_response.md) is complete for review
-and commit; goals 8–10 have not started. The
+response; 8, particle–rigid response; 10, shared sweep preparation/traversal;
+and 11, shared gathering broadphase/filtering. Goal 7's
+[particle-response rework](physics_particle_response.md) is committed at
+`13ac660e`; Goal 8
+[particle–rigid response](physics_particle_rigid_response.md) is complete for
+review and commit. It retains solver settings and tested trajectories while
+reducing median unwrapped pit CPU 4.24%; the car-prefix CPU median is 1.81%
+higher, so no car speedup is established. All 22 Linux and 22 sanitizer
+regressions, 219 timed scenarios plus four calibrations, relevant impact checks,
+Windows cross-builds and installed-SDK examples pass. Historical soft-body CPU
+and rendered real-time gates remain unmet. Its refined car classification
+attributes 3569.629 ms to moving-polygon overlap-only refresh and only 8.202 ms
+to responding visits in a separate ten-second diagnostic.
+The newly inserted Goal 9 audits global algorithms and adaptive stepping,
+including the particle–particle speed restriction experiment. Sweep and
+gathering optimization are now Goals 10–11. None has started. The
 remaining joint, soft-body, orchestration, real-time and final-comparison goals
-are now 11–15. Flag particle–particle penetration in the diameter-5 pit only
+are now 12–16. Flag particle–particle penetration in the diameter-5 pit only
 above 0.5 units. The user provisionally sets penetration checks in all Milestone
 6 extreme fixtures to 0.1 units (drop, thin barriers, stack, joint collisions
 and soft bodies). These are review thresholds, not solver settings; equality
@@ -662,7 +674,7 @@ the clarified review thresholds; changing these does not authorize changes to
 solver correction slack.
 Invalid/nonfinite state, fatal errors, inability to advance time or
 interruption remain incomplete. Safety and lifecycle verification remain
-mandatory. Final tolerance changes require explicit user acceptance in goal 15
+mandatory. Final tolerance changes require explicit user acceptance in goal 16
 and verification before updating milestone 6's status. New executables and
 evidence belong under `sandbox/milestone_12/goal_<n>/`.
 

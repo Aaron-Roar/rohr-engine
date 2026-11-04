@@ -226,7 +226,7 @@ historical experiments, not approved runtime configurations. Production settings
 were never changed; the original eight-pass trajectory remains the verified
 change. The two-particle-pass idea may still be evaluated with original solver
 correction settings. Rebaseline subsequent optimizations accordingly. Final
-overall tolerance acceptance remains the user's Goal 15 decision (formerly
+overall tolerance acceptance remains the user's Goal 16 decision (originally
 Goal 11); the provisional review thresholds below are explicitly approved now.
 
 The first version of the experimental oracle incorrectly read the dynamically
@@ -377,9 +377,11 @@ accounting checks and hashes are preserved under
 `sandbox/milestone_12/goal_6/collision_breakdown/`; `summary.json` and
 `summary.csv` contain the unrounded results.
 
-New goals 7–10 optimize, in order: particle–particle response, particle–rigid
-response, shared sweep preparation/traversal, and shared gathering
-broadphase/filtering. They precede the former goals 7–11, now 11–15. The
+The four inserted collision goals are now 7, particle–particle response;
+8, particle–rigid response; 10, shared sweep preparation/traversal; and 11,
+shared gathering broadphase/filtering. The subsequent Goal 9 insertion audits
+global algorithms and adaptive stepping before more local optimization.
+The original remaining goals are now 12–16. The
 1,000 ms concern is a prioritization of total work over the run, not a new
 per-frame threshold. No new optimization goal starts with this roadmap update.
 
@@ -398,7 +400,7 @@ of an approved configuration. New goals re-establish matched baselines with
 the original correction settings. Report full-run maxima even below review
 thresholds, preserve unrelated support/tunneling/energy/joint-error checks, and
 do not round violations into a pass. Production solver settings remain unchanged;
-final overall tolerance acceptance remains Goal 15.
+final overall tolerance acceptance remains Goal 16.
 
 ### Preserved evidence
 

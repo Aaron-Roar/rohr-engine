@@ -22,9 +22,9 @@ Goal 4's preserved measurements show the actual collection helper costing
 wrapper adds 180.513 / 71.374 ms exclusive time respectively, separate from
 reporting descendants. Pin/weld fixture helper totals are 6.259 / 6.786 ms over
 70,433 / 75,251 calls. Anchor resolution inside solving is not charged to these
-gathering measurements. Broad reporting/orchestration work remains Goal 13;
-solver assembly and reuse remain Goal 11 (renumbered after the insertion of
-four collision optimization goals).
+gathering measurements. Broad reporting/orchestration work remains Goal 14;
+solver assembly and reuse remain Goal 12 (renumbered after the collision
+optimization goals and global algorithm audit were inserted).
 
 Retain the gathering algorithm. Even eliminating its entire measured cost
 would not materially improve car/pit throughput. No SIMD or topology cache is
@@ -113,5 +113,5 @@ unchanged. Against the parent, only `joint_solver` has changed executable
 sections on Linux, sanitizers and Windows. The sanitizer/Windows debug builds
 also have changed non-executable sections in private-header dependents.
 `source/`, `changes.patch` and `manifest.json` preserve the reviewable source and
-artifact hashes. Rendered acceptance remains Goal 14; final tolerance decisions
-remain Goal 15.
+artifact hashes. Rendered acceptance remains Goal 15; final tolerance decisions
+remain Goal 16.

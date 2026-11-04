@@ -1,6 +1,7 @@
 # Milestone 12 Goal 7 — Particle–particle response
 
-Goal 7 is complete for review and commit. Goal 8 has not started.
+Goal 7 is complete and committed at `13ac660e`. Goal 8 follows in the
+[particle–rigid response report](physics_particle_rigid_response.md).
 The immediate parent is `932e6e21`; its engine archive
 is unchanged from Goal 6 (`479d50a2`). The frozen reference remains
 `physics-pipelines-overoptimized` at `6f283268aa4bf038c4ed78271baeb9d5986bd7d9`.
@@ -192,7 +193,7 @@ seconds, matching the existing float tick duration and both parent/reference
 traces exactly. It consumes 103948.219 ms of physics CPU, with p95 352.330 ms.
 This is neither a completed sixty-second scenario nor a repeated car performance
 comparison; no car speedup is claimed. The existing jump-force clock finding
-remains assigned to Goal 14. No stopped full-car or rendered-window trial was
+remains assigned to Goal 15. No stopped full-car or rendered-window trial was
 restarted.
 
 Linux engine execution, sanitized car/pit smokes, Windows cross-builds and
@@ -220,5 +221,9 @@ The final manifest hashes the preserved artifacts. Existing output directories
 are not reused for measurements. The initial driver was corrected to forward
 interrupts without reentering a subprocess wait from its signal handler.
 
-Review and commit this goal before starting Goal 8. Preserve the measured
-particle limits and original correction settings in subsequent comparisons.
+Goal 8 distinguishes rotating circle–circle pairs from polygon contacts in its
+profiler, but its measured car prefix has no rotating circle pairs. The response
+timers measure visits to the solver, including overlap-only refresh where
+applicable, rather than only successful physical responses. See the next report
+for the refined classification. Preserve the measured particle limits and
+original correction settings in subsequent comparisons.

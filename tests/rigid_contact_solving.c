@@ -4,6 +4,7 @@
 #include "rohr.h"
 #include "physics/physics_step_internal.h"
 #include "physics/physics_operation.h"
+#include "physics/collision/contact_manifold.h"
 #include <assert.h>
 #include <math.h>
 #include <string.h>
@@ -247,7 +248,78 @@ static void particle_velocity_commit(void) {
     rohr_engine_stop();
 }
 
+/* Retained manifold targets and angular response must survive mixed contacts.
+ * Geometry stays fixed while another constraint changes incoming velocities. */
+static void mixed_rebound_targets(unsigned mode, bool reverse, bool two_points) {
+    OK(rohr_engine_start());
+    Entity p = 0, body = 0;
+    if(!reverse) p = particle(0, false);
+    EntityResult result = rohr_entity_add(); OK(result); body = result.result.value;
+    if(reverse) p = particle(0, false);
+    OK(rohr_physics_hitbox_set(body, rohr_math_square_create(20, 2)));
+    OK(rohr_physics_position_set(body, (Position){0, -1}));
+    OK(rohr_physics_mass_set(body, 40));
+    OK(rohr_entity_components_add(body, ROHR_COLLISION));
+    OK(rohr_physics_center_of_mass_local_position_set(body, (Position){.5f, .25f}));
+    OK(rohr_physics_position_set(p, (Position){2, .8f}));
+    if(two_points) OK(rohr_physics_hitbox_set(p, rohr_math_square_create(2, 2)));
+    OK(rohr_physics_velocity_set(p, (Velocity){3, -10}));
+    OK(rohr_physics_velocity_set(body, (Velocity){-1, 2}));
+    OK(rohr_physics_angular_velocity_set(body, 30));
+    /* Velocity setters enable dynamics; choose the intended mode afterward. */
+    if(mode == 0) OK(rohr_physics_static_set(body));
+    else if(mode == 1) OK(rohr_physics_kinematic_driven_set(body));
+    OK(rohr_physics_restitution_set(body, .5f));
+    OK(rohr_physics_restitution_set(p, .5f));
+    EntityIndex pi = rohr_entity_index_get(p).result.value;
+    EntityIndex bi = rohr_entity_index_get(body).result.value;
+    physics_pipeline_substep_begin();
+    assert(!physics_pipeline_contacts_gather().has_fatal);
+    assert(physics_step_contact_constraints.count == 1);
+    SystemContactConstraint *c = &physics_step_contact_constraints.values[0];
+    EntityIndex a = c->value.rigid.first_index, b = c->value.rigid.second_index;
+    ContactManifoldSet geometry = contact_manifold_set_polygon_get(world_hit_boxes[a], world_hit_boxes[b]);
+    assert(geometry.count == 1 && geometry.values[0].count > 0);
+    if(two_points) assert(geometry.values[0].count == 2);
+    float expected[PHYSICS_CONTACT_POINT_MAX];
+    for(unsigned i = 0; i < geometry.values[0].count; ++i) {
+        Position point = geometry.values[0].points[i];
+        Velocity incoming[2] = {{0}};
+        EntityIndex indices[] = {a, b};
+        for(unsigned side = 0; side < 2; ++side) {
+            EntityIndex index = indices[side];
+            if(!physics_entity_movable_get(index)) continue;
+            Vec2D angular = math_angular_velocity_cross_vec(
+                physics_entity_nonrotating_check(index) ? 0 : angular_velocities[index],
+                math_vector_subtract(point, physics_com_world_by_index_get(index)));
+            incoming[side] = (Velocity){velocities[index].x + angular.x,
+                velocities[index].y + angular.y};
+        }
+        expected[i] = -.5f * fminf(math_dot_product(
+            math_vector_subtract(incoming[1], incoming[0]), geometry.values[0].normal), 0);
+    }
+    Report report = physics_report_create(ROHR_PHYSICS_CONSTRAINTS_REPORT_ID);
+    for(unsigned pass = 0; pass < 8; ++pass) {
+        if(pass == 4) velocities[pi] = (Velocity){-7, -20};
+        physics_rigid_contact_constraint_solve(c, 0, &report);
+        assert(c->value.rigid.manifold_contact_count == 1);
+        for(unsigned i = 0; i < geometry.values[0].count; ++i)
+            same_float(c->value.rigid.rebound_speeds[0][i], expected[i]);
+    }
+    assert(!report.has_fatal && report.diagnostic_count == 0);
+    same_float(angular_velocities[pi], 0);
+    if(mode != 2) {
+        same_float(velocities[bi].x, -1); same_float(velocities[bi].y, 2);
+        same_float(angular_velocities[bi], 30);
+    } else assert(angular_velocities[bi] != 30);
+    rohr_engine_stop();
+}
+
 int main(void) {
+    for(unsigned mode = 0; mode < 3; ++mode)
+    for(unsigned reverse = 0; reverse < 2; ++reverse)
+    for(unsigned points = 0; points < 2; ++points)
+        mixed_rebound_targets(mode, reverse, points);
     manual_circle_edits();
     retained_particle_rebound();
     particle_velocity_commit();

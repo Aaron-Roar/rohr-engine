@@ -216,7 +216,7 @@ No previously interrupted rendered or full-reference trial is restarted.
 - The soft-body delayed-update CPU comparison still fails: 368.877 ms against
   50 ms. Its scenario finishes and retains full-run measurements. Rendered
   real-time acceptance, full car coverage and user motion/window-switch review
-  remain pending Goal 14. Final tolerance decisions remain Goal 15, following
+  remain pending Goal 15. Final tolerance decisions remain Goal 16, following
   the insertion of four collision optimization goals.
 
 The audit verifies all 1,457 frozen-reference artifact hashes and all 788 Goal 3

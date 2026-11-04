@@ -189,10 +189,15 @@ static ContactManifold contact_manifold_convex_get(
     second_face = contact_face_best_get(second, (Axis){-normal.x, -normal.y});
     if(first_face.alignment >= second_face.alignment) {
         reference = first_face;
-        incident = contact_face_incident_get(second, reference.normal);
+        /* Maximizing alignment with the opposite axis selects the same edge
+         * as minimizing alignment with this exact axis, including tie order.
+         * Reuse the already expanded face only when no axis changed. */
+        incident = reference.normal.x == normal.x && reference.normal.y == normal.y
+            ? second_face : contact_face_incident_get(second, reference.normal);
     } else {
         reference = second_face;
-        incident = contact_face_incident_get(first, reference.normal);
+        incident = reference.normal.x == -normal.x && reference.normal.y == -normal.y
+            ? first_face : contact_face_incident_get(first, reference.normal);
     }
     tangent = math_vector_subtract(reference.second, reference.first);
     tangent_length = math_vector_magnitude(tangent);

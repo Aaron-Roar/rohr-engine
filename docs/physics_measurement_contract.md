@@ -226,7 +226,7 @@ Finite numerical failures continue to the declared endpoint. Invalid/nonfinite
 state, fatal errors, inability to advance time and interruption are incomplete,
 even if a process prints an endpoint. Check trace validity and observer/report
 counts alongside endpoint status. Keep original tolerances and their failures
-visible; only Goal 15 (formerly Goal 11) may adopt user-approved final overall
+visible; only Goal 16 (originally Goal 11) may adopt user-approved final overall
 tolerances. The user has provisionally changed the penetration-review thresholds:
 particle–particle pit penetration is flagged only above 0.5 units, while all
 Milestone 6 extreme-fixture penetration checks use 0.1 units. Equality passes
