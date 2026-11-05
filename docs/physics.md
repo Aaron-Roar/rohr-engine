@@ -531,13 +531,23 @@ structural/soft-body quality and selective extra work in measured stages.
 [Goal 1 is complete](physics_rebuild_baseline.md): an opt-in fixed-step,
 gather-once baseline retains current APIs, ownership, reporting and manual-stage
 contracts. The experimental CMake option is OFF by default; the option-disabled
-build matches the current control's trajectories. Goals 2–7 are unstarted.
-Goal 2 targets repeated particle-response work, bounded contact/candidate reuse
-and sleeping with correct wake-up, before blocking restoration in Goal 3.
+build matches the current control's trajectories. [Goal 2's optimization](physics_pit_optimization.md)
+is preserved for review but **failed its performance gates**; Goals 3–7 remain
+unstarted. Four-pass pit CPU time fell from a matched 13.511 s median to 7.664 s
+per twelve simulated seconds, with worst particle overlap 0.266482. The car's
+sampled trajectory is unchanged, with 3.105 s median per ten simulated seconds.
+The grid uses actual cell coordinates, a size-outlier tree fallback and tree
+discovery for beam-coupled scenes. Geometry reuse and specialized particle
+response preserve force ownership and configured iteration counts.
 The target is at most six physics CPU seconds per twelve-second pit, retaining
 the 0.5-unit particle-pair overlap review limit and reporting tunneling and wall
 behavior separately. Rendered verification and the unchanged car comparison
 remain required; adding restoration work is not assumed to improve performance.
+Measured rendered pit playback is 58.20–58.80 FPS with 17.10–17.98 ms p95 work
+and 0.9701–0.9801 simulation/elapsed ratio; the strict gates remain unmet.
+All 228 stress endpoints complete with unchanged 52-pass/176-failure counts.
+Relevant Linux/sanitizer checks, Windows cross-builds and independent SDK builds
+are verified. Await user direction before restoring additional systems.
 Baseline car/pit median CPU times are 2.912/12.755 seconds for the declared
 10/12-second diagnostics. Numerical failures and unmet rendered gates remain
 explicit; no final quality or production selection has been made. Preserve

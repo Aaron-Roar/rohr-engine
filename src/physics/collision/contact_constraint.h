@@ -126,6 +126,9 @@ bool contact_constraint_list_append(
     ContactConstraintList *list,
     SystemContactConstraint constraint
 );
+bool contact_constraint_list_rigid_append(ContactConstraintList *list,
+    Entity first, Entity second, EntityIndex first_index, EntityIndex second_index,
+    OverlapInfo overlap, bool responds);
 bool contact_constraint_list_rigid_pair_check(
     const ContactConstraintList *list,
     Entity first,

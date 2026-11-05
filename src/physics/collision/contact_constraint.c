@@ -124,6 +124,33 @@ bool contact_constraint_list_append(
     return true;
 }
 
+bool contact_constraint_list_rigid_append(ContactConstraintList *list,
+        Entity first, Entity second, EntityIndex first_index, EntityIndex second_index,
+        OverlapInfo overlap, bool responds) {
+    if(list == NULL || list->count == SIZE_MAX ||
+            !contact_constraint_list_reserve(list, list->count + 1) ||
+            !rigid_pair_reserve_check(list, list->rigid_pair_count + 1)) return false;
+    size_t slot = rigid_pair_slot_get(list, first, second);
+    SystemContactConstraint *constraint = &list->values[list->count];
+    constraint->type = SYSTEM_CONTACT_CONSTRAINT_RIGID_PAIR;
+    constraint->value.rigid.first = first;
+    constraint->value.rigid.second = second;
+    constraint->value.rigid.first_index = first_index;
+    constraint->value.rigid.second_index = second_index;
+    constraint->value.rigid.overlap = overlap;
+    constraint->value.rigid.responds = responds;
+    constraint->value.rigid.solved = false;
+    constraint->value.rigid.contact = (ContactInfo){0};
+    constraint->value.rigid.manifold_contact_count = 0;
+    memset(constraint->value.rigid.rebound_speeds, 0, sizeof(constraint->value.rigid.rebound_speeds));
+    /* Count/valid flags own the uninitialized manifold and geometry storage.
+     * Every reader must establish validity before accessing those payloads. */
+    constraint->value.rigid.block_geometry_valid = false;
+    list->rigid_pair_slots[slot] = ++list->count;
+    ++list->rigid_pair_count;
+    return true;
+}
+
 bool contact_constraint_list_rigid_pair_check(const ContactConstraintList *list,
         Entity first, Entity second) {
     if(list == NULL || list->rigid_pair_count == 0) return false;

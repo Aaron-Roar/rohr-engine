@@ -10,6 +10,7 @@
 #include "math2d.h"
 #include "physics/physics_operation.h"
 #include <float.h>
+#include <limits.h>
 #include <math.h>
 #include <string.h>
 #include <SDL3/SDL_bits.h>
@@ -32,6 +33,7 @@ static Orientation hitbox_cached_orientations[MAX_ENTITIES];
 static PhysicsParticleCircle hitbox_cached_circles[MAX_ENTITIES];
 static Position hitbox_cached_centers[MAX_ENTITIES];
 static bool hitbox_cached_center_valid[MAX_ENTITIES];
+static bool hitbox_translation_safe[MAX_ENTITIES];
 void physics_step_hitbox_cache_begin(void) {
     if(!hitbox_cache_active) {
         memset(hitbox_cached, 0, sizeof(hitbox_cached));
@@ -114,8 +116,38 @@ bool physics_step_hitbox_update(EntityIndex i, Report *report) {
         hitbox_cached[i] = true;
         hitbox_cached_positions[i] = positions[i];
         hitbox_cached_orientations[i] = orientations[i];
+        hitbox_translation_safe[i] = physics_simple_baseline_active_check();
+        for(uint32_t v = 0; hitbox_translation_safe[i] && v < hit_boxes[i].amount_of_vertices; ++v)
+            if(fabsf(hit_boxes[i].vertices[v].x) > FLT_MAX / 4.0f ||
+                    fabsf(hit_boxes[i].vertices[v].y) > FLT_MAX / 4.0f)
+                hitbox_translation_safe[i] = false;
     }
     return next.amount_of_vertices != 0;
+}
+
+/* Complete baseline substeps keep local geometry immutable. Circle response
+ * needs the current circle, not a rebuilt polygon after every correction.
+ * Leave the polygon pose stamp untouched: mixed contacts and the dirty flush
+ * must still refresh it. Manual stages and unusual geometry use full validation. */
+static bool system_particle_contact_circle_get(EntityIndex index,
+        PhysicsParticleCircle *circle, Report *report) {
+    if(physics_simple_baseline_active_check() && hitbox_cache_active &&
+            hitbox_cached[index] && hitbox_translation_safe[index] &&
+            physics_entity_nonrotating_check(index) &&
+            orientations[index] == hitbox_cached_orientations[index] &&
+            physics_world_position_check(positions[index])) {
+        *circle = (PhysicsParticleCircle){physics_particle_world_origin_by_index_get(index),
+            hitbox_cached_circles[index].radius};
+        if(physics_vector_finite_check(circle->center) &&
+                isfinite(circle->center.x - circle->radius) &&
+                isfinite(circle->center.x + circle->radius) &&
+                isfinite(circle->center.y - circle->radius) &&
+                isfinite(circle->center.y + circle->radius))
+            return world_hit_boxes[index].amount_of_vertices != 0;
+    }
+    if(!physics_step_hitbox_update(index, report)) return false;
+    *circle = hitbox_cached_circles[index];
+    return true;
 }
 
 static void system_positions_update(double dt, Report *report) {
@@ -586,6 +618,85 @@ static float system_contact_rebound_get(EntityIndex first,EntityIndex second,
     return -fminf(restitutions[first],restitutions[second])*fminf(normal_velocity,0);
 }
 
+/* Nonrotating circles have no lever-arm terms. Preserve sequential normal and
+ * friction commits and accumulated impulses without preparing angular state. */
+static bool system_particle_point_solve(EntityIndex first, EntityIndex second,
+        Vec2D normal, bool restitution_enabled, float inverse_mass_first,
+        float inverse_mass_second, const ContactPointInfo *previous,
+        const float *previous_rebound, float *rebound_speed,
+        Velocity *relative_velocity, Vec2D *normal_impulse, Vec2D *friction_impulse,
+        Report *report) {
+    bool moving_first = physics_entity_movable_get(first);
+    bool moving_second = physics_entity_movable_get(second);
+    Velocity relative = {
+        (moving_second ? velocities[second].x : 0.0f) -
+            (moving_first ? velocities[first].x : 0.0f),
+        (moving_second ? velocities[second].y : 0.0f) -
+            (moving_first ? velocities[first].y : 0.0f)};
+    if(relative_velocity != NULL && physics_vector_finite_check(relative))
+        *relative_velocity = relative;
+    float along = math_dot_product(relative, normal);
+    float previous_normal = previous ? math_dot_product(previous->normal_impulse, normal) : 0;
+    float restitution = restitution_enabled && previous_normal <= 0 && along < 0
+        ? fminf(restitutions[first], restitutions[second]) : 0;
+    float denominator = inverse_mass_first + inverse_mass_second;
+    if(!isfinite(restitutions[first]) || !isfinite(restitutions[second])) {
+        physics_operation_reject(report, ROHR_PHYSICS_NORMAL_IMPULSE, ERROR_ENGINE_STATE_INVALID,
+            physics_operation_entity_get(first), physics_operation_entity_get(second));
+        return false;
+    }
+    if(denominator <= 0) return false;
+    float rebound = previous_rebound ? *previous_rebound : -restitution * fminf(along, 0);
+    *rebound_speed = rebound;
+    float delta = (rebound - along) / denominator;
+    if(!isfinite(delta) || !isfinite(denominator) || !isfinite(previous_normal + delta)) {
+        physics_operation_reject(report, ROHR_PHYSICS_NORMAL_IMPULSE, ERROR_ENGINE_STATE_INVALID,
+            physics_operation_entity_get(first), physics_operation_entity_get(second));
+        return false;
+    }
+    float accumulated = fmaxf(previous_normal + delta, 0);
+    delta = accumulated - previous_normal;
+    Vec2D impulse = {normal.x * delta, normal.y * delta};
+    PhysicsVelocityChange changes[] = {
+        {first, velocities[first], angular_velocities[first]},
+        {second, velocities[second], angular_velocities[second]}};
+    changes[0].velocity.x -= impulse.x * inverse_mass_first;
+    changes[0].velocity.y -= impulse.y * inverse_mass_first;
+    changes[1].velocity.x += impulse.x * inverse_mass_second;
+    changes[1].velocity.y += impulse.y * inverse_mass_second;
+    if(!physics_velocity_pair_commit(changes, report, ROHR_PHYSICS_NORMAL_IMPULSE)) return false;
+    if(normal_impulse) *normal_impulse = (Vec2D){normal.x * accumulated, normal.y * accumulated};
+    if(!friction_impulse) return true;
+    relative = (Velocity){
+        (moving_second ? velocities[second].x : 0.0f) -
+            (moving_first ? velocities[first].x : 0.0f),
+        (moving_second ? velocities[second].y : 0.0f) -
+            (moving_first ? velocities[first].y : 0.0f)};
+    along = math_dot_product(relative, normal);
+    Vec2D tangent = {relative.x - normal.x * along, relative.y - normal.y * along};
+    float magnitude = sqrtf(tangent.x * tangent.x + tangent.y * tangent.y);
+    if(magnitude <= 0.000001f) return true;
+    tangent.x /= magnitude; tangent.y /= magnitude;
+    delta = -math_dot_product(relative, tangent) / denominator;
+    float previous_friction = math_dot_product(*friction_impulse, tangent);
+    float maximum = fabsf(accumulated) * sqrtf(frictions[first] * frictions[second]);
+    if(!isfinite(magnitude) || !isfinite(delta) || !isfinite(previous_friction) || !isfinite(maximum)) {
+        physics_operation_reject(report, ROHR_PHYSICS_FRICTION_IMPULSE, ERROR_ENGINE_STATE_INVALID,
+            physics_operation_entity_get(first), physics_operation_entity_get(second));
+        return true;
+    }
+    float friction = fmaxf(-maximum, fminf(previous_friction + delta, maximum));
+    delta = friction - previous_friction;
+    impulse = (Vec2D){tangent.x * delta, tangent.y * delta};
+    changes[0].velocity.x -= impulse.x * inverse_mass_first;
+    changes[0].velocity.y -= impulse.y * inverse_mass_first;
+    changes[1].velocity.x += impulse.x * inverse_mass_second;
+    changes[1].velocity.y += impulse.y * inverse_mass_second;
+    if(physics_velocity_pair_commit(changes, report, ROHR_PHYSICS_FRICTION_IMPULSE))
+        *friction_impulse = (Vec2D){tangent.x * friction, tangent.y * friction};
+    return true;
+}
+
 static bool system_contact_point_solve(
     Entity first,
     Entity second,
@@ -605,6 +716,13 @@ static bool system_contact_point_solve(
 ) {
     if(normal_impulse != NULL) *normal_impulse = previous ? previous->normal_impulse : (Vec2D){0};
     if(friction_impulse != NULL) *friction_impulse = previous ? previous->friction_impulse : (Vec2D){0};
+    if(physics_simple_baseline_active_check() && compact_velocity &&
+            physics_step_entity_components_check(first, ROHR_PARTICLE) &&
+            physics_step_entity_components_check(second, ROHR_PARTICLE) &&
+            physics_entity_nonrotating_check(first) && physics_entity_nonrotating_check(second))
+        return system_particle_point_solve(first, second, overlap.normal, restitution_enabled,
+            inverse_mass_first, inverse_mass_second, previous, previous_rebound,
+            rebound_speed, relative_velocity, normal_impulse, friction_impulse, report);
     bool moving_first = physics_entity_movable_get(first);
     bool moving_second = physics_entity_movable_get(second);
     Vec2D first_offset = math_vector_subtract(point, system_contact_center_get(first));
@@ -894,6 +1012,21 @@ static void system_broadphase_pose_sources_prepare(void) {
 /* Valid only with the matching broadphase leaf: refreshed on build/refit and
  * borrowed during a gather, whose callbacks never mutate poses or geometry. */
 static PhysicsParticleCircle broadphase_circles[MAX_ENTITIES];
+/* One-gather scratch storage; circles occupy one cell whose width is at least
+ * the largest diameter. Testing the eight neighboring cells is conservative. */
+#define PARTICLE_GRID_BUCKETS 4096
+static bool particle_grid_active;
+static EntityIndex particle_grid_indices[MAX_ENTITIES];
+static uint32_t particle_grid_count;
+static AABB particle_grid_bounds[MAX_ENTITIES];
+static int particle_grid_heads[PARTICLE_GRID_BUCKETS], particle_grid_next[MAX_ENTITIES];
+static int particle_grid_x[MAX_ENTITIES], particle_grid_y[MAX_ENTITIES];
+static float particle_grid_width;
+
+static unsigned system_particle_grid_bucket_get(int x, int y) {
+    return ((uint32_t)x * UINT32_C(73856093) ^ (uint32_t)y * UINT32_C(19349663)) &
+        (PARTICLE_GRID_BUCKETS - 1);
+}
 
 typedef struct SystemBroadphasePair {
     Entity first, second;
@@ -905,6 +1038,7 @@ typedef struct SystemBroadphaseQuery {
     EntityIndex source_index;
     Report *report;
     bool refit;
+    bool particle_tree_query;
     unsigned particle_count;
     SystemBroadphasePair particles[4];
 } SystemBroadphaseQuery;
@@ -917,7 +1051,10 @@ static bool system_broadphase_pair_record(
     bool responds = physics_step_entity_components_check(pair->first_index, ROHR_COLLISION) &&
         physics_step_entity_components_check(pair->second_index, ROHR_COLLISION) &&
         physics_collision_response_between_by_index_check(pair->first_index, pair->second_index);
-    bool appended = contact_constraint_list_append(&physics_step_contact_constraints,
+    bool appended = physics_simple_baseline_active_check() ?
+        contact_constraint_list_rigid_append(&physics_step_contact_constraints,
+            pair->first, pair->second, pair->first_index, pair->second_index, overlap, responds) :
+        contact_constraint_list_append(&physics_step_contact_constraints,
         (SystemContactConstraint){
         .type = SYSTEM_CONTACT_CONSTRAINT_RIGID_PAIR,
         .value.rigid = {
@@ -966,9 +1103,13 @@ static bool system_broadphase_pair_apply(Entity target, void *context) {
     SystemBroadphaseQuery *query = context;
     EntityIndex target_index;
     if(query == NULL || target == query->source ||
-            (!query->refit && target < query->source) ||
+            (!query->refit && !query->particle_tree_query && target < query->source) ||
             !entity_index_get(target, &target_index) ||
             !physics_step_entity_alive_check(target_index)) return true;
+    /* Grid particles query polygons; polygon sources must not visit those
+     * mixed pairs again. */
+    if(particle_grid_active && !query->particle_tree_query &&
+            physics_step_entity_components_check(target_index, ROHR_PARTICLE)) return true;
     /* Bounds and poses stay fixed throughout this gather. If both endpoints
      * moved, the earlier query already visited this pair, including misses.
      * Use iteration order, not handle order: reused slots can reorder handles.
@@ -1100,14 +1241,19 @@ static void system_rigid_contact_constraint_solve(
     if(!system_rigid_contact_identity_check(constraint)) return;
     first = constraint->value.rigid.first_index;
     second = constraint->value.rigid.second_index;
-    if(!physics_step_hitbox_update(first, report) || !physics_step_hitbox_update(second, report)) {
+    bool particles = physics_step_entity_components_check(first, ROHR_PARTICLE) &&
+        physics_step_entity_components_check(second, ROHR_PARTICLE);
+    PhysicsParticleCircle first_circle, second_circle;
+    bool geometry_valid = particles ?
+        system_particle_contact_circle_get(first, &first_circle, report) &&
+            system_particle_contact_circle_get(second, &second_circle, report) :
+        physics_step_hitbox_update(first, report) && physics_step_hitbox_update(second, report);
+    if(!geometry_valid) {
         constraint->value.rigid.overlap = (OverlapInfo){0};
         constraint->value.rigid.contact = (ContactInfo){0};
         return;
     }
     responds = constraint->value.rigid.responds;
-    bool particles = physics_step_entity_components_check(first, ROHR_PARTICLE) &&
-        physics_step_entity_components_check(second, ROHR_PARTICLE);
     if(responds && !particles) {
         /* The manifold already performs SAT. Do not repeat that work just to
          * check overlap; retain SAT fallback for overlap without clip points. */
@@ -1115,9 +1261,7 @@ static void system_rigid_contact_constraint_solve(
         overlap = manifolds.count ? (OverlapInfo){.detected = true} :
             system_entity_overlap_get(first, second);
     } else if(particles) {
-        /* Both hitboxes above refreshed and validated these exact circles. */
-        overlap = physics_particle_circle_overlap_get(
-            hitbox_cached_circles[first], hitbox_cached_circles[second]);
+        overlap = physics_particle_circle_overlap_get(first_circle, second_circle);
     } else overlap = system_entity_overlap_get(first, second);
     if(!overlap.detected) return;
     if(!responds) {
@@ -1242,6 +1386,32 @@ static void system_broadphase_build(Report *report) {
     bool refit = broadphase_reuse_allowed && physics_step_contact_constraints.solving &&
         physics_step_contact_constraints.rigid_gathered;
     broadphase_refit = refit;
+    /* Preserve tree contact order for beam-coupled scenes: the grid's changed
+     * order regressed node overlap without a worthwhile measured car saving.
+     * Manual gathers also always retain the complete tree. */
+    particle_grid_active = physics_simple_baseline_active_check() && !refit &&
+        soft_body_beams_pool.count == 0;
+    particle_grid_count = 0;
+    particle_grid_width = 1.0f;
+    if(particle_grid_active) {
+        double diameter_sum = 0;
+        uint32_t count = 0;
+        for(uint32_t n = 0; n < physics_step_collider_iteration_count_get(); ++n) {
+            EntityIndex index;
+            if(!physics_step_collider_index_at(n, &index) ||
+                    !physics_step_entity_components_check(index, ROHR_HIT_BOX | ROHR_PARTICLE)) continue;
+            double diameter = 2.0 * physics_particle_radius_by_index_get(index);
+            diameter_sum += diameter;
+            particle_grid_width = fmaxf(particle_grid_width, (float)diameter);
+            ++count;
+        }
+        /* A large outlier makes a single-resolution grid scan dense cells.
+         * Choose ordinary tree traversal if the largest diameter exceeds four
+         * times the mean. This changes neither shapes nor response effort. */
+        if(!count || !isfinite(diameter_sum) || !isfinite(particle_grid_width) ||
+                particle_grid_width > 4.0 * diameter_sum / count)
+            particle_grid_active = false;
+    }
     broadphase_query_count = 0;
     memset(broadphase_changed, 0, sizeof(broadphase_changed));
     if(refit) {
@@ -1282,9 +1452,16 @@ static void system_broadphase_build(Report *report) {
         broadphase_pose_order[index] = alive_position;
         if(!physics_step_hitbox_update(index, report)) continue;
         physics_report_counter_add(report, ROHR_REPORT_COLLIDER_COUNT, 1);
+        AABB bounds = system_broadphase_bounds_get(index);
+        if(particle_grid_active && physics_step_entity_components_check(index, ROHR_PARTICLE)) {
+            particle_grid_indices[particle_grid_count++] = index;
+            particle_grid_bounds[index] = bounds;
+            broadphase_query_indices[broadphase_query_count++] = index;
+            continue;
+        }
         uint32_t leaf = (uint32_t)physics_broadphase_tree.count;
         EngineResult result = aabb_tree_insert(
-            &physics_broadphase_tree, entity, system_broadphase_bounds_get(index));
+            &physics_broadphase_tree, entity, bounds);
         if(result.kind == ERROR_RESULT_ERROR) {
             physics_report_issue_add(report, ROHR_PHYSICS_BROADPHASE, ROHR_REPORT_SEVERITY_FATAL,
                 result.result.error, ROHR_REPORT_UPDATE_ABORTED, entity, 0,
@@ -1328,7 +1505,7 @@ static bool system_broadphase_query(AABB bounds, SystemBroadphaseQuery *query) {
     physics_broadphase_tree.query_stack[count++] = physics_broadphase_tree.root;
     while(count) {
         uint32_t index = physics_broadphase_tree.query_stack[--count];
-        if(broadphase_subtree_limits[index] <= threshold) continue;
+        if(!query->particle_tree_query && broadphase_subtree_limits[index] <= threshold) continue;
         const AABBTreeNode *node = &physics_broadphase_tree.nodes[index];
         if(!math_aabb_overlap(bounds, node->bounds)) continue;
         if(aabb_tree_node_leaf_check(node)) {
@@ -1341,6 +1518,68 @@ static bool system_broadphase_query(AABB bounds, SystemBroadphaseQuery *query) {
     return true;
 }
 
+static void system_particle_grid_gather(SystemBroadphaseQuery *query) {
+    memset(particle_grid_heads, 0xff, sizeof(particle_grid_heads));
+    bool coordinates_valid = true;
+    for(uint32_t n = 0; n < particle_grid_count; ++n) {
+        EntityIndex index = particle_grid_indices[n];
+        PhysicsParticleCircle circle = broadphase_circles[index];
+        double cell_x = floor((double)circle.center.x / particle_grid_width);
+        double cell_y = floor((double)circle.center.y / particle_grid_width);
+        if(!isfinite(cell_x) || !isfinite(cell_y) ||
+                cell_x < INT_MIN + 1 || cell_x > INT_MAX - 1 ||
+                cell_y < INT_MIN + 1 || cell_y > INT_MAX - 1) {
+            coordinates_valid = false;
+            break;
+        }
+        int x = (int)cell_x, y = (int)cell_y;
+        particle_grid_x[n] = x; particle_grid_y[n] = y;
+        unsigned bucket = system_particle_grid_bucket_get(x, y);
+        particle_grid_next[n] = particle_grid_heads[bucket];
+        particle_grid_heads[bucket] = (int)n;
+    }
+    if(!coordinates_valid) {
+        /* Malformed/extreme offsets must not overflow a cell coordinate or
+         * silently omit a pair. Keep the validated geometry's scalar fallback. */
+        for(uint32_t n = 0; n < particle_grid_count; ++n)
+            for(uint32_t m = n + 1; m < particle_grid_count; ++m) {
+                EntityIndex a = particle_grid_indices[n], b = particle_grid_indices[m];
+                Entity first, second;
+                if(!physics_step_entity_from_index_get(a, &first) ||
+                        !physics_step_entity_from_index_get(b, &second)) continue;
+                query->particles[query->particle_count++] = first < second ?
+                    (SystemBroadphasePair){first, second, a, b} :
+                    (SystemBroadphasePair){second, first, b, a};
+                if(query->particle_count == 4 && !system_broadphase_particles_flush(query)) return;
+            }
+        (void)system_broadphase_particles_flush(query);
+        return;
+    }
+    for(uint32_t n = 0; n < particle_grid_count; ++n) {
+        EntityIndex first_index = particle_grid_indices[n];
+        Entity first;
+        if(!physics_step_entity_from_index_get(first_index, &first)) continue;
+        PhysicsParticleCircle a = broadphase_circles[first_index];
+        for(int dx = -1; dx <= 1; ++dx) for(int dy = -1; dy <= 1; ++dy) {
+            int x = particle_grid_x[n] + dx, y = particle_grid_y[n] + dy;
+            unsigned bucket = system_particle_grid_bucket_get(x, y);
+            for(int other = particle_grid_heads[bucket]; other >= 0; other = particle_grid_next[other]) {
+                if(particle_grid_x[other] != x || particle_grid_y[other] != y) continue;
+                EntityIndex second_index = particle_grid_indices[other];
+                Entity second;
+                if(!physics_step_entity_from_index_get(second_index, &second) || second <= first) continue;
+                PhysicsParticleCircle b = broadphase_circles[second_index];
+                float radius = a.radius + b.radius;
+                if(fabsf(a.center.x - b.center.x) > radius || fabsf(a.center.y - b.center.y) > radius) continue;
+                query->particles[query->particle_count++] = (SystemBroadphasePair){
+                    first, second, first_index, second_index};
+                if(query->particle_count == 4 && !system_broadphase_particles_flush(query)) return;
+            }
+        }
+    }
+    (void)system_broadphase_particles_flush(query);
+}
+
 static void system_broadphase_collisions_apply(Report *report) {
     SystemBroadphaseQuery query = {.report = report, .refit = broadphase_refit};
     if(broadphase_query_count && physics_broadphase_tree.root != AABB_TREE_NODE_INVALID)
@@ -1351,11 +1590,15 @@ static void system_broadphase_collisions_apply(Report *report) {
         if(!physics_step_entity_from_index_get(index, &entity)) continue;
         query.source = entity;
         query.source_index = index;
+        query.particle_tree_query = particle_grid_active &&
+            physics_step_entity_components_check(index, ROHR_PARTICLE);
         (void)system_broadphase_query(
-            physics_broadphase_tree.nodes[broadphase_leaves[index]].bounds, &query);
+            query.particle_tree_query ? particle_grid_bounds[index] :
+                physics_broadphase_tree.nodes[broadphase_leaves[index]].bounds, &query);
         if(report->has_fatal) return;
     }
     (void)system_broadphase_particles_flush(&query);
+    if(particle_grid_active && !report->has_fatal) system_particle_grid_gather(&query);
 }
 
 static void system_angle_locks_apply(Report *report) {

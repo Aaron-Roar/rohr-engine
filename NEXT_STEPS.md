@@ -30,8 +30,8 @@ current engine. Milestone 12 is closed by user direction and superseded, not
 complete. Its completed goals retain credit; unfinished Goal 14 and unstarted
 Goals 15–19 are historical scope, not active work. Preserve all code, prototypes,
 executables and evidence. Milestone 13 Goal 1 established the simpler baseline.
-Goal 2 now optimizes the pit before restoring additional systems; former Goals
-2–6 move to 3–7. This roadmap update does not start Goal 2 or modify physics.
+Goal 2's optimization is preserved for review but failed its performance gates;
+restoration has not begun. Former Goals 2–6 moved to 3–7.
 
 **Preserved physics history:** milestone 6 goal 4, **Joint stability**, including the user's
 visual/window-switch acceptance. Its frozen fixtures and verification are
@@ -568,7 +568,8 @@ Preserve current public APIs, editor/project integration, ownership, entity
 lifetimes, reporting and independently runnable pipeline contracts. This is a
 physics rebuild, not a reset of the repository to the historical engine.
 
-**Status: highest unfinished priority; Goal 1 complete; Goals 2–7 not started.**
+**Status: highest unfinished priority; Goal 1 complete; Goal 2 failed its performance gates;
+Goals 3–7 not started.**
 Goal 2 optimizes the baseline pit before restoring additional systems. By user
 direction, the former Goals 2–6 are now Goals 3–7; their scope is preserved.
 The [baseline report](docs/physics_rebuild_baseline.md) records implementation,
@@ -622,7 +623,7 @@ assuming the old model is sufficiently accurate or that all old code is faster.
    not production or final quality acceptance. Evidence is in
    `sandbox/milestone_13/goal_1/`. Stop for review and the user's commit before
    starting Goal 2.
-2. [ ] **Optimize the baseline pit before restoring additional systems.** Pin
+2. [ ] **Optimize the baseline pit before restoring additional systems — failed.** Pin
    Goal 1's candidate and the immediate parent as controls. Explain the measured
    8,033.5 ms and 14,577,780 particle-pair response invocations: separate unique
    pairs, retained constraints, repeated solver visits, effective responses and
@@ -649,6 +650,10 @@ assuming the old model is sufficiently accurate or that all old code is faster.
 
    Target at most six physics CPU seconds for the full twelve-second pit,
    measured with three serial clean runs per version under the shared contract.
+   During Goal 2, the user clarified that a near-target result is preferable to
+   sacrificing substantial physics quality merely to save another second.
+   Retain the six-second comparison target and report any miss explicitly;
+   do not silently reduce response effort or reinterpret it as a performance pass.
    Verify normal 1280×720 rendered pit playback separately against the 60 FPS,
    p95 work, simulation-time and backlog gates below; CPU throughput alone is
    not rendered acceptance. Require relevant regressions, ASan/UBSan, Linux
@@ -658,6 +663,21 @@ assuming the old model is sufficiently accurate or that all old code is faster.
    failed rather than a completed optimization; report the remaining cost and
    required tradeoffs for user direction. Stop for review and commit before
    restoring systems. Goal 7 still owns combined final quality acceptance.
+   **Result:** four-pass candidate reduces the matched three-run pit CPU median
+   from 13.511 s to 7.664 s per twelve simulated seconds (43.3% less), but misses
+   the six-second budget by 1.664 s. The unchanged car median is 3.105 s per ten
+   simulated seconds, with sampled trajectory matching Goal 1. Pit worst pair
+   overlap is 0.266482, below 0.5; the user found its preview acceptable. Rendered
+   pit runs achieve 58.20–58.80 FPS, p95 work 17.10–17.98 ms and simulation/elapsed
+   ratios 0.9701–0.9801, so the strict rendered gates also fail. Linux, relevant
+   ASan/UBSan, Windows cross-builds and independent SDK consumers are verified;
+   all 228 stress endpoints complete with the same 52 passes/176 failures.
+   Production defaults remain unchanged. The [optimization report](docs/physics_pit_optimization.md)
+   records retained/rejected changes, grid size/distance fallbacks and the remaining
+   response/solver/geometry costs. Evidence is in `sandbox/milestone_13/goal_2/`.
+   Stop for review and explicit direction; do not advance automatically to
+   restoration. A 4 ms average / 5 ms p95 physics budget was proposed during
+   review as a fuller-game target; it has not replaced the approved checklist.
 3. [ ] **Restore reliable rigid and particle/node blocking.** Starting from the
    baseline's observed failures, add only the protection needed for rigid–rigid
    impacts, stacks and mass ratios, plus particle/node contacts with static,

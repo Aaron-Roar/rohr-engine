@@ -7,6 +7,11 @@ verification are satisfied; numerical quality and rendered/headroom failures
 remain comparison results under this goal's approved contract.
 The authoritative scope and later goals are in [the roadmap](../NEXT_STEPS.md#13-physics-rebuild-from-the-simpler-baseline).
 
+[Goal 2's subsequent pit optimization](physics_pit_optimization.md) is preserved
+for review but failed its performance gates. Its matched four-pass pit median is
+7.664 s versus 13.511 s for this baseline; car trajectories remain unchanged.
+This Goal 1 report and its original evidence remain historical records.
+
 ## Provenance and reproduction
 
 - Immediate parent: `f3e385fc850c8a9b8f2172a306094e180d9c6cc2`.
