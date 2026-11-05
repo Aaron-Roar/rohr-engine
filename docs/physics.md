@@ -653,7 +653,7 @@ sanitizer checks pass all 23 regressions, 219 stress endpoints plus four
 calibrations and 1,000 cache-lifetime cycles per platform. Windows cross-builds
 and independent installed-SDK examples pass. Existing CPU-comparison failures
 remain visible. Goal 13's [quality/work investigation](physics_quality_experiments.md)
-is complete; Goals 14–19 have not started. The new
+is complete; Goal 14 is in progress and Goals 15–19 have not started. The new
 [Goal 14 plan](physics_particle_collision_plan.md) makes cheaper collision work
 for standalone particles and soft-body nodes the next priority. It preserves
 particle–rigid crossing protection and rigid–rigid quality while evaluating

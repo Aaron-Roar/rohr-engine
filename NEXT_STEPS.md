@@ -13,7 +13,7 @@ priority order.
 | 2 | Asset and resource ownership | Complete |
 | 3 | COM, inertia, and origin semantics | Complete |
 | 4 | Cross-path feature parity | Complete by user acceptance; recorded verification exceptions remain |
-| 12 | Real-time physics pipeline rework | Highest unfinished priority; goals 1–13 complete; goal 14 particle/node collision work next; goals 14–19 not started |
+| 12 | Real-time physics pipeline rework | Highest unfinished priority; goals 1–13 complete; goal 14 particle/node collision work in progress; goals 15–19 not started |
 | 11 | Soft-body correctness and real-time performance | Superseded by milestone 12; not complete; evidence preserved |
 | 6 | Physics robustness | Goals 1–4 accepted; goal 5 failed verification |
 | — | [C game experiment](#c-game-experiment) | Pending; agree concept and completion criteria when starting |
@@ -72,7 +72,9 @@ it is 18.160/53.256 seconds, with larger update spikes. Neither meets real time;
 numerical differences and legacy CPU-comparison failures remain recorded.
 Production defaults, APIs and review limits are unchanged. The user has now
 inserted [Goal 14: cheaper particle and node collision work](docs/physics_particle_collision_plan.md).
-Goals 14–19 have not started; adding this plan does not start implementation.
+Goal 14 is now authorized and in progress; Goals 15–19 have not started.
+Numerical failures may remain during this rework: record the measured value,
+threshold, excess and supported cause without relabeling failures as passes.
 The selected penetration limits remain in force. The C game experiment has not started.
 
 Regression checks and relevant sanitizer checks remain mandatory throughout
@@ -556,8 +558,8 @@ investigation uses parent `ab3c634b`; Goal 10 against parent `f9abe365` is
 committed at `43f49903`. Goal 11 is committed at `506b696a`; Goal 12 is committed
 at `81e76ff5` against that parent. Goal 13's quality/work investigation is complete
 against parent `db1d52cb`, awaiting user review/commit; it adopts no production
-change. Goals 14–19 have not started; cheaper particle/node collision work is
-the new Goal 14.**
+change. Cheaper particle/node collision work is in progress as Goal 14;
+Goals 15–19 have not started.**
 The user now limits runtime candidates and new workload experiments to **60 Hz
 physics and below**. Higher-rate evidence remains historical; production defaults
 are unchanged during the audit. The requested isolated comparison uses 60 Hz,
