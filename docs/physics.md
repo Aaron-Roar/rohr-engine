@@ -523,12 +523,28 @@ the existing travel-limited step when the target's vertices remain outside the
 moving side plane, with the same penetration margin. These are general physics
 paths; none selects behavior by example, fixture identity, or benchmark mode.
 
-[Milestone 12](../NEXT_STEPS.md#12-real-time-physics-pipeline-rework) is the
-highest unfinished priority: rework physics on `physics-pipelines` against the
-frozen `physics-pipelines-overoptimized` reference at `6f283268`, excluding
-`main` from comparisons. First meet the real-time gates for the unchanged
-authored car and 800-particle pit, then compare accuracy and behavior and obtain
-user acceptance of the final balance. Goal 1 is complete; its
+[Milestone 13](../NEXT_STEPS.md#13-physics-rebuild-from-the-simpler-baseline) is
+the highest unfinished priority. Its approved roadmap rebuilds physics from the
+simpler `a8a7940a` execution model inside the current engine, then adds blocking,
+structural/soft-body quality and selective extra work in measured stages. All
+six goals are unstarted; the roadmap change does not start Goal 1 or change
+production behavior. Preserve current APIs, ownership, reporting and standalone
+stages. Keep the unchanged car/pit workloads, 60 Hz-or-lower runtime candidates,
+one-minute test cap, 0.5/0.1 review thresholds and mandatory safety/platform checks.
+Target 2× physics headroom separately from rendered real-time acceptance; final
+quality selection remains the user's decision.
+
+Milestone 12 is **closed by user direction and superseded, not complete**.
+Goals 1–13 retain completion credit; Goal 14 ended unfinished and Goals 15–19
+were never started. Preserve all experiments and evidence, including the
+[historical car comparison](physics_particle_collision_plan.md#historical-car-diagnostic-checkpoint).
+Its matched-rate ten-second car medians are 7.178 CPU seconds old versus 48.456
+current; the old car also does not establish 2× headroom or equivalent accuracy.
+Milestone 13 retains `6f283268` as the frozen accuracy reference and excludes
+`main`, adding the historical model and immediate parent as distinct controls.
+
+The following Milestone 12 results and retired plans are historical records.
+Goal 1 is complete; its
 [measurement contract](physics_measurement_contract.md) records the preserved
 reference, exclusive stage costs, baseline errors and repeatable comparisons.
 All 219 timed fixture scenarios plus four calibrations finish with matching
@@ -653,9 +669,9 @@ sanitizer checks pass all 23 regressions, 219 stress endpoints plus four
 calibrations and 1,000 cache-lifetime cycles per platform. Windows cross-builds
 and independent installed-SDK examples pass. Existing CPU-comparison failures
 remain visible. Goal 13's [quality/work investigation](physics_quality_experiments.md)
-is complete; Goal 14 is in progress and Goals 15–19 have not started. The new
-[Goal 14 plan](physics_particle_collision_plan.md) makes cheaper collision work
-for standalone particles and soft-body nodes the next priority. It preserves
+is complete; Goal 14 ended unfinished and Goals 15–19 were not started. The
+[superseded Goal 14 plan](physics_particle_collision_plan.md) investigated cheaper
+collision work for standalone particles and soft-body nodes. Its former scope preserves
 particle–rigid crossing protection and rigid–rigid quality while evaluating
 reused search candidates, separate particle response budgets and reduced
 particle–particle cadence. Structural forces and constraints remain; numerical
@@ -699,8 +715,8 @@ particle–particle sweep restrictions; production defaults remain unchanged.
 The user subsequently selected keeping existing sweep protection; exclusion
 remains a rejected diagnostic. The
 remaining joint, soft-body, orchestration, real-time and final-comparison goals
-are now 15–19. Goal 14 may revisit reduced particle–particle continuous
-protection as an explicit experiment; the earlier rejected result remains
+were numbered 15–19 and are now retired under Milestone 12. Goal 14 permitted
+revisiting reduced particle–particle continuous protection as an explicit experiment; the earlier rejected result remains
 evidence and no failing candidate is automatically adopted. Flag
 particle–particle penetration in the diameter-5 pit only
 above 0.5 units. The user provisionally sets penetration checks in all Milestone

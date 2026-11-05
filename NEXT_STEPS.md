@@ -13,7 +13,8 @@ priority order.
 | 2 | Asset and resource ownership | Complete |
 | 3 | COM, inertia, and origin semantics | Complete |
 | 4 | Cross-path feature parity | Complete by user acceptance; recorded verification exceptions remain |
-| 12 | Real-time physics pipeline rework | Highest unfinished priority; goals 1–13 complete; goal 14 particle/node collision work in progress; goals 15–19 not started |
+| 13 | Physics rebuild from the simpler baseline | Highest unfinished priority; roadmap approved; goals 1–6 not started |
+| 12 | Real-time physics pipeline rework | Closed by user direction; superseded by milestone 13, not complete; goals 1–13 complete, goal 14 unfinished, goals 15–19 not started; evidence preserved |
 | 11 | Soft-body correctness and real-time performance | Superseded by milestone 12; not complete; evidence preserved |
 | 6 | Physics robustness | Goals 1–4 accepted; goal 5 failed verification |
 | — | [C game experiment](#c-game-experiment) | Pending; agree concept and completion criteria when starting |
@@ -23,7 +24,16 @@ priority order.
 | 7 | Editor implementation scalability | Deferred until after Python unless game development makes it necessary sooner |
 | 10 | End-to-end game | Pending; separate larger game directed by the user |
 
-**Completed goal:** milestone 6 goal 4, **Joint stability**, including the user's
+**Current priority:** [Milestone 13](#13-physics-rebuild-from-the-simpler-baseline)
+rebuilds physics outward from the simpler historical execution model inside the
+current engine. Milestone 12 is closed by user direction and superseded, not
+complete. Its completed goals retain credit; unfinished Goal 14 and unstarted
+Goals 15–19 are historical scope, not active work. Preserve all code, prototypes,
+executables and evidence. No engine rollback or physics implementation occurs
+in this roadmap change. Milestone 13 Goal 1 establishes the simpler baseline;
+implementation awaits the user's explicit instruction to pursue it.
+
+**Preserved physics history:** milestone 6 goal 4, **Joint stability**, including the user's
 visual/window-switch acceptance. Its frozen fixtures and verification are
 recorded below. Goal 5, **Soft-body contact and stability**, was pursued and
 **failed verification** at checkpoint `63fccb26` on extreme-load penetration and
@@ -32,7 +42,7 @@ but still misses delayed-update and car real-time budgets; neither goal is compl
 Goal 3's timing rerun on the unchanged build passes at 45.432 ms delayed and
 0.771 ms worst 60 Hz p95; earlier 69.505/58.421 ms failures remain evidence of
 measurement variability, not an established physics regression. Milestone 12
-supersedes milestone 11 and is the highest unfinished priority: achieve real-time
+superseded milestone 11 with the then-highest priority: achieve real-time
 car and pit performance, then compare accuracy and behavior with the frozen
 `physics-pipelines-overoptimized` reference at `6f283268`. Exclude `main` from
 comparisons. Milestone 12 goal 1 establishes the reference and measurement
@@ -70,12 +80,16 @@ At 60 Hz/four substeps/four passes, median physics CPU is 24.465 seconds per
 12-second pit and 54.354 seconds per ten-second car prefix. At 30 Hz/four/four,
 it is 18.160/53.256 seconds, with larger update spikes. Neither meets real time;
 numerical differences and legacy CPU-comparison failures remain recorded.
-Production defaults, APIs and review limits are unchanged. The user has now
-inserted [Goal 14: cheaper particle and node collision work](docs/physics_particle_collision_plan.md).
-Goal 14 is now authorized and in progress; Goals 15–19 have not started.
-Numerical failures may remain during this rework: record the measured value,
-threshold, excess and supported cause without relabeling failures as passes.
-The selected penetration limits remain in force. The C game experiment has not started.
+Production defaults, APIs and review limits are unchanged. The user subsequently
+pursued [Goal 14: cheaper particle and node collision work](docs/physics_particle_collision_plan.md),
+then ended Milestone 12 in favor of Milestone 13. Goal 14 remains unfinished;
+Goals 15–19 were never started. The historical car comparison found median
+physics CPU of 7.178 seconds at `a8a7940a` versus 48.456 seconds at `0b254c04`
+for ten simulated seconds at 60 Hz/four substeps/four solver passes. Executed
+steps increased from 2,400 to 25,099 and rigid gathers from 2,400 to 225,878.
+This compares each version's own example, not equivalent trajectories or
+particle-only changes. The numerical failures, review limits and safety
+requirements carry into Milestone 13. The C game experiment has not started.
 
 Regression checks and relevant sanitizer checks remain mandatory throughout
 physics, the C game experiment, and runtime isolation. Deferring the broader
@@ -543,23 +557,182 @@ contracts, and generated examples when a goal changes supported behavior.
     see the corrective issue mapping. Goal 5 is now complete by user acceptance
     with the recorded verification exceptions above.
 
+### 13. Physics rebuild from the simpler baseline
+
+Rebuild physics outward from the simpler `a8a7940a` execution model **inside the
+current engine**, adding necessary protection and quality in measured stages.
+Prioritize accurate rigid–rigid interactions and reliable particle/node blocking
+against rigid bodies, especially preventing passage through thick walls. Cheaper
+particle bounce, friction, settling and contact precision may be evaluated.
+Preserve current public APIs, editor/project integration, ownership, entity
+lifetimes, reporting and independently runnable pipeline contracts. This is a
+physics rebuild, not a reset of the repository to the historical engine.
+
+**Status: highest unfinished priority; roadmap approved; all six implementation
+goals not started.** Milestone 12 is closed and superseded, not completed. This
+roadmap update does not start Goal 1, choose a production candidate or authorize
+silently dropping supported physics features. Keep the current implementation
+as a comparison control; isolate experiments and preserve the user's workspace.
+Unlike the retired Goal 14 scope, this milestone explicitly permits investigating
+and rebuilding integration, elastic scheduling, subdivision and contact-refresh
+policy. Each goal still requires the user's instruction before it starts.
+
+The direction is **2× physics throughput in both unchanged workloads**, followed
+by rendered verification and user selection of the final quality balance.
+The historical car's 7.178 CPU seconds per ten simulated seconds exceeds the
+five-second headroom target; restoring its schedule alone is not a promise of
+success. No comparable historical pit result at these matched settings has yet
+been established. Measure every added system's cost and benefit rather than
+assuming the old model is sufficiently accurate or that all old code is faster.
+
+1. [ ] **Establish the simpler baseline inside the current engine.** Pin the
+   implementation parent and preserve the old/current/reference sources, SDKs,
+   executables and evidence. Inventory the historical and current physics
+   features and execution order; explicitly list supported, temporarily reduced
+   and deferred behavior, including joint locks, springs, soft boundaries,
+   beam/self contacts, force timing and interaction publication. Reproduce the
+   historical bounded fixed-step/contact-gather-once schedule in an isolated
+   current-engine candidate, adapting its integration as needed rather than
+   carrying over modern world-wide adaptive repetition implicitly. Keep current
+   API, ownership, lifetime, reporting and standalone-stage semantics. Begin at
+   60 Hz, four configured substeps and four solver passes. Run the unchanged
+   current authored car and 800-particle pit against the current control; retain
+   the historical example as a separate behavioral reference and identify scene
+   differences. Repair diagnostic clock/temporary-force handling explicitly and
+   preserve prior traces. Record complete workload timings, exclusive stage and
+   pair-type costs, step/gather/solve counts, numerical failures and visual
+   behavior. Verify Linux, relevant ASan/UBSan, Windows cross-builds and independent
+   SDK examples. Deliver a reproducible baseline, feature/error inventory and
+   ranked additions for Goal 2, not a production rollback. Completion requires
+   functioning composed/manual pipelines, mandatory safety checks and completed
+   declared car/pit diagnostic endpoints; final numerical tolerances, real-time
+   gates and 2× headroom are not Goal 1 completion requirements.
+2. [ ] **Restore reliable rigid and particle/node blocking.** Starting from the
+   baseline's observed failures, add only the protection needed for rigid–rigid
+   impacts, stacks and mass ratios, plus particle/node contacts with static,
+   moving and rotating rigid bodies. Cover high-speed, oblique, thick/thin-wall,
+   initially embedded and multiple-impact cases. Response must consume remaining
+   time without carrying bodies through a detected obstacle. Keep rigid quality
+   separate from cheaper particle response. Evaluate local handling and
+   conservative risk tests before making every interaction repeat the world.
+   Measure each addition independently; retain unmet numerical criteria visibly.
+3. [ ] **Restore soft-body and structural quality in measured stages.** Cover
+   spring/beam integration and damping, pin/weld joints, transform locks, node
+   support, beam–rigid and beam–beam contacts and self-collision. Use the baseline
+   inventory to retain working systems and add missing protections separately.
+   Measure strain, seam penetration, energy, constraint error, tunneling and car
+   behavior. Separate elastic stability needs from collision discovery cadence;
+   do not let a local stability restriction silently imply a full-world collision
+   pass. Keep explicit dependencies and fallbacks where bodies are coupled.
+4. [ ] **Make subdivision and contact refresh selective.** Use the preceding
+   failure and cost evidence to define conservative triggers and the entities or
+   interactions affected. Evaluate collision-risk subdivision, bounded candidate
+   reuse, correction-created contacts, affected-beam refresh and solve cadence.
+   Compare full-world fallback with local work, including dependency propagation,
+   filter/shape changes and generation-safe deletion/reuse. Preserve elapsed time,
+   publication and standalone-stage behavior. Record false negatives, avoided
+   work and maintenance overhead; retain simpler execution when it is better.
+5. [ ] **Optimize retained systems and select candidate settings.** Rank actual
+   bottlenecks in the composed result, reduce unnecessary operations first, then
+   evaluate data layout, batching/SIMD or caches where measurements justify them.
+   Tune tick rate (at most 60 Hz), configured substeps and independent response
+   effort without changing scenes or materials. Record existing API overrides
+   separately from internal experiments; any public API redesign requires its
+   own decision. Test isolated changes before combinations. Produce repeatable
+   savings in both workloads toward 2× headroom, with an explicit quality/cost
+   table and full safety/platform verification. Do not hide a failed target by
+   changing the benchmark or selecting a shorter endpoint.
+6. [ ] **Verify the combined result and obtain final quality acceptance.** Run
+   controlled car/pit comparisons, the relevant Milestone 6 scenarios and
+   regressions, rendered previews and motion/window-switch review. Require
+   normal 1280×720 playback at sustained 60 FPS, p95 frame work at most 16.67 ms
+   excluding pacing, simulation within 1% of elapsed time and no accumulating
+   backlog. Verify 2× physics headroom separately from rendering. Present
+   performance, protection and accuracy tradeoffs against the historical model,
+   immediate parent and frozen reference for explicit user selection. Implement
+   and verify the selected balance before changing production defaults or
+   Milestone 6's status. Any unmet gate remains failed/incomplete; numerical
+   tolerance changes require explicit user acceptance.
+
+#### Shared measurement and quality contract
+
+- Preserve three distinct pins: historical execution-model reference
+  `a8a7940a6e6d039c80aed20c6f6b2624169e1ee3`, current engine comparison checkpoint
+  `0b254c045b806fb13c022cd7470f063a03a130db` (plus the exact immediate parent for
+  each goal), and frozen accuracy reference
+  `6f283268aa4bf038c4ed78271baeb9d5986bd7d9`. Exclude `main`. The new goal's parent
+  may include this documentation commit; record it rather than assuming its hash.
+- Keep evidence under `sandbox/milestone_13/goal_<n>/`. Preserve all Milestone
+  11/12 evidence in place, including rejected and incomplete trials and the
+  [historical comparison](docs/physics_particle_collision_plan.md#historical-car-diagnostic-checkpoint).
+  Record source/build/SDK/executable hashes, settings and commands. Do not reuse
+  interrupted or faulty-harness timings as accepted results.
+- Use the unchanged current car (200 particles) and full 12-second pit (800
+  particles, diameter 5, restitution 0.5). Ten-second car prefixes are declared
+  diagnostics, not the inherited full 60-second car acceptance sequence. Keep
+  no-jump historical comparisons separate from jump-enabled workload runs;
+  correctly advance lifetime-owned inputs and record diagnostic corrections.
+  Do not change body counts, geometry, masses, materials or input sequences to
+  manufacture performance. The 2× diagnostic budgets are five physics CPU
+  seconds per ten-second car prefix and six per full twelve-second pit; full
+  workload acceptance must also be measured, not inferred from those prefixes.
+- Each test execution remains capped at one minute of wall time including
+  shutdown. Preserve incomplete endpoints, do not rerun the same known-slow
+  candidate, and never silently shorten a required scenario. The inherited
+  full 60-second rendered car requirement is not waived: if it cannot complete
+  within the cap, obtain an explicit endpoint/cap decision before claiming
+  final acceptance. Shorter staged diagnostics can still proceed.
+- Final comparisons use three serial runs per workload/version on AC power,
+  streaming closed and no concurrent builds. Record changed conditions as
+  exploratory evidence. Separate clean CPU, exclusive profiled wall time,
+  rendered work, pacing, intentional slow motion and debug drawing. Measure
+  calls and successful work, candidate/contact counts and actual subdivisions;
+  nested time must not be counted twice. Open visual trials one at a time, with
+  no automatic sequence of replacement windows after user interruption.
+- For every addition, record milliseconds/operations added, failures fixed,
+  remaining failures and supported causes. Keep numerical pass/fail separate
+  from endpoint completion, and accumulate full-run worst errors to the endpoint.
+  Invalid/nonfinite state, fatal errors, inability to advance and interruption
+  make a run incomplete. Ownership, memory safety, lifecycle correctness and
+  truthful reporting are mandatory even in deliberately rough candidates.
+- Retain 0.5-unit particle-pair review for the pit and 1,000-units/s head-on case,
+  and 0.1-unit penetration review in the Milestone 6 extreme fixtures. These are
+  review thresholds, not solver correction slack; no generic particle–wall pit
+  threshold is invented. Preserve separate tunneling, support, energy, rebound
+  and joint-error checks. Numerical failures may remain in intermediate candidates
+  with values, thresholds, excess and explanation; they do not become passes.
+- Continue relevant Milestone 6 Goals 1–5 and focused regressions. Preserve
+  fixed high-rate stress schedules as diagnostics even though new runtime
+  candidates remain at 60 Hz or below. Require relevant sanitizers, Linux
+  execution, Windows cross-builds and independent installed-SDK examples;
+  distinguish cross-build success from native Windows execution. Stop after
+  each goal for user review and commit; do not advance automatically. Refine
+  later goals from measured findings without silently expanding their scope.
+
 ### 12. Real-time physics pipeline rework
+
+**Closed by user direction; superseded by Milestone 13, not complete.** Goals
+1–13 remain complete. Goal 14 ended unfinished, with its prototypes, measurements
+and historical-car comparison preserved; Goals 15–19 were not started. The
+following plan and status details are historical evidence, not authorization to
+resume or advance this milestone. No real-time or final quality acceptance was
+achieved, and no experimental candidate is adopted by closing the milestone.
 
 Rework physics on `physics-pipelines`, using **`physics-pipelines-overoptimized`
 at `6f283268`** (full commit `6f283268aa4bf038c4ed78271baeb9d5986bd7d9`) as the
 frozen reference. **Exclude `main` from comparisons.** First achieve real-time
 performance in the unchanged soft-body car and 800-particle pit. Then assess
 accuracy and behavior against the reference and choose an acceptable middle
-ground. This is the highest unfinished priority and supersedes milestone 11,
+ground. This was the highest unfinished priority and superseded milestone 11,
 whose failed attempts, experiments, executables, and evidence remain preserved.
 
 **Status: goals 1–13 complete; Goal 8 is committed at `f6146a0a`. Goal 9's
 investigation uses parent `ab3c634b`; Goal 10 against parent `f9abe365` is
 committed at `43f49903`. Goal 11 is committed at `506b696a`; Goal 12 is committed
 at `81e76ff5` against that parent. Goal 13's quality/work investigation is complete
-against parent `db1d52cb`, awaiting user review/commit; it adopts no production
-change. Cheaper particle/node collision work is in progress as Goal 14;
-Goals 15–19 have not started.**
+against parent `db1d52cb`, committed at `ca874c2e`; it adopted no production
+change. Goal 14 is superseded unfinished; Goals 15–19 were not started and are
+retired scope under this milestone.**
 The user now limits runtime candidates and new workload experiments to **60 Hz
 physics and below**. Higher-rate evidence remains historical; production defaults
 are unchanged during the audit. The requested isolated comparison uses 60 Hz,
@@ -1004,7 +1177,7 @@ rendered acceptance gates; no unmeasured speedup is promised.
     checks pass, with capped supplementary prefixes explicitly incomplete.
     No rendered acceptance, Milestone 6 completion, default/API change, tolerance
     change, future-goal insertion or advancement to Goal 14 occurs here.
-14. [ ] **Reduce particle and node collision work while preserving rigid protection.**
+14. [ ] **Reduce particle and node collision work while preserving rigid protection — superseded, unfinished.**
     Follow the [ordered plan](docs/physics_particle_collision_plan.md). Apply the
     cheaper collision policy to standalone particles and soft-body nodes, retaining
     spring/beam forces and structural constraints. Reuse conservative movement

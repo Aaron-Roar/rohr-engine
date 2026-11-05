@@ -1,6 +1,14 @@
 # Physics measurement contract
 
-This is the measurement contract for [Milestone 12](../NEXT_STEPS.md#12-real-time-physics-pipeline-rework).
+**Historical contract:** Milestone 12 is closed and superseded, not complete.
+[Milestone 13](../NEXT_STEPS.md#13-physics-rebuild-from-the-simpler-baseline) now
+owns active priorities and its explicit comparison/verification contract. Retain
+this document and all original reference evidence; supersession does not turn
+failed or incomplete results into passes. The reference pin below remains the
+frozen accuracy reference; Milestone 13 adds distinct historical-model and
+immediate-parent comparisons.
+
+This is the preserved measurement contract for [Milestone 12](../NEXT_STEPS.md#12-real-time-physics-pipeline-rework).
 Goal 1 establishes the baseline; later goals retain the same workloads and report
 format. Numerical comparison failures remain failures even when they are not
 intermediate completion gates. Engine APIs, force ownership, and simulation

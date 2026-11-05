@@ -1,10 +1,16 @@
 # Milestone 12 Goal 14 — Cheaper particle and node collision work
 
-**Status: in progress; implementation authorized.** The user selected this as
-the next goal after the completed [Goal 13 experiments](physics_quality_experiments.md).
-Former Goals 14–18 become 15–19. Completed goals and evidence retain their
-numbers. [NEXT_STEPS.md](../NEXT_STEPS.md#12-real-time-physics-pipeline-rework)
-remains authoritative.
+**Status: closed unfinished by user direction; superseded by
+[Milestone 13](../NEXT_STEPS.md#13-physics-rebuild-from-the-simpler-baseline).**
+Milestone 12 has ended without real-time/final-quality acceptance. Preserve this
+plan, prototypes, rejected/incomplete trials and historical comparison as
+history; none of the unchecked items is completed by supersession. No candidate
+is adopted and no further work under this old goal is active. Milestone 13
+Goal 1 will establish the simpler execution-model baseline inside the current
+engine when explicitly pursued. [NEXT_STEPS.md](../NEXT_STEPS.md) remains the
+authoritative priority order.
+
+The following scope records the former authorized investigation.
 
 Reduce repeated searches, geometry maintenance and response work for standalone
 particles and soft-body nodes while retaining the current force/structural model.
@@ -144,7 +150,9 @@ At the user's request, compare the pre-roadmap engine `a8a7940a` (the parent of
 `27e49645`) with current parent `0b254c04`. The user confirmed the historical
 playable car matches the remembered behavior. This additional comparison does
 not replace the frozen `6f283268` reference or introduce a comparison with `main`.
-Goal 14 remains in progress; no historical physics implementation is adopted.
+At this diagnostic checkpoint Goal 14 was in progress; it subsequently ended
+unfinished when the user selected Milestone 13. No historical physics
+implementation is adopted by the comparison or roadmap transition.
 
 Each version uses its own example and independent installed Release SDK, at
 60 Hz, four configured substeps and four solver passes. Both ten-second scripts
