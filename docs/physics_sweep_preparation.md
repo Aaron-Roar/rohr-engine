@@ -1,9 +1,10 @@
 # Milestone 12 Goal 11 — Shared sweep preparation and traversal
 
 **Roadmap numbering note:** status and future-goal references below describe the
-Goal 11 completion checkpoint. Goal 12 has since completed, and the new
-[Goal 13 quality/work experiment](physics_quality_experiments_plan.md) is next.
-Historical Goals 13–17 below map to current Goals 14–18; evidence is preserved.
+Goal 11 completion checkpoint. Goals 12–13 have since completed, and
+[Goal 14 particle/node collision work](physics_particle_collision_plan.md) is
+next, not started. Historical Goals 13–17 below map to current Goals 15–19;
+evidence is preserved.
 
 Goal 11 is complete for review against parent `43f49903`. The frozen reference
 remains `physics-pipelines-overoptimized` at

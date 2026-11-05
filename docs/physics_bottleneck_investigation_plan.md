@@ -2,7 +2,8 @@
 
 **Roadmap numbering note:** this completed plan retains its historical numbering.
 The later [quality/work experiment](physics_quality_experiments_plan.md) is the
-new Goal 13; historical Goals 13–17 below map to current Goals 14–18. Consult
+new Goal 13; after the subsequent [Goal 14 particle/node insertion](physics_particle_collision_plan.md),
+historical Goals 13–17 below map to current Goals 15–19. Consult
 `NEXT_STEPS.md` for current execution order; evidence paths are unchanged.
 
 **Status: complete for review.** The [investigation report](physics_bottleneck_investigation.md)

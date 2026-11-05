@@ -6,6 +6,12 @@ This is an experiment record, not an adopted runtime configuration. The
 [approved plan](physics_quality_experiments_plan.md) defines the single review
 boundary. Production physics, public APIs, defaults and review limits are unchanged.
 
+**Subsequent roadmap update:** the user inserted
+[cheaper particle/node collision work](physics_particle_collision_plan.md) as
+Goal 14. Implementation has not started. Historical future-goal references in
+this report retain their completion-checkpoint numbers: Goals 14–18 now map to
+15–19. This does not alter the experiments or select their proposed follow-up.
+
 The balanced candidate is **60 Hz, four configured substeps, four solver passes**.
 Its three-run medians are 24.465 seconds of pit physics work per 12 simulated
 seconds and 54.354 seconds per ten-second car prefix. The 30 Hz/four/four

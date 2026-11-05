@@ -8,8 +8,11 @@ The [experiment record](physics_quality_experiments.md) contains completed
 checkpoints and explicitly incomplete runs.
 This is one goal with eight ordered experimental
 sub-goals, followed by a combined comparison and one review/commit boundary.
-Goal 14 remains unstarted pending the user's instruction. Former Goals 13–17 move to 14–18;
-completed goals and their evidence directories keep their numbers.
+At this plan's completion, former Goals 13–17 had moved to 14–18.
+The user subsequently inserted [cheaper particle/node collision work](physics_particle_collision_plan.md)
+as the new Goal 14; implementation has not started. Future-goal references in
+this completed plan retain their historical numbers: Goals 14–18 now map to
+15–19. Completed goals and their evidence directories keep their numbers.
 
 Find how much repeated physics work can be removed and measure the resulting
 accuracy and behavior tradeoffs in the unchanged car and 800-particle pit.

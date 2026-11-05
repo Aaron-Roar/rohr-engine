@@ -653,7 +653,16 @@ sanitizer checks pass all 23 regressions, 219 stress endpoints plus four
 calibrations and 1,000 cache-lifetime cycles per platform. Windows cross-builds
 and independent installed-SDK examples pass. Existing CPU-comparison failures
 remain visible. Goal 13's [quality/work investigation](physics_quality_experiments.md)
-is complete; Goals 14–18 have not started. The
+is complete; Goals 14–19 have not started. The new
+[Goal 14 plan](physics_particle_collision_plan.md) makes cheaper collision work
+for standalone particles and soft-body nodes the next priority. It preserves
+particle–rigid crossing protection and rigid–rigid quality while evaluating
+reused search candidates, separate particle response budgets and reduced
+particle–particle cadence. Structural forces and constraints remain; numerical
+deviations and the existing review limits stay visible. Elastic stepping that
+repeats world-wide work is a separate discussion, not an implementation task
+authorized by this insertion. The 2× physics-throughput direction is measured
+separately from rendered acceptance. The
 [Goal 13 experiment plan](physics_quality_experiments_plan.md) defines one goal
 with eight ordered sub-goals testing configured substeps, particle passes,
 global passes, tick rate, rediscovery cadence, adaptive collision restrictions,
@@ -672,17 +681,17 @@ Existing runtime controls are tested; proposed controls and the ranked future
 investigation remain proposals. The four-substep benchmark is distinct from the
 shipped one-substep default. No new goal is automatically inserted or started.
 The user added
-[recompute-only-when-needed investigations](../NEXT_STEPS.md#recompute-only-when-needed-investigation-requirements-for-goals-1112-and-1416)
-to Goals 11–12 and 14–16: reuse valid sweep preparation, separate particle circles from
+[recompute-only-when-needed investigations](../NEXT_STEPS.md#recompute-only-when-needed-investigation-requirements-for-goals-1112-and-1417)
+to Goals 11–12 and 14–17: reuse valid sweep preparation, separate particle circles from
 transformed polygon geometry, cache only valid joint data, refresh affected
 beams, and define shared-cache ownership and deferred geometry/publication
 boundaries. Each goal must measure requests, recomputations, reuse, invalidation
 and complete-update cost, preserving current collision positions, lifecycle,
 manual-stage and callback semantics. Goals 11–12's selected reuse is documented
-above; the additions for Goals 14–16 remain planned investigations. Full
+above; the additions for Goals 14–17 remain planned investigations. Full
 particle-circle/polygon separation was investigated in Goal 12 and remains
-cross-consumer deferred-geometry work under Goal 16. No accuracy reduction is
-selected.
+cross-consumer deferred-geometry work under Goal 17, with particle consumers
+also investigated in Goal 14. No new numerical tolerance is selected.
 The user limits new runtime candidates to 60 Hz physics and
 below, retaining higher-rate results as history. The isolated 60 Hz experiment
 retains four configured substeps and other adaptive limits while removing
@@ -690,7 +699,10 @@ particle–particle sweep restrictions; production defaults remain unchanged.
 The user subsequently selected keeping existing sweep protection; exclusion
 remains a rejected diagnostic. The
 remaining joint, soft-body, orchestration, real-time and final-comparison goals
-are now 14–18. Flag particle–particle penetration in the diameter-5 pit only
+are now 15–19. Goal 14 may revisit reduced particle–particle continuous
+protection as an explicit experiment; the earlier rejected result remains
+evidence and no failing candidate is automatically adopted. Flag
+particle–particle penetration in the diameter-5 pit only
 above 0.5 units. The user provisionally sets penetration checks in all Milestone
 6 extreme fixtures to 0.1 units (drop, thin barriers, stack, joint collisions
 and soft bodies). These are review thresholds, not solver settings; equality
@@ -752,7 +764,7 @@ result to respect the clarified review thresholds; changing these does not autho
 solver correction slack.
 Invalid/nonfinite state, fatal errors, inability to advance time or
 interruption remain incomplete. Safety and lifecycle verification remain
-mandatory. Final tolerance changes require explicit user acceptance in goal 18
+mandatory. Final tolerance changes require explicit user acceptance in goal 19
 and verification before updating milestone 6's status. New executables and
 evidence belong under `sandbox/milestone_12/goal_<n>/`.
 

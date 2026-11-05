@@ -13,7 +13,7 @@ priority order.
 | 2 | Asset and resource ownership | Complete |
 | 3 | COM, inertia, and origin semantics | Complete |
 | 4 | Cross-path feature parity | Complete by user acceptance; recorded verification exceptions remain |
-| 12 | Real-time physics pipeline rework | Highest unfinished priority; goals 1–13 complete; goal 14 next; goals 14–18 not started |
+| 12 | Real-time physics pipeline rework | Highest unfinished priority; goals 1–13 complete; goal 14 particle/node collision work next; goals 14–19 not started |
 | 11 | Soft-body correctness and real-time performance | Superseded by milestone 12; not complete; evidence preserved |
 | 6 | Physics robustness | Goals 1–4 accepted; goal 5 failed verification |
 | — | [C game experiment](#c-game-experiment) | Pending; agree concept and completion criteria when starting |
@@ -70,8 +70,9 @@ At 60 Hz/four substeps/four passes, median physics CPU is 24.465 seconds per
 12-second pit and 54.354 seconds per ten-second car prefix. At 30 Hz/four/four,
 it is 18.160/53.256 seconds, with larger update spikes. Neither meets real time;
 numerical differences and legacy CPU-comparison failures remain recorded.
-Production defaults, APIs and review limits are unchanged. Goals 14–18 have not
-started; Goal 14 is next only when the user chooses to pursue it.
+Production defaults, APIs and review limits are unchanged. The user has now
+inserted [Goal 14: cheaper particle and node collision work](docs/physics_particle_collision_plan.md).
+Goals 14–19 have not started; adding this plan does not start implementation.
 The selected penetration limits remain in force. The C game experiment has not started.
 
 Regression checks and relevant sanitizer checks remain mandatory throughout
@@ -555,7 +556,8 @@ investigation uses parent `ab3c634b`; Goal 10 against parent `f9abe365` is
 committed at `43f49903`. Goal 11 is committed at `506b696a`; Goal 12 is committed
 at `81e76ff5` against that parent. Goal 13's quality/work investigation is complete
 against parent `db1d52cb`, awaiting user review/commit; it adopts no production
-change. Goals 14–18 have not started.**
+change. Goals 14–19 have not started; cheaper particle/node collision work is
+the new Goal 14.**
 The user now limits runtime candidates and new workload experiments to **60 Hz
 physics and below**. Higher-rate evidence remains historical; production defaults
 are unchanged during the audit. The requested isolated comparison uses 60 Hz,
@@ -566,7 +568,7 @@ After the first comparison, the user explicitly selected **keeping existing
 particle–particle sweep protection** and continuing the five-question audit.
 The no-sweep version remains rejected diagnostic evidence.
 Goal 7 is committed at `13ac660e`.
-Goal 6 is committed at `479d50a2`. The original goals 7–11 are now goals 14–18;
+Goal 6 is committed at `479d50a2`. The original goals 7–11 are now goals 15–19;
 completed goal numbers and evidence directories remain unchanged. Goal 2's
 [force-preparation report](docs/physics_force_preparation.md) records the limited
 spring scan/COM-offset cleanup and the decision to retain the other force passes.
@@ -797,7 +799,7 @@ in both workloads. All 23 Linux and 23 sanitizer regressions, 219 stress endpoin
 plus four calibrations per platform, 1,000 cache-lifetime cycles per platform,
 Windows cross-builds and independent SDK checks pass. Penetration limits and
 existing CPU-comparison failures remain visible. Full particle/polygon geometry
-separation was investigated and remains cross-consumer work under Goal 16;
+separation was investigated and remains cross-consumer work under Goal 17;
 no benefit for that unimplemented design is claimed. Evidence is preserved
 under `sandbox/milestone_12/goal_12/`. Goal 12 is committed at `81e76ff5`; Goal 13
 is complete against parent `db1d52cb`, with its separate experiment record preserved.
@@ -810,6 +812,17 @@ scope; production adoption and tolerance changes are separate decisions. Former
 Goals 13–17 move to 14–18; completed goals, archived reports and evidence paths
 retain their historical identities. The user subsequently authorized execution
 of the detailed plan. The existing 0.5/0.1 review limits remain unchanged.
+
+**User-directed particle/node collision insertion:** the new
+[Goal 14 plan](docs/physics_particle_collision_plan.md) applies cheaper collision
+processing to both standalone particles and soft-body nodes. Reliable
+particle–rigid blocking and rigid–rigid accuracy take priority over particle
+response precision. Former Goals 14–18 move to 15–19. This insertion does not
+start implementation, accept new tolerances or change the force/structural model.
+Elastic stepping that repeats world-wide work is reserved for a separate
+discussion, without authorizing an elastic scheduling or integrator rewrite.
+The user's 2× physics-throughput target is tracked separately from the unchanged
+rendered acceptance gates; no unmeasured speedup is promised.
 
 1. [x] **Establish the reference and measurement contract.** Pin the reference
    commit, preserve its executables and evidence, and establish repeatable
@@ -989,7 +1002,30 @@ of the detailed plan. The existing 0.5/0.1 review limits remain unchanged.
     checks pass, with capped supplementary prefixes explicitly incomplete.
     No rendered acceptance, Milestone 6 completion, default/API change, tolerance
     change, future-goal insertion or advancement to Goal 14 occurs here.
-14. [ ] **Analyze and rework joint solving.** Cover pin/weld response, spring
+14. [ ] **Reduce particle and node collision work while preserving rigid protection.**
+    Follow the [ordered plan](docs/physics_particle_collision_plan.md). Apply the
+    cheaper collision policy to standalone particles and soft-body nodes, retaining
+    spring/beam forces and structural constraints. Reuse conservative movement
+    candidates with explicit invalidation and current contact geometry; preserve
+    reliable particle–rigid crossing detection and response for static and moving
+    bodies. Evaluate local particle impact handling where feasible without
+    changing elastic integration or scheduling. Separate particle response budgets
+    from rigid–rigid quality, and reduce particle–particle discovery/response cadence
+    across standalone/node combinations while respecting filters. Treat reduced
+    particle–particle continuous protection as an explicit experiment, retaining
+    the head-on test and recording any failure; do not silently adopt it.
+    Measure rougher bounce, friction, settling, overlap and node deformation against
+    unchanged review criteria. Keep rigid–rigid protection and quality, public APIs,
+    ownership, elapsed time and standalone-stage semantics intact. Preserve beam
+    collision and self-collision coverage; no rigid proxy or elastic-model redesign.
+    Compare isolated changes and the measured combination in the unchanged pit/car,
+    with exclusive work counts, clean timings, crossing checks, lifecycle/sanitizer,
+    Linux, Windows cross-build and independent SDK verification. Record evidence
+    under `sandbox/milestone_12/goal_14/`; obey the one-minute per-run wall cap and
+    preserve incomplete endpoints. Report progress toward 2× physics throughput
+    separately from rendered acceptance, without assuming that this goal alone
+    closes the car's global-stepping gap. Stop for review and the user's commit.
+15. [ ] **Analyze and rework joint solving.** Cover pin/weld response, spring
    coupling and transform locks. Measure constraint error, energy behavior and
    cost under the existing high-speed, high-rotation fixtures. Preserve
    documented ownership and lock semantics.
@@ -999,7 +1035,7 @@ of the detailed plan. The existing 0.5/0.1 review limits remain unchanged.
    and refresh on parameter, mass/inertia, origin, topology and lifetime changes.
    Reuse existing Goal 5 data where valid. Apply the shared recomputation
    requirements below; retain the design if savings do not justify maintenance.
-15. [ ] **Analyze and rework soft-body constraint solving.** Cover node–rigid,
+16. [ ] **Analyze and rework soft-body constraint solving.** Cover node–rigid,
    beam–rigid and beam–beam response, self-collision and contact refresh.
    Evaluate how rigid corrections and soft contacts interact. Measure
    deformation, seam penetration, tunneling, energy and car behavior.
@@ -1010,7 +1046,7 @@ of the detailed plan. The existing 0.5/0.1 review limits remain unchanged.
    Investigate Goal 10's collapsed-beam sweep/response mismatch with conservative
    fallbacks and retained node/beam collision coverage. Apply the shared
    recomputation requirements below.
-16. [ ] **Analyze and rework pipeline orchestration and finalization.** Integrate
+17. [ ] **Analyze and rework pipeline orchestration and finalization.** Integrate
    the revised stages. Review their execution order, shared caches, invalidation,
    repeated passes, interaction publication and reporting overhead. Verify
    standalone stages and complete updates remain correctly composed.
@@ -1020,7 +1056,7 @@ of the detailed plan. The existing 0.5/0.1 review limits remain unchanged.
    consumer's pending invalidation. Preserve callback-visible state, reporting,
    overlap/contact publication and manual-stage semantics. Apply the shared
    recomputation requirements below.
-17. [ ] **Meet the combined real-time gates.** Resolve remaining integration
+18. [ ] **Meet the combined real-time gates.** Resolve remaining integration
     bottlenecks and select measured runtime settings. Verify both the car and
     particle pit meet the performance contract below. Produce visual previews
     and obtain motion/window-switch review. Numerical deviations remain
@@ -1028,19 +1064,22 @@ of the detailed plan. The existing 0.5/0.1 review limits remain unchanged.
     Reconcile the existing car benchmark's jump-force lifetime handling before
     final motion/playback acceptance; preserve the historical fixture traces.
     See the [Goal 3 clock-ownership finding](docs/physics_integration_subdivision.md#clock-ownership-follow-up).
-18. [ ] **Compare with the reference and select the middle ground.** Compare
+19. [ ] **Compare with the reference and select the middle ground.** Compare
     the real-time implementation against the frozen reference across all physics
     scenarios. Present accuracy, behavior and performance tradeoffs for user
     selection. Implement the selected balance, retain real-time performance,
     and verify the agreed final tolerances before updating milestone 6's status.
 
-#### Recompute only when needed: investigation requirements for Goals 11–12 and 14–16
+#### Recompute only when needed: investigation requirements for Goals 11–12 and 14–17
 
-These user-approved additions define investigations within Goals 11–12 and 14–16;
+These user-approved additions define investigations within Goals 11–12 and 14–17;
 they do not start a goal, reorder implementation, adopt a cache or authorize a
 numerical approximation. Check existing reuse before proposing another layer.
 Goal 13 separately permits isolated numerical experiments under its linked plan;
-it does not automatically adopt changes in these implementation goals.
+it does not automatically adopt changes in these implementation goals. Goal 14
+permits cheaper particle/node collision experiments under its own linked plan;
+the preservation requirements below apply to reuse, not a demand for identical
+particle trajectories in explicitly identified numerical experiments.
 For each opportunity:
 
 - Identify which data depends on topology, shape/parameters, pose or motion,
@@ -1065,7 +1104,9 @@ Particle geometry separation, precise invalidation and affected-beam refresh
 are priority hypotheses within their assigned goals, not established speedups.
 Preserve the 0.5 particle-pair and 0.1 extreme-fixture review limits, existing
 sweep protection and current settings unless a separate measured settings
-experiment is explicitly identified. No new accuracy tradeoff is selected here.
+experiment is explicitly identified. Goal 14 defines such particle/node
+experiments, preserving rigid–rigid quality and particle–rigid crossing protection.
+No new numerical tolerance or failed configuration is accepted by this insertion.
 
 #### Performance and verification contract
 
@@ -1132,7 +1173,7 @@ experiment is explicitly identified. No new accuracy tradeoff is selected here.
   recorded status.
 - Public APIs and ownership contracts remain unchanged. Any necessary API
   redesign requires a separate decision.
-- Final tolerance changes require explicit user acceptance in goal 18. Prefer
+- Final tolerance changes require explicit user acceptance in goal 19. Prefer
   the most accurate accepted configuration that still meets both real-time
   gates. Update milestone 6's status only after the selected balance and agreed
   final tolerances are verified.
@@ -1402,7 +1443,7 @@ The AABB-tree broad phase and live-entity iteration are already implemented.
 continue running all five fixtures. Numerical tolerances and extreme-fixture CPU
 budgets are comparison criteria, not intermediate rework completion gates;
 failures remain visible. Final tolerance changes require explicit user acceptance
-in milestone 12 goal 18, followed by verification before this status is updated.
+in milestone 12 goal 19, followed by verification before this status is updated.
 **Current user-approved override:** every extreme-fixture penetration check now
 uses 0.1 units provisionally, replacing the original drop 0.0001, thin-barrier
 0.001 and soft-body 0.02 limits; stack and joint collision checks already use

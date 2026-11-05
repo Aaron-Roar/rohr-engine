@@ -2,7 +2,9 @@
 
 **Roadmap numbering note:** this report retains the goal numbers used when its
 experiments completed. The later [quality/work experiment](physics_quality_experiments_plan.md)
-is the new Goal 13; historical Goals 13–17 below map to current Goals 14–18.
+became Goal 13, followed by the new
+[Goal 14 particle/node collision plan](physics_particle_collision_plan.md).
+Historical Goals 13–17 below map to current Goals 15–19.
 Results, recommendations and archived evidence are otherwise preserved.
 
 **Complete for review.** Production physics is unchanged. Parent `f9abe365e83a2e73568cb389a29adf2ef5a4439d`;
