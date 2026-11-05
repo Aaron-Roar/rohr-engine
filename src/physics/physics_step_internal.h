@@ -13,6 +13,9 @@
 #include "physics/joints/joint_constraint.h"
 
 extern AABBTree physics_broadphase_tree;
+/* Experimental complete-substep schedule only. Manual stages retain their
+ * normal discovery/refresh semantics, even in a baseline build. */
+bool physics_simple_baseline_active_check(void);
 /** Internal collection helpers; NULL is allowed for legacy report-free helpers. */
 Report physics_report_create(ReportId id);
 Report physics_pipeline_update_internal(double dt, bool publish);

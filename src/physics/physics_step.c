@@ -237,7 +237,8 @@ void physics_pipeline_contact_constraints_solve(
     float position_fraction,
     void *context
 ) {
-    if(constraints == &physics_step_contact_constraints && constraints->rigid_gathered && constraints->rigid_dirty)
+    if(!physics_simple_baseline_active_check() &&
+            constraints == &physics_step_contact_constraints && constraints->rigid_gathered && constraints->rigid_dirty)
         physics_rigid_constraints_gather(context);
     if(context != NULL && ((Report *)context)->has_fatal) return;
     bool converged = false;
@@ -257,7 +258,8 @@ void physics_pipeline_contact_constraints_solve(
     }
     /* Rigid correction can move a node into a previously separated beam.
      * Refresh before soft response, preserving every existing impact target. */
-    if(constraints == &physics_step_contact_constraints && soft_body_beams_pool.count) {
+    if(!physics_simple_baseline_active_check() &&
+            constraints == &physics_step_contact_constraints && soft_body_beams_pool.count) {
         physics_step_hitbox_dirty_flush(context);
         physics_rigid_constraints_gather(context);
         physics_soft_body_constraints_gather(context);

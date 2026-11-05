@@ -568,9 +568,10 @@ Preserve current public APIs, editor/project integration, ownership, entity
 lifetimes, reporting and independently runnable pipeline contracts. This is a
 physics rebuild, not a reset of the repository to the historical engine.
 
-**Status: highest unfinished priority; roadmap approved; all six implementation
-goals not started.** Milestone 12 is closed and superseded, not completed. This
-roadmap update does not start Goal 1, choose a production candidate or authorize
+**Status: highest unfinished priority; Goal 1 complete; Goals 2–6 not started.**
+The [baseline report](docs/physics_rebuild_baseline.md) records implementation,
+measurements, numerical failures and verification. Milestone 12 is closed and superseded, not completed. This
+work does not choose a production candidate or authorize
 silently dropping supported physics features. Keep the current implementation
 as a comparison control; isolate experiments and preserve the user's workspace.
 Unlike the retired Goal 14 scope, this milestone explicitly permits investigating
@@ -585,7 +586,7 @@ success. No comparable historical pit result at these matched settings has yet
 been established. Measure every added system's cost and benefit rather than
 assuming the old model is sufficiently accurate or that all old code is faster.
 
-1. [ ] **Establish the simpler baseline inside the current engine.** Pin the
+1. [x] **Establish the simpler baseline inside the current engine.** Pin the
    implementation parent and preserve the old/current/reference sources, SDKs,
    executables and evidence. Inventory the historical and current physics
    features and execution order; explicitly list supported, temporarily reduced
@@ -607,6 +608,18 @@ assuming the old model is sufficiently accurate or that all old code is faster.
    functioning composed/manual pipelines, mandatory safety checks and completed
    declared car/pit diagnostic endpoints; final numerical tolerances, real-time
    gates and 2× headroom are not Goal 1 completion requirements.
+   **Result:** isolated `ROHR_PHYSICS_SIMPLE_BASELINE` build (OFF by default),
+   with fixed configured steps and one contact discovery per step. Three-run
+   median CPU time is 2.912 s for the ten-second car and 12.755 s for the
+   twelve-second pit, versus 49.455 s and 25.030 s in the current control.
+   All declared workload endpoints and 228 stress endpoints/calibrations
+   complete; 176 stress numerical failures remain visible. Linux safety/manual
+   checks, relevant ASan/UBSan checks, Windows cross-builds and independent SDK
+   consumers are verified. Option-disabled trajectories match the control.
+   Single-window previews complete, but rendered gates remain unmet; this is
+   not production or final quality acceptance. Evidence is in
+   `sandbox/milestone_13/goal_1/`. Stop for review and the user's commit before
+   starting Goal 2.
 2. [ ] **Restore reliable rigid and particle/node blocking.** Starting from the
    baseline's observed failures, add only the protection needed for rigid–rigid
    impacts, stacks and mass ratios, plus particle/node contacts with static,

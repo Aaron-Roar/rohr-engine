@@ -60,12 +60,13 @@ milestone completion. The same rendered gates also apply to the unchanged
 800-particle pit's 12-second sequence.
 
 [Milestone 13](../../NEXT_STEPS.md#13-physics-rebuild-from-the-simpler-baseline)
-is now the active roadmap, with all implementation goals unstarted. Milestones
+is now the active roadmap. Its [Goal 1 baseline](../../docs/physics_rebuild_baseline.md)
+is complete; Goals 2–6 are unstarted. Milestones
 11 and 12 are superseded, not complete, and their evidence remains preserved.
 The rebuild uses the historical `a8a7940a` execution model inside the current
 engine, retaining `6f283268` as the frozen accuracy reference and excluding
 `main` from comparisons. Its staged runtime candidates stay at 60 Hz or below;
-this roadmap update does not change this example's existing 240 Hz settings or
+the isolated baseline does not change this example's existing 240 Hz settings or
 command-line behavior. Preserve authored scene data and input sequences, and
 label diagnostic prefixes/no-jump historical comparisons separately. Keep new
 milestone evidence under `sandbox/milestone_13/goal_<n>/`. Milestone 12 Goal 1's
@@ -73,3 +74,11 @@ milestone evidence under `sandbox/milestone_13/goal_<n>/`. Milestone 12 Goal 1's
 reference and diagnostic consumers. Add `--uncapped` to a rendered benchmark
 for a separate throughput/headroom run; it cannot qualify as normal rendered
 acceptance. Fatal benchmark failures now print an explicit incomplete summary.
+
+Goal 1 uses a separate 60 Hz diagnostic harness with explicit one-tick ownership
+of accepted jump forces. Direct scripted physics updates do not advance the
+engine lifetime clock; this example's original benchmark loop has not been
+changed by the isolated experiment. Use the corrected harness for Milestone 13
+comparisons and retain prior traces separately. Normal interactive play uses
+the engine clock as before. The experimental engine option
+`ROHR_PHYSICS_SIMPLE_BASELINE` remains OFF by default.

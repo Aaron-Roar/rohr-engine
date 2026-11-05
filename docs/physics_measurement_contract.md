@@ -8,6 +8,11 @@ failed or incomplete results into passes. The reference pin below remains the
 frozen accuracy reference; Milestone 13 adds distinct historical-model and
 immediate-parent comparisons.
 
+Milestone 13 [Goal 1's baseline report](physics_rebuild_baseline.md) records the
+new isolated fixed-step candidate, corrected diagnostic force lifetime, matched
+60 Hz car/pit measurements, error inventory and platform/safety verification.
+It does not replace the frozen reference or accept new numerical tolerances.
+
 This is the preserved measurement contract for [Milestone 12](../NEXT_STEPS.md#12-real-time-physics-pipeline-rework).
 Goal 1 establishes the baseline; later goals retain the same workloads and report
 format. Numerical comparison failures remain failures even when they are not

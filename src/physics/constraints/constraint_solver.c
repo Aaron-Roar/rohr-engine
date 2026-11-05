@@ -15,6 +15,7 @@ void constraint_solver_run(
     void *context
 ) {
     float position_fraction;
+    bool baseline = physics_simple_baseline_active_check();
 
     if(contacts == NULL || iterations == 0 || contacts_solve == NULL) return;
     contacts->solving = true;
@@ -37,14 +38,14 @@ void constraint_solver_run(
             contacts->values[i].value.beam_pair.geometry_valid = false;
     for(uint32_t iteration = 0; iteration < iterations; iteration += 1) {
         contacts->solver_converged = false;
-        position_fraction = soft_pass ? 1.0f : 1.0f / (float)(iterations - iteration);
-        if(soft_pass) physics_motion_tracking_begin();
+        position_fraction = soft_pass && !baseline ? 1.0f : 1.0f / (float)(iterations - iteration);
+        if(soft_pass && !baseline) physics_motion_tracking_begin();
         contacts_solve(contacts, position_fraction, context);
         if(joints_solve != NULL) joints_solve(context);
-        if(soft_pass) contacts->solver_converged = physics_motion_tracking_end_check();
+        if(soft_pass && !baseline) contacts->solver_converged = physics_motion_tracking_end_check();
         /* A preceding pass must have applied transform locks before contact
          * convergence can prove the contact-only system is unchanged. */
-        if(iteration > 0 && contacts->solver_converged) break;
+        if(!baseline && iteration > 0 && contacts->solver_converged) break;
     }
     if(contacts_finalize != NULL) contacts_finalize(contacts, context);
     contacts->solving = false;

@@ -8,6 +8,15 @@
 
 static void (*substep_observer)(double, void *);
 static void *substep_observer_context;
+static bool simple_baseline_active;
+
+#ifndef ROHR_PHYSICS_SIMPLE_BASELINE
+#define ROHR_PHYSICS_SIMPLE_BASELINE 0
+#endif
+
+bool physics_simple_baseline_active_check(void) {
+    return simple_baseline_active;
+}
 
 void physics_substep_observer_set(void (*observer)(double, void *), void *context) {
     substep_observer = observer;
@@ -25,6 +34,7 @@ static Report physics_pipeline_substep_internal(double *duration, bool adaptive)
             "substep duration must be finite and nonnegative");
         goto done;
     }
+    simple_baseline_active = ROHR_PHYSICS_SIMPLE_BASELINE;
     physics_pipeline_substep_begin();
     physics_step_entities_begin();
     physics_rigid_gather_tracking_set(true);
@@ -36,8 +46,11 @@ static Report physics_pipeline_substep_internal(double *duration, bool adaptive)
     if(report.has_fatal) goto done;
     /* Only complete substeps have prepared spring loads. Standalone integration
      * must not invent forces or constraint work for a manually composed pass. */
-    physics_joint_motion_enabled_set(true);
-    physics_soft_motion_enabled_set(true);
+    /* The baseline uses ordinary semi-implicit integration of prepared loads.
+     * Joint/elastic special integration and swept adaptive selection belong to
+     * the comparison control until their cost and protection are reintroduced. */
+    physics_joint_motion_enabled_set(!simple_baseline_active);
+    physics_soft_motion_enabled_set(!simple_baseline_active);
     child = adaptive ? physics_pipeline_integrate_adaptive(duration) : physics_pipeline_integrate(dt);
     physics_joint_motion_enabled_set(false);
     physics_soft_motion_enabled_set(false);
@@ -52,6 +65,7 @@ static Report physics_pipeline_substep_internal(double *duration, bool adaptive)
     child = physics_pipeline_constraints_solve(physics_solver_iterations_get());
     (void)report_merge(&report, &child);
 done:
+    simple_baseline_active = false;
     physics_rigid_gather_tracking_set(false);
     physics_step_entities_end();
     physics_step_hitbox_cache_end();
@@ -82,7 +96,7 @@ Report physics_pipeline_update_internal(double dt, bool publish) {
             Report child;
             physics_report_counter_add(&report, ROHR_REPORT_SUBSTEPS_ATTEMPTED_COUNT, 1);
             physics_report_context_set(true, completed);
-            child = physics_pipeline_substep_internal(&duration, true);
+            child = physics_pipeline_substep_internal(&duration, !ROHR_PHYSICS_SIMPLE_BASELINE);
             physics_report_context_set(false, 0);
             (void)report_merge(&report, &child);
             if(report.has_fatal) goto done;

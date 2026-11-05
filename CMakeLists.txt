@@ -25,6 +25,8 @@ option(ROHR_BUILD_SDK_CONSUMER_TESTS
     "Test an external consumer against the installed Rohr SDK" OFF)
 option(ROHR_ENABLE_SANITIZERS
     "Enable Linux address and undefined-behavior sanitizers" OFF)
+option(ROHR_PHYSICS_SIMPLE_BASELINE
+    "Experimental fixed-step, gather-once physics baseline (not production quality)" OFF)
 set(ROHR_SDK_INSTALL_PREFIX "" CACHE PATH
     "Installed SDK prefix used by external consumer tests")
 if(ROHR_ENABLE_SANITIZERS)
@@ -293,6 +295,8 @@ target_include_directories(rohr_engine
         ${CMAKE_CURRENT_SOURCE_DIR}/tools/editor_core/include
 )
 target_compile_definitions(rohr_engine PUBLIC SDL_MAIN_HANDLED)
+target_compile_definitions(rohr_engine PRIVATE
+    ROHR_PHYSICS_SIMPLE_BASELINE=$<BOOL:${ROHR_PHYSICS_SIMPLE_BASELINE}>)
 if(ROHR_ENABLE_SANITIZERS)
     target_compile_options(rohr_engine PRIVATE
         ${ROHR_SANITIZER_COMPILE_OPTIONS})
@@ -649,6 +653,21 @@ if(ROHR_BUILD_TESTS)
         target_compile_options(physics_recovery_test PRIVATE ${ROHR_SANITIZER_COMPILE_OPTIONS})
     endif()
     add_test(NAME physics_recovery COMMAND physics_recovery_test)
+
+    if(ROHR_PHYSICS_SIMPLE_BASELINE)
+        add_executable(physics_simple_baseline_test tests/physics_simple_baseline.c)
+        target_link_libraries(physics_simple_baseline_test PRIVATE rohr_engine)
+        target_include_directories(physics_simple_baseline_test PRIVATE src)
+        set_target_properties(physics_simple_baseline_test PROPERTIES
+            RUNTIME_OUTPUT_DIRECTORY ${ROHR_BUILD_OUTPUT_DIRECTORY}/tests)
+        if(NOT MSVC)
+            target_compile_options(physics_simple_baseline_test PRIVATE -Wall -Wextra -Wpedantic -UNDEBUG)
+        endif()
+        if(ROHR_ENABLE_SANITIZERS)
+            target_compile_options(physics_simple_baseline_test PRIVATE ${ROHR_SANITIZER_COMPILE_OPTIONS})
+        endif()
+        add_test(NAME physics_simple_baseline COMMAND physics_simple_baseline_test)
+    endif()
 
     add_executable(graphics_reports_test tests/graphics_reports.c)
     target_link_libraries(graphics_reports_test PRIVATE rohr_engine)
