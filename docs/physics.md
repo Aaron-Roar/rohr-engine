@@ -525,12 +525,19 @@ paths; none selects behavior by example, fixture identity, or benchmark mode.
 
 [Milestone 13](../NEXT_STEPS.md#13-physics-rebuild-from-the-simpler-baseline) is
 the highest unfinished priority. Its approved roadmap rebuilds physics from the
-simpler `a8a7940a` execution model inside the current engine, then adds blocking,
+simpler `a8a7940a` execution model inside the current engine, optimizes the baseline
+pit first, then adds blocking,
 structural/soft-body quality and selective extra work in measured stages.
 [Goal 1 is complete](physics_rebuild_baseline.md): an opt-in fixed-step,
 gather-once baseline retains current APIs, ownership, reporting and manual-stage
 contracts. The experimental CMake option is OFF by default; the option-disabled
-build matches the current control's trajectories. Goals 2–6 are unstarted.
+build matches the current control's trajectories. Goals 2–7 are unstarted.
+Goal 2 targets repeated particle-response work, bounded contact/candidate reuse
+and sleeping with correct wake-up, before blocking restoration in Goal 3.
+The target is at most six physics CPU seconds per twelve-second pit, retaining
+the 0.5-unit particle-pair overlap review limit and reporting tunneling and wall
+behavior separately. Rendered verification and the unchanged car comparison
+remain required; adding restoration work is not assumed to improve performance.
 Baseline car/pit median CPU times are 2.912/12.755 seconds for the declared
 10/12-second diagnostics. Numerical failures and unmet rendered gates remain
 explicit; no final quality or production selection has been made. Preserve

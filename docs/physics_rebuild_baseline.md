@@ -160,7 +160,16 @@ Exclusive milliseconds, with response invocation counts in parentheses. Block-so
 | polygon | 288.2 (376,740) | 31.2 (40,572) | 16.9 (32,656) | 8.5 (18,088) |
 | overlap only | 1597.6 (2,538,973) | 147.1 (245,640) | 0.0 (0) | 0.0 (0) |
 
-The baseline pit spends 8,033.5 ms on 14,577,780 particle-pair response invocations. This is the largest remaining measured cost. It is evidence for later operation-count work, not a reason to bypass the blocking restoration in Goal 2.
+The baseline pit spends 8,033.5 ms on 14,577,780 particle-pair response invocations.
+This is the largest remaining measured cost. Following baseline review, the user
+prioritized pit optimization as Goal 2, before blocking restoration (now Goal 3).
+Separate redundant visits from effective responses, then evaluate fewer searches
+and response visits, bounded reuse and sleeping with correct wake-up. The target
+is six physics CPU seconds per twelve-second pit, retaining the 0.5-unit overlap
+review limit, separate tunneling/wall diagnostics and an unchanged car comparison.
+The [roadmap](../NEXT_STEPS.md#13-physics-rebuild-from-the-simpler-baseline) defines
+verification and stop conditions. These are planned investigations, not measured
+savings or a guarantee that restored protections will fit the resulting budget.
 
 ### Workload behavior
 
@@ -231,7 +240,7 @@ remaining lifecycle checks. All eleven sweep replay endpoints complete with
 missed-contact failures, including turning-path/grazing cases that cannot be
 judged by endpoint penetration alone.
 
-## Ranked additions for Goal 2
+## Ranked additions for blocking restoration (now Goal 3)
 
 1. **Reliable rigid-wall blocking, including particles and nodes.** Start with
    the observed missed thick/thin-wall and delayed rigid impacts. Evaluate
@@ -248,9 +257,10 @@ judged by endpoint penetration alone.
    from rigid-wall safety. No relaxed final tolerance has been accepted.
 
 Carry the joint/elastic energy failures and beam-contact refresh failure into
-Goals 3–4. The baseline proves they matter but does not authorize implementing
-those goals now. Carry the pit's 14.6 million particle response calls into Goal
-5's operation-count investigation. Each restored system must state the failures
+Goals 4–5. The baseline proves they matter but does not authorize implementing
+those goals now. The pit's 14.6 million particle response calls are the immediate
+focus of the new Goal 2; Goal 6 later optimizes the restored, composed result.
+Each restored system must state the failures
 it fixes and the milliseconds it adds; the car's current headroom is not a
 budget to spend blindly.
 
@@ -299,4 +309,6 @@ visual diagnostics, not the final resolution-controlled gate. The car also
 misses the 1% timing condition; the pit misses both timing and frame-work gates.
 Final window-switch review, three rendered trials, the full sixty-second car
 sequence, resolution/pacing control and explicit quality acceptance remain in
-Goal 6. Goal 2 has not started.
+Goal 7. Goal 2, baseline pit optimization, has not started. The user subsequently
+reviewed a single car replay and said it looked good; this records baseline
+visual feedback, not final physics quality acceptance or a new performance pass.
