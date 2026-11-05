@@ -8,7 +8,9 @@ remain comparison results under this goal's approved contract.
 The authoritative scope and later goals are in [the roadmap](../NEXT_STEPS.md#13-physics-rebuild-from-the-simpler-baseline).
 
 [Goal 2's subsequent pit optimization](physics_pit_optimization.md) is preserved
-for review but failed its performance gates. Its matched four-pass pit median is
+as a failed first attempt against its performance gates. Goal 2 has since been
+rebased for seven investigations, starting with 30 Hz; execution is pending.
+Its first attempt's matched four-pass pit median is
 7.664 s versus 13.511 s for this baseline; car trajectories remain unchanged.
 This Goal 1 report and its original evidence remain historical records.
 
@@ -314,6 +316,7 @@ visual diagnostics, not the final resolution-controlled gate. The car also
 misses the 1% timing condition; the pit misses both timing and frame-work gates.
 Final window-switch review, three rendered trials, the full sixty-second car
 sequence, resolution/pacing control and explicit quality acceptance remain in
-Goal 7. Goal 2, baseline pit optimization, has not started. The user subsequently
+Goal 7. At this Goal 1 checkpoint, Goal 2 had not started; its later failed
+attempt and rebased scope are linked at the top of this report. The user subsequently
 reviewed a single car replay and said it looked good; this records baseline
 visual feedback, not final physics quality acceptance or a new performance pass.

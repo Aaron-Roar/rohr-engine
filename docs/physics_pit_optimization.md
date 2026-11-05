@@ -3,13 +3,134 @@
 Milestone 13 Goal 2 optimizes the opt-in simpler baseline before adding collision
 protection back. The [roadmap](../NEXT_STEPS.md#13-physics-rebuild-from-the-simpler-baseline)
 owns the goal order. Production defaults and public APIs remain unchanged.
-**Outcome: Failed against the performance gates.** The retained four-pass
+**First-attempt outcome: Failed against the performance gates.** The retained four-pass
 candidate improves pit CPU time by 43.3%, but its 7.664-second median misses the
 six-second target; all three rendered runs also miss the strict real-time gates.
 The user accepted the preview's behavior, not those performance failures.
-Stop for review and explicit direction before restoring systems.
+The user has rebased this same goal around the seven investigations below,
+starting with 30 Hz. Their execution is pending; the failed attempt remains
+preserved. This document's existing measurements describe that first attempt,
+not results of the revised plan. Production settings remain unchanged.
 
-## Scope and provenance
+## Rebased Goal 2 investigation plan
+
+Investigate all seven levers before choosing combinations. This is the revised
+scope of Goal 2, not seven new milestone goals; Goals 3–7 keep their order.
+The documentation update does not start experiments. On the user's instruction
+to pursue the goal, pin the retained implementation at `bdb622c6` using its full
+commit hash, source/build/SDK hashes and runtime settings. Keep its 60 Hz,
+four-substep, four-pass behavior as the fixed comparison control. Also retain
+Goal 1 and the frozen references; exclude `main`.
+
+1. [ ] **30 Hz physics, first.** Change only the outer physics tick from 60 to
+   30 Hz, keeping four configured substeps, four solver passes, authored inputs
+   timed in simulation seconds, and 60 FPS normal rendering. Each integration
+   substep consequently doubles in duration; this is a behavior experiment,
+   not just less scheduling overhead. Compare both complete diagnostic workloads
+   for CPU time, ms per simulated second, ms per tick, p95/max tick and rendered
+   frame work, backlog and simulated/elapsed time. Inspect input response,
+   visible stepping, car deformation, pile settling, overlap and tunneling.
+   Record any existing interpolation; do not add rendering smoothing silently.
+   A 30 Hz tick may burst on alternate rendered frames, so average cost alone
+   is insufficient. Do not promote 30 Hz to a default before user selection.
+2. [ ] **Refresh particle polygon geometry only when a consumer needs it.**
+   Trace dirty writes and consumers, including mixed/beam contacts, transform
+   locks, queries, publication and standalone pipeline boundaries. Test direct
+   circle data and deferred polygon refresh while ensuring each consumer sees
+   current geometry. Count flushes/vertices avoided and new checks performed.
+   Aim for unchanged response and trajectories where execution order is held
+   fixed; classify any numerical/order changes explicitly.
+3. [ ] **Simplify particle solver storage and execution.** Measure compact
+   particle constraints, prepared invariant masses/material/filter data and
+   reduced generic dispatch. Preserve directional response, nonrotation,
+   sequential shared-body updates and generation-safe identity. Distinguish
+   data valid for one solve from data requiring invalidation on motion or API
+   mutation. Include setup and memory costs; do not remove safety checks without
+   preserving their guarantees. Keep solver effort fixed for this screen.
+4. [ ] **Reduce particle-pair response effort.** Reverify two particle-pair
+   passes against four while keeping particle–rigid and rigid–rigid effort
+   unchanged. Include eligible soft-body nodes and measure their coupled car
+   behavior. The earlier 5.493-second/two-pass pit with 0.330803 worst overlap
+   is an exploratory lead, not verified acceptance. Keep the known one-pass
+   1.791743 overlap failure visible; do not repeat unchanged rejected candidates.
+   Record bounce, residual overlap, settling and energy as well as worst overlap.
+5. [ ] **Separate particle collision cadence from elastic integration.** Test
+   fewer particle-pair discoveries and response rounds while retaining necessary
+   elastic integration steps. Measure discovery reuse and response cadence
+   separately before combining them. Explicitly account for newly approaching
+   pairs, correction-created contacts, fast motion and node/rigid coupling.
+   Keep existing rigid-contact effort; specify how the motion interval will be
+   covered by later wall protection rather than treating skipped checks as safe.
+6. [ ] **Reuse candidates and previous velocity impulses.** First test bounded,
+   conservative candidate reuse with current geometry checks; then test velocity
+   impulse warm starting as a separate variable. Measure fewer searches and
+   passes against cache maintenance. Cover entity deletion/reuse, radius and
+   shape changes, filtering, teleports, external forces, moving obstacles and
+   corrections outside retained bounds. Reject stale contact identity or normals;
+   do not blindly reuse positional corrections or turn missed contacts into passes.
+7. [ ] **Sleep settled particle groups.** Test standalone piles first, with
+   support checks and waking on impact, loads, edits, support removal and moving
+   obstacles. Evaluate beam/joint-coupled nodes separately; retain active handling
+   if safe group wake propagation is not worthwhile. Report time to sleep,
+   actually avoided visits, maintenance/wake spikes and changes in slow motion,
+   settling and response to disturbance. Eligible samples alone are not savings.
+
+For items 2–7, use isolated branches/overlays against the retained 60 Hz control
+first so a tick-rate change cannot explain an algorithm's apparent saving. Then
+screen the useful changes at 30 Hz as well; retain 60 Hz as an option if its
+quality or tick-spike behavior is preferable. Settings remain at 60 Hz or below.
+Every investigation needs a measured verdict, not an obligation to ship each
+mechanism. Any experiment that cannot produce meaningful measurements must be
+identified as untested/incomplete with its reason, not marked investigated.
+
+After all seven screens, rank savings and quality in **both** workloads, select
+a small set of complementary candidates and measure combinations. Do not add
+individual speedups arithmetically. Preserve API overrides already supported;
+label private experimental controls separately. Public API redesign, production
+default changes and final tolerance acceptance require a separate user decision.
+
+### Measurement, protection and completion
+
+- Preserve the unchanged ten-second car diagnostic and full twelve-second pit;
+  car acceptance still uses the inherited full sequence. Keep the one-minute
+  wall cap per execution, including shutdown. Preserve incomplete results and
+  do not repeat unchanged known-slow candidates or shorten endpoints silently.
+- Keep source/settings provenance and unsuccessful trials under a new
+  `sandbox/milestone_13/goal_2/rebased/` evidence directory. Do not overwrite the
+  first attempt's executables, manifests, source overlays or logs.
+- Screen clean timings separately from exclusive instrumentation. Report total
+  full-run CPU time, stage and pair-type costs, operations, cache/flush costs,
+  tick spikes, frame spikes and full-run worst errors. At 30 Hz, normalize cost
+  per simulated second and per 60 Hz presentation frame as well as per tick;
+  do not compare unlike tick counts or infer rendered smoothness from throughput.
+- Retain the 0.5-unit particle-pair review threshold for pit/head-on cases and
+  0.1-unit Milestone 6 stress penetration checks. These are reporting thresholds,
+  not solver correction slack. Report failures with measured value, threshold,
+  excess and supported explanation. Continue endpoints despite numerical failure.
+- Include particle/node–rigid thick-wall and head-on diagnostics early for each
+  behavior-changing candidate, alongside rigid–rigid and relevant soft/joint
+  regressions. Preserve existing failures and identify new ones. The baseline
+  already omits sweeps/adaptive subdivision; their removal supplies no new saving.
+  Goal 3 still owns blocking restoration. Lower particle-pile accuracy and
+  stronger wall blocking are distinct properties; future protection does not
+  automatically restore settling or momentum accuracy lost here.
+- Verify finalists with three serial clean runs per workload/version on AC,
+  streaming closed and no concurrent builds; then separate rendered trials and
+  single-window behavior review. Require relevant Linux regressions, ASan/UBSan,
+  Windows cross-builds and independent installed-SDK examples. Ownership,
+  nonfinite-state handling, manual pipelines and truthful reporting remain mandatory.
+- Keep the approved five-second car / six-second pit CPU targets and rendered
+  60 FPS, p95 work at most 16.67 ms, simulation within 1% of elapsed and no
+  accumulating backlog. Completing the screens does not turn an unmet performance
+  gate into a pass. Report distance to the proposed 4 ms average / 5 ms p95 physics
+  budget separately, including actual 30 Hz spikes; it is not a newly approved
+  gate. Present costs still needed for blocking and structural restoration.
+- Deliver a per-investigation cost/quality table, combined-candidate evidence,
+  retained/rejected decisions and unresolved risks. Report Complete, Failed or
+  Stuck according to the roadmap contract, then stop for review and the user's
+  commit before any restoration goal begins.
+
+## First-attempt scope and provenance
 
 - Immediate parent: `7e337fc2cb4f5ed93e4d2f4d7f27cee24b7fa6df`.
 - Comparison control: Goal 1's simpler baseline, preserved SDK archive SHA-256
@@ -25,7 +146,7 @@ consumers, scripts, build caches, logs and individual run records. The final
 manifest pins the retained implementation and executables. Earlier experimental
 archives and failed attempts remain identified rather than silently replaced.
 
-Both workloads retain 60 physics ticks/s, four configured substeps and four
+Both first-attempt workloads use 60 physics ticks/s, four configured substeps and four
 solver passes. The authored car contains 200 standalone particles and 100 nodes;
 its ten-second prefix is diagnostic, not the final sixty-second acceptance run.
 The unchanged pit contains 800 particles, diameter 5 and restitution 0.5, over
@@ -311,10 +432,10 @@ engineering proposal, not a universal industry standard or an approved change
 to this goal's gates. Four milliseconds corresponds to 2.88 CPU seconds for this
 pit, requiring about another 2.66× speedup from the retained candidate.
 
-The next feasibility investigation should prioritize particle response and its
-shared solver/geometry work: compact particle state/contact processing, prepared
-invariant data, and refresh only when a consumer needs current polygons. A
-reduced-pass alternative remains an explicit quality experiment. Near-zero idle
+The user subsequently rebased Goal 2 into the seven-investigation plan above,
+with 30 Hz first, followed by geometry refresh, particle solver data/execution,
+reduced passes, collision cadence, reuse/warm starting and group sleeping.
+Near-zero idle
 visits mean simple no-op skipping is unlikely to supply the needed reduction.
 The current profile alone does not prove how much any proposal will save.
 

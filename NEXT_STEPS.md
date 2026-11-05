@@ -13,7 +13,7 @@ priority order.
 | 2 | Asset and resource ownership | Complete |
 | 3 | COM, inertia, and origin semantics | Complete |
 | 4 | Cross-path feature parity | Complete by user acceptance; recorded verification exceptions remain |
-| 13 | Physics rebuild from the simpler baseline | Highest unfinished priority; goal 1 complete; goal 2 pit optimization next; goals 2–7 not started |
+| 13 | Physics rebuild from the simpler baseline | Highest unfinished priority; goal 1 complete; goal 2 rebased for seven investigations, 30 Hz first; prior failed attempt preserved; goals 3–7 not started |
 | 12 | Real-time physics pipeline rework | Closed by user direction; superseded by milestone 13, not complete; goals 1–13 complete, goal 14 unfinished, goals 15–19 not started; evidence preserved |
 | 11 | Soft-body correctness and real-time performance | Superseded by milestone 12; not complete; evidence preserved |
 | 6 | Physics robustness | Goals 1–4 accepted; goal 5 failed verification |
@@ -30,8 +30,11 @@ current engine. Milestone 12 is closed by user direction and superseded, not
 complete. Its completed goals retain credit; unfinished Goal 14 and unstarted
 Goals 15–19 are historical scope, not active work. Preserve all code, prototypes,
 executables and evidence. Milestone 13 Goal 1 established the simpler baseline.
-Goal 2's optimization is preserved for review but failed its performance gates;
-restoration has not begun. Former Goals 2–6 moved to 3–7.
+Goal 2's first optimization attempt failed its performance gates; its retained
+implementation and evidence remain the comparison baseline. By user direction,
+Goal 2 is rebased for seven ordered investigations, starting with 30 Hz physics.
+The revised investigation has not started; restoration has not begun. Former
+Goals 2–6 moved to 3–7.
 
 **Preserved physics history:** milestone 6 goal 4, **Joint stability**, including the user's
 visual/window-switch acceptance. Its frozen fixtures and verification are
@@ -568,9 +571,9 @@ Preserve current public APIs, editor/project integration, ownership, entity
 lifetimes, reporting and independently runnable pipeline contracts. This is a
 physics rebuild, not a reset of the repository to the historical engine.
 
-**Status: highest unfinished priority; Goal 1 complete; Goal 2 failed its performance gates;
-Goals 3–7 not started.**
-Goal 2 optimizes the baseline pit before restoring additional systems. By user
+**Status: highest unfinished priority; Goal 1 complete; Goal 2 rebased, investigation
+pending; prior failed performance attempt preserved; Goals 3–7 not started.**
+Goal 2 investigates baseline particle cost before restoring additional systems. By user
 direction, the former Goals 2–6 are now Goals 3–7; their scope is preserved.
 The [baseline report](docs/physics_rebuild_baseline.md) records implementation,
 measurements, numerical failures and verification. Milestone 12 is closed and superseded, not completed. This
@@ -623,17 +626,45 @@ assuming the old model is sufficiently accurate or that all old code is faster.
    not production or final quality acceptance. Evidence is in
    `sandbox/milestone_13/goal_1/`. Stop for review and the user's commit before
    starting Goal 2.
-2. [ ] **Optimize the baseline pit before restoring additional systems — failed.** Pin
+2. [ ] **Investigate baseline particle cost and quality tradeoffs — rebased, pending.** Pin
    Goal 1's candidate and the immediate parent as controls. Explain the measured
    8,033.5 ms and 14,577,780 particle-pair response invocations: separate unique
    pairs, retained constraints, repeated solver visits, effective responses and
    cost per visit, including geometry/dispatch overhead. Measure gathering,
    finalization and the rest of physics separately so savings are not merely
-   shifted elsewhere. Begin with the unchanged 60 Hz/four-substep/four-pass
-   baseline, then test isolated changes before combining measured winners.
-   Investigate fewer redundant searches and response visits, bounded candidate
-   and contact reuse, and sleeping settled particles with correct wake-up on
-   impacts, external forces and relevant scene changes. Preserve generation-safe
+   shifted elsewhere. Preserve the first attempt's verified four-pass candidate
+   at `bdb622c6` as the new 60 Hz/four-substep/four-pass control, recording its full
+   hash and the new implementation parent when execution begins. Preserve Goal 1
+   and all prior failed/rejected evidence as separate comparisons.
+   Follow the detailed [seven-investigation plan](docs/physics_pit_optimization.md#rebased-goal-2-investigation-plan)
+   in this order, screening every item before selecting combinations:
+
+   1. [ ] **30 Hz physics first.** Compare 30 Hz/four/four with retained
+      60 Hz/four/four on both unchanged workloads; keep rendering at 60 FPS.
+      Measure complete-run cost, individual tick spikes, input response and
+      quality. Do not assume half the tick rate halves cost or preserves accuracy.
+   2. [ ] **Refresh particle polygon geometry only when needed.** Identify all
+      geometry consumers and preserve current data at mixed-contact, manual-stage
+      and publication boundaries; measure saved flushes and replacement work.
+   3. [ ] **Simplify particle solver storage and execution.** Investigate compact
+      constraints, prepared invariant properties and reduced generic dispatch,
+      preserving ownership, sequential response and configured effort.
+   4. [ ] **Reduce particle-pair solver passes.** Reverify two passes against four,
+      retaining particle–rigid and rigid–rigid effort; include soft-body nodes
+      with explicit car quality checks. Preserve known one-pass failures.
+   5. [ ] **Decouple particle collision cadence from elastic integration.** Keep
+      elastic steps where needed while testing fewer particle-pair searches and
+      responses; document coupling and motion coverage for rigid contacts.
+   6. [ ] **Reuse candidates and previous velocity impulses.** Test conservative
+      neighbour/contact reuse and warm starting independently, including new
+      contacts, changed normals, corrections and lifetime-safe invalidation.
+   7. [ ] **Sleep settled particle groups.** Measure work actually avoided,
+      detection/maintenance cost and wake-up correctness; distinguish standalone
+      piles from nodes coupled through beams or joints.
+
+   Record every item's cost/quality verdict, including mechanisms rejected after
+   measurement. Test isolated changes before combining measured winners. Preserve
+   generation-safe
    invalidation, ownership, elapsed-time consumption, interaction publication
    and manual-stage semantics. Measure maintenance and wake-up costs; these are
    candidates to evaluate, not requirements to add every mechanism. Any reduced
@@ -663,7 +694,8 @@ assuming the old model is sufficiently accurate or that all old code is faster.
    failed rather than a completed optimization; report the remaining cost and
    required tradeoffs for user direction. Stop for review and commit before
    restoring systems. Goal 7 still owns combined final quality acceptance.
-   **Result:** four-pass candidate reduces the matched three-run pit CPU median
+   **Preserved first-attempt result — failed:** four-pass candidate reduces the
+   matched three-run pit CPU median
    from 13.511 s to 7.664 s per twelve simulated seconds (43.3% less), but misses
    the six-second budget by 1.664 s. The unchanged car median is 3.105 s per ten
    simulated seconds, with sampled trajectory matching Goal 1. Pit worst pair
@@ -675,9 +707,14 @@ assuming the old model is sufficiently accurate or that all old code is faster.
    Production defaults remain unchanged. The [optimization report](docs/physics_pit_optimization.md)
    records retained/rejected changes, grid size/distance fallbacks and the remaining
    response/solver/geometry costs. Evidence is in `sandbox/milestone_13/goal_2/`.
-   Stop for review and explicit direction; do not advance automatically to
-   restoration. A 4 ms average / 5 ms p95 physics budget was proposed during
-   review as a fuller-game target; it has not replaced the approved checklist.
+   The user subsequently rebased this same goal around all seven investigations
+   above, with 30 Hz first. This roadmap update does not execute them or mark the
+   failed attempt complete. Stop after the pursued goal for review and commit;
+   do not advance automatically to restoration. Report distance to the proposed
+   fuller-game budget of 4 ms average / 5 ms p95 physics per 60 Hz rendered frame
+   separately; it has not replaced the approved performance gates. Later blocking
+   work must be costed with protection enabled, not assumed to recover cheaper
+   particle-pile accuracy for free.
 3. [ ] **Restore reliable rigid and particle/node blocking.** Starting from the
    baseline's observed failures, add only the protection needed for rigid–rigid
    impacts, stacks and mass ratios, plus particle/node contacts with static,
