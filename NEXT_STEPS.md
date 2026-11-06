@@ -13,7 +13,7 @@ priority order.
 | 2 | Asset and resource ownership | Complete |
 | 3 | COM, inertia, and origin semantics | Complete |
 | 4 | Cross-path feature parity | Complete by user acceptance; recorded verification exceptions remain |
-| 13 | Physics rebuild from the simpler baseline | Goals 1, 2a (compact scalar promotion), and 2b (standalone flies) complete; goal 2 performance gates failed; rejected goal 3 guard preserved; goals 4–8 not started |
+| 13 | Physics rebuild from the simpler baseline | Goals 1, 2a, 2b and 4a (collision comparison) complete; goals 2 and 3 failed; goal 4 blocking remains incomplete; goals 5–8 not started |
 | 12 | Real-time physics pipeline rework | Closed by user direction; superseded by milestone 13, not complete; goals 1–13 complete, goal 14 unfinished, goals 15–19 not started; evidence preserved |
 | 11 | Soft-body correctness and real-time performance | Superseded by milestone 12; not complete; evidence preserved |
 | 6 | Physics robustness | Goals 1–4 accepted; goal 5 failed verification |
@@ -24,12 +24,19 @@ priority order.
 | 7 | Editor implementation scalability | Deferred until after Python unless game development makes it necessary sooner |
 | 10 | End-to-end game | Pending; separate larger game directed by the user |
 
-**Current priority:** Milestone 13 Goal 2b is **complete**: all 499 small flies
+**Current priority:** Milestone 13 Goal 4a's bounded collision comparison is
+**complete; both prototypes are rejected for adoption**. Sweeps pass 14/18 focused
+cases versus 4/18 for control and prediction, but correction/rotation failures,
+worse car deformation and added pit/flies CPU prevent adoption. Current engine
+defaults remain unchanged. Goal 4's reliable blocking is still incomplete; stop
+for user review before further implementation. See the
+[comparison report](docs/physics_collision_experiments.md).
+Goal 2b is **complete**: all 499 small flies
 are standalone particles, preserving the overlapping spawn and large fly controls.
 Three serial comparisons measured 51.42% less median physics CPU; Linux,
 sanitizer and Windows cross-build checks pass, and the user accepted the preview.
 See the [results](docs/physics_compact_solver.md#flies-in-pit-standalone-particle-correction-goal-2b).
-Stop for review and the user's commit. Goal 2a is **complete**: the user-selected
+Goal 2a is **complete**: the user-selected
 compact scalar version from the last Goal 2 attempt is now this branch's default
 engine. It uses fixed-step/gather-once physics at 60 Hz, four substeps, two
 particle-contact passes and four other solver passes. Normal car/pit entry
@@ -596,7 +603,9 @@ physics rebuild, not a reset of the repository to the historical engine.
 attempt failed the tighter and rendered performance gates, with a verified
 scalar improvement promoted by user direction in completed Goal 2a. Goal 2b's
 standalone flies conversion is complete with user behavior acceptance. Goal 3 failed behavior review;
-its tracked implementation was restored by the user. Goals 4–8 have not started.**
+its tracked implementation was restored by the user. Goal 4a's bounded comparison
+is complete with both prototypes rejected; Goal 4 blocking remains incomplete.
+Goals 5–8 have not started.**
 Goal 2 investigated baseline particle cost. By user direction, a minimal swept
 static-wall guard was inserted as Goal 3 before the user reopened Goal 2.
 Former Goals 3–7 moved to 4–8; their scope and evidence are preserved.
@@ -861,6 +870,32 @@ assuming the old model is sufficiently accurate or that all old code is faster.
    separate from cheaper particle response. Evaluate local handling and
    conservative risk tests before making every interaction repeat the world.
    Measure each addition independently; retain unmet numerical criteria visibly.
+   1. [x] **Goal 4a: Compare predictive contacts and selective sweeps.**
+      Freeze the current branch default as the control, classify integration
+      versus correction-created crossings, and implement two isolated prototypes
+      using unchanged collision geometry. Prioritize particle/node versus rigid
+      and rigid versus rigid interactions, including moving and rotating obstacles.
+      Measure particle pairs separately. Compare bounce, sliding, deformation,
+      crossings and average/p95 CPU on focused cases and unchanged car/pit scenes;
+      retain initial-overlap flies as an additional diagnostic. Complete bounded
+      endpoints, relevant safety/platform checks and a reproducible recommendation.
+      Existing numerical and 4/5 ms performance gates remain visible. Prototype
+      rejection is a valid comparison result, not successful protection. Only
+      promising candidates proceed to rendered review; no default promotion is
+      included. Stop for user review before any follow-up implementation.
+      **Result: comparison complete; neither prototype adopted.** All 18 focused
+      endpoints complete in each mode on Linux and under ASan/UBSan. Sweeps pass
+      14/18 versus 4/18 for both control and prediction, preserving translating
+      impact bounce/sliding but failing correction-created and rotating-obstacle
+      crossings. Both candidates worsen car beam error. Three serial runs per
+      workload/mode complete; sweeps add 16.22% pit and 51.20% flies CPU with
+      essentially unchanged total car CPU. Neither satisfies quality and 4/5 ms
+      budgets together. Six focused checks pass in all three modes on Linux and
+      under sanitizers; sanitized candidate workloads complete without memory
+      findings. Windows tools/SDK consumers cross-build; native Windows execution
+      is unverified. No candidate warranted rendered review. Production defaults
+      remain unchanged. See the [report](docs/physics_collision_experiments.md)
+      and `sandbox/milestone_13/goal_4a/`. Follow-up needs user direction.
 5. [ ] **Restore soft-body and structural quality in measured stages.** Cover
    spring/beam integration and damping, pin/weld joints, transform locks, node
    support, beam–rigid and beam–beam contacts and self-collision. Use the baseline

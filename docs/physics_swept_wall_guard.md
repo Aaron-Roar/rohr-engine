@@ -1,10 +1,14 @@
 # Minimal swept wall protection
 
-Milestone 13 Goal 3 adds and measures a minimal movement guard for particles and
-soft-body nodes against static rigid walls. It is the next implementation goal,
-not an implemented feature. The [roadmap](../NEXT_STEPS.md#13-physics-rebuild-from-the-simpler-baseline)
-owns priority and the shared measurement contract. Former Goals 3–7 move to 4–8;
-Goal 2 remains failed against its measured performance gates, with evidence intact.
+This is the preserved implementation plan for Milestone 13 Goal 3. That attempt
+**failed behavior review**: the user rejected sticking/lost bounce and sliding,
+and unstable soft-body car behavior, then restored its tracked implementation.
+It is not enabled in the current engine. Evidence remains in
+`sandbox/milestone_13/goal_3/`. The later
+[Goal 4a comparison](physics_collision_experiments.md) evaluates alternatives.
+The [roadmap](../NEXT_STEPS.md#13-physics-rebuild-from-the-simpler-baseline)
+owns current priority and the measurement contract. The scope and ordered plan
+below are historical, not authorization to resume the rejected guard.
 
 ## Fixed scope and starting configuration
 
@@ -96,11 +100,12 @@ Goal 2 remains failed against its measured performance gates, with evidence inta
    high, identify the measured cause and alternatives without expanding scope or
    silently disabling protection. Stop for review and the user's commit.
 
-## Current evidence and limits
+## Planning-time evidence and limits (historical)
 
 The user accepted both 60 Hz/two-pass previews. Their latest single rendered runs
 had car/pit average physics CPU of 4.29/7.38 ms, frame-work p95 of 6.83/12.61 ms,
 and 59.11/58.60 FPS. They still missed the simulation-time drift gate. These are
 guard-disabled observations, not repeat acceptance or evidence of wall safety.
-The guard itself has not been implemented or timed. Full sixty-second car
-acceptance and final physics-quality selection remain Goal 8.
+At the time this plan was approved, the guard had not been implemented or timed.
+Its later implementation and measurements do not override the rejection above.
+Full sixty-second car acceptance and final physics-quality selection remain Goal 8.
