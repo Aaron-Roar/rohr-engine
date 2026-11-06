@@ -67,9 +67,10 @@ static void prepared_composition_check(bool manual) {
 /* Compare the complete candidate's particle path with ordinary manual response
  * at the same particle effort. Offset circles exercise deferred polygon refresh;
  * masks/static bodies verify that stored motion mode never replaces pair mass. */
-static void particle_pair_sample(bool manual, unsigned mode, float tangent, float state[8]) {
+static void particle_pair_sample(bool manual, unsigned mode, float tangent,
+        uint32_t iterations, float state[8]) {
     OK(rohr_engine_start());
-    OK(rohr_physics_solver_iterations_set(2));
+    OK(rohr_physics_solver_iterations_set(iterations));
     Entity entities[2];
     for(unsigned side = 0; side < 2; ++side) {
         ParticleDescription d = rohr_physics_particle_description_default_get();
@@ -89,7 +90,7 @@ static void particle_pair_sample(bool manual, unsigned mode, float tangent, floa
     if(manual) {
         rohr_physics_pipeline_substep_begin();
         report_check(rohr_physics_pipeline_contacts_gather());
-        report_check(rohr_physics_pipeline_constraints_solve(2));
+        report_check(rohr_physics_pipeline_constraints_solve(iterations));
     } else report_check(rohr_physics_pipeline_substep(0));
     for(unsigned side = 0; side < 2; ++side) {
         EntityIndexResult result = rohr_entity_index_get(entities[side]); OK(result);
@@ -107,10 +108,12 @@ static void particle_pair_sample(bool manual, unsigned mode, float tangent, floa
 }
 
 static void particle_pair_check(void) {
+    const uint32_t iterations[] = {1, 2, 4, 8};
+    for(unsigned effort = 0; effort < sizeof(iterations)/sizeof(*iterations); ++effort)
     for(unsigned mode = 0; mode < 4; ++mode) for(unsigned tangent = 0; tangent < 2; ++tangent) {
         float manual[8], complete[8];
-        particle_pair_sample(true, mode, tangent * 7, manual);
-        particle_pair_sample(false, mode, tangent * 7, complete);
+        particle_pair_sample(true, mode, tangent * 7, iterations[effort], manual);
+        particle_pair_sample(false, mode, tangent * 7, iterations[effort], complete);
         for(unsigned i = 0; i < 8; ++i) assert(fabsf(manual[i] - complete[i]) < .00001f);
     }
 }

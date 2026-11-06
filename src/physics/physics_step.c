@@ -297,7 +297,12 @@ void physics_pipeline_joint_constraints_solve(void *context) {
     if(context != NULL && ((Report *)context)->has_fatal) return;
     physics_joint_constraints_solve(context);
     physics_rigid_transform_constraints_apply(context);
-    physics_step_hitbox_dirty_flush(context);
+    /* In a complete baseline solve without structural contacts, rigid response
+     * refreshes each polygon consumer on demand. Publish current geometry once
+     * after the final iteration. Manual and coupled solves retain each flush. */
+    if(!physics_simple_baseline_active_check() || soft_body_beams_pool.count ||
+            physics_step_joint_constraints.count)
+        physics_step_hitbox_dirty_flush(context);
 }
 
 Report system_physics_update(double dt) {

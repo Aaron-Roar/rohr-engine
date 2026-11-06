@@ -9,7 +9,12 @@ The authoritative scope and later goals are in [the roadmap](../NEXT_STEPS.md#13
 
 [Goal 2's subsequent pit optimization](physics_pit_optimization.md) is preserved
 as a failed first attempt against its performance gates. Goal 2 has since been
-rebased for seven investigations, starting with 30 Hz; execution is pending.
+rebased for seven investigations, starting with 30 Hz. Those measurements are
+finished, but the strict gates still fail. The proposed trajectory-preserving
+patch reaches 6.387 s pit / 2.582 s car; PP2 and sleeping remain separate
+experiments. The user selected retaining the trajectory-preserving changes and
+preserving sleeping for later. See the linked report for current results and
+pending review; the failed outcome reflects measured performance gates.
 Its first attempt's matched four-pass pit median is
 7.664 s versus 13.511 s for this baseline; car trajectories remain unchanged.
 This Goal 1 report and its original evidence remain historical records.

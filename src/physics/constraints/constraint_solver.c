@@ -47,6 +47,8 @@ void constraint_solver_run(
          * convergence can prove the contact-only system is unchanged. */
         if(!baseline && iteration > 0 && contacts->solver_converged) break;
     }
+    if(baseline && contacts == &physics_step_contact_constraints)
+        physics_step_hitbox_dirty_flush(context);
     if(contacts_finalize != NULL) contacts_finalize(contacts, context);
     contacts->solving = false;
     if(contacts == &physics_step_contact_constraints) physics_step_hitbox_cache_end();

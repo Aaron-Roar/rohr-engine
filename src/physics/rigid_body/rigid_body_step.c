@@ -808,6 +808,33 @@ static bool system_contact_point_solve(
     return true;
 }
 
+/* The baseline circle path has exactly one point and no angular terms. Keep
+ * the same response/commit operations without preparing polygon manifolds. */
+static ContactInfo system_particle_collision_resolve(EntityIndex first, EntityIndex second,
+        OverlapInfo overlap, bool restitution_enabled, const ContactInfo *previous,
+        const float *previous_rebounds, float *rebounds, Report *report, bool *applied) {
+    ContactInfo result = {.detected = true, .normal = overlap.normal,
+        .depth = overlap.depth, .point_count = 1};
+    ContactPointInfo *point = &result.points[0];
+    point->position = system_collision_contact_point(first, second, overlap);
+    float inverse_first = physics_entity_simulated_get(first) &&
+        system_contact_response_check(first, second) ? 1.0f / mass[first] : 0.0f;
+    float inverse_second = physics_entity_simulated_get(second) &&
+        system_contact_response_check(second, first) ? 1.0f / mass[second] : 0.0f;
+    if(inverse_first + inverse_second <= 0) return result;
+    const ContactPointInfo *old = previous && previous->point_count == 1
+        ? &previous->points[0] : NULL;
+    float rebound = old ? previous_rebounds[0] :
+        system_contact_rebound_get(first, second, point->position, overlap.normal, restitution_enabled);
+    point->normal_impulse = old ? old->normal_impulse : (Vec2D){0};
+    point->friction_impulse = old ? old->friction_impulse : (Vec2D){0};
+    if(system_particle_point_solve(first, second, overlap.normal, restitution_enabled,
+            inverse_first, inverse_second, old, &rebound, &rebounds[0],
+            &point->relative_velocity, &point->normal_impulse, &point->friction_impulse, report))
+        *applied = true;
+    return result;
+}
+
 ContactInfo system_resolve_collision(
     Entity first,
     Entity second,
@@ -818,6 +845,10 @@ ContactInfo system_resolve_collision(
 ) {
     bool first_particle = physics_step_entity_components_check(first, ROHR_PARTICLE);
     bool second_particle = physics_step_entity_components_check(second, ROHR_PARTICLE);
+    if(physics_simple_baseline_active_check() && first_particle && second_particle &&
+            physics_entity_nonrotating_check(first) && physics_entity_nonrotating_check(second))
+        return system_particle_collision_resolve(first, second, overlap, restitution_enabled,
+            previous_contact, previous_rebounds, rebounds, report, applied);
     float inverse_mass_first = physics_entity_simulated_get(first) &&
         system_contact_response_check(first, second)
         ? 1.0f / mass[first] : 0.0f;

@@ -331,5 +331,7 @@ void physics_joint_constraints_gather(Report *report) {
 
 void physics_joint_constraints_solve(Report *report) {
     physics_step_joint_constraints_apply(report);
-    physics_step_hitbox_dirty_flush(report);
+    if(!physics_simple_baseline_active_check() || soft_body_beams_pool.count ||
+            physics_step_joint_constraints.count)
+        physics_step_hitbox_dirty_flush(report);
 }

@@ -7,22 +7,26 @@ owns the goal order. Production defaults and public APIs remain unchanged.
 candidate improves pit CPU time by 43.3%, but its 7.664-second median misses the
 six-second target; all three rendered runs also miss the strict real-time gates.
 The user accepted the preview's behavior, not those performance failures.
-The user has rebased this same goal around the seven investigations below,
-starting with 30 Hz. Their execution is pending; the failed attempt remains
-preserved. This document's existing measurements describe that first attempt,
-not results of the revised plan. Production settings remain unchanged.
+**Rebased outcome: Failed against the strict performance gates.** All seven
+investigations and measured combinations are reported in [the new results](#rebased-investigation-results).
+The proposed geometry/solver patch reduces the matched pit median from 7.240 s
+to 6.387 s with identical sampled trajectories. Experimental two-pass response
+reaches 5.533 s and sleeping 3.970 s, but normal rendered playback still misses
+the timing contract. Prior evidence remains preserved; no quality/default
+selection or restoration goal has begun.
 
 ## Rebased Goal 2 investigation plan
 
 Investigate all seven levers before choosing combinations. This is the revised
 scope of Goal 2, not seven new milestone goals; Goals 3–7 keep their order.
-The documentation update does not start experiments. On the user's instruction
-to pursue the goal, pin the retained implementation at `bdb622c6` using its full
-commit hash, source/build/SDK hashes and runtime settings. Keep its 60 Hz,
+The user has instructed execution. The implementation parent is
+`0fc3c5b1`; the retained comparison implementation is
+`bdb622c6eb8d41829ee893ee6ac17bfa268ab07f`. Full source/executable provenance and
+new runs are preserved under `sandbox/milestone_13/goal_2/rebased/`. Keep its 60 Hz,
 four-substep, four-pass behavior as the fixed comparison control. Also retain
 Goal 1 and the frozen references; exclude `main`.
 
-1. [ ] **30 Hz physics, first.** Change only the outer physics tick from 60 to
+1. [x] **30 Hz physics, first.** Change only the outer physics tick from 60 to
    30 Hz, keeping four configured substeps, four solver passes, authored inputs
    timed in simulation seconds, and 60 FPS normal rendering. Each integration
    substep consequently doubles in duration; this is a behavior experiment,
@@ -33,42 +37,42 @@ Goal 1 and the frozen references; exclude `main`.
    Record any existing interpolation; do not add rendering smoothing silently.
    A 30 Hz tick may burst on alternate rendered frames, so average cost alone
    is insufficient. Do not promote 30 Hz to a default before user selection.
-2. [ ] **Refresh particle polygon geometry only when a consumer needs it.**
+2. [x] **Refresh particle polygon geometry only when a consumer needs it.**
    Trace dirty writes and consumers, including mixed/beam contacts, transform
    locks, queries, publication and standalone pipeline boundaries. Test direct
    circle data and deferred polygon refresh while ensuring each consumer sees
    current geometry. Count flushes/vertices avoided and new checks performed.
    Aim for unchanged response and trajectories where execution order is held
    fixed; classify any numerical/order changes explicitly.
-3. [ ] **Simplify particle solver storage and execution.** Measure compact
+3. [x] **Simplify particle solver storage and execution.** Measure compact
    particle constraints, prepared invariant masses/material/filter data and
    reduced generic dispatch. Preserve directional response, nonrotation,
    sequential shared-body updates and generation-safe identity. Distinguish
    data valid for one solve from data requiring invalidation on motion or API
    mutation. Include setup and memory costs; do not remove safety checks without
    preserving their guarantees. Keep solver effort fixed for this screen.
-4. [ ] **Reduce particle-pair response effort.** Reverify two particle-pair
+4. [x] **Reduce particle-pair response effort.** Reverify two particle-pair
    passes against four while keeping particle–rigid and rigid–rigid effort
    unchanged. Include eligible soft-body nodes and measure their coupled car
    behavior. The earlier 5.493-second/two-pass pit with 0.330803 worst overlap
    is an exploratory lead, not verified acceptance. Keep the known one-pass
    1.791743 overlap failure visible; do not repeat unchanged rejected candidates.
    Record bounce, residual overlap, settling and energy as well as worst overlap.
-5. [ ] **Separate particle collision cadence from elastic integration.** Test
+5. [x] **Separate particle collision cadence from elastic integration.** Test
    fewer particle-pair discoveries and response rounds while retaining necessary
    elastic integration steps. Measure discovery reuse and response cadence
    separately before combining them. Explicitly account for newly approaching
    pairs, correction-created contacts, fast motion and node/rigid coupling.
    Keep existing rigid-contact effort; specify how the motion interval will be
    covered by later wall protection rather than treating skipped checks as safe.
-6. [ ] **Reuse candidates and previous velocity impulses.** First test bounded,
+6. [x] **Reuse candidates and previous velocity impulses.** First test bounded,
    conservative candidate reuse with current geometry checks; then test velocity
    impulse warm starting as a separate variable. Measure fewer searches and
    passes against cache maintenance. Cover entity deletion/reuse, radius and
    shape changes, filtering, teleports, external forces, moving obstacles and
    corrections outside retained bounds. Reject stale contact identity or normals;
    do not blindly reuse positional corrections or turn missed contacts into passes.
-7. [ ] **Sleep settled particle groups.** Test standalone piles first, with
+7. [x] **Sleep settled particle groups.** Test standalone piles first, with
    support checks and waking on impact, loads, edits, support removal and moving
    obstacles. Evaluate beam/joint-coupled nodes separately; retain active handling
    if safe group wake propagation is not worthwhile. Report time to sleep,
@@ -129,6 +133,315 @@ default changes and final tolerance acceptance require a separate user decision.
   retained/rejected decisions and unresolved risks. Report Complete, Failed or
   Stuck according to the roadmap contract, then stop for review and the user's
   commit before any restoration goal begins.
+
+## Rebased investigation results
+
+**Outcome: Failed against the performance gates.** All seven investigations
+have measured verdicts. The proposed engine patch retains only deferred geometry
+refresh and the simpler one-point particle response path. It reproduces every
+sampled control state at both rates and leaves production defaults, public APIs,
+four solver passes and configured substeps unchanged. Sleeping, reduced particle
+effort, reduced cadence and caches remain isolated experiments. No new physics
+quality or production configuration has been accepted. The user selected retaining
+these trajectory-preserving changes and preserving sleeping for later. The failed
+outcome reflects measured performance gates, not missing user feedback.
+
+The implementation parent is `0fc3c5b16e2ddcccaadfe1892b4af66d7587034c`;
+the frozen retained control is `bdb622c6eb8d41829ee893ee6ac17bfa268ab07f`.
+`sleep_retry` in the new evidence means that control library linked to the updated
+diagnostic harness; it does **not** enable sleeping. `retained` is the proposed
+geometry/solver patch. `sleeping_hardened` adds the isolated sleeping prototype.
+The original first-attempt report and artifacts below remain historical records.
+
+All new artifacts are under `sandbox/milestone_13/goal_2/rebased/`. Settings and
+binary hashes accompany each execution. AC power and closed streaming were
+confirmed by the user; controlled runs were serial with no concurrent builds.
+Car diagnostics keep the authored 200 particles plus 100 nodes and ten simulated
+seconds; pit diagnostics keep 800 diameter-five particles, restitution 0.5 and
+twelve seconds. Every execution has a 59-second interrupt / 60-second hard cap.
+No failed numerical endpoint was shortened to make it pass.
+
+### Isolated screens and decisions
+
+The table shows initial single clean CPU screens in seconds, with a separate
+per-substep quality oracle. These are screening measurements, not three-run
+acceptance. Four configured substeps and four passes remain fixed except for
+the explicitly listed response-effort experiment. Thirty-hertz runs retain
+60 Hz rendering, drawing the latest state on alternate frames without adding
+interpolation. The input sequence uses simulated time.
+
+| Isolated lever | 60 Hz pit / car CPU s | 30 Hz pit / car CPU s | Pit worst overlap, 60 / 30 Hz | Decision |
+|---|---:|---:|---:|---|
+| Retained control | 7.278 / 2.656 | 3.885 / 1.469 | 0.266 / 0.818 | Fixed comparison |
+| Deferred geometry | 7.452 / 2.648 | 3.949 / 1.483 | 0.266 / 0.818 | Retain after repeated comparison |
+| Simpler particle solver | 7.549 / 2.800 | 4.112 / 1.477 | 0.266 / 0.818 | Retain after repeated comparison |
+| Two particle-pair passes | 5.499 / 2.686 | 2.803 / 1.560 | 0.331 / 1.574 | Useful 60 Hz experiment; no default selection |
+| Alternate-substep particle response | 4.809 / 2.438 | 2.495 / 1.362 | 0.913 / 2.871 | Reject this cadence for the current review limit |
+| Conservative candidate reuse | 7.116 / 2.570 | 3.917 / 1.483 | 0.320 / 0.607 | No worthwhile combined benefit; preserve prototype |
+| Velocity impulse warm start | 7.464 / 2.591 | 3.836 / 1.500 | 0.307 / 1.207 | Reject this implementation at fixed effort |
+| Whole-scene particle sleeping | 4.179 / 2.736 | 3.796 / 1.550 | 0.266 / 0.818 | Promising isolated option; preserve, do not promote |
+
+1. **30 Hz:** nearly halves total work, but doubles the motion interval of each
+   substep. Pit overlap exceeds 0.5 by 0.318; car node overlap grows from 1.290 to
+   3.297. The 1,000-units/s head-on case misses the collision at 30 Hz despite
+   reporting zero overlap: the particles cross between samples. At 60 Hz it
+   catches the collision with 0.000227 overlap. Existing delayed-update failures
+   remain. Thirty hertz is not selected; its lower average cost does not establish
+   protection or smoothness. The 30 Hz pit preview measured 58.71 FPS,
+   17.36 ms frame-work p95 and a 0.97850 simulation/elapsed ratio; the car prefix
+   measured 59.11 FPS and 8.05 ms p95, also outside the 1% timing gate.
+2. **Geometry:** separate three-run isolated medians were 6.817 s for the pit
+   versus 7.592 s for its matched control. Skip redundant per-iteration flushes
+   only during complete baseline solves without beams/joints; rigid consumers
+   refresh on demand and finalization receives current geometry. Coupled and
+   manually composed stages retain their existing flush behavior. All sampled
+   car/pit state hashes match at 30 and 60 Hz. No geometry cache survives the
+   existing public-call boundary. Counters below distinguish fewer flush calls
+   from actual polygon translations avoided.
+3. **Solver:** the isolated repeated pit median was 7.037 s against that same
+   7.592 s control. The one-point nonrotating particle path avoids generic
+   manifold preparation, point matching and angular dispatch. It keeps the same
+   rebound target, directional inverse masses, sequential normal/friction
+   updates and validated pair commits. There is no persistent material cache,
+   new allocation, contact-storage redesign or public API. Control state hashes
+   match; manual/complete parity now covers one, two, four and eight passes.
+4. **Two particle-pair passes:** the diagnostic wrapper skips only eligible
+   particle-pair response, including nonrotating nodes; particle–rigid and
+   rigid–rigid response retain four passes. It still traverses the existing
+   constraint lists, so this is a measured policy experiment, not a shipped
+   independent-pass API. At 60 Hz the pit stays below 0.5, but final overlap
+   rises from 0.04929 to 0.13385 and RMS speed from 0.57574 to 0.64135. Mean pile
+   height falls by 1.090 units. Car node overlap is 1.276 versus 1.290, and beam
+   error 8.214 versus 9.827; trajectories change, so these numbers do not imply
+   universally improved physics. At 30 Hz the 1.574 overlap exceeds 0.5 by 1.074.
+5. **Collision cadence:** skipping particle response on alternating configured
+   substeps retains force/integration, gathering and all rigid response. At
+   60 Hz it exceeds the pit overlap limit by 0.413, and at 30 Hz by 2.371. The
+   car node error also grows to 2.940 at 60 Hz. Candidate reuse below independently
+   tests reduced discovery. Neither experiment provides wall protection over
+   skipped intervals; restoration must cover those intervals explicitly.
+6. **Reuse and warm starting:** the bounded one-unit-skin candidate cache reused
+   2,746 lists and rebuilt 134 at 60 Hz, with no overflow. It rechecks current
+   geometry/filters and invalidates on membership/radius changes or displacement
+   beyond half the skin. Wider candidate coverage and changed pair order raise
+   checks from 3.971 million to 6.346 million; total saving is small despite 95.3%
+   list reuse. Pair and membership/circle arrays consume about 1.209 MB. The
+   separate warm-start cache uses 16,384 full-identity slots (2.753 MB), only the
+   preceding substep, matching duration/material/mass/radii, compatible normal,
+   small displacement and normal speed at most two. It never reuses positional
+   correction. Maintenance costs and changed settling outweigh the saving here.
+   Six existing gathering, mutation, lifetime, recovery and response checks pass
+   for each prototype. They are rejected experiments, not fully qualified new
+   persistent-cache APIs.
+7. **Sleeping:** a conservative contact-group eligibility audit first found
+   essentially no benefit at speed 0.1 or 0.5. At speed one and a 0.5-second dwell,
+   the actual prototype sleeps the **entire eligible standalone-particle scene**
+   together, requiring static support for every connected group. It refuses
+   beam/joint/moving-rigid scenes and more than 1,024 colliders. Exact snapshots
+   of identity, shape, pose, material, filter and prepared loads wake the scene
+   on mutation; nonfinite values cannot qualify. Snapshots alone occupy 1.212 MB.
+   The 60 Hz pit sleeps at 6.7375 s, skips 8,643,972 response visits over 1,263
+   substeps and removes 41.905 units of residual kinetic energy. Gathering and
+   publication continue. Final RMS speed becomes zero, final overlap 0.05322,
+   and mean pile height is 0.787 units above the active control. Thus slow settling
+   is frozen. Ten load/impact/support/edit/lifecycle wake cases pass in release
+   and sanitizers. The car remains active; the 30 Hz pile never qualifies. This
+   is not independent island sleeping for a busy game. A new object wakes the
+   whole scene, and continuous activity can eliminate the saving. The user chose
+   to preserve this experiment for later; no sleeping engine option is added
+   and no default is changed.
+
+Earlier 60 Hz combination screens were geometry+two passes 5.171 s, reuse+two
+5.911 s, warm+two 5.994 s and sleeping+two 5.811 s for the pit. In the last case
+the noisier two-pass pile never slept. Savings are not additive. The final
+comparisons below test geometry+solver, that pair with two-pass response, and
+that pair with four-pass sleeping.
+
+### Final three-run CPU comparisons
+
+Medians below use three serial clean full-endpoint runs per workload/version.
+All use 60 Hz and four configured substeps. Quality oracles and exclusive
+profilers are separate and do not supply these CPU acceptance numbers.
+
+| Candidate | Car CPU s / 10 s | Pit CPU s / 12 s | Car / pit physics headroom | Pit ms per 60 Hz frame |
+|---|---:|---:|---:|---:|
+| Control | 2.592 | 7.240 | 3.86× / 1.66× | 10.056 |
+| Retained geometry + solver | 2.582 | 6.387 | 3.87× / 1.88× | 8.871 |
+| Retained + experimental PP2 | 2.609 | 5.533 | 3.83× / 2.17× | 7.685 |
+| Retained + experimental sleep | 2.756 | 3.970 | 3.63× / 3.02× | 5.514 |
+
+The retained pit patch saves 11.79% versus the matched control, but exceeds the
+six-second budget by 0.387 s (6.45%). Its car change is only about 0.4%, within
+run-to-run variation. Two-pass and sleeping experiments meet the average physics
+CPU targets; neither establishes strict rendered acceptance. The proposed
+four-ms-average/five-ms-p95 full-game physics budget remains unmet: retained pit
+average is 8.871 ms per 60 Hz frame, PP2 7.685 ms and sleep 5.514 ms. Their
+respective clean tick p95 ranges are 11.783–12.672, 9.814–10.442 and
+11.543–12.204 ms. Sleeping improves the settled tail, not the expensive active
+part of the drop. The car retained average is 4.303 ms, with p95 5.714–6.164 ms.
+
+### Exclusive subsystem measurements
+
+These are instrumented **full-run milliseconds**, not clean CPU acceptance
+values. Each nested interval is charged once; all eight final profiles have
+`accounting_valid=1`, no lost report updates and complete elapsed simulation time.
+The pair breakdown is a subset of rigid solving and must not be added to it.
+
+| Pit stage | Control | Retained | Retained + PP2 | Retained + sleep |
+|---|---:|---:|---:|---:|
+| Force preparation | 90.4 | 89.0 | 87.6 | 86.8 |
+| Integration | 196.2 | 194.4 | 191.2 | 269.5 |
+| Contact gathering | 1418.8 | 1374.8 | 1398.3 | 1331.6 |
+| Rigid solving, all pairs | 5760.4 | 5629.7 | 4537.7 | 3292.1 |
+| Joint/lock solving | 83.6 | 82.1 | 82.3 | 82.6 |
+| Geometry flush/publication | 1408.0 | 461.4 | 441.0 | 247.1 |
+| Orchestration | 144.3 | 141.4 | 142.6 | 191.1 |
+| ↳ Particle–particle response | 3581.7 | 3411.3 | 2272.3 | 1672.3 |
+| ↳ Particle–static response | 927.7 | 985.0 | 968.8 | 447.9 |
+
+The retained car spends 987.3 ms gathering, 955.4 ms in all rigid solving,
+217.7 ms in joint/lock solving, 111.1 ms in soft solving and 284.5 ms in
+finalization. Its rigid response includes 258.0 ms particle-particle,
+287.6 ms particle-static and 85.9 ms particle-moving. The pit remains dominated
+by repeated response plus gathering. The car has a broader cost distribution;
+sleeping a standalone pile does not solve its structural workload.
+
+Pit candidate counts are 3,971,047 control/retained, 4,283,479 with PP2 and
+3,852,579 with sleep. Configured substeps stay 2,880 in every 60 Hz pit run and
+2,400 in every car run; there are no sweeps/adaptive subdivisions in this
+baseline. Fewer particle passes change trajectories and future discovery, so
+candidate counts need not fall. Observed cross-object dirty flush calls fall
+from 11,520 to 2,880 in the pit; car calls rise from 9,600 to 12,000 because
+the final boundary flush is added while coupled per-pass handling remains.
+The diagnostic geometry counters report actual complete-substep translations:
+
+- pit: 9,389,956 → 4,900,979 translations; 150,135,616 → 78,311,984 vertices.
+- car: 2,750,288 → 2,750,288 translations; 21,846,141 → 21,846,141 vertices.
+
+### Rendered playback and pacing
+
+Three normal runs per control/retained/PP2 workload use a verified 1280×720 client,
+60 FPS limiter, debug drawing off and no slow motion. Car rows are the ten-second
+diagnostic prefix. All endpoints complete; every strict playback verdict fails.
+Work excludes pacing, and simulation/elapsed time includes pacing.
+
+| Version / workload | FPS range | Frame-work p95 ms range | Simulation / elapsed range |
+|---|---:|---:|---:|
+| Retained + experimental PP2 / car | 59.08–59.14 | 6.65–6.79 | 0.98464–0.98569 |
+| Retained + experimental PP2 / pit | 58.79–58.86 | 12.64–12.70 | 0.97978–0.98095 |
+| Retained geometry + solver / car | 59.09–59.10 | 7.09–7.16 | 0.98489–0.98506 |
+| Retained geometry + solver / pit | 58.70–58.85 | 14.54–14.66 | 0.97839–0.98077 |
+| Control / car | 59.10–59.14 | 7.08–7.09 | 0.98495–0.98562 |
+| Control / pit | 58.56–58.75 | 15.97–16.98 | 0.97603–0.97923 |
+
+Retained and PP2 frame work fits 16.67 ms, but playback remains below 60 FPS
+and more than 1% slow with accumulating lag. The earlier single sleeping preview
+also failed: 58.88 FPS, 14.33 ms p95 and ratio 0.98126. It is not a three-run
+rendered finalist or an accepted quality option. Single-window previews were
+shown; the user reported not seeing enough to judge. New motion/settling quality
+is therefore unassessed, not rejected. This does not cause the measured
+performance-gate failure.
+The prior first-attempt preview acceptance does not apply to these new policies.
+
+Inspection found that `graphics_pipeline_present` waits before `SDL_RenderPresent`
+and starts the next pacing interval after presentation. Presentation time is
+therefore additional to its nominal frame interval. A separate wrapped diagnostic
+measures that cost; it does not modify engine rendering or normal acceptance runs.
+The pit audit recorded 249.820 ms in 721 presentations (including startup),
+about 0.346 ms each, versus 239.872 ms of final schedule lag. Requested waits
+totaled 3,911.844 ms and actual waits 3,914.693 ms. These observations support
+presentation being the main added pacing cost; they are not a repaired-limiter
+acceptance run.
+The existing `--uncapped` request sets limit zero, which actually selects the
+engine's 120 FPS fallback. Those six legacy-request runs are preserved under
+`uncapped_*` and must not be described as unlimited throughput. Corrected
+`actual_unpaced_*` diagnostics bypass only `SDL_DelayPrecise`, with vsync off,
+and explicitly log `bypass=1`; they are separate instrumented diagnostics.
+
+- True unpaced diagnostic, retained, PP2, car: 184.39 FPS, simulation/elapsed 3.073.
+- True unpaced diagnostic, retained, PP2, pit: 104.06 FPS, simulation/elapsed 1.734.
+- True unpaced diagnostic, retained, PP4, car: 181.42 FPS, simulation/elapsed 3.024.
+- True unpaced diagnostic, retained, PP4, pit: 84.81 FPS, simulation/elapsed 1.413.
+- True unpaced diagnostic, sleep_retry, PP4, car: 175.53 FPS, simulation/elapsed 2.925.
+- True unpaced diagnostic, sleep_retry, PP4, pit: 79.51 FPS, simulation/elapsed 1.325.
+
+The full sixty-second authored car acceptance run, window-switch review and
+final quality selection remain Goal 7. The one-minute wall cap was not waived.
+Neither a ten-second prefix nor uncapped throughput is presented as that gate.
+
+### Safety, regressions and remaining protection
+
+- Linux retained regression suite: 20 pass, five existing failures (head-on,
+  sweeps, joints, soft bodies, wall blocking). Default option-OFF suite: 24/24.
+  The joint aggregate assertion is not a completed numerical inventory; separate
+  continuing joint/soft/sweep inventories preserve endpoint results and errors.
+- ASan/UBSan retained suite has the same five numerical failures with no reported
+  sanitizer findings. Full twelve-second pit and ten-second car diagnostics
+  complete under sanitizers, as do the sleeping candidate's workloads and ten
+  focused wake scenarios. No safety pass is inferred for unexecuted endpoints.
+- All **228 original-setting stress endpoints** complete with the same 52 passes
+  and 176 failures as the retained control. The separate four-substep/four-pass
+  release screen reaches 226 of 228 endpoints before the soft-body batch cap
+  (227 result lines include one interrupted case). The analogous sanitizer
+  screen reaches 189 of 228; stack and soft-body batches hit the cap. These
+  incomplete runs are preserved and not retried unchanged or called passes.
+- Each behavior-changing screen and the retained candidate has particle/node
+  thick-wall checks at 30 and 60 Hz plus the original head-on schedules. Each
+  50-case wall run reaches every endpoint: 26 pass, 24 fail, 24 crossings,
+  no fatal/nonfinite state. The largest one-sided wall violation is about
+  985.5 units; that measures travel beyond the entry face, not a 985-unit
+  intersection with the ten-unit-thick wall. Its threshold is 0.1. Missed
+  collisions remain separate from overlap; zero overlap cannot excuse tunneling.
+- Public API/ownership, entity deletion/reuse, variable radii, grid outliers,
+  recovery, manual pipelines, directional response, nonrotation and reporting
+  remain covered by existing checks. The expanded baseline test compares
+  complete/manual particle response and current world geometry across four
+  effort settings. Final car/pit state hashes equal control for all 600/720
+  updates at 60 Hz and 300/360 updates at 30 Hz.
+- Linux builds and Windows cross-builds pass without compiler warnings.
+  Independent installed-SDK soft-body examples build for both platforms;
+  the Linux example launches from `/tmp` and exits cleanly after its requested
+  60-frame smoke. Its built-in sixty-second acceptance reporter correctly marks
+  that short run incomplete; it is launch verification only, not full-run
+  physics evidence. Native Windows execution was not performed.
+
+The 0.5 particle-pair review threshold and 0.1 stress penetration criteria are
+unchanged; no solver correction slack was added. The retained car still has
+5.992 worst standalone overlap, 1.290 node overlap and 9.827 absolute beam error.
+The pit's acceptable overlap does not establish restored wall/structural quality.
+
+### Review and subsequent work
+
+The proposed commit contains the two trajectory-preserving changes and their
+verification/reporting, as selected by the user. Sleeping stays preserved for
+later investigation. This retention decision does not accept new physics quality
+or waive the performance gates. At 60 Hz, PP2 is the simpler measured quality/cost option
+for future selection; sleeping offers a larger isolated-pile saving with a much
+narrower workload benefit. Neither is silently enabled. Tick rate, global
+substeps and global solver iterations retain their existing APIs. Per-pair
+effort/cadence, cache skins and sleeping controls are private experiment settings;
+a public independent-effort/sleep API requires a separate decision.
+
+Before spending the remaining budget on protection, keep separate measurements
+for active-pile response, discovery and presentation pacing. For the PP2 option,
+the six-second physics budget leaves only 0.467 s over twelve simulated seconds
+(0.65 ms per 60 Hz frame) for added work if 2× average headroom is to remain.
+Independent supported islands could generalize sleeping, but require coupling,
+wake propagation and lifecycle work; the whole-scene result does not predict
+their game-level saving. Cache reuse needs fewer total checks, not merely fewer
+rebuilds. Goal 3's wall protection and Goal 4's structural restoration must
+measure their added costs and cannot be assumed to recover cheaper settling
+accuracy for free. Presentation pacing is a separately identified issue; no
+graphics behavior is changed in this goal. Goals 3–7 have not begun.
+
+Reproduction entry points: `build_final.py`, `verify_final.py`, `finish_checks.py`,
+`measure_final.py`, `render_final.py`, `run_geometry_audit.py` and
+`render_unpaced.py`, run serially inside `nix develop`. Per-variant source
+overlays/patches, SDK archives and build caches preserve rejected experiments.
+`final_summary.json`, `analysis.json`, individual run metadata and the final
+artifact manifest provide the audit trail. An initial geometry-counter build
+used an incorrect SDK path and failed to link; the corrected diagnostic uses
+the frozen retained SDK explicitly. Failed logs remain preserved.
 
 ## First-attempt scope and provenance
 

@@ -532,11 +532,16 @@ structural/soft-body quality and selective extra work in measured stages.
 gather-once baseline retains current APIs, ownership, reporting and manual-stage
 contracts. The experimental CMake option is OFF by default; the option-disabled
 build matches the current control's trajectories. [Goal 2's optimization](physics_pit_optimization.md)
-**failed its first-attempt performance gates**. Goal 2 is now rebased for seven
-ordered investigations: 30 Hz first, demand-driven geometry refresh, compact
-particle solving, fewer particle-pair passes, separate collision cadence,
-candidate/velocity-impulse reuse and group sleeping. The revised investigation
-is pending; Goals 3–7 remain unstarted. Prior evidence and settings are preserved.
+**failed both its first-attempt and rebased strict performance gates**. All seven
+rebased investigations are measured. The proposed geometry/solver patch retains
+sampled trajectories and reduces matched pit CPU from 7.240 to 6.387 s; separate
+PP2 and sleeping experiments reach 5.533 and 3.970 s without default selection.
+Normal playback still misses the timing contract despite improved frame work;
+geometry counts and presentation pacing are documented in the report. Goal 2
+awaits review and commit. The user selected retaining the trajectory-preserving
+patch and preserving sleeping for later. New previews were insufficient for the
+user to judge motion quality; this did not cause the measured performance failure.
+Goals 3–7 remain unstarted. Prior evidence and settings are preserved.
 Four-pass pit CPU time fell from a matched 13.511 s median to 7.664 s
 per twelve simulated seconds, with worst particle overlap 0.266482. The car's
 sampled trajectory is unchanged, with 3.105 s median per ten simulated seconds.
