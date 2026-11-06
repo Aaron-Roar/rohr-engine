@@ -326,7 +326,15 @@
                     "y": -50.0
                 },
                 "mass": 1.0,
-                "orientation": -343.77467708,
+                "orientation": 0.0,
+                "particle_geometry": {
+                    "standalone": true,
+                    "origin": {
+                        "x": 0.0,
+                        "y": 0.0
+                    },
+                    "radius": 4.681777477264404
+                },
                 "friction": 0.4000000059604645,
                 "restitution": 0.20000000298023224,
                 "hit_box": [

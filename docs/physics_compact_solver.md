@@ -296,6 +296,7 @@ results were preserved. Verification results:
 - Linux engine/editor/examples, Windows engine/diagnostics and independent
   Linux/Windows SDK car builds succeed without compiler warnings. Windows is
   cross-compiled with MinGW; no Windows runtime verification is claimed.
+
 - Build-cache defaults were cleared before configuration, confirming ON/ON/2
   without command-line selection. Standard presets also set these explicitly
   for reused preset builds. Custom caches still require reconfiguration;
@@ -307,3 +308,68 @@ does not waive blocking/accuracy requirements. The prior accepted previews and
 controlled timings remain the evidence; no new speedup is claimed. No rejected
 wall guard, SIMD mode, sleeping or worker threads are enabled. Stop for review
 and commit; further protection or optimization requires another user instruction.
+
+## Flies-in-pit standalone particle correction (Goal 2b)
+
+The user approved converting the 499 small flies to true standalone particles
+after investigating the example's immediate slowdown. The implementation parent
+is `b46c938e07d944a4b75db1a2aa9b235e0a4ab96d`. This is a correction to the bundled
+scene, not a change to the engine solver or a pass of Goal 2's car/pit budgets.
+
+Previously the small flies carried the particle flag and a triangular hitbox,
+but lacked standalone particle geometry. They remained rotating bodies, missing
+the compact solver, the two-pass particle policy and the nonrotating particle
+broadphase path. Slow initial physics then amplified the example's catch-up work.
+
+The scene now supplies standalone geometry with zero local origin and radius
+4.681777477264404, and clears the small flies' body orientation. They no longer
+rotate. Count, three-vertex collision approximation, material, initial linear
+motion, animation and circle placement remain unchanged; the large fly remains
+a rotating rigid body with its existing controls. The intentional initial stress
+case still has 4,491 overlapping particle pairs, nearest centers 1.007305 units
+apart and worst circle overlap 8.356250. This conversion deliberately changes
+contact behavior and trajectories; no trajectory-parity claim is made.
+
+Three serial original/converted pairs each completed 1,440 ticks at the example's
+unchanged 120 Hz, four substeps and four configured solver passes. The current
+engine applies two passes to eligible particle contacts. There was no concurrent
+build or preview during these measurements. Physics CPU seconds were:
+
+| Run | Original | Standalone particles |
+|---|---:|---:|
+| 1 | 11.312273 | 6.279297 |
+| 2 | 12.925861 | 6.262339 |
+| 3 | 14.363479 | 7.206615 |
+| Median | 12.925861 | 6.279297 |
+
+This is 51.42% less median physics CPU, about 2.06 times the throughput. Absolute
+timings varied and are not a guarantee of frame-budget compliance. Every run
+completed its twelve simulated seconds without reported physics diagnostics.
+Compact preparation was active in all 5,760 converted substeps versus none in
+the original scene. The earlier exploratory single pair was 10.671217 versus
+5.022679 CPU seconds; retain it separately from the repeated comparison.
+
+A single twelve-wall-second Linux preview with normal recording and debug
+drawing completed at 43.47 FPS, with 12.84 ms average physics and 10.02 ms average
+graphics per displayed frame. Recording accounted for 6.55 ms of graphics.
+The earlier original-scene preview was 10.99 FPS. These previews have different
+catch-up batches and are not an isolated solver speedup measurement. Recording,
+debug drawing and the 120 Hz schedule remain enabled; the example is not claimed
+to meet the 4 ms average / 5 ms p95 budget or sustained 60 FPS.
+The user reviewed and accepted the converted particle behavior and large-fly
+controls. Goal 2b is complete; stop for review and commit.
+
+Verification: three focused Linux tests pass (`example_flies_angles`,
+`particle_collision_mode`, `particle_solver`); the first two also pass ASan/UBSan.
+The scene regression verifies loaded standalone identity, preserved overlapping
+spawn and material, one second of finite nonrotating particle motion, and both
+large-fly turn directions. The Windows regression and independent installed-SDK
+example cross-build successfully; Windows execution was not available. The Linux
+installed-SDK example and the instrumented preview build successfully, and the
+preview loads bundled assets when launched from `/tmp`. The normal executable's
+staged scene matches the source. No C compiler warnings were emitted.
+
+Evidence, original scene, hashes, serial run commands, timing logs and preview
+capture are isolated under `sandbox/flies_in_pit_diagnostic/`. Production example
+code contains no diagnostic instrumentation. This does not restore wall guards
+or resolve the existing physics accuracy failure inventory above.

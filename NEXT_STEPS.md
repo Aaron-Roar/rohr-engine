@@ -13,7 +13,7 @@ priority order.
 | 2 | Asset and resource ownership | Complete |
 | 3 | COM, inertia, and origin semantics | Complete |
 | 4 | Cross-path feature parity | Complete by user acceptance; recorded verification exceptions remain |
-| 13 | Physics rebuild from the simpler baseline | Goal 2 compact-solver attempt failed tighter performance gates; user-selected compact scalar default promotion complete (Goal 2a); goal 1 complete; rejected goal 3 guard preserved; goals 4–8 not started |
+| 13 | Physics rebuild from the simpler baseline | Goals 1, 2a (compact scalar promotion), and 2b (standalone flies) complete; goal 2 performance gates failed; rejected goal 3 guard preserved; goals 4–8 not started |
 | 12 | Real-time physics pipeline rework | Closed by user direction; superseded by milestone 13, not complete; goals 1–13 complete, goal 14 unfinished, goals 15–19 not started; evidence preserved |
 | 11 | Soft-body correctness and real-time performance | Superseded by milestone 12; not complete; evidence preserved |
 | 6 | Physics robustness | Goals 1–4 accepted; goal 5 failed verification |
@@ -24,7 +24,12 @@ priority order.
 | 7 | Editor implementation scalability | Deferred until after Python unless game development makes it necessary sooner |
 | 10 | End-to-end game | Pending; separate larger game directed by the user |
 
-**Current priority:** Milestone 13 Goal 2a is **complete**: the user-selected
+**Current priority:** Milestone 13 Goal 2b is **complete**: all 499 small flies
+are standalone particles, preserving the overlapping spawn and large fly controls.
+Three serial comparisons measured 51.42% less median physics CPU; Linux,
+sanitizer and Windows cross-build checks pass, and the user accepted the preview.
+See the [results](docs/physics_compact_solver.md#flies-in-pit-standalone-particle-correction-goal-2b).
+Stop for review and the user's commit. Goal 2a is **complete**: the user-selected
 compact scalar version from the last Goal 2 attempt is now this branch's default
 engine. It uses fixed-step/gather-once physics at 60 Hz, four substeps, two
 particle-contact passes and four other solver passes. Normal car/pit entry
@@ -32,8 +37,8 @@ points reproduce the accepted 600/720-frame traces exactly. Linux adoption
 checks, ASan/UBSan and Windows cross-builds are verified; the numerical failure
 inventory remains explicit in the [report](docs/physics_compact_solver.md#promotion-verification).
 Goal 2 remains **failed** against the 4 ms average / 5 ms p95 and strict rendered
-gates. Goal 3's guard remains rejected. Stop for review and the user's commit;
-do not begin further optimization or protection work without instruction.
+gates. Goal 3's guard remains rejected. Further optimization or protection work
+requires user instruction.
 
 **Prior direction:** [Milestone 13](#13-physics-rebuild-from-the-simpler-baseline)
 rebuilds physics outward from the simpler historical execution model inside the
@@ -589,7 +594,8 @@ physics rebuild, not a reset of the repository to the historical engine.
 
 **Status: highest unfinished priority; Goal 1 complete; Goal 2's compact solver
 attempt failed the tighter and rendered performance gates, with a verified
-scalar improvement promoted by user direction in completed Goal 2a. Goal 3 failed behavior review;
+scalar improvement promoted by user direction in completed Goal 2a. Goal 2b's
+standalone flies conversion is complete with user behavior acceptance. Goal 3 failed behavior review;
 its tracked implementation was restored by the user. Goals 4–8 have not started.**
 Goal 2 investigated baseline particle cost. By user direction, a minimal swept
 static-wall guard was inserted as Goal 3 before the user reopened Goal 2.
@@ -803,6 +809,26 @@ assuming the old model is sufficiently accurate or that all old code is faster.
       rebound errors reproduced in the preserved Goal 2 engine at four substeps.
       Linux editor/examples and Windows engine/SDK examples build without warnings.
       See [promotion verification](docs/physics_compact_solver.md#promotion-verification).
+
+   2. [x] **Goal 2b: Convert the small flies to standalone particles.**
+      Approved by the user after diagnosing the flies-in-pit startup slowdown.
+      Convert all 499 small flies, retaining their radius, material, visuals,
+      intentionally overlapping circle placement and 120 Hz example schedule.
+      Keep the large fly as a rotating rigid body with its existing controls.
+      Verify loaded particle behavior, the complete 12-second physics comparison,
+      a rendered preview, relevant regression/sanitizer checks, and independent
+      SDK example builds. This scene correction does not complete Goal 2's car/pit
+      performance gates or restore Goal 3's rejected guard. Stop for review.
+      **Result: complete.** All 499 flies load as nonrotating standalone particles;
+      the initial 4,491 overlapping pairs and all other authored data are preserved.
+      Three serial twelve-second comparisons reduce median physics CPU from
+      12.925861 to 6.279297 seconds (51.42%). All six endpoints complete without
+      physics diagnostics. The normal recording/debug preview completes at
+      43.47 FPS and is accepted by the user; sustained 60 FPS is not claimed.
+      Three focused Linux checks and two ASan/UBSan checks pass; Windows regression
+      and independent SDK example cross-builds pass. The normal Linux executable's
+      staged assets are updated. Evidence is in `sandbox/flies_in_pit_diagnostic/`;
+      see the [report](docs/physics_compact_solver.md#flies-in-pit-standalone-particle-correction-goal-2b).
 
 3. [ ] **Add and measure a minimal swept static-wall guard — failed.** The user
    rejected its behavior and restored its tracked changes. Preserve its evidence
