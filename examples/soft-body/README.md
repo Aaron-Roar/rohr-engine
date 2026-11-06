@@ -12,8 +12,7 @@ use the CLI for torque definitions until the torque editor is available.
 - **B:** toggle collision debugging.
 - **Escape:** exit.
 
-The source magnitude returns to zero when drive input is released. Jump force is
-tuned for the normal 1/240-second physics tick; the existing collision slow-motion
+The source magnitude returns to zero when drive input is released. Jump force retains the magnitude reviewed at the selected 60 Hz physics tick; the existing collision slow-motion
 sequence also slows the jump response. An authored zero-magnitude `initial_load`
 demonstrates initial-source expiry without changing the car's starting motion.
 
@@ -33,8 +32,8 @@ compiled catalog contains the authored data, so launching the executable does
 not require the source directory or the JSON document.
 
 For repeatable performance investigation, run `soft_body --benchmark=rendered`.
-It uses the same authored car, terrain, 200 pit particles, 240 Hz ticks and four
-configured substeps. The 60-second script idles for two seconds, drives right
+It uses the same authored car, terrain, 200 pit particles, 60 Hz ticks, four configured substeps, two particle-contact passes and four
+other solver passes in the default engine. The 60-second script idles for two seconds, drives right
 until 30 seconds, then left, requesting grounded jumps at 5 and 35 seconds.
 The rendered run uses a 1280×720 window and a 60 FPS cap, with debug drawing and
 collision slow motion disabled. Input cannot change the scripted controls or
@@ -51,34 +50,23 @@ simulated and elapsed time, schedule lag, completed substeps, collision work and
 pipeline timings. A full normal rendered run exits unsuccessfully if p95 frame
 work exceeds 16.67 ms or simulated time differs from elapsed time by over 1%.
 Headless/debug/slow-motion results are diagnostic.
-[Milestone 13](../../NEXT_STEPS.md#13-physics-rebuild-from-the-simpler-baseline) additionally
-requires sustained 60 FPS without accumulating backlog, three serial repetitions
-per workload and engine version on AC power, with streaming applications closed
-and no concurrent builds, plus visual/window-switch review. Report uncapped
-throughput/headroom separately; one successful process does not establish
-milestone completion. The same rendered gates also apply to the unchanged
-800-particle pit's 12-second sequence.
-
 [Milestone 13](../../NEXT_STEPS.md#13-physics-rebuild-from-the-simpler-baseline)
-is now the active roadmap. Its [Goal 1 baseline](../../docs/physics_rebuild_baseline.md)
-is complete; Goals 2–6 are unstarted. Milestones
-11 and 12 are superseded, not complete, and their evidence remains preserved.
-The rebuild uses the historical `a8a7940a` execution model inside the current
-engine, retaining `6f283268` as the frozen accuracy reference and excluding
-`main` from comparisons. Its staged runtime candidates stay at 60 Hz or below;
-the isolated baseline does not change this example's existing 240 Hz settings or
-command-line behavior. Preserve authored scene data and input sequences, and
-label diagnostic prefixes/no-jump historical comparisons separately. Keep new
-milestone evidence under `sandbox/milestone_13/goal_<n>/`. Milestone 12 Goal 1's
-[measurement contract](../../docs/physics_measurement_contract.md) defines the
-reference and diagnostic consumers. Add `--uncapped` to a rendered benchmark
-for a separate throughput/headroom run; it cannot qualify as normal rendered
-acceptance. Fatal benchmark failures now print an explicit incomplete summary.
+retains its strict performance and numerical gates. Goal 2 missed those gates;
+the user nevertheless selected its compact scalar implementation as the branch
+default after accepting the car/pit behavior. See the
+[measured comparison](../../docs/physics_compact_solver.md). The rejected wall
+guard and SIMD experiments are not enabled.
 
-Goal 1 uses a separate 60 Hz diagnostic harness with explicit one-tick ownership
-of accepted jump forces. Direct scripted physics updates do not advance the
-engine lifetime clock; this example's original benchmark loop has not been
-changed by the isolated experiment. Use the corrected harness for Milestone 13
-comparisons and retain prior traces separately. Normal interactive play uses
-the engine clock as before. The experimental engine option
-`ROHR_PHYSICS_SIMPLE_BASELINE` remains OFF by default.
+The normal example and benchmark now use the tested 60 Hz configuration.
+Scripted jump forces are explicitly owned for one physics tick, across all its
+substeps, then deleted. Scripted physics does not advance the engine lifetime
+clock; explicit cleanup prevents a jump force persisting through the remaining
+benchmark. Interactive play continues to use normal engine-clock expiry.
+Authored scene data, force magnitudes and the control script are unchanged.
+Existing custom SDK builds must be reconfigured with the selected physics
+options and rebuilt; the example cannot change its linked engine's build mode.
+
+Add `--uncapped` for a separate throughput/headroom run; it cannot qualify as
+normal rendered acceptance. Preserve prior evidence and label diagnostic
+prefixes separately. Full acceptance still requires three complete rendered
+runs on AC power with heavy workloads closed and visual review.

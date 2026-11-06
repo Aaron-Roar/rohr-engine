@@ -152,7 +152,7 @@ static const RohrCollisionCategoryMask room_category = UINT64_C(1) << 1;
 /* Hubs only contact pit particles; keep room/chassis exclusions explicit. */
 static const RohrCollisionCategoryMask hub_category = UINT64_C(1) << 6;
 static const RohrCollisionCategoryMask particle_category = UINT64_C(1) << 5;
-static const float physics_tick_time = 1.0f / 240.0f;
+static const float physics_tick_time = 1.0f / 60.0f;
 static const Acceleration gravity = {0.0f, -175.0f};
 static const float rigid_friction = 2.0f;
 static const Restitution collision_restitution = 0.4f;
@@ -253,7 +253,7 @@ int main(int argc, char **argv) {
     InputControllerId input_controller = INPUT_CONTROLLER_INVALID;
     InputActionId exit_action, debug_action, torque_action, jump_action;
     Car car = {0};
-    CarControls controls = {0};
+    CarControls controls = {.scripted = benchmark.enabled};
     Tick zoom_end_tick = 0;
     Tick camera_return_end_tick = 0;
     bool collision_zoom_started = false;
@@ -386,12 +386,13 @@ int main(int argc, char **argv) {
             car_jump_request(&controls, &car, benchmark.frames == 300 || benchmark.frames == 2100);
             if(!result_ok(car_controls_update(&controls, &car, drive))) goto fail;
             clock_t cpu = clock();
-            Report physics = rohr_physics_update(4);
+            Report physics = rohr_physics_update(1);
             benchmark.physics[benchmark.frames] = 1000.0 * (clock() - cpu) / CLOCKS_PER_SEC;
             car_benchmark_report_add(&benchmark, &physics);
+            if(!result_ok(car_controls_step_end(&controls))) goto fail;
             if(physics.header.status == ROHR_REPORT_FAILED || physics.has_fatal) goto fail;
             double scale = collision_slow_motion_active ? camera_collision_physics_scale : 1;
-            benchmark.simulated += 4.0 * physics_tick_time * scale;
+            benchmark.simulated += physics_tick_time * scale;
             if(benchmark.slow_motion && !collision_zoom_started) {
                 for(unsigned i = 0; i < PIT_PARTICLE_COUNT; ++i) {
                     if(!rohr_physics_contact_check(chassis, particles[i])) continue;

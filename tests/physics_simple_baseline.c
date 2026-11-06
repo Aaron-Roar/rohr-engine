@@ -225,7 +225,9 @@ int main(void) {
     prepared_composition_check(false);
     prepared_composition_check(true);
     OK(rohr_engine_start());
-    OK(rohr_physics_substeps_set(4)); OK(rohr_physics_solver_iterations_set(4));
+    assert(rohr_physics_substeps_get() == 4);
+    assert(rohr_physics_solver_iterations_get() == 4);
+    assert(rohr_engine_time_per_tick_get() == 1.0 / 60.0);
     Entity a = body(-20, 1000), b = body(20, -1000);
     physics_substep_observer_set(observe, NULL);
     Report r = rohr_physics_dt_update(.1f); report_check(r);

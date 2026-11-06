@@ -5,6 +5,19 @@ Milestone 13 Goal 2 was reopened by the user on 2026-11-06 against parent
 and Goal 3's rejected static-wall guard. The user restored Goal 3's tracked
 changes; its three untracked implementation/test files remain untouched.
 
+## Branch default promotion
+
+After reviewing this failed performance goal, the user selected its compact
+scalar version as the current engine on this branch (Milestone 13 Goal 2a).
+The original experiment and measurements below remain historical evidence.
+The selected build defaults are `ROHR_PHYSICS_SIMPLE_BASELINE=ON`,
+`ROHR_PHYSICS_COMPACT_PARTICLES=ON`, `ROHR_PHYSICS_PARTICLE_PASSES=2`, with
+60 Hz engine ticks, four substeps and four other solver passes. The former
+adaptive path remains available explicitly with the first option OFF; explicit
+runtime settings and saved project settings are preserved. This adoption does
+not turn the failed performance goal into a pass or enable a wall guard, SIMD,
+sleeping, or worker threads.
+
 ## Approved scope
 
 Implement and compare compact scalar contact solving, followed by SIMD response
@@ -71,8 +84,8 @@ semantics and do not retain prepared state.
 The separate private `ROHR_PHYSICS_PARTICLE_PASSES=2` setting applies to all
 responding nonrotating particle pairs in a complete baseline substep, including
 small lists and fallback rows. Other contacts and joints retain the configured
-iteration count. Zero uses the configured count. Both new options default off/
-zero and require the experimental simple baseline to affect simulation. No
+iteration count. Zero uses the configured count. At the time of this experiment both new options defaulted off/
+zero and required the experimental simple baseline to affect simulation. No
 public API, production default, scene, material, substep count or collision
 discovery cadence changes. No threads, sleeping or new wall guard are added.
 
@@ -224,7 +237,7 @@ Subtracting observed frame-work p95 from 16.67 ms leaves about 9.87 ms car and
 an established safe wall-protection budget or proof that p95 costs add linearly.
 The requested dedicated 4/5 ms physics budget has no positive measured margin.
 
-## Outcome
+## Original Goal 2 outcome
 
 **Milestone 13 Goal 2: failed.** Implementation, comparison and verification are
 finished, but the 4 ms average / 5 ms p95 target and strict rendered gates remain
@@ -232,3 +245,65 @@ unmet. Retain the opt-in scalar improvement and the complete failure inventory
 for user review; do not promote it to production or advance to Goal 3. The SIMD
 experiments remain archived comparisons, not shipped solver modes. The user
 accepted the retained behavior, not a waiver of performance or protection gates.
+
+## Promotion verification
+
+**Milestone 13 Goal 2a: complete.** The user explicitly selected the last tested
+compact scalar version on branch `physics-pipelines`. CMake defaults and the
+Linux/Windows presets now enable the fixed-step pipeline, compact scalar solver
+and two particle passes. Runtime defaults are four substeps/four other passes;
+the engine tick stays at 60 Hz. The existing normal Linux build and editor were
+rebuilt in Release with these options. Explicit runtime/project settings and
+legacy build options remain available. Solver arithmetic, ordering, fallback,
+publication and manual-stage semantics are unchanged.
+
+Normal car and pit entry points now use the tested 60 Hz schedule. The scripted
+car benchmark owns each accepted jump force across one physics tick and deletes
+it afterward, matching the experiment's correction for its stationary engine
+clock. Interactive controls retain normal engine-clock expiry and the reviewed
+force magnitude. Scene geometry, authored data and numerical limits are intact.
+
+Evidence is under `sandbox/milestone_13/goal_2/promotion/`, with separate SDKs,
+build caches, commands, logs, traces and provenance. Historical Goal 2 SDKs and
+results were preserved. Verification results:
+
+- All 600 car and 720 pit state hashes and non-timing work fields match the
+  preserved Goal 2 traces. This holds for the promoted diagnostic consumers,
+  the normal source entry points linked through an independent SDK, and the
+  sanitized diagnostics. These are the declared ten-second car and twelve-second
+  pit comparison endpoints, not a fresh sixty-second rendered acceptance run.
+- Seven Linux adoption checks pass: compact solver, default schedule/reset,
+  authored car and scripted force cleanup, angle conventions, source ownership,
+  reporting and editor project generation/persistence. Three corresponding
+  focused solver/default/car checks pass under ASan/UBSan. The installed-SDK
+  car launches from `/tmp` and finishes the requested 600-frame prefix on Linux
+  and under sanitizers; its sixty-second acceptance remains explicitly incomplete.
+  The pit endpoint/failure-accounting check passes.
+- Both Linux and sanitized broader suites pass 21/26. Remaining failures are
+  `particle_head_on`, `particle_sweep`, `joints`, `beam_contacts` and
+  `particle_blocking`. No ASan, UBSan or leak findings occur. The initial nine-
+  failure Linux result is preserved: four extra failures came from unit-step
+  report counts or old reset-default expectations. Count fixtures now explicitly
+  select one step; multi-step coverage remains separate, and reset checks expect
+  the new defaults. No numerical tolerances were relaxed.
+- The default change exposes a beam-rebound failure that the former one-step
+  test did not show. A continuing inventory reaches its endpoint with **the same
+  two errors in both the preserved Goal 2 compact engine and this build** at
+  four substeps: relative rebound 22.8826 and 47.684 versus 48 (tolerance 0.02).
+  This is an existing limitation of the selected configuration, not a solver
+  change introduced by promotion. Conversely, `soft_body` passes with four
+  default substeps; its prior one-step failure remains historical evidence.
+- Linux engine/editor/examples, Windows engine/diagnostics and independent
+  Linux/Windows SDK car builds succeed without compiler warnings. Windows is
+  cross-compiled with MinGW; no Windows runtime verification is claimed.
+- Build-cache defaults were cleared before configuration, confirming ON/ON/2
+  without command-line selection. Standard presets also set these explicitly
+  for reused preset builds. Custom caches still require reconfiguration;
+  existing explicit settings are not silently overwritten. `git diff --check`
+  passes.
+
+Adoption does not satisfy Goal 2's missed 4/5 ms or strict rendered targets and
+does not waive blocking/accuracy requirements. The prior accepted previews and
+controlled timings remain the evidence; no new speedup is claimed. No rejected
+wall guard, SIMD mode, sleeping or worker threads are enabled. Stop for review
+and commit; further protection or optimization requires another user instruction.

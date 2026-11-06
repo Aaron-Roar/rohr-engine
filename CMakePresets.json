@@ -21,7 +21,10 @@
         "CMAKE_EXPORT_COMPILE_COMMANDS": "ON",
         "ROHR_BUILD_OUTPUT_DIRECTORY": "${sourceDir}/build",
         "ROHR_BUILD_EXAMPLES": "ON",
-        "ROHR_BUILD_TESTS": "ON"
+        "ROHR_BUILD_TESTS": "ON",
+        "ROHR_PHYSICS_SIMPLE_BASELINE": "ON",
+        "ROHR_PHYSICS_COMPACT_PARTICLES": "ON",
+        "ROHR_PHYSICS_PARTICLE_PASSES": "2"
       }
     },
     {
@@ -38,7 +41,10 @@
       "cacheVariables": {
         "ROHR_BUILD_OUTPUT_DIRECTORY": "${sourceDir}/build",
         "ROHR_BUILD_EXAMPLES": "ON",
-        "ROHR_BUILD_TESTS": "ON"
+        "ROHR_BUILD_TESTS": "ON",
+        "ROHR_PHYSICS_SIMPLE_BASELINE": "ON",
+        "ROHR_PHYSICS_COMPACT_PARTICLES": "ON",
+        "ROHR_PHYSICS_PARTICLE_PASSES": "2"
       }
     },
     {
@@ -56,7 +62,10 @@
         "CMAKE_TOOLCHAIN_FILE": "${sourceDir}/cmake/toolchains/mingw_w64.cmake",
         "ROHR_BUILD_OUTPUT_DIRECTORY": "${sourceDir}/build/windows-cross",
         "ROHR_BUILD_EXAMPLES": "ON",
-        "ROHR_BUILD_TESTS": "ON"
+        "ROHR_BUILD_TESTS": "ON",
+        "ROHR_PHYSICS_SIMPLE_BASELINE": "ON",
+        "ROHR_PHYSICS_COMPACT_PARTICLES": "ON",
+        "ROHR_PHYSICS_PARTICLE_PASSES": "2"
       }
     }
   ],

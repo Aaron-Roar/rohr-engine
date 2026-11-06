@@ -11,9 +11,9 @@ int main(void) {
     assert(p != NULL);
     p->count = 1; p->limit = 60; p->headless = true;
     assert(result_check(rohr_engine_start()));
-    assert(result_check(rohr_engine_time_per_tick_set(1.0/240)));
+    assert(result_check(rohr_engine_time_per_tick_set(1.0/60)));
     assert(result_check(rohr_physics_substeps_set(4)));
-    assert(result_check(rohr_physics_solver_iterations_set(8)));
+    assert(result_check(rohr_physics_solver_iterations_set(4)));
     assert(result_check(rohr_physics_gravity_set((Acceleration){0,-9.8f})));
     rohr_physics_engine_time_per_tick_use();
     assert(scene_create(p));

@@ -27,9 +27,9 @@ static Entity box(Position p,Vec2D dimensions,bool fixed,Entity owner) {
     OK(rohr_entity_components_add(e,ROHR_COLLISION));
     OK(rohr_entity_owner_set(e,owner));return e;
 }
-static void contact_case(unsigned kind,bool two) {
+static void contact_case(unsigned kind,bool two,bool scripted) {
     OK(rohr_engine_start());
-    Car car={0};CarControls controls={0};car.source_instance=take(rohr_entity_add());
+    Car car={0};CarControls controls={.scripted=scripted};car.source_instance=take(rohr_entity_add());
     car.chassis=box((Position){0,10},(Vec2D){2,1},false,car.source_instance);
     car.rear_disk=box((Position){-5,1.4f},(Vec2D){2,2},false,car.source_instance);
     car.front_disk=box((Position){5,1.4f},(Vec2D){2,2},false,car.source_instance);
@@ -65,6 +65,15 @@ static void contact_case(unsigned kind,bool two) {
         EntityIndexResult index=rohr_entity_index_get(car.chassis);OK(index);
         Velocity velocity=velocities[index.result.value];
         assert(velocity.y>0 && fabsf(velocity.x)<0.001f);
+        if(scripted) {
+            Entity force=controls.scripted_jump_force;
+            assert(rohr_entity_alive_check(force));
+            OK(car_controls_step_end(&controls));
+            assert(!controls.scripted_jump_force && !rohr_entity_alive_check(force));
+            assert(entity_alive_count_get()==before);
+            assert(rohr_physics_dt_update(0.00001).header.status!=ROHR_REPORT_FAILED);
+            assert(velocities[index.result.value].y==velocity.y);
+        }
     } else {
         /* An airborne/rejected press never becomes a later jump. */
         OK(rohr_physics_position_set(car.rear_disk,(Position){50,50}));
@@ -152,6 +161,7 @@ static void starting_platform(void) {
     car_destroy(&car);OK(rohr_entity_delete(platform));rohr_engine_stop();
 }
 int main(void) {
-    starting_platform();catalog_parity();contact_case(0,true);contact_case(0,false);
-    contact_case(1,true);contact_case(2,true);contact_case(3,true);return 0;
+    starting_platform();catalog_parity();contact_case(0,true,false);contact_case(0,false,false);
+    contact_case(1,true,false);contact_case(2,true,false);contact_case(3,true,false);
+    contact_case(0,true,true);return 0;
 }

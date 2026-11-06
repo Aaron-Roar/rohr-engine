@@ -26,14 +26,14 @@ option(ROHR_BUILD_SDK_CONSUMER_TESTS
 option(ROHR_ENABLE_SANITIZERS
     "Enable Linux address and undefined-behavior sanitizers" OFF)
 option(ROHR_PHYSICS_SIMPLE_BASELINE
-    "Experimental fixed-step, gather-once physics baseline (not production quality)" OFF)
+    "Fixed-step, gather-once physics (OFF restores the legacy adaptive schedule)" ON)
 option(ROHR_PHYSICS_COMPACT_PARTICLES
-    "Experimental baseline compact scalar particle solver" OFF)
-set(ROHR_PHYSICS_PARTICLE_PASSES "0" CACHE STRING
-    "Experimental baseline particle passes (0 uses configured solver iterations)")
+    "Compact scalar particle solver for fixed-step physics" ON)
+set(ROHR_PHYSICS_PARTICLE_PASSES "2" CACHE STRING
+    "Fixed-step particle passes (0 uses configured solver iterations)")
 if(NOT ROHR_PHYSICS_PARTICLE_PASSES MATCHES "^(0|[1-9][0-9]*)$" OR
         ROHR_PHYSICS_PARTICLE_PASSES GREATER 4294967295)
-    message(FATAL_ERROR "Experimental particle passes must fit uint32_t (0 uses configured iterations)")
+    message(FATAL_ERROR "Particle passes must fit uint32_t (0 uses configured iterations)")
 endif()
 set(ROHR_SDK_INSTALL_PREFIX "" CACHE PATH
     "Installed SDK prefix used by external consumer tests")

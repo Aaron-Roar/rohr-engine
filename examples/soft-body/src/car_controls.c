@@ -4,7 +4,7 @@
 #include "car_controls.h"
 
 static const Torque drive_torque = 11111900000.0f;
-/* One normal 1/240-second tick gives the complete 75.1 kg car about 120 units/s. */
+/* Retain the force magnitude used in the accepted 60 Hz comparison. */
 static const float jump_force = 2162880.0f;
 
 static bool external_body_check(Entity root, Entity target) {
@@ -57,9 +57,27 @@ EngineResult car_controls_update(CarControls *controls, const Car *car, float dr
     EngineResult result=rohr_physics_torque_magnitude_set(car->torque_rear_drive,drive_axis*drive_torque);
     if(rohr_error_check(result)) return result;
     bool jump=controls->jump_pending;controls->jump_pending=false;
-    if(jump && car_grounded_check(car))
-        return rohr_physics_force_apply((ForceDescription){.target=car->chassis,
+    if(jump && car_grounded_check(car)) {
+        ForceDescription description={.target=car->chassis,
             .location={.reference={.kind=ROHR_FORCE_COM_POSITION,.entity=car->chassis}},
-            .magnitude=jump_force});
+            .magnitude=jump_force};
+        if(!controls->scripted) return rohr_physics_force_apply(description);
+        /* Scripted physics does not advance the engine clock that expires
+         * one-shot sources. Keep this force across substeps, then delete it. */
+        if(controls->scripted_jump_force)
+            return rohr_error_result_error(ERROR_ENGINE_STATE_INVALID);
+        EntityResult source=rohr_physics_force_add(description);
+        if(rohr_error_check(source)) return rohr_error_result_error(source.result.error);
+        controls->scripted_jump_force=source.result.value;
+    }
     return result;
+}
+EngineResult car_controls_step_end(CarControls *controls) {
+    if(!controls) return rohr_error_result_error(ERROR_ENGINE_STATE_INVALID);
+    if(controls->scripted_jump_force) {
+        EngineResult result=rohr_entity_delete(controls->scripted_jump_force);
+        if(rohr_error_check(result)) return result;
+        controls->scripted_jump_force=ENTITY_INVALID;
+    }
+    return rohr_error_result_value(true);
 }

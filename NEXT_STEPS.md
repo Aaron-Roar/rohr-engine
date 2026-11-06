@@ -13,7 +13,7 @@ priority order.
 | 2 | Asset and resource ownership | Complete |
 | 3 | COM, inertia, and origin semantics | Complete |
 | 4 | Cross-path feature parity | Complete by user acceptance; recorded verification exceptions remain |
-| 13 | Physics rebuild from the simpler baseline | Goal 2 compact-solver attempt failed tighter performance gates; verified scalar pit improvement retained for review; goal 1 complete; rejected goal 3 guard preserved; goals 4–8 not started |
+| 13 | Physics rebuild from the simpler baseline | Goal 2 compact-solver attempt failed tighter performance gates; user-selected compact scalar default promotion complete (Goal 2a); goal 1 complete; rejected goal 3 guard preserved; goals 4–8 not started |
 | 12 | Real-time physics pipeline rework | Closed by user direction; superseded by milestone 13, not complete; goals 1–13 complete, goal 14 unfinished, goals 15–19 not started; evidence preserved |
 | 11 | Soft-body correctness and real-time performance | Superseded by milestone 12; not complete; evidence preserved |
 | 6 | Physics robustness | Goals 1–4 accepted; goal 5 failed verification |
@@ -24,19 +24,16 @@ priority order.
 | 7 | Editor implementation scalability | Deferred until after Python unless game development makes it necessary sooner |
 | 10 | End-to-end game | Pending; separate larger game directed by the user |
 
-**Current priority:** Milestone 13 Goal 2's reopened
-[compact scalar/SIMD comparison](docs/physics_compact_solver.md) is **failed**
-against the 4 ms average / 5 ms p95 target. The retained opt-in scalar solver
-reduces pit CPU 26.2% against a native two-pass control, with no consistent car
-CPU saving. That comparison gives 6.102/8.225 ms average/p95 pit and
-4.474/5.751 ms car. Both old diagnostic CPU budgets pass; strict rendered gates
-still fail. Sampled trajectories and numerical bounds are preserved, and the
-user accepted the previews. Reordered SIMD failed the pit overlap limit;
-ordered SIMD gave no speed gain. Verification and the unchanged failure
-inventory are recorded in the report. Stop for review and user direction.
-Goal 3's guard remains rejected, with tracked changes restored by the user and
-untracked artifacts preserved. Do not resume it or begin another goal without
-further instruction.
+**Current priority:** Milestone 13 Goal 2a is **complete**: the user-selected
+compact scalar version from the last Goal 2 attempt is now this branch's default
+engine. It uses fixed-step/gather-once physics at 60 Hz, four substeps, two
+particle-contact passes and four other solver passes. Normal car/pit entry
+points reproduce the accepted 600/720-frame traces exactly. Linux adoption
+checks, ASan/UBSan and Windows cross-builds are verified; the numerical failure
+inventory remains explicit in the [report](docs/physics_compact_solver.md#promotion-verification).
+Goal 2 remains **failed** against the 4 ms average / 5 ms p95 and strict rendered
+gates. Goal 3's guard remains rejected. Stop for review and the user's commit;
+do not begin further optimization or protection work without instruction.
 
 **Prior direction:** [Milestone 13](#13-physics-rebuild-from-the-simpler-baseline)
 rebuilds physics outward from the simpler historical execution model inside the
@@ -592,15 +589,16 @@ physics rebuild, not a reset of the repository to the historical engine.
 
 **Status: highest unfinished priority; Goal 1 complete; Goal 2's compact solver
 attempt failed the tighter and rendered performance gates, with a verified
-opt-in scalar improvement retained for review. Goal 3 failed behavior review;
+scalar improvement promoted by user direction in completed Goal 2a. Goal 3 failed behavior review;
 its tracked implementation was restored by the user. Goals 4–8 have not started.**
 Goal 2 investigated baseline particle cost. By user direction, a minimal swept
 static-wall guard was inserted as Goal 3 before the user reopened Goal 2.
 Former Goals 3–7 moved to 4–8; their scope and evidence are preserved.
 The [baseline report](docs/physics_rebuild_baseline.md) records implementation,
 measurements, numerical failures and verification. Milestone 12 is closed and superseded, not completed. This
-work does not choose a production candidate or authorize
-silently dropping supported physics features. Keep the current implementation
+work originally isolated candidates; the user has now selected the last Goal 2
+compact scalar version as this branch's default in Goal 2a. Its documented
+reduced protection and quality limits remain explicit. Keep the current implementation
 as a comparison control; isolate experiments and preserve the user's workspace.
 Unlike the retired Goal 14 scope, this milestone explicitly permits investigating
 and rebuilding integration, elastic scheduling, subdivision and contact-refresh
@@ -787,6 +785,25 @@ assuming the old model is sufficiently accurate or that all old code is faster.
    established; mixed wall response and gathering are the next measured cost
    candidates. Stop for review; do not advance automatically.
 
+   1. [x] **Goal 2a: Promote the accepted compact scalar version to the branch default.**
+      User requested the exact version from the last failed Goal 2 attempt, including
+      the compact scalar solver. Enable fixed-step/gather-once physics and compact
+      scalar response by default, with two particle passes and 60 Hz/four-substep/
+      four-other-pass defaults. Align normal car/pit entry points and scripted force
+      lifetime with the reviewed configuration. Keep explicit runtime overrides,
+      manual-stage semantics, legacy build comparisons and historical evidence.
+      Completion means verified adoption and behavior parity, not passing Goal 2's
+      unmet numerical or performance targets. Verify relevant Linux/ASan/UBSan,
+      Windows cross-builds and independent SDK examples; stop for review and commit.
+      **Result: complete.** CMake defaults/presets and the current Linux build use
+      the selected version. Normal and diagnostic car/pit traces match all prior
+      states and work counts. Seven Linux adoption checks and three sanitized
+      solver/default/force-lifetime checks pass. Linux/sanitizer broader suites
+      pass 21/26; existing accuracy limits remain visible, including two beam
+      rebound errors reproduced in the preserved Goal 2 engine at four substeps.
+      Linux editor/examples and Windows engine/SDK examples build without warnings.
+      See [promotion verification](docs/physics_compact_solver.md#promotion-verification).
+
 3. [ ] **Add and measure a minimal swept static-wall guard — failed.** The user
    rejected its behavior and restored its tracked changes. Preserve its evidence
    and three untracked implementation/test files; further implementation needs
@@ -852,8 +869,8 @@ assuming the old model is sufficiently accurate or that all old code is faster.
    backlog. Verify 2× physics headroom separately from rendering. Present
    performance, protection and accuracy tradeoffs against the historical model,
    immediate parent and frozen reference for explicit user selection. Implement
-   and verify the selected balance before changing production defaults or
-   Milestone 6's status. Any unmet gate remains failed/incomplete; numerical
+   and verify the final selected balance before changing Milestone 6's status.
+   Goal 2a's earlier branch-default adoption does not complete this final gate. Any unmet gate remains failed/incomplete; numerical
    tolerance changes require explicit user acceptance.
 
 #### Shared measurement and quality contract

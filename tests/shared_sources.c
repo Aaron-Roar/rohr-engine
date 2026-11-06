@@ -236,6 +236,7 @@ static void beam_references(void) {
     OK(entity_delete(a.result.value)); BAD(physics_source_change_get(source,false,&unused,&active));
     d.location.reference.beam.anchor=99; BAD(physics_force_description_set(source,d));
 }
+/* Source-count fixtures use one explicitly configured evaluation per update. */
 static void suspension_and_inspection(void) {
     Entity target=body((Position){0}); Entity reference=body((Position){3,4});
     ForceDescription d=at_com(target,0,2); d.location.reference.entity=reference;
@@ -264,7 +265,7 @@ static void suspension_and_inspection(void) {
     report=system_physics_update(0.1); assert(metric(report,ROHR_REPORT_SOURCE_SUSPENDED_COUNT)==1);
     OK(physics_force_orientation_set(source,(ForceOrientation){0}));
     report=system_physics_update(0.1); assert(metric(report,ROHR_REPORT_SOURCE_INACTIVE_COUNT)==1);
-    engine_stop(); OK(engine_start());
+    engine_stop(); OK(engine_start()); OK(physics_substeps_set(1));
     assert(before.force.location.reference.entity==reference && suspended.force.target==target);
     OK(entity_info_release(&before)); OK(entity_info_release(&suspended));
 }
@@ -300,7 +301,7 @@ static void allocation_failure(void) {
 #ifdef ROHR_TEST_ALLOCATION_WRAP
     unsigned failures=0;
     for(int ordinal=0;ordinal<128;++ordinal) {
-        engine_stop(); OK(engine_start());
+        engine_stop(); OK(engine_start()); OK(physics_substeps_set(1));
         Entity retained=add((ForceDescription){.magnitude=7});
         while(entity_alive_count_get()<positions_pool.capacity) make();
         uint32_t count=entity_alive_count_get(); fail_after=ordinal;
@@ -338,7 +339,7 @@ static void persistence_references(void) {
     EntityResult torque=physics_torque_add((TorqueDescription){0}); OK(torque);
     OK(entity_name_set(torque.result.value,"zero_torque"));
     OK(game_state_file_save("shared_sources_state.json"));
-    engine_stop(); OK(engine_start());
+    engine_stop(); OK(engine_start()); OK(physics_substeps_set(1));
     OK(game_state_file_load("shared_sources_state.json"));
     EntityResult loaded=entity_by_name_get("source"); OK(loaded);
     EntityResult t=entity_by_name_get("target"), r=entity_by_name_get("reference"); OK(t); OK(r);
@@ -1071,7 +1072,7 @@ int main(void) {
         beam_loads,beam_equivalence_and_work,beam_failures_and_lifetime,beam_torque_and_motion,beam_energy,soft_analytics,soft_capacity_and_failures,
         soft_degenerate_and_constraints,soft_lifetime_and_parity,soft_energy,soft_numeric_geometry};
     for(size_t i=0;i<sizeof(tests)/sizeof(tests[0]);++i) {
-        OK(engine_start()); tests[i](); engine_stop();
+        OK(engine_start()); OK(physics_substeps_set(1)); tests[i](); engine_stop();
     }
     return 0;
 }

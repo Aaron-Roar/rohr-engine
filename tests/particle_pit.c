@@ -89,7 +89,7 @@ static bool scene_create(Pit *p) {
     p->numerical_valid = true; p->stop_reason = NULL;
     p->paused = !p->headless && !p->benchmark;
     printf("particle_pit count=%u diameter=5 vertices=16 mass=1 friction=0.5 restitution=0.5 "
-        "gravity=9.8 tick_hz=240 substeps=4 iterations=8 seconds=%.3f soft_bodies=0 joints=0\n",
+        "gravity=9.8 tick_hz=60 substeps=4 iterations=4 seconds=%.3f soft_bodies=0 joints=0\n",
         p->count, p->limit/60.0);
     fflush(stdout);
     return true;
@@ -111,7 +111,7 @@ static void report_add(PitSample *s, const Report *r) {
 }
 static bool step_check(Pit *p) {
     uint64_t started = SDL_GetTicksNS(); clock_t cpu = clock();
-    Report report = rohr_physics_update(4);
+    Report report = rohr_physics_update(1);
     PitSample s = {.cpu = 1000.0*(clock()-cpu)/CLOCKS_PER_SEC,
         .wall = (SDL_GetTicksNS()-started)/1e6};
     report_add(&s, &report);
@@ -325,8 +325,8 @@ int main(int argc, char **argv) {
     }
     signal(SIGINT,interrupt_pit); signal(SIGTERM,interrupt_pit);
     if(!result_check(rohr_engine_start())) { summary_print(p); goto finish; }
-    if(!result_check(rohr_engine_time_per_tick_set(1.0/240)) ||
-        !result_check(rohr_physics_substeps_set(4)) || !result_check(rohr_physics_solver_iterations_set(8)) ||
+    if(!result_check(rohr_engine_time_per_tick_set(1.0/60)) ||
+        !result_check(rohr_physics_substeps_set(4)) || !result_check(rohr_physics_solver_iterations_set(4)) ||
         !result_check(rohr_physics_gravity_set((Acceleration){0,-9.8f}))) goto done;
     rohr_physics_engine_time_per_tick_use();
     if(!p->headless) {

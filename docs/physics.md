@@ -13,6 +13,32 @@ derived inertia, COM integration, persistence, generated APIs, and editor contro
 are implemented. The [center-of-mass example](../examples/center_of_mass/README.md)
 provides an editable project and generated runtime demonstration.
 
+## Current branch defaults
+
+The user-selected Milestone 13 compact scalar version is the default: 60 Hz
+engine ticks, four fixed substeps, one contact gather per substep, two responding
+nonrotating particle-pair passes and four passes for other contacts/joints.
+Compact rows preserve contact order; unsupported rows and small lists retain
+the existing scalar solver. Manual stages retain their explicit scheduling.
+See the [comparison and limitations](physics_compact_solver.md): pit throughput
+improved, car savings were inconsistent, and the 4 ms average / 5 ms p95,
+strict rendered and existing numerical gates remain unmet. Adaptive sweeps and
+correction-driven contact refresh described below belong to the legacy path;
+the default fixed schedule does not supply those protections.
+It also uses ordinary integration instead of the legacy special joint/elastic
+motion. Stiff springs and long delayed updates retain known errors; see the
+[complete feature inventory](physics_rebuild_baseline.md#execution-and-feature-inventory).
+
+CMake defaults and standard presets enable `ROHR_PHYSICS_SIMPLE_BASELINE` and
+`ROHR_PHYSICS_COMPACT_PARTICLES`, with `ROHR_PHYSICS_PARTICLE_PASSES=2`.
+For an existing custom build, explicitly set these values when reconfiguring;
+CMake preserves cached choices. Setting the first option OFF selects legacy
+adaptive scheduling; setting compact OFF compares generic scalar response.
+Particle passes of zero follow the configured solver count. Runtime setters
+and saved project settings remain authoritative; new editor projects inherit
+the new four-substep/four-iteration defaults. Rebuild and reinstall SDKs so their
+headers and engine archive agree.
+
 ## Physics creation and ownership
 
 Physics creation uses value descriptions with `_add` APIs and matching direct
@@ -160,15 +186,15 @@ Each completed substep executes:
 2. Clear force-derived acceleration from the previous substep.
 3. Apply engine gravity to entities carrying `ROHR_GRAVITY`.
 4. Apply spring and soft-body beam forces.
-5. Apply explicit loads, select collision-aware duration, and integrate velocities,
+5. Apply explicit loads and integrate velocities,
    positions, and orientations.
 6. Build/query the AABB tree and gather rigid and soft-body contacts.
 7. Gather active pin and weld constraints.
-8. Iterate contact and joint constraints together, refreshing rigid candidates
-   as position corrections introduce additional contacts.
+8. Solve the gathered contact and joint constraints together, with compact
+   scalar response for eligible particle contacts.
 
 Current/previous interaction state is advanced once for the complete physics
-update, not once per substep. Configure minimum substeps and solver iterations
+update, not once per substep. Configure substeps and solver iterations
 with:
 
 ```c
@@ -180,7 +206,10 @@ More substeps improve detection and integration for fast or light bodies but
 repeat broadphase and narrow-phase work. More solver iterations improve contact
 and joint convergence without increasing temporal sampling.
 
-Full updates consume all requested time. Moving rigid collider pairs use swept
+Full updates consume all requested time in the configured fixed substeps. The
+legacy adaptive build additionally selects collision-aware durations and
+refreshes contacts introduced by position corrections. In that build, moving
+rigid collider pairs use swept
 translational projections to shorten steps near impact and bound closing travel
 along the contact normal while touching. Tangential sliding and separation do
 not trigger thickness-sized steps. Collision steps are at most 1/60 second.
@@ -530,7 +559,7 @@ pit first, then adds blocking,
 structural/soft-body quality and selective extra work in measured stages.
 [Goal 1 is complete](physics_rebuild_baseline.md): an opt-in fixed-step,
 gather-once baseline retains current APIs, ownership, reporting and manual-stage
-contracts. The experimental CMake option is OFF by default; the option-disabled
+contracts. The baseline was originally OFF by default; the option-disabled
 build matches the current control's trajectories. [Goal 2's optimization](physics_pit_optimization.md)
 **failed both its first-attempt and rebased strict performance gates**. All seven
 rebased investigations are measured. The proposed geometry/solver patch retains
@@ -541,10 +570,10 @@ geometry counts and presentation pacing are documented in the report. Goal 2's
 retained patch is committed at `2a6a116f`; its failed performance outcome remains.
 The user selected retaining the trajectory-preserving
 patch and preserving sleeping for later. The later 60 Hz/two-particle-pass car
-and pit previews were accepted; measured timing failures remain. The next
-implementation goal is [Goal 3, minimal swept static-wall protection](physics_swept_wall_guard.md),
-measured at those settings. Former Goals 3–7 move to 4–8; Goals 3–8 remain
-unstarted. Production defaults, prior evidence and settings are preserved.
+and pit previews were accepted; measured timing failures remain. Goal 3's [minimal swept static-wall protection](physics_swept_wall_guard.md)
+was later rejected. The subsequent [compact scalar comparison](physics_compact_solver.md)
+failed the tighter performance gates, but the user selected that version as the
+branch default in Goal 2a. Goals 4–8 remain pending; prior evidence is preserved.
 Four-pass pit CPU time fell from a matched 13.511 s median to 7.664 s
 per twelve simulated seconds, with worst particle overlap 0.266482. The car's
 sampled trajectory is unchanged, with 3.105 s median per ten simulated seconds.

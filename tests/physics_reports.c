@@ -66,7 +66,7 @@ static Entity joint_make(Entity a, Entity b, bool spring) {
 }
 
 static void no_work_and_arguments(void) {
-    OK(rohr_engine_start());
+    OK(rohr_engine_start()); OK(rohr_physics_substeps_set(1));
     Entity e = body(0, false);
     OK(rohr_physics_velocity_set(e, (Velocity){2, 0}));
     Report report = rohr_physics_update(0);
@@ -90,7 +90,7 @@ static void no_work_and_arguments(void) {
 }
 
 static void composition_and_joints(void) {
-    OK(rohr_engine_start());
+    OK(rohr_engine_start()); OK(rohr_physics_substeps_set(1));
     Entity a = body(0, false);
     OK(rohr_physics_velocity_set(a, (Velocity){2, 0}));
     OK(rohr_physics_substeps_set(3));
@@ -140,7 +140,7 @@ static void composition_and_joints(void) {
 static void delayed_frame_soft_body(void) {
     Position expected[2];
     for(unsigned batched = 0; batched < 2; batched++) {
-        OK(rohr_engine_start());
+        OK(rohr_engine_start()); OK(rohr_physics_substeps_set(1));
         OK(rohr_physics_dt_per_tick_set(1.0 / 120.0));
         EntityResult soft = rohr_physics_soft_body_add((SoftBodyDescription){0}); OK(soft);
         Entity nodes[2];
@@ -173,7 +173,7 @@ static void delayed_frame_soft_body(void) {
 }
 
 static void warning_and_fatal(void) {
-    OK(rohr_engine_start());
+    OK(rohr_engine_start()); OK(rohr_physics_substeps_set(1));
     Entity a = body(0, false), b = body(2, false);
     Entity spring = joint_make(a, b, true);
     EntityIndexResult index = rohr_entity_index_get(spring); OK(index);
@@ -206,14 +206,14 @@ static void warning_and_fatal(void) {
     report = rohr_system_physics_update(.1);
     assert(report.header.status == ROHR_REPORT_COMPLETE);
     rohr_engine_stop();
-    OK(rohr_engine_start());
+    OK(rohr_engine_start()); OK(rohr_physics_substeps_set(1));
     assert(rohr_report_valid_check(&saved) && saved.diagnostics[0].source.id == a);
     assert(strstr(saved.diagnostics[0].detail, "retained") != NULL);
     rohr_engine_stop();
 }
 
 static void diagnostic_overflow(void) {
-    OK(rohr_engine_start());
+    OK(rohr_engine_start()); OK(rohr_physics_substeps_set(1));
     Entity first = 0;
     for(unsigned i = 0; i < ROHR_REPORT_DIAGNOSTIC_CAPACITY + 4; i++) {
         Entity e = body(ROHR_WORLD_COORDINATE_MAX, false);
@@ -230,8 +230,9 @@ static void diagnostic_overflow(void) {
     rohr_engine_stop();
 }
 
+/* Count one gather/solve here; multi-substep aggregation has separate cases. */
 static void contact_metrics(void) {
-    OK(rohr_engine_start());
+    OK(rohr_engine_start()); OK(rohr_physics_substeps_set(1));
     (void)body(0, true); (void)body(1, true);
     Report report = rohr_system_physics_update(0);
     assert(report.header.status == ROHR_REPORT_COMPLETE);
@@ -246,7 +247,7 @@ static void contact_metrics(void) {
 }
 
 static void contact_cache_invalidation(void) {
-    OK(rohr_engine_start());
+    OK(rohr_engine_start()); OK(rohr_physics_substeps_set(1));
     Entity first = body(0, true), moving = body(1.5f, true), second = body(10, true);
     OK(rohr_physics_static_set(first));
     OK(rohr_physics_static_set(second));
@@ -280,7 +281,7 @@ static void contact_cache_invalidation(void) {
 
 #ifdef ROHR_TEST_ALLOCATION_WRAP
 static void aborted_update_state(bool batched) {
-    OK(rohr_engine_start());
+    OK(rohr_engine_start()); OK(rohr_physics_substeps_set(1));
     Entity a = body(0, true), b = body(1, true), healthy = body(100, false);
     OK(rohr_physics_velocity_set(healthy, (Velocity){2, 0}));
     OK(rohr_physics_substeps_set(3));
@@ -315,7 +316,7 @@ static void aborted_update_state(bool batched) {
     assert(metric(&recovered, ROHR_PHYSICS_REPORT_ID, ROHR_REPORT_SUBSTEPS_COMPLETED_COUNT) == 3);
     assert(position(healthy).x == 108 && after.result.value.position.x == 102);
     assert(memcmp(&stored.result.value, &failed, sizeof(failed)) == 0);
-    rohr_engine_stop(); OK(rohr_engine_start());
+    rohr_engine_stop(); OK(rohr_engine_start()); OK(rohr_physics_substeps_set(1));
     assert(before.result.value.position.x == 100 && after.result.value.position.x == 102);
     assert(report_valid_check(&failed) && failed.first_fatal.source.id == a);
     OK(entity_info_release(&before.result.value)); OK(entity_info_release(&after.result.value));
@@ -323,7 +324,7 @@ static void aborted_update_state(bool batched) {
 }
 
 static void allocation_failures(void) {
-    OK(rohr_engine_start());
+    OK(rohr_engine_start()); OK(rohr_physics_substeps_set(1));
     Entity a = body(0, true), b = body(1, true);
     (void)joint_make(a, b, false);
     fail_allocations = true;
@@ -360,7 +361,7 @@ static void allocation_failures(void) {
     assert(report.has_fatal && report.first_fatal.internal_stage == ROHR_PHYSICS_JOINT_GATHER);
     rohr_engine_stop();
 
-    OK(rohr_engine_start());
+    OK(rohr_engine_start()); OK(rohr_physics_substeps_set(1));
     EntityResult soft = rohr_physics_soft_body_add((SoftBodyDescription){0}); OK(soft);
     EntityResult left = rohr_physics_soft_body_node_add((SoftBodyNodeDescription){
         .restitution = 0.25f, .collision_enabled = true,
@@ -409,7 +410,7 @@ static void allocation_failures(void) {
     assert(report.first_fatal.target.id == particle.result.value);
     rohr_engine_stop();
 
-    OK(rohr_engine_start());
+    OK(rohr_engine_start()); OK(rohr_physics_substeps_set(1));
     for(int i = 0; i < 14; i++) {
         Entity e = body(0, true);
         OK(rohr_physics_static_set(e));
@@ -441,7 +442,7 @@ int main(void) {
     aborted_update_state(true);
     allocation_failures();
 #endif
-    OK(rohr_engine_start());
+    OK(rohr_engine_start()); OK(rohr_physics_substeps_set(1));
     for(int i = 0; i < 100; i++) (void)body((float)i, false);
     clock_t started = clock();
     for(int i = 0; i < 100; i++) {
