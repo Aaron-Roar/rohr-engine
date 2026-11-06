@@ -12,13 +12,19 @@ investigations and measured combinations are reported in [the new results](#reba
 The proposed geometry/solver patch reduces the matched pit median from 7.240 s
 to 6.387 s with identical sampled trajectories. Experimental two-pass response
 reaches 5.533 s and sleeping 3.970 s, but normal rendered playback still misses
-the timing contract. Prior evidence remains preserved; no quality/default
-selection or restoration goal has begun.
+the timing contract. The user subsequently accepted both 60 Hz/two-pass car
+and pit previews as the comparison configuration for the next goal. This is
+not final quality or production-default acceptance. [Goal 3](physics_swept_wall_guard.md)
+will add and measure a minimal static-wall guard; former Goals 3–7 move to 4–8.
+Prior evidence remains preserved; restoration implementation has not begun.
+The trajectory-preserving patch is committed at `2a6a116f`; the two-pass policy
+remains an experimental comparison setting, not a production default.
 
 ## Rebased Goal 2 investigation plan
 
 Investigate all seven levers before choosing combinations. This is the revised
-scope of Goal 2, not seven new milestone goals; Goals 3–7 keep their order.
+scope of Goal 2, not seven new milestone goals. Its original following Goals
+3–7 are now 4–8 after insertion of the minimal wall-guard Goal 3.
 The user has instructed execution. The implementation parent is
 `0fc3c5b1`; the retained comparison implementation is
 `bdb622c6eb8d41829ee893ee6ac17bfa268ab07f`. Full source/executable provenance and
@@ -115,7 +121,7 @@ default changes and final tolerance acceptance require a separate user decision.
   behavior-changing candidate, alongside rigid–rigid and relevant soft/joint
   regressions. Preserve existing failures and identify new ones. The baseline
   already omits sweeps/adaptive subdivision; their removal supplies no new saving.
-  Goal 3 still owns blocking restoration. Lower particle-pile accuracy and
+  Goals 3–4 now own staged blocking restoration. Lower particle-pile accuracy and
   stronger wall blocking are distinct properties; future protection does not
   automatically restore settling or momentum accuracy lost here.
 - Verify finalists with three serial clean runs per workload/version on AC,
@@ -338,9 +344,12 @@ Retained and PP2 frame work fits 16.67 ms, but playback remains below 60 FPS
 and more than 1% slow with accumulating lag. The earlier single sleeping preview
 also failed: 58.88 FPS, 14.33 ms p95 and ratio 0.98126. It is not a three-run
 rendered finalist or an accepted quality option. Single-window previews were
-shown; the user reported not seeing enough to judge. New motion/settling quality
-is therefore unassessed, not rejected. This does not cause the measured
-performance-gate failure.
+shown; the initial feedback was insufficient to judge. Later single-window
+60 Hz/two-pass car and pit previews were both accepted by the user. Those runs
+recorded 59.11/58.60 FPS and 6.83/12.61 ms frame-work p95; evidence is under
+`runs/review_pp2_car_20261105_a/` and `runs/review_pp2_pit_20261105_a/` in the
+rebased evidence directory. This behavior feedback does not waive the measured
+performance-gate failure or establish final quality acceptance.
 The prior first-attempt preview acceptance does not apply to these new policies.
 
 Inspection found that `graphics_pipeline_present` waits before `SDL_RenderPresent`
@@ -366,7 +375,7 @@ and explicitly log `bypass=1`; they are separate instrumented diagnostics.
 - True unpaced diagnostic, sleep_retry, PP4, pit: 79.51 FPS, simulation/elapsed 1.325.
 
 The full sixty-second authored car acceptance run, window-switch review and
-final quality selection remain Goal 7. The one-minute wall cap was not waived.
+final quality selection now remain Goal 8. The one-minute wall cap was not waived.
 Neither a ten-second prefix nor uncapped throughput is presented as that gate.
 
 ### Safety, regressions and remaining protection
@@ -429,10 +438,13 @@ the six-second physics budget leaves only 0.467 s over twelve simulated seconds
 Independent supported islands could generalize sleeping, but require coupling,
 wake propagation and lifecycle work; the whole-scene result does not predict
 their game-level saving. Cache reuse needs fewer total checks, not merely fewer
-rebuilds. Goal 3's wall protection and Goal 4's structural restoration must
-measure their added costs and cannot be assumed to recover cheaper settling
+rebuilds. Goal 3's minimal static-wall guard, Goal 4's broader blocking and
+Goal 5's structural restoration must measure their added costs and cannot be
+assumed to recover cheaper settling
 accuracy for free. Presentation pacing is a separately identified issue; no
-graphics behavior is changed in this goal. Goals 3–7 have not begun.
+graphics behavior is changed in this goal. Goals 3–8 have not begun. The
+[next implementation plan](physics_swept_wall_guard.md) fixes the reviewed
+60 Hz/two-pass settings for matched guard-disabled/enabled measurements.
 
 Reproduction entry points: `build_final.py`, `verify_final.py`, `finish_checks.py`,
 `measure_final.py`, `render_final.py`, `run_geometry_audit.py` and
@@ -620,7 +632,7 @@ The ordinary joint regression aborts on its existing numerical assertion; the
 separate inventory replay reaches its endpoint and records the remaining cases.
 Numerical failures are not relabeled passes. The 0.5 pit/head-on review and 0.1
 stress penetration criteria are unchanged. Final quality and production-default
-selection remain Milestone 13 Goal 7 work.
+selection remain Milestone 13 Goal 8 work (formerly Goal 7).
 
 ## Final measurements
 

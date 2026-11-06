@@ -13,7 +13,7 @@ priority order.
 | 2 | Asset and resource ownership | Complete |
 | 3 | COM, inertia, and origin semantics | Complete |
 | 4 | Cross-path feature parity | Complete by user acceptance; recorded verification exceptions remain |
-| 13 | Physics rebuild from the simpler baseline | Goal 2 failed strict performance gates after seven investigations; review pending; goal 1 complete; goals 3–7 not started |
+| 13 | Physics rebuild from the simpler baseline | Goal 3 swept wall guard planned next; goal 1 complete; goal 2 failed performance gates, evidence preserved; goals 3–8 not started |
 | 12 | Real-time physics pipeline rework | Closed by user direction; superseded by milestone 13, not complete; goals 1–13 complete, goal 14 unfinished, goals 15–19 not started; evidence preserved |
 | 11 | Soft-body correctness and real-time performance | Superseded by milestone 12; not complete; evidence preserved |
 | 6 | Physics robustness | Goals 1–4 accepted; goal 5 failed verification |
@@ -33,11 +33,13 @@ executables and evidence. Milestone 13 Goal 1 established the simpler baseline.
 Goal 2's first optimization attempt failed its performance gates; its retained
 implementation and evidence remain the comparison baseline. By user direction,
 Goal 2 is rebased for seven ordered investigations, starting with 30 Hz physics.
-The seven investigations are measured; Goal 2 remains the current failed priority,
-awaiting review and commit. The user selected retaining the geometry/solver patch
-and preserving sleeping for later. The retained patch preserves sampled trajectories,
-but strict CPU/rendered gates remain unmet. Restoration has not begun; former
-Goals 2–6 moved to 3–7.
+The seven investigations are measured; Goal 2 remains failed against its strict
+performance gates, with evidence preserved. The user selected retaining the
+trajectory-preserving changes, preserving sleeping for later, and accepted the
+60 Hz/two-particle-pass car and pit previews. The next implementation priority is
+Goal 3: [minimal swept static-wall protection](docs/physics_swept_wall_guard.md),
+measured at those settings. Former Goals 3–7 move to 4–8 with their scope intact.
+This roadmap update does not start implementation or select production defaults.
 
 **Preserved physics history:** milestone 6 goal 4, **Joint stability**, including the user's
 visual/window-switch acceptance. Its frozen fixtures and verification are
@@ -575,9 +577,11 @@ lifetimes, reporting and independently runnable pipeline contracts. This is a
 physics rebuild, not a reset of the repository to the historical engine.
 
 **Status: highest unfinished priority; Goal 1 complete; Goal 2 failed strict
-performance gates after the rebased investigation; review pending; Goals 3–7 not started.**
-Goal 2 investigates baseline particle cost before restoring additional systems. By user
-direction, the former Goals 2–6 are now Goals 3–7; their scope is preserved.
+performance gates after the rebased investigation; Goal 3 swept wall guard is
+planned next; Goals 3–8 not started.**
+Goal 2 investigated baseline particle cost. By user direction, a minimal swept
+static-wall guard is inserted as Goal 3, with implementation and measurement
+planned next. Former Goals 3–7 move to 4–8; their scope and evidence are preserved.
 The [baseline report](docs/physics_rebuild_baseline.md) records implementation,
 measurements, numerical failures and verification. Milestone 12 is closed and superseded, not completed. This
 work does not choose a production candidate or authorize
@@ -613,7 +617,7 @@ assuming the old model is sufficiently accurate or that all old code is faster.
    pair-type costs, step/gather/solve counts, numerical failures and visual
    behavior. Verify Linux, relevant ASan/UBSan, Windows cross-builds and independent
    SDK examples. Deliver a reproducible baseline, feature/error inventory and
-   ranked additions for blocking restoration (now Goal 3), not a production rollback. Completion requires
+   ranked additions for blocking restoration (now Goals 3–4), not a production rollback. Completion requires
    functioning composed/manual pipelines, mandatory safety checks and completed
    declared car/pit diagnostic endpoints; final numerical tolerances, real-time
    gates and 2× headroom are not Goal 1 completion requirements.
@@ -696,7 +700,7 @@ assuming the old model is sufficiently accurate or that all old code is faster.
    candidates and a quality/cost table. An unmet performance target remains
    failed rather than a completed optimization; report the remaining cost and
    required tradeoffs for user direction. Stop for review and commit before
-   restoring systems. Goal 7 still owns combined final quality acceptance.
+   restoring systems. Goal 8 now owns combined final quality acceptance.
    **Preserved first-attempt result — failed:** four-pass candidate reduces the
    matched three-run pit CPU median
    from 13.511 s to 7.664 s per twelve simulated seconds (43.3% less), but misses
@@ -727,15 +731,37 @@ assuming the old model is sufficiently accurate or that all old code is faster.
    original stress endpoints complete with 52 passes/176 failures. Separate
    four/four stress batches hit the wall cap and remain explicitly incomplete.
    See [the complete results](docs/physics_pit_optimization.md#rebased-investigation-results)
-   and `sandbox/milestone_13/goal_2/rebased/`. The user did not see enough of the
-   new previews to judge; motion quality remains unassessed. The failed outcome
-   is due to measured performance gates, not missing user feedback.
+   and `sandbox/milestone_13/goal_2/rebased/`. Initial previews were insufficient
+   to judge; the later 60 Hz/two-pass car and pit previews were both accepted.
+   Their single rendered runs measured 59.11/58.60 FPS and 6.83/12.61 ms frame-work
+   p95. This is behavior acceptance of the next comparison configuration, not
+   final quality or performance acceptance. The failed Goal 2 outcome is due to
+   measured performance gates, not missing user feedback.
    Stop for review and commit; do not advance automatically to restoration.
    Report the proposed 4 ms average / 5 ms p95 full-game budget separately;
    it has not replaced approved gates. Added blocking/structural work must be
    costed with protection enabled, not assumed to restore accuracy for free.
 
-3. [ ] **Restore reliable rigid and particle/node blocking.** Starting from the
+3. [ ] **Add and measure a minimal swept static-wall guard.** Follow the
+   [implementation and measurement plan](docs/physics_swept_wall_guard.md).
+   Compare guard-disabled/enabled candidates at 60 Hz, four configured substeps,
+   two particle–particle passes and four rigid-contact passes, without sleeping.
+   Guard circular particles and soft-body nodes against static solid rigid walls
+   along integration and solver-correction movement. Query conservative swept
+   bounds, stop at the earliest impact and remove inward velocity. Advance all
+   simulation time while accepting bounded lost travel/sticking rather than
+   tracing the remaining bounce/slide path. Do not restore world-wide adaptive
+   steps or repeated global gathering. Moving/rotating obstacles and rigid–rigid
+   sweeps stay in Goal 4. Verify thin/thick and angled walls, high speeds, delayed
+   updates, corners, embedding, filters, lifetime safety and manual composition.
+   Measure exclusive added work and complete unchanged car/pit endpoints, with
+   three serial clean and rendered runs per workload/version under the shared
+   contract. Preserve penetration/tunneling and performance failures explicitly;
+   require verified in-scope blocking and relevant safety/platform checks.
+   Record previews and the cost/quality decision. Keep production defaults and
+   public APIs unchanged; store evidence in `sandbox/milestone_13/goal_3/`.
+   Stop for review and commit before broader restoration.
+4. [ ] **Restore reliable rigid and particle/node blocking.** Starting from the
    baseline's observed failures, add only the protection needed for rigid–rigid
    impacts, stacks and mass ratios, plus particle/node contacts with static,
    moving and rotating rigid bodies. Cover high-speed, oblique, thick/thin-wall,
@@ -744,7 +770,7 @@ assuming the old model is sufficiently accurate or that all old code is faster.
    separate from cheaper particle response. Evaluate local handling and
    conservative risk tests before making every interaction repeat the world.
    Measure each addition independently; retain unmet numerical criteria visibly.
-4. [ ] **Restore soft-body and structural quality in measured stages.** Cover
+5. [ ] **Restore soft-body and structural quality in measured stages.** Cover
    spring/beam integration and damping, pin/weld joints, transform locks, node
    support, beam–rigid and beam–beam contacts and self-collision. Use the baseline
    inventory to retain working systems and add missing protections separately.
@@ -752,7 +778,7 @@ assuming the old model is sufficiently accurate or that all old code is faster.
    behavior. Separate elastic stability needs from collision discovery cadence;
    do not let a local stability restriction silently imply a full-world collision
    pass. Keep explicit dependencies and fallbacks where bodies are coupled.
-5. [ ] **Make subdivision and contact refresh selective.** Use the preceding
+6. [ ] **Make subdivision and contact refresh selective.** Use the preceding
    failure and cost evidence to define conservative triggers and the entities or
    interactions affected. Evaluate collision-risk subdivision, bounded candidate
    reuse, correction-created contacts, affected-beam refresh and solve cadence.
@@ -760,7 +786,7 @@ assuming the old model is sufficiently accurate or that all old code is faster.
    filter/shape changes and generation-safe deletion/reuse. Preserve elapsed time,
    publication and standalone-stage behavior. Record false negatives, avoided
    work and maintenance overhead; retain simpler execution when it is better.
-6. [ ] **Optimize retained systems and select candidate settings.** Rank actual
+7. [ ] **Optimize retained systems and select candidate settings.** Rank actual
    bottlenecks in the composed result, reduce unnecessary operations first, then
    evaluate data layout, batching/SIMD or caches where measurements justify them.
    Tune tick rate (at most 60 Hz), configured substeps and independent response
@@ -770,7 +796,7 @@ assuming the old model is sufficiently accurate or that all old code is faster.
    savings in both workloads toward 2× headroom, with an explicit quality/cost
    table and full safety/platform verification. Do not hide a failed target by
    changing the benchmark or selecting a shorter endpoint.
-7. [ ] **Verify the combined result and obtain final quality acceptance.** Run
+8. [ ] **Verify the combined result and obtain final quality acceptance.** Run
    controlled car/pit comparisons, the relevant Milestone 6 scenarios and
    regressions, rendered previews and motion/window-switch review. Require
    normal 1280×720 playback at sustained 60 FPS, p95 frame work at most 16.67 ms

@@ -537,11 +537,14 @@ rebased investigations are measured. The proposed geometry/solver patch retains
 sampled trajectories and reduces matched pit CPU from 7.240 to 6.387 s; separate
 PP2 and sleeping experiments reach 5.533 and 3.970 s without default selection.
 Normal playback still misses the timing contract despite improved frame work;
-geometry counts and presentation pacing are documented in the report. Goal 2
-awaits review and commit. The user selected retaining the trajectory-preserving
-patch and preserving sleeping for later. New previews were insufficient for the
-user to judge motion quality; this did not cause the measured performance failure.
-Goals 3–7 remain unstarted. Prior evidence and settings are preserved.
+geometry counts and presentation pacing are documented in the report. Goal 2's
+retained patch is committed at `2a6a116f`; its failed performance outcome remains.
+The user selected retaining the trajectory-preserving
+patch and preserving sleeping for later. The later 60 Hz/two-particle-pass car
+and pit previews were accepted; measured timing failures remain. The next
+implementation goal is [Goal 3, minimal swept static-wall protection](physics_swept_wall_guard.md),
+measured at those settings. Former Goals 3–7 move to 4–8; Goals 3–8 remain
+unstarted. Production defaults, prior evidence and settings are preserved.
 Four-pass pit CPU time fell from a matched 13.511 s median to 7.664 s
 per twelve simulated seconds, with worst particle overlap 0.266482. The car's
 sampled trajectory is unchanged, with 3.105 s median per ten simulated seconds.

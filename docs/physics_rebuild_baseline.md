@@ -13,11 +13,14 @@ rebased for seven investigations, starting with 30 Hz. Those measurements are
 finished, but the strict gates still fail. The proposed trajectory-preserving
 patch reaches 6.387 s pit / 2.582 s car; PP2 and sleeping remain separate
 experiments. The user selected retaining the trajectory-preserving changes and
-preserving sleeping for later. See the linked report for current results and
-pending review; the failed outcome reflects measured performance gates.
+preserving sleeping for later. The retained patch is committed at `2a6a116f`;
+the failed outcome still reflects measured performance gates.
 Its first attempt's matched four-pass pit median is
 7.664 s versus 13.511 s for this baseline; car trajectories remain unchanged.
 This Goal 1 report and its original evidence remain historical records.
+The next implementation priority is [Goal 3, minimal swept static-wall protection](physics_swept_wall_guard.md),
+using the subsequently reviewed 60 Hz/two-pass candidate. Earlier Goal 3–7
+references below describe the previous roadmap order; those goals are now 4–8.
 
 ## Provenance and reproduction
 
