@@ -114,6 +114,12 @@ typedef struct ContactConstraintList {
     bool solver_converged;
     /* Tree/pose reuse is confined to one synchronous solver invocation. */
     bool solving;
+    /* Private, invocation-local prepared particle rows; owned by this list. */
+    struct PhysicsParticleSolver *particle_solver;
+    /* Experimental full-substep particle effort; zero leaves manual/global
+     * iteration policy unchanged, including when compact allocation fails. */
+    uint32_t particle_passes;
+    uint32_t particle_iteration;
 } ContactConstraintList;
 
 EngineResult contact_constraint_list_init(

@@ -10,6 +10,7 @@
 #include "physics/broadphase/aabb_tree.h"
 #include "physics/collision/contact_constraint.h"
 #include "physics/constraints/constraint_solver.h"
+#include "physics/particles/particle_solver.h"
 #include "physics/collision/contact_manifold.h"
 #include "physics/joints/joint_constraint.h"
 #include "physics/soft_body/soft_body.h"
@@ -242,13 +243,15 @@ void physics_pipeline_contact_constraints_solve(
         physics_rigid_constraints_gather(context);
     if(context != NULL && ((Report *)context)->has_fatal) return;
     bool converged = false;
-    bool block_solved = physics_rigid_contact_block_solve_check(constraints, position_fraction, context, &converged);
+    bool prepared = physics_particle_solver_active_check(constraints);
+    bool block_solved = !prepared && physics_rigid_contact_block_solve_check(constraints, position_fraction, context, &converged);
+    if(prepared) physics_particle_solver_solve(constraints, position_fraction, context);
     if(block_solved) {
         constraints->solver_converged = converged && constraints == &physics_step_contact_constraints &&
             physics_step_joint_constraints.count == 0;
         if(!soft_body_beams_pool.count) return;
     }
-    for(size_t i = 0; !block_solved && i < constraints->count; i += 1) {
+    for(size_t i = 0; !prepared && !block_solved && i < constraints->count; i += 1) {
         if(context != NULL && ((Report *)context)->has_fatal) break;
         SystemContactConstraint *constraint = &constraints->values[i];
 

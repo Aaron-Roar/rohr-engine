@@ -3,6 +3,7 @@
  */
 
 #include "contact_constraint.h"
+#include "physics/particles/particle_solver.h"
 
 #include <stdlib.h>
 #include <string.h>
@@ -86,6 +87,7 @@ EngineResult contact_constraint_list_init(
 
 void contact_constraint_list_destroy(ContactConstraintList *list) {
     if(list == NULL) return;
+    physics_particle_solver_destroy(list);
     free(list->values);
     free(list->rigid_pair_slots);
     *list = (ContactConstraintList){0};
@@ -102,6 +104,8 @@ void contact_constraint_list_clear(ContactConstraintList *list) {
         list->rigid_dirty = false;
         list->solver_converged = false;
         list->solving = false;
+        list->particle_passes = 0;
+        list->particle_iteration = 0;
     }
 }
 

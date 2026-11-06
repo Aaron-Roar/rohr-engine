@@ -13,7 +13,7 @@ priority order.
 | 2 | Asset and resource ownership | Complete |
 | 3 | COM, inertia, and origin semantics | Complete |
 | 4 | Cross-path feature parity | Complete by user acceptance; recorded verification exceptions remain |
-| 13 | Physics rebuild from the simpler baseline | Goal 3 swept wall guard planned next; goal 1 complete; goal 2 failed performance gates, evidence preserved; goals 3–8 not started |
+| 13 | Physics rebuild from the simpler baseline | Goal 2 compact-solver attempt failed tighter performance gates; verified scalar pit improvement retained for review; goal 1 complete; rejected goal 3 guard preserved; goals 4–8 not started |
 | 12 | Real-time physics pipeline rework | Closed by user direction; superseded by milestone 13, not complete; goals 1–13 complete, goal 14 unfinished, goals 15–19 not started; evidence preserved |
 | 11 | Soft-body correctness and real-time performance | Superseded by milestone 12; not complete; evidence preserved |
 | 6 | Physics robustness | Goals 1–4 accepted; goal 5 failed verification |
@@ -24,7 +24,21 @@ priority order.
 | 7 | Editor implementation scalability | Deferred until after Python unless game development makes it necessary sooner |
 | 10 | End-to-end game | Pending; separate larger game directed by the user |
 
-**Current priority:** [Milestone 13](#13-physics-rebuild-from-the-simpler-baseline)
+**Current priority:** Milestone 13 Goal 2's reopened
+[compact scalar/SIMD comparison](docs/physics_compact_solver.md) is **failed**
+against the 4 ms average / 5 ms p95 target. The retained opt-in scalar solver
+reduces pit CPU 26.2% against a native two-pass control, with no consistent car
+CPU saving. That comparison gives 6.102/8.225 ms average/p95 pit and
+4.474/5.751 ms car. Both old diagnostic CPU budgets pass; strict rendered gates
+still fail. Sampled trajectories and numerical bounds are preserved, and the
+user accepted the previews. Reordered SIMD failed the pit overlap limit;
+ordered SIMD gave no speed gain. Verification and the unchanged failure
+inventory are recorded in the report. Stop for review and user direction.
+Goal 3's guard remains rejected, with tracked changes restored by the user and
+untracked artifacts preserved. Do not resume it or begin another goal without
+further instruction.
+
+**Prior direction:** [Milestone 13](#13-physics-rebuild-from-the-simpler-baseline)
 rebuilds physics outward from the simpler historical execution model inside the
 current engine. Milestone 12 is closed by user direction and superseded, not
 complete. Its completed goals retain credit; unfinished Goal 14 and unstarted
@@ -36,7 +50,7 @@ Goal 2 is rebased for seven ordered investigations, starting with 30 Hz physics.
 The seven investigations are measured; Goal 2 remains failed against its strict
 performance gates, with evidence preserved. The user selected retaining the
 trajectory-preserving changes, preserving sleeping for later, and accepted the
-60 Hz/two-particle-pass car and pit previews. The next implementation priority is
+60 Hz/two-particle-pass car and pit previews. The next priority at that time was
 Goal 3: [minimal swept static-wall protection](docs/physics_swept_wall_guard.md),
 measured at those settings. Former Goals 3–7 move to 4–8 with their scope intact.
 This roadmap update does not start implementation or select production defaults.
@@ -576,12 +590,13 @@ Preserve current public APIs, editor/project integration, ownership, entity
 lifetimes, reporting and independently runnable pipeline contracts. This is a
 physics rebuild, not a reset of the repository to the historical engine.
 
-**Status: highest unfinished priority; Goal 1 complete; Goal 2 failed strict
-performance gates after the rebased investigation; Goal 3 swept wall guard is
-planned next; Goals 3–8 not started.**
+**Status: highest unfinished priority; Goal 1 complete; Goal 2's compact solver
+attempt failed the tighter and rendered performance gates, with a verified
+opt-in scalar improvement retained for review. Goal 3 failed behavior review;
+its tracked implementation was restored by the user. Goals 4–8 have not started.**
 Goal 2 investigated baseline particle cost. By user direction, a minimal swept
-static-wall guard is inserted as Goal 3, with implementation and measurement
-planned next. Former Goals 3–7 move to 4–8; their scope and evidence are preserved.
+static-wall guard was inserted as Goal 3 before the user reopened Goal 2.
+Former Goals 3–7 moved to 4–8; their scope and evidence are preserved.
 The [baseline report](docs/physics_rebuild_baseline.md) records implementation,
 measurements, numerical failures and verification. Milestone 12 is closed and superseded, not completed. This
 work does not choose a production candidate or authorize
@@ -633,7 +648,13 @@ assuming the old model is sufficiently accurate or that all old code is faster.
    not production or final quality acceptance. Evidence is in
    `sandbox/milestone_13/goal_1/`. Stop for review and the user's commit before
    starting Goal 2.
-2. [ ] **Investigate baseline particle cost and quality tradeoffs — failed.** Pin
+2. [ ] **Investigate baseline particle cost and quality tradeoffs — failed.**
+   The user approved the [compact scalar/SIMD comparison](docs/physics_compact_solver.md)
+   on 2026-11-06, with a 4 ms average / 5 ms p95 target and the previously accepted
+   60 Hz/four-substep/two-particle-pass comparison. Preserve the prior failed
+   outcomes below. The reopened attempt is verified but fails its performance
+   requirements; further work requires user direction.
+   Pin
    Goal 1's candidate and the immediate parent as controls. Explain the measured
    8,033.5 ms and 14,577,780 particle-pair response invocations: separate unique
    pairs, retained constraints, repeated solver visits, effective responses and
@@ -738,11 +759,38 @@ assuming the old model is sufficiently accurate or that all old code is faster.
    final quality or performance acceptance. The failed Goal 2 outcome is due to
    measured performance gates, not missing user feedback.
    Stop for review and commit; do not advance automatically to restoration.
-   Report the proposed 4 ms average / 5 ms p95 full-game budget separately;
-   it has not replaced approved gates. Added blocking/structural work must be
+   Report the now-approved 4 ms average / 5 ms p95 full-game target separately;
+   it supplements the existing gates. Added blocking/structural work must be
    costed with protection enabled, not assumed to restore accuracy for free.
 
-3. [ ] **Add and measure a minimal swept static-wall guard.** Follow the
+   **Compact-solver result — failed:** opt-in scalar preparation retains contact
+   order, checked state changes, manual-stage semantics and production defaults.
+   Three clean pairs against a native two-pass control reduce pit CPU from
+   5.953452 to 4.393571 s (26.20%); car CPU is 2.676039 versus 2.684137 s, with
+   no consistent saving. Candidate average/p95 is 6.102/8.225 ms pit and
+   4.474/5.751 ms car, failing 4/5 ms while meeting the old 6/5-second CPU gates.
+   The earlier retained-control comparison gives 15.62% less pit CPU and a small,
+   inconsistent 3.69% car median gain; keep the two measurement blocks separate.
+   All 720 pit and 600 car sampled states match the control. Pit worst pair
+   overlap remains 0.330803; existing car deformation and blocking errors remain.
+   Ordered SIMD has no measured gain; colored SIMD reaches 0.794605 pit overlap
+   and is rejected. Its scalar arithmetic control reproduces that error.
+   Production-default regressions pass 25/25; experimental Linux/ASan suites
+   retain the same five baseline failures. All 228 original stress endpoints
+   complete with unchanged 52 passes/176 failures and non-timing results.
+   Sanitized car/pit endpoints, Windows cross-builds and independent SDK example
+   builds/launch smoke are verified. Three complete rendered runs per workload/
+   version remain below strict 60 FPS/time gates; one interrupted car run is
+   preserved separately. The user accepted behavior. See the
+   [complete compact-solver report](docs/physics_compact_solver.md) and
+   `sandbox/milestone_13/goal_2/compact/`. No positive 4/5 ms protection budget is
+   established; mixed wall response and gathering are the next measured cost
+   candidates. Stop for review; do not advance automatically.
+
+3. [ ] **Add and measure a minimal swept static-wall guard — failed.** The user
+   rejected its behavior and restored its tracked changes. Preserve its evidence
+   and three untracked implementation/test files; further implementation needs
+   a new user decision. The original scope follows the
    [implementation and measurement plan](docs/physics_swept_wall_guard.md).
    Compare guard-disabled/enabled candidates at 60 Hz, four configured substeps,
    two particle–particle passes and four rigid-contact passes, without sleeping.

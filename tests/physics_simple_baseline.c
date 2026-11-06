@@ -8,6 +8,9 @@
 #include <math.h>
 
 #define OK(value) assert(!rohr_error_check(value))
+#ifndef ROHR_TEST_PARTICLE_PASSES
+#define ROHR_TEST_PARTICLE_PASSES 0
+#endif
 static double observed_time;
 static unsigned observed_steps;
 
@@ -90,7 +93,9 @@ static void particle_pair_sample(bool manual, unsigned mode, float tangent,
     if(manual) {
         rohr_physics_pipeline_substep_begin();
         report_check(rohr_physics_pipeline_contacts_gather());
-        report_check(rohr_physics_pipeline_constraints_solve(iterations));
+        uint32_t passes = ROHR_TEST_PARTICLE_PASSES && ROHR_TEST_PARTICLE_PASSES < iterations
+            ? ROHR_TEST_PARTICLE_PASSES : iterations;
+        report_check(rohr_physics_pipeline_constraints_solve(passes));
     } else report_check(rohr_physics_pipeline_substep(0));
     for(unsigned side = 0; side < 2; ++side) {
         EntityIndexResult result = rohr_entity_index_get(entities[side]); OK(result);

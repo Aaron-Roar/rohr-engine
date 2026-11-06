@@ -9,6 +9,7 @@
 #include "physics/collision/contact_manifold.h"
 #include "math2d.h"
 #include "physics/physics_operation.h"
+#include "physics/particles/particle_solver.h"
 #include <float.h>
 #include <limits.h>
 #include <math.h>
@@ -1915,6 +1916,9 @@ void physics_rigid_contact_constraint_solve(
     SystemContactConstraint *constraint,
     float position_fraction, Report *report
 ) {
+#if defined(ROHR_PHYSICS_PARTICLE_PASSES) && ROHR_PHYSICS_PARTICLE_PASSES > 0
+    if(!physics_particle_solver_pass_check(constraint, &position_fraction)) return;
+#endif
     system_rigid_contact_constraint_solve(constraint, position_fraction, report);
 }
 

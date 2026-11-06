@@ -5,6 +5,7 @@
 #include "constraint_solver.h"
 #include "physics/physics_operation.h"
 #include "physics/physics_step_internal.h"
+#include "physics/particles/particle_solver.h"
 
 void constraint_solver_run(
     ContactConstraintList *contacts,
@@ -36,7 +37,9 @@ void constraint_solver_run(
             contacts->values[i].value.soft.geometry_valid = false;
         else if(contacts->values[i].type == SYSTEM_CONTACT_CONSTRAINT_BEAM_PAIR)
             contacts->values[i].value.beam_pair.geometry_valid = false;
+    (void)physics_particle_solver_prepare_check(contacts, iterations, context);
     for(uint32_t iteration = 0; iteration < iterations; iteration += 1) {
+        contacts->particle_iteration = iteration;
         contacts->solver_converged = false;
         position_fraction = soft_pass && !baseline ? 1.0f : 1.0f / (float)(iterations - iteration);
         if(soft_pass && !baseline) physics_motion_tracking_begin();
@@ -47,6 +50,7 @@ void constraint_solver_run(
          * convergence can prove the contact-only system is unchanged. */
         if(!baseline && iteration > 0 && contacts->solver_converged) break;
     }
+    physics_particle_solver_finish(contacts);
     if(baseline && contacts == &physics_step_contact_constraints)
         physics_step_hitbox_dirty_flush(context);
     if(contacts_finalize != NULL) contacts_finalize(contacts, context);

@@ -27,6 +27,14 @@ option(ROHR_ENABLE_SANITIZERS
     "Enable Linux address and undefined-behavior sanitizers" OFF)
 option(ROHR_PHYSICS_SIMPLE_BASELINE
     "Experimental fixed-step, gather-once physics baseline (not production quality)" OFF)
+option(ROHR_PHYSICS_COMPACT_PARTICLES
+    "Experimental baseline compact scalar particle solver" OFF)
+set(ROHR_PHYSICS_PARTICLE_PASSES "0" CACHE STRING
+    "Experimental baseline particle passes (0 uses configured solver iterations)")
+if(NOT ROHR_PHYSICS_PARTICLE_PASSES MATCHES "^(0|[1-9][0-9]*)$" OR
+        ROHR_PHYSICS_PARTICLE_PASSES GREATER 4294967295)
+    message(FATAL_ERROR "Experimental particle passes must fit uint32_t (0 uses configured iterations)")
+endif()
 set(ROHR_SDK_INSTALL_PREFIX "" CACHE PATH
     "Installed SDK prefix used by external consumer tests")
 if(ROHR_ENABLE_SANITIZERS)
@@ -253,6 +261,7 @@ set(ROHR_ENGINE_SOURCES
     src/physics/joints/joint_solver.c
     src/physics/joints/joint_motion.c
     src/physics/particles/particle.c
+    src/physics/particles/particle_solver.c
     src/physics/physics.c
     src/physics/physics_entity.c
     src/physics/physics_step.c
@@ -296,7 +305,9 @@ target_include_directories(rohr_engine
 )
 target_compile_definitions(rohr_engine PUBLIC SDL_MAIN_HANDLED)
 target_compile_definitions(rohr_engine PRIVATE
-    ROHR_PHYSICS_SIMPLE_BASELINE=$<BOOL:${ROHR_PHYSICS_SIMPLE_BASELINE}>)
+    ROHR_PHYSICS_SIMPLE_BASELINE=$<BOOL:${ROHR_PHYSICS_SIMPLE_BASELINE}>
+    ROHR_PHYSICS_COMPACT_PARTICLES=$<BOOL:${ROHR_PHYSICS_COMPACT_PARTICLES}>
+    ROHR_PHYSICS_PARTICLE_PASSES=${ROHR_PHYSICS_PARTICLE_PASSES})
 if(ROHR_ENABLE_SANITIZERS)
     target_compile_options(rohr_engine PRIVATE
         ${ROHR_SANITIZER_COMPILE_OPTIONS})
@@ -654,10 +665,34 @@ if(ROHR_BUILD_TESTS)
     endif()
     add_test(NAME physics_recovery COMMAND physics_recovery_test)
 
+    add_executable(particle_solver_test tests/particle_solver.c)
+    target_link_libraries(particle_solver_test PRIVATE rohr_engine)
+    target_include_directories(particle_solver_test PRIVATE src)
+    target_compile_definitions(particle_solver_test PRIVATE
+        ROHR_TEST_COMPACT_PARTICLES=$<AND:$<BOOL:${ROHR_PHYSICS_SIMPLE_BASELINE}>,$<BOOL:${ROHR_PHYSICS_COMPACT_PARTICLES}>>
+        ROHR_TEST_PARTICLE_PASSES=$<IF:$<BOOL:${ROHR_PHYSICS_SIMPLE_BASELINE}>,${ROHR_PHYSICS_PARTICLE_PASSES},0>)
+    set_target_properties(particle_solver_test PROPERTIES
+        RUNTIME_OUTPUT_DIRECTORY ${ROHR_BUILD_OUTPUT_DIRECTORY}/tests)
+    if(NOT MSVC)
+        target_compile_options(particle_solver_test PRIVATE -Wall -Wextra -Wpedantic -UNDEBUG)
+    endif()
+    if(CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_C_COMPILER_ID MATCHES "GNU|Clang")
+        target_compile_definitions(particle_solver_test PRIVATE ROHR_TEST_PARTICLE_WRAP)
+        target_link_options(particle_solver_test PRIVATE
+            "LINKER:--wrap=malloc" "LINKER:--wrap=calloc"
+            "LINKER:--wrap=physics_particle_solver_prepare_check")
+    endif()
+    if(ROHR_ENABLE_SANITIZERS)
+        target_compile_options(particle_solver_test PRIVATE ${ROHR_SANITIZER_COMPILE_OPTIONS})
+    endif()
+    add_test(NAME particle_solver COMMAND particle_solver_test)
+
     if(ROHR_PHYSICS_SIMPLE_BASELINE)
         add_executable(physics_simple_baseline_test tests/physics_simple_baseline.c)
         target_link_libraries(physics_simple_baseline_test PRIVATE rohr_engine)
         target_include_directories(physics_simple_baseline_test PRIVATE src)
+        target_compile_definitions(physics_simple_baseline_test PRIVATE
+            ROHR_TEST_PARTICLE_PASSES=${ROHR_PHYSICS_PARTICLE_PASSES})
         set_target_properties(physics_simple_baseline_test PROPERTIES
             RUNTIME_OUTPUT_DIRECTORY ${ROHR_BUILD_OUTPUT_DIRECTORY}/tests)
         if(NOT MSVC)
@@ -1496,6 +1531,7 @@ if(ROHR_BUILD_TESTS)
     )
 
     add_custom_target(rohr_tests)
+    add_dependencies(rohr_tests particle_solver_test)
     add_dependencies(rohr_tests contact_gathering_test joint_gathering_test rigid_contact_solving_test)
     add_dependencies(rohr_tests soft_body_stability_test beam_pair_contacts_test beam_motion_test particle_sweep_test particle_head_on_test sweep_preparation_test)
     add_dependencies(rohr_tests extreme_mass_drop_test)
