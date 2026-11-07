@@ -11,6 +11,13 @@ No physics algorithm, timestep, or solver setting changes are part of this work.
 Goal 6's [integrated verification](creation_rendering_verification.md) records
 completion, measured rendering costs and final user acceptance.
 
+Milestone 16's [scoped creation contract](scoped_creation_contract.md) specifies
+the next changes: optional external links for standalone creation, background-only
+unbound viewport screens, automatic whole-project wiring, and a teaching starter.
+Those rules supersede the relevant requirements below when implemented. Milestone
+16 Goal 1 changes documentation only; the current runtime still follows milestone
+15's implemented binding requirements.
+
 ## User decisions
 
 - Objects are immutable descriptions in the application. Creation produces

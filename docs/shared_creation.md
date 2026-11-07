@@ -5,6 +5,11 @@ Milestone 15 Goal 2 implements the entity/object portion of the
 [automatic viewports](automatic_viewports.md), and Goal 4 adds the unified
 generated `project.h`. Existing generated catalogs remain compatible.
 
+The next [scoped creation contract](scoped_creation_contract.md) specifies
+standalone optional-link behavior and `rohr_project_create()`. These are planned
+milestone 16 APIs/semantics, not yet available. The examples below document the
+currently implemented creation and binding requirements.
+
 ## Unified generated project
 
 Regeneration now writes `src/generated/project.h` for applications and

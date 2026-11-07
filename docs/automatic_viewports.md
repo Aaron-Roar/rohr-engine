@@ -1,5 +1,10 @@
 # Automatic viewports
 
+Milestone 16's [scoped creation contract](scoped_creation_contract.md) plans
+background-only standalone screens without required runtime camera bindings and
+automatic camera wiring during whole-project creation. These changes are not yet
+implemented; this guide describes the existing runtime API.
+
 Milestone 15 Goal 3 implements complete viewport creation and automatic scene
 rendering. Unified `project.h` generation is described in
 [shared creation](shared_creation.md#unified-generated-project). By user direction,
