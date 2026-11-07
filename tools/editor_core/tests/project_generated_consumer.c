@@ -74,7 +74,12 @@ int main(void) {
     assert(project.play.items[0].camera_member == &project.parity.camera._description);
     assert(!strcmp(project.parity.body.layer_name,"world"));
     assert(!strcmp(project.parity.flipped.layer_name,"effects"));
-    assert(rohr_error_check(rohr_viewport_create(&project.play))); /* Missing runtime binding. */
+    ViewportIdResult unbound = rohr_viewport_create(&project.play); OK(unbound);
+    assert(rohr_screen_description_get(item(unbound.result.value,"front").screen).result.value.camera==CAMERA_INVALID);
+    assert(rohr_screen_description_get(item(unbound.result.value,"rear").screen).result.value.camera==CAMERA_INVALID);
+    Report empty_frame = rohr_graphics_viewport_show(unbound.result.value);
+    assert(empty_frame.header.status==ROHR_REPORT_COMPLETE && empty_frame.diagnostic_count==0);
+    OK(rohr_viewport_destroy(unbound.result.value));
     ViewportIdResult overlay = rohr_viewport_create(&project.overlay); OK(overlay);
     OK(rohr_graphics_layer_name_id_get("quoted \"layer\"\\"));
     ViewportItemDescription button = item(overlay.result.value,"button");

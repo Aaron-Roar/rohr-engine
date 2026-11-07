@@ -227,6 +227,109 @@ static void dependencies(void) {
     assert(rohr_error_check(rohr_entity_create_with_options(&f.anchor, options)));
 }
 
+static void optional_relationships(void) {
+    ObjectDescription root={.id=100,.name="scene",.kind=OBJECT_CONTAINER,
+        .categories=ROHR_ENTITY_OBJECT_ALL,.visible=true,.position={10,20}};
+    ObjectDescription group={.id=101,.name="group",.kind=OBJECT_CONTAINER,
+        .categories=ROHR_ENTITY_OBJECT_ALL,.visible=true,.parent=&root,
+        .position={3,4},.orientation=30};
+    ObjectDescription target={.id=102,.name="target",.kind=OBJECT_PARTICLE,
+        .categories=ROHR_ENTITY_OBJECT_ALL,.visible=true,.parent=&root,
+        .position={20,40},.radius=3,.mass=2,.particle_vertices=8};
+    ObjectDescription follower=target;
+    follower.id=103; follower.name="follower"; follower.parent=&group;
+    follower.position=(Position){2,5}; follower.friction=.4f;
+    follower.entity_settings=(ObjectEntitySettings){
+        .gameplay_target={.kind=OBJECT_PARTICLE,.id=target.id},
+        .transform_driver={.kind=OBJECT_PARTICLE,.id=target.id},
+        .transform_position=true,.transform_offset={4,6},
+        .lifetime={.deadline={.tick_enabled=true,.expiry_tick=10000}}};
+    ObjectDescription camera={.id=104,.name="camera",.kind=OBJECT_CAMERA,
+        .categories=ROHR_ENTITY_OBJECT_ALL,.visible=true,.parent=&group,
+        .target=target.id,.position={7,8},.size={100,80},.zoom=1,.follow_position=true};
+    ObjectDescription sprite={.id=105,.name="sprite",.kind=OBJECT_SPRITE,
+        .categories=ROHR_ENTITY_OBJECT_ALL,.visible=true,.parent=&group,
+        .target=target.id,.position={2,3},.asset_path="creation_pixel.png",.size={2,2},.scale={1,1},
+        .entity_settings={.lifetime={.deadline={.tick_enabled=true,.expiry_tick=10000}}}};
+    ObjectFrame frame={.id=1,.path="creation_pixel.png",.scale={1,1}};
+    ObjectDescription animation=sprite;
+    animation.id=106; animation.name="animation"; animation.kind=OBJECT_ANIMATION;
+    animation.frames=&frame; animation.frame_count=1; animation.ticks_per_frame=1;
+    const ObjectDescription *members[]={&follower,&camera,&sprite,&animation};
+    const ObjectDescription *objects[]={&group,&target};
+    root.children=objects; root.child_count=2; group.children=members; group.child_count=4;
+    const ObjectDescription saved_follower=follower, saved_camera=camera, saved_sprite=sprite;
+
+    /* A live matching instance must not be discovered by independent creation. */
+    Entity decoy=value(rohr_entity_create(&target));
+    OK(rohr_physics_position_set(decoy,(Position){999,999}));
+    for(size_t i=0;i<4;++i) {
+        Entity independent=value(entity_create(members[i]));
+        assert(rohr_entity_owner_get(independent).result.value==ENTITY_INVALID);
+        assert(!rohr_entity_components_check(independent,ROHR_TARGETABLE));
+        assert(rohr_error_check(rohr_physics_transform_lock_description_get(independent)));
+        Position expected; Orientation angle;
+        OK(object_description_world_pose_get(members[i],&expected,&angle));
+        Position actual=rohr_physics_position_get(independent).result.value;
+        assert(fabsf(actual.x-expected.x)<.001f && fabsf(actual.y-expected.y)<.001f);
+        if(i==0) {
+            ParticleDescription p=rohr_physics_particle_description_get(independent).result.value;
+            assert(p.mass_value==2 && p.friction==.4f);
+            assert(orientations[rohr_entity_index_get(independent).result.value]==0);
+            assert(rohr_entity_lifetime_description_get(independent).result.value.expiry_tick==rohr_engine_tick_get()+10000);
+        }
+        if(i==1) {
+            CameraId id=rohr_entity_object_camera_get(independent).result.value;
+            assert(rohr_error_check(rohr_camera_attachment_description_get(id)));
+        }
+        clean(independent);
+    }
+    Entity isolated=value(rohr_object_create(&group));
+    assert(!rohr_entity_components_check(member(isolated,"follower"),ROHR_TARGETABLE));
+    assert(rohr_error_check(rohr_physics_transform_lock_description_get(member(isolated,"sprite"))));
+    clean(isolated);
+
+    ObjectCreateBinding binding={&target,decoy};
+    ObjectCreateOptions options=rohr_object_create_options_default_get();
+    options.bindings=&binding; options.binding_count=1;
+    Entity bound=value(rohr_object_create_with_options(&group,options));
+    assert(rohr_physics_transform_lock_description_get(member(bound,"follower")).result.value.driver==decoy);
+    assert(rohr_physics_transform_lock_description_get(member(bound,"animation")).result.value.driver==decoy);
+    clean(bound);
+
+    Entity first=value(rohr_object_create(&root)), second=value(rohr_object_create(&root));
+    Entity a=member(first,"group"), b=member(second,"group");
+    Entity ta=member(first,"target"), tb=member(second,"target");
+    assert(ta!=tb && ta!=decoy && tb!=decoy);
+    assert(rohr_entity_components_check(member(a,"follower"),ROHR_TARGETABLE));
+    assert(rohr_physics_transform_lock_description_get(member(a,"follower")).result.value.driver==ta);
+    assert(rohr_physics_transform_lock_description_get(member(b,"follower")).result.value.driver==tb);
+    assert(rohr_physics_transform_lock_description_get(member(a,"sprite")).result.value.driver==ta);
+    CameraId id=rohr_entity_object_camera_get(member(a,"camera")).result.value;
+    assert(rohr_camera_attachment_description_get(id).result.value.entity==ta);
+    clean(first); assert(rohr_entity_alive_check(tb)); clean(second);
+    assert(!memcmp(&follower,&saved_follower,sizeof(follower)));
+    assert(!memcmp(&camera,&saved_camera,sizeof(camera)));
+    assert(!memcmp(&sprite,&saved_sprite,sizeof(sprite)));
+
+    uint32_t before=rohr_entity_alive_count_get();
+    follower.entity_settings.gameplay_target.kind=OBJECT_BODY;
+    assert(rohr_error_check(rohr_entity_create(&follower)));
+    follower=saved_follower; follower.entity_settings.transform_driver.id=999;
+    assert(rohr_error_check(rohr_entity_create(&follower))); follower=saved_follower;
+    camera.target=999; assert(rohr_error_check(rohr_entity_create(&camera))); camera=saved_camera;
+    target.id=group.id; camera.target=group.id;
+    assert(rohr_error_check(rohr_entity_create(&camera))); target.id=102; camera=saved_camera;
+    EntityCreateOptions explicit_options={.bindings=&binding,.binding_count=1};
+    binding.entity=member(value(rohr_object_create(&root)),"group");
+    Entity temporary_root=rohr_entity_owner_get(binding.entity).result.value;
+    assert(rohr_error_check(rohr_entity_create_with_options(&camera,explicit_options)));
+    clean(temporary_root); binding.entity=decoy;
+    assert(rohr_entity_alive_count_get()==before);
+    clean(decoy);
+    assert(rohr_error_check(rohr_entity_create_with_options(&camera,explicit_options)));
+}
+
 static void topology(void) {
     ObjectDescription soft = {.id=1,.name="soft",.kind=OBJECT_SOFT_BODY,
         .categories=ROHR_ENTITY_OBJECT_ALL,.visible=true};
@@ -324,6 +427,22 @@ static void invalid_and_rollback(void) {
         assert(textures.owner_references == texture_before.owner_references);
     }
     assert(completed && failures > 5);
+    const ObjectDescription *optional[] = {&f.camera,&f.sprite};
+    for(size_t i=0;i<2;++i) {
+        completed=false; failures=0;
+        for(long fail=0;fail<512;++fail) {
+            allocation_countdown=fail;
+            EntityResult result=rohr_entity_create(optional[i]);
+            allocation_countdown=-1;
+            if(!rohr_error_check(result)) { clean(result.result.value); completed=true; break; }
+            ++failures;
+            assert(rohr_entity_alive_count_get()==before);
+            GraphicsTextureAssetStats textures=graphics_texture_assets_stats_get();
+            assert(textures.live_resources==texture_before.live_resources);
+            assert(textures.owner_references==texture_before.owner_references);
+        }
+        assert(completed && failures>0);
+    }
 #endif
 }
 
@@ -366,7 +485,7 @@ int main(void) {
     OK(rohr_engine_start());
     assert(SDL_SaveFile("creation_pixel.png", test_png, sizeof(test_png)));
     OK(rohr_graphics_start());
-    instances(); owners_and_names(); dependencies(); topology(); invalid_and_rollback(); named_layers();
+    instances(); owners_and_names(); dependencies(); optional_relationships(); topology(); invalid_and_rollback(); named_layers();
     uint32_t before = rohr_entity_alive_count_get();
     GraphicsTextureAssetStats texture_before = graphics_texture_assets_stats_get();
     Fixture fixture; fixture_init(&fixture);
@@ -374,12 +493,15 @@ int main(void) {
         Entity root = value(rohr_object_create(&project.water));
         Entity independent = value(rohr_entity_create(&project.water.particle));
         Entity complex = value(rohr_object_create(&fixture.root));
+        Entity standalone_camera = value(rohr_entity_create(&fixture.camera));
+        Entity standalone_sprite = value(rohr_entity_create(&fixture.sprite));
         CameraId camera = rohr_entity_object_camera_get(member(complex, "camera")).result.value;
         clean(complex);
         assert(rohr_error_check(rohr_camera_get(camera)));
         clean(root);
         assert(rohr_entity_alive_check(independent));
         clean(independent);
+        clean(standalone_camera); clean(standalone_sprite);
         assert(rohr_entity_alive_count_get() == before);
         GraphicsTextureAssetStats textures = graphics_texture_assets_stats_get();
         assert(textures.live_resources == texture_before.live_resources);

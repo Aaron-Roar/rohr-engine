@@ -14,9 +14,10 @@ completion, measured rendering costs and final user acceptance.
 Milestone 16's [scoped creation contract](scoped_creation_contract.md) specifies
 the next changes: optional external links for standalone creation, background-only
 unbound viewport screens, automatic whole-project wiring, and a teaching starter.
-Those rules supersede the relevant requirements below when implemented. Milestone
-16 Goal 1 changes documentation only; the current runtime still follows milestone
-15's implemented binding requirements.
+Milestone 16 Goal 2 implements optional external links and unbound screens,
+superseding the corresponding strict binding requirements below. The project API
+and teaching starter remain planned; this milestone 15 document retains the
+historical contract for its original implementation and verification.
 
 ## User decisions
 

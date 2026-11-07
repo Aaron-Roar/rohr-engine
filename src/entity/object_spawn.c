@@ -307,6 +307,30 @@ static bool catalog_identity_check(const ObjectDescription *root,
     return true;
 }
 
+/* Optional links may point outside the selected subtree, but must still name
+ * one valid description in its catalog. This only reads authored data; it never
+ * searches live instances or adds the referenced member to the spawn scope. */
+static const ObjectDescription *catalog_id_get(const ObjectDescription *root, uint64_t id) {
+    if(root->id == id) return root;
+    for(size_t i = 0; i < root->child_count; ++i) {
+        const ObjectDescription *found = catalog_id_get(root->children[i], id);
+        if(found) return found;
+    }
+    return NULL;
+}
+static const ObjectDescription *optional_reference_get(SpawnContext *c, uint64_t id) {
+    const ObjectDescription *found = reference_get(c, id);
+    if(found || !id) return found;
+    const ObjectDescription *catalog = catalog_get(c->entries[0].description);
+    found = catalog_id_get(catalog, id);
+    size_t matches = 0;
+    return found && catalog_identity_check(catalog, found, &matches) && matches == 1 ? found : NULL;
+}
+/* Use only after creation_validate has checked optional authored identities. */
+static bool optional_reference_omitted_check(SpawnContext *c, uint64_t id) {
+    return c->strict && id && !reference_get(c, id);
+}
+
 static bool binding_kind_check(ObjectKind kind, Entity entity) {
     if(!entity_alive_check(entity)) return false;
     ObjectAppearance appearance;
@@ -339,7 +363,7 @@ static bool binding_kind_check(ObjectKind kind, Entity entity) {
 
 static bool entity_reference_check(SpawnContext *c, ObjectEntityReference ref) {
     if(!ref.id) return ref.soft_body == 0;
-    const ObjectDescription *d = reference_get(c, ref.id);
+    const ObjectDescription *d = optional_reference_get(c, ref.id);
     return d && d->kind == ref.kind && (!ref.soft_body ||
         (d->parent && d->parent->kind == OBJECT_SOFT_BODY && d->parent->id == ref.soft_body));
 }
@@ -400,8 +424,9 @@ static EngineResult creation_validate(SpawnContext *c) {
                 !object_entity_settings_check(d->entity_settings))
             return error_result_error(ERROR_ENGINE_STATE_INVALID);
         if((d->kind == OBJECT_SPRITE || d->kind == OBJECT_ANIMATION ||
-                d->kind == OBJECT_CAMERA || d->kind == OBJECT_ANCHOR) &&
-                d->target && !reference_get(c, d->target))
+                d->kind == OBJECT_CAMERA) && d->target && !optional_reference_get(c, d->target))
+            return error_result_error(ERROR_ENGINE_STATE_REFERENCE_NOT_FOUND);
+        if(d->kind == OBJECT_ANCHOR && d->target && !reference_get(c, d->target))
             return error_result_error(ERROR_ENGINE_STATE_REFERENCE_NOT_FOUND);
         if(d->kind == OBJECT_JOINT || d->kind == OBJECT_BEAM) {
             uint64_t ids[] = {d->endpoint_a, d->endpoint_b};
@@ -826,8 +851,9 @@ static EngineResult entity_settings_apply(SpawnContext *c, SpawnEntry *entry) {
         if(d->kind == OBJECT_FORCE || d->kind == OBJECT_TORQUE)
             return error_result_error(ERROR_ENGINE_STATE_INVALID);
         Entity target = target_get(c, s.gameplay_target.id);
-        if(!target) return error_result_error(ERROR_ENGINE_ENTITY_NOT_FOUND);
-        APPLY(physics_target_set(entry->entity, target));
+        if(!target && !optional_reference_omitted_check(c, s.gameplay_target.id))
+            return error_result_error(ERROR_ENGINE_ENTITY_NOT_FOUND);
+        if(target) APPLY(physics_target_set(entry->entity, target));
     }
     if(physics && s.axis_lock_enabled) {
         AxisLockDescription axis = s.axis_lock;
@@ -841,7 +867,7 @@ static EngineResult entity_settings_apply(SpawnContext *c, SpawnEntry *entry) {
         }
         APPLY(physics_axis_lock_description_set(entry->entity, axis));
     }
-    if(physics && s.transform_driver.id) {
+    if(physics && s.transform_driver.id && !optional_reference_omitted_check(c, s.transform_driver.id)) {
         Entity driver = target_get(c, s.transform_driver.id);
         if(!driver) return error_result_error(ERROR_ENGINE_ENTITY_NOT_FOUND);
         APPLY(physics_transform_lock_description_set(entry->entity, (TransformLockDescription){
@@ -858,8 +884,9 @@ static bool dependency_ready_check(SpawnContext *c, uint64_t id) {
 
 static bool entry_ready_check(SpawnContext *c, const ObjectDescription *d) {
     if(d != c->entries[0].description && d->parent && !parent_get(c, d)) return false;
-    if((d->kind == OBJECT_ANCHOR || d->kind == OBJECT_CAMERA || d->kind == OBJECT_SPRITE ||
-            d->kind == OBJECT_ANIMATION) && !dependency_ready_check(c, d->target)) return false;
+    if(d->kind == OBJECT_ANCHOR && !dependency_ready_check(c, d->target)) return false;
+    if((d->kind == OBJECT_CAMERA || d->kind == OBJECT_SPRITE || d->kind == OBJECT_ANIMATION) &&
+            !optional_reference_omitted_check(c, d->target) && !dependency_ready_check(c, d->target)) return false;
     if(d->kind == OBJECT_BEAM && (!dependency_ready_check(c, d->endpoint_a) ||
             !dependency_ready_check(c, d->endpoint_b))) return false;
     if(d->kind == OBJECT_AREA && d->area) {

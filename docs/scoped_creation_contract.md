@@ -1,9 +1,10 @@
 # Scoped creation and the teaching starter
 
 Milestone 16 Goal 1 design contract, 2026-11-07. This document defines the target
-behavior approved for the new milestone. **The APIs and changed behavior below
-are not implemented by this documentation goal.** Goals 2–5 implement and verify
-them. The current API remains documented in [shared creation](shared_creation.md)
+behavior approved for the new milestone. Goal 2 implements optional external-link
+omission and background-only unbound viewport screens. **The project instance APIs
+and teaching starter below remain planned for Goals 3–4.** Goal 5 integrates
+verification. The current API is documented in [shared creation](shared_creation.md)
 and [automatic viewports](automatic_viewports.md).
 
 This contract supersedes the milestone 15 rules that require bindings for every
@@ -326,3 +327,47 @@ integrates the completed paths; it does not defer focused checks until the end.
 
 The ordered goals and status are authoritative in
 [Milestone 16](../NEXT_STEPS.md#16-scoped-creation-and-a-teaching-starter).
+
+
+## Goal 2 verification
+
+The implementation preserves required physics dependencies while allowing valid
+optional references outside the selected creation scope to remain unbound.
+Standalone viewport recipes retain authored camera metadata and create empty
+screens; runtime camera binding and clearing invalidate cached screen contents.
+Previously bound cameras that become stale still produce diagnostics. No physics
+solver, timing setting, project instance API, or generated starter path changes
+in this goal.
+
+- Linux Release: all 23 focused engine/editor tests, five selected installed-SDK
+  consumers, and three generated-project integration checks pass.
+- ASan/UBSan with leak detection: the same 23 focused tests and five installed-SDK
+  checks pass, including 1,000-cycle creation/destruction and failure rollback.
+  Tests cover independent poses/deadlines, immutable catalogs, explicit bindings,
+  required dependencies, stale cameras, empty-screen composition, and paused
+  camera rebinding.
+- All 14 installed-SDK consumer targets and four independent examples
+  (`center_of_mass`, `player_controller`, `soft-body`, and `view-port`) build on
+  Linux Release, Linux sanitizer, and Windows cross configurations. Windows
+  engine/editor and affected tests cross-build; native Windows execution is
+  unverified. These are isolated Nix-built SDK installs; generic Linux archive
+  packaging and the new whole-project workflow remain Goal 5 verification.
+- All four independent examples launch from `/tmp` in Release and ASan/UBSan.
+  The interactive examples pass startup/shutdown smoke checks. Both headless car
+  runs complete 3,600 frames and their declared 60-second simulation endpoint,
+  with matching 14,400 substeps, 7,222,164 candidates, and 1,195,541 contacts.
+  These are completion/regression checks, not rendered performance acceptance.
+- The user accepted the real installed-SDK viewport preview cycling between
+  empty screens, both cameras bound, both cleared, and only the inset bound,
+  with backgrounds and UI preserved and no trails or warning stripes.
+
+Evidence and reproducible verification scripts are in
+`sandbox/milestone_16/goal_2/`. No compiler warnings or sanitizer findings remain.
+Existing HarfBuzz pkg-config messages about unavailable `glib-2.0.pc` reproduce
+in the prior milestone's environment; CMake finds the installed HarfBuzz library
+and all configurations/builds succeed. The initial sanitizer harness requested
+a disabled CLI target; enabling that target resolves the setup failure. Generated
+configuration coverage now expects successful unbound viewport rendering rather
+than the superseded missing-binding error. The user's `dist/` installation is
+unchanged. Existing physics failure inventories and rendered performance gates
+are not reopened or claimed fixed.

@@ -39,8 +39,23 @@ int main(void) {
         .force={.target={OBJECT_SOURCE_BODY,2,0},.magnitude=7}};
     ObjectDescription authored_torque = {.id=4,.name="turn",.kind=OBJECT_TORQUE,.parent=&source_object,.categories=ROHR_ENTITY_OBJECT_PHYSICS,
         .torque={.target={OBJECT_SOURCE_BODY,2,0},.mode=OBJECT_SOURCE_INITIAL}};
-    const ObjectDescription *source_children[] = {&receiving_body,&authored_force,&authored_torque};
-    source_object.children=source_children;source_object.child_count=3;
+    ObjectDescription follower = {.id=5,.name="follower",.kind=OBJECT_PARTICLE,
+        .mass=1,.radius=1,.parent=&source_object,.categories=ROHR_ENTITY_OBJECT_ALL,
+        .position={5,6},.entity_settings={
+            .gameplay_target={.kind=OBJECT_BODY,.id=2},
+            .transform_driver={.kind=OBJECT_BODY,.id=2},.transform_position=true}};
+    const ObjectDescription *source_children[] = {&receiving_body,&authored_force,&authored_torque,&follower};
+    source_object.children=source_children;source_object.child_count=4;
+    EntityResult standalone_follower=rohr_entity_create(&follower); OK(standalone_follower);
+    assert(!rohr_entity_components_check(standalone_follower.result.value,ROHR_TARGETABLE));
+    assert(rohr_error_check(rohr_physics_transform_lock_description_get(standalone_follower.result.value)));
+    assert(rohr_physics_position_get(standalone_follower.result.value).result.value.x==5);
+    assert(rohr_error_check(rohr_entity_create(&authored_force)));
+    EntityResult complete_object=rohr_object_create(&source_object); OK(complete_object);
+    EntityResult created_follower=rohr_object_member_get(complete_object.result.value,"follower"); OK(created_follower);
+    EntityResult created_target=rohr_object_member_get(complete_object.result.value,"receiver"); OK(created_target);
+    assert(rohr_physics_transform_lock_description_get(created_follower.result.value).result.value.driver==created_target.result.value);
+    OK(rohr_entity_delete(complete_object.result.value)); OK(rohr_entity_delete(standalone_follower.result.value));
     ObjectDescriptionResult source_copy=rohr_object_copy(source_object);OK(source_copy);
     ObjectDescriptionResult force_copy=rohr_object_description_by_name_get(source_copy.result.value,"thrust");OK(force_copy);
     ObjectDescriptionResult torque_copy=rohr_object_description_by_name_get(source_copy.result.value,"turn");OK(torque_copy);

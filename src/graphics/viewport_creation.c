@@ -81,6 +81,26 @@ ViewportItemIdResult graphics_viewport_owned_camera_add(ViewportId viewport, Cam
 }
 
 static bool name_check(const char *name) { return name && name[0] && strlen(name) < ENTITY_NAME_MAX; }
+static bool camera_member_check(const ObjectDescription *object, const ObjectDescription *member) {
+    if(!object || !member || member->kind != OBJECT_CAMERA) return false;
+    for(size_t depth = 0; depth <= OBJECT_DEPTH_MAX; ++depth) {
+        if(!name_check(member->name) || !member->id) return false;
+        if(member == object) return true;
+        const ObjectDescription *parent = member->parent;
+        if(!parent || parent->child_count > MAX_ENTITIES ||
+                (parent->child_count && !parent->children)) return false;
+        size_t matches = 0;
+        for(size_t i = 0; i < parent->child_count; ++i) {
+            const ObjectDescription *child = parent->children[i];
+            if(!child || !name_check(child->name)) return false;
+            if(child == member) ++matches;
+            else if(child->id == member->id || !strcmp(child->name, member->name)) return false;
+        }
+        if(matches != 1) return false;
+        member = parent;
+    }
+    return false;
+}
 static EntityResult member_resolve(Entity instance, const ObjectDescription *object,
         const ObjectDescription *member) {
     const ObjectDescription *path[OBJECT_DEPTH_MAX];
@@ -146,7 +166,7 @@ ViewportIdResult graphics_viewport_create_description(const ViewportCreateDescri
             .content_mode = SCREEN_CONTENT_AUTOMATIC, .background_color = item->background_color};
         if(item->render_width < 0 || item->render_height < 0 ||
                 (!!item->camera_object != !!item->camera_member) ||
-                (item->camera_member && item->camera_member->kind != OBJECT_CAMERA)) goto invalid;
+                (item->camera_member && !camera_member_check(item->camera_object, item->camera_member))) goto invalid;
         const ViewportObjectBinding *object = NULL;
         for(size_t b = 0; b < input->object_count; ++b)
             if(input->objects[b].description == item->camera_object) { object = &input->objects[b]; objects_used[b] = true; }
@@ -157,8 +177,7 @@ ViewportIdResult graphics_viewport_create_description(const ViewportCreateDescri
         if(override) {
             entity = override->entity;
             screens[i].camera = override->camera;
-        } else if(item->camera_member) {
-            if(!object) goto invalid;
+        } else if(item->camera_member && object) {
             EntityResult member = member_resolve(object->instance, item->camera_object, item->camera_member);
             if(error_check(member)) { failure = member.result.error; goto invalid; }
             entity = member.result.value;
@@ -169,7 +188,7 @@ ViewportIdResult graphics_viewport_create_description(const ViewportCreateDescri
             screens[i].camera = camera.result.value;
             screens[i].camera_entity = entity;
         }
-        if((override || item->camera_member) && error_check(graphics_camera_get(screens[i].camera))) goto invalid;
+        if((override || object) && error_check(graphics_camera_get(screens[i].camera))) goto invalid;
     }
     for(size_t b = 0; b < input->object_count; ++b) if(!objects_used[b]) goto invalid;
     for(size_t b = 0; b < input->camera_count; ++b) if(!cameras_used[b]) goto invalid;

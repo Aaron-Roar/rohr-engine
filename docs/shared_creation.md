@@ -5,10 +5,9 @@ Milestone 15 Goal 2 implements the entity/object portion of the
 [automatic viewports](automatic_viewports.md), and Goal 4 adds the unified
 generated `project.h`. Existing generated catalogs remain compatible.
 
-The next [scoped creation contract](scoped_creation_contract.md) specifies
-standalone optional-link behavior and `rohr_project_create()`. These are planned
-milestone 16 APIs/semantics, not yet available. The examples below document the
-currently implemented creation and binding requirements.
+Milestone 16 Goal 2 implements the [scoped creation rules](scoped_creation_contract.md)
+for optional external links and unbound viewport screens. `rohr_project_create()`
+and the new teaching starter remain planned for Goals 3–4.
 
 ## Unified generated project
 
@@ -38,7 +37,8 @@ ViewportIdResult viewport = rohr_viewport_create(&description);
 The authored screen selects its camera description; the binding selects the
 object instance containing that camera. Creating a viewport does not create the
 object. Named members and hierarchy traversal reference the same description
-records. Member dependencies still require the bindings described below.
+records. Optional links outside the selected creation scope remain unbound unless
+supplied; required physics dependencies still need the bindings described below.
 Generated C field names are normalized identifiers; runtime member lookup uses
 the authored name, available as `project.starter.name`. Conflicting or reserved
 generated names are rejected before writing output.
@@ -151,8 +151,16 @@ Both options support `owner`, a world-space translation `offset`, and a
 physics/visual `flags`; zero flags are invalid, and the default getter selects
 both categories. Supplying a lifetime owner does not apply its transform again.
 
-Internal references resolve within the new object instance. For individual
-creation, bind each referenced description to the intended live entity:
+Internal references resolve within the new object instance. Standalone cameras,
+sprites, animations, gameplay targets, and transform drivers do not automatically
+connect to anything outside that creation scope. Their authored targets must still
+identify valid catalog members, but need not have live instances. Creating the
+whole containing object restores those internal links automatically. Descriptions
+are never rewritten by partial creation, and no global instance lookup occurs.
+
+Independent settings, lifetime deadlines, and authored initial poses remain in
+effect; omitted links do not create ancestors or reset position to zero. To connect
+an external dependency, bind its description to the intended live entity:
 
 ```c
 /* live_body is a previously created compatible entity. */
@@ -168,11 +176,13 @@ EntityResult anchor = rohr_entity_create_with_options(
 ```
 
 Binding descriptions must belong to the same catalog as the selected template.
-Missing nonzero references, duplicate/conflicting identities, wrong kinds, stale
-handles, cycles, and invalid topology ownership fail creation. A joint binding
+Dangling authored identities, missing required physics references,
+duplicate/conflicting identities, wrong kinds, stale explicit handles, cycles,
+and invalid topology ownership fail creation. A joint binding
 names an anchor entity; its owned anchor resource is resolved automatically.
 Individual creation of a node, beam, or area requires the intended soft-body
-owner. Force/torque members require their runtime owner and referenced targets.
+owner. Attached anchors require their referenced bodies. Force/torque members
+require their runtime owner and referenced targets.
 Zero references retain the existing disconnected/world semantics.
 
 Binding an attached visual to an existing body creates a separate attached

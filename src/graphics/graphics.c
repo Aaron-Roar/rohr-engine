@@ -1713,6 +1713,8 @@ EngineResult graphics_screen_description_set(ScreenId id, ScreenDescription desc
         screen->height = description.height;
         screen->initialized = false;
     }
+    if(screen->camera != description.camera || screen->camera_entity != description.camera_entity ||
+            screen->content_mode != description.content_mode) screen->initialized = false;
     screen->camera = description.camera;
     screen->camera_entity = description.camera_entity;
     screen->content_mode = description.content_mode;
@@ -1744,6 +1746,10 @@ EngineResult graphics_screen_camera_set(ScreenId id, CameraId camera_id) {
     size_t screen_slot;
     if(!graphics_screen_slot(id, &screen_slot))
         return error_result_error(ERROR_ENGINE_COMPONENT_MISSING);
+    size_t camera_slot;
+    if(camera_id && !graphics_camera_slot(camera_id, &camera_slot))
+        return error_result_error(ERROR_ENGINE_COMPONENT_MISSING);
+    if(screens[screen_slot].camera != camera_id) screens[screen_slot].initialized = false;
     screens[screen_slot].camera = camera_id;
     screens[screen_slot].camera_entity = ENTITY_INVALID;
     return error_result_value(true);
@@ -4114,12 +4120,8 @@ static void graphics_viewport_ui_slider_draw(const GraphicsViewport *viewport,
     if(pressed_result != NULL) *pressed_result = active && mouse_down;
 }
 
-/* The same construction pattern used by the editor's empty camera preview.
- * Clip in screen-local coordinates before rotating; viewport scissoring alone
- * cannot contain stripes at a rotated screen's corners. */
-static void graphics_missing_camera_draw(const GraphicsViewport *viewport,
-        const ViewportItemDescription *item) {
-    const Color background = {52, 54, 58, 255}, stripe = {105, 88, 32, 255};
+static void graphics_screen_background_draw(const GraphicsViewport *viewport,
+        const ViewportItemDescription *item, Color background) {
     float width = item->rectangle.width, height = item->rectangle.height;
     Position center = {viewport->rectangle.x + item->rectangle.x + width * 0.5f,
         viewport->rectangle.y + item->rectangle.y + height * 0.5f};
@@ -4131,9 +4133,20 @@ static void graphics_missing_camera_draw(const GraphicsViewport *viewport,
             (Vec2D){corners[i].x * width, corners[i].y * height}, item->orientation);
         vertices[i] = (SDL_Vertex){.position = {center.x + point.x, center.y + point.y},
             .color = {background.red / 255.0f, background.green / 255.0f,
-                background.blue / 255.0f, 1.0f}};
+                background.blue / 255.0f, background.alpha / 255.0f}};
     }
     (void)GRAPHICS_DRAW(SDL_RenderGeometry(sdl_renderer, NULL, vertices, 4, indices, 6));
+}
+
+/* Stale bound cameras retain a diagnostic placeholder. An intentionally empty
+ * screen uses only its background. Clip stripes locally before rotating. */
+static void graphics_missing_camera_draw(const GraphicsViewport *viewport,
+        const ViewportItemDescription *item) {
+    const Color background = {52, 54, 58, 255}, stripe = {105, 88, 32, 255};
+    float width = item->rectangle.width, height = item->rectangle.height;
+    Position center = {viewport->rectangle.x + item->rectangle.x + width * 0.5f,
+        viewport->rectangle.y + item->rectangle.y + height * 0.5f};
+    graphics_screen_background_draw(viewport, item, background);
     GRAPHICS_STATE(SDL_SetRenderDrawColor(sdl_renderer, stripe.red, stripe.green, stripe.blue, stripe.alpha));
     /* Bound work for extreme authored dimensions while retaining normal spacing. */
     float spacing = fmaxf(24.0f, (width + height) / 4096.0f);
@@ -4323,6 +4336,12 @@ static void graphics_viewports_draw(const GraphicsSelection *selection) {
             if(viewport->items[item].hovered)
                 drag_candidate = viewport->items[item].id;
             size_t camera_slot;
+            if(!screen->camera && !screen->camera_entity) {
+                graphics_screen_background_draw(viewport, config, screen->background_color);
+                if(context->item_failed) context->skipped++;
+                else context->processed++;
+                continue;
+            }
             if(!graphics_screen_camera_live_check(screen, &camera_slot)) {
                 if(!missing_camera_reported[screen_slot]) {
                     graphics_report_issue(context->report, context->stage,

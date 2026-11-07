@@ -22,7 +22,7 @@ int main(int argc, char **argv) {
         .objects=&binding,.object_count=1};
     ViewportIdResult view = rohr_viewport_create(&description);
     if(missing) {
-        assert(rohr_error_check(view)); /* Missing cameras fail at creation. */
+        assert(rohr_error_check(view)); /* An explicitly supplied invalid owner still fails. */
         starter = take(rohr_object_create(&project.starter));
         binding.instance = starter;
         view = rohr_viewport_create(&description);

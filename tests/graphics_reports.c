@@ -626,11 +626,13 @@ static void missing_camera_checks(bool visual) {
     CameraDescription camera = rohr_camera_description_default_get();
     camera.render_callback = render;
     CameraIdResult live = rohr_camera_create(camera); OK(live);
+    CameraIdResult removed = rohr_camera_create(camera); OK(removed);
     ViewportDescription description = rohr_viewport_description_default_get();
     description.rectangle = (ViewportRectangle){40, 40, 600, 420};
     description.fit = SCREEN_FIT_NONE; description.enabled = true;
     ViewportIdResult viewport = rohr_viewport_create(description); OK(viewport);
-    ScreenIdResult missing = rohr_screen_create((ScreenDescription){.camera = CAMERA_INVALID, .width = 320, .height = 240}); OK(missing);
+    ScreenIdResult missing = rohr_screen_create((ScreenDescription){.camera = removed.result.value, .width = 320, .height = 240}); OK(missing);
+    OK(rohr_camera_destroy(removed.result.value));
     ScreenIdResult healthy = rohr_screen_create((ScreenDescription){.camera = live.result.value, .width = 320, .height = 240}); OK(healthy);
     ViewportItemDescription item = rohr_viewport_item_description_default_get();
     item.rectangle = (ViewportRectangle){-45, 30, 280, 240}; item.orientation = 30; item.layer = 0;
@@ -674,7 +676,7 @@ static void missing_camera_checks(bool visual) {
     ReportDiagnostic retained = report.diagnostics[0];
     assert(retained.report_id == ROHR_GRAPHICS_VIEWPORTS_REPORT_ID && retained.severity == ROHR_REPORT_SEVERITY_WARNING);
     assert(retained.source.kind == ROHR_REPORT_OBJECT_SCREEN && retained.source.id == missing.result.value);
-    assert(retained.target.kind == ROHR_REPORT_OBJECT_CAMERA && retained.target.id == CAMERA_INVALID);
+    assert(retained.target.kind == ROHR_REPORT_OBJECT_CAMERA && retained.target.id == removed.result.value);
     assert(retained.occurrence_count == 1 && strstr(retained.detail, "construction placeholder"));
     report = rohr_graphics_show(); complete(report); assert(report.diagnostic_count == 1);
     item = rohr_viewport_item_description_get(first.result.value).result.value; item.visible = false;
@@ -695,7 +697,7 @@ static void missing_camera_checks(bool visual) {
     ScreenDescription screen = rohr_screen_description_get(missing.result.value).result.value;
     screen.camera = replacement.result.value; OK(rohr_screen_description_set(missing.result.value, screen));
     report = rohr_graphics_show(); complete(report); assert(report.diagnostic_count == 0);
-    assert(retained.target.id == CAMERA_INVALID); /* Retained report evidence is independent. */
+    assert(retained.target.id == removed.result.value); /* Retained report evidence is independent. */
     OK(rohr_viewport_destroy(viewport.result.value));
     OK(rohr_screen_destroy(missing.result.value)); OK(rohr_screen_destroy(healthy.result.value));
     OK(rohr_camera_destroy(replacement.result.value)); OK(rohr_graphics_text_destroy(&text.result.value));

@@ -414,7 +414,9 @@ typedef enum ViewportCreateItemKind {
 } ViewportCreateItemKind;
 
 /** Immutable recipe. Runtime handles in placement and UI descriptions must be zero.
- * Screen content is automatic; camera references use the creation descriptor's bindings. */
+ * Screen content is automatic; camera references use the creation descriptor's bindings.
+ * Without a runtime binding, a screen shows only its background, even when its
+ * recipe names an authored camera. Authored references are still validated. */
 typedef struct ViewportCreateItemDescription {
     const char *name;
     ViewportCreateItemKind kind;

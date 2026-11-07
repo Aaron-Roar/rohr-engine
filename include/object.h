@@ -249,6 +249,9 @@ EntityCreateOptions entity_create_options_default_get(void);
 ObjectCreateOptions object_create_options_default_get(void);
 /** Create one member without its separately authored children or siblings.
  * Container and soft-body aggregate templates are rejected.
+ * Optional authored attachments, targets, and transform drivers outside this
+ * creation scope stay unbound unless explicitly supplied. Required physics
+ * dependencies still need valid bindings; independent settings are preserved.
  * Input is borrowed during the call; returned state and asset references are
  * independently owned. Creation may allocate/load assets. Failure rolls back
  * the attempt without altering borrowed instances. Delete with entity_delete. */
@@ -256,7 +259,8 @@ EntityResult entity_create(const EntityCreateDescription *description);
 EntityResult entity_create_with_options(const EntityCreateDescription *description,
     EntityCreateOptions options);
 /** Create a container/aggregate and its members. Internal references resolve
- * within this instance; external references require explicit bindings. */
+ * within this instance. Optional external links stay unbound without explicit
+ * bindings; required physics dependencies must resolve. */
 EntityResult object_create(const ObjectDescription *description);
 EntityResult object_create_with_options(const ObjectDescription *description,
     ObjectCreateOptions options);

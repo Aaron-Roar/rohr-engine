@@ -15,7 +15,7 @@ priority order.
 | 4 | Cross-path feature parity | Complete by user acceptance; recorded verification exceptions remain |
 | 14 | Frame pacing before game development | Complete; corrected pacing verified and initial previews accepted |
 | 15 | [Descriptor-based creation and automatic viewport rendering](#15-descriptor-based-creation-and-automatic-viewport-rendering) | Complete; all six goals verified, final generated workflow accepted |
-| 16 | [Scoped creation and a teaching starter](#16-scoped-creation-and-a-teaching-starter) | Goal 1 complete for review; Goals 2–5 await user instruction |
+| 16 | [Scoped creation and a teaching starter](#16-scoped-creation-and-a-teaching-starter) | Goals 1–2 complete; Goals 3–5 await user instruction |
 | — | [C game experiment](#c-game-experiment) | Follows milestone 16 by user direction; agree concept and completion criteria with the user |
 | 13 | Physics rebuild from the simpler baseline | Paused by user direction for frame pacing and game development; goals 1, 2a, 2b and 4a complete; goals 2 and 3 failed; goal 4 blocking remains incomplete; goals 5–8 not started |
 | 12 | Real-time physics pipeline rework | Closed by user direction; superseded by milestone 13, not complete; goals 1–13 complete, goal 14 unfinished, goals 15–19 not started; evidence preserved |
@@ -28,16 +28,18 @@ priority order.
 | 10 | End-to-end game | Pending; separate larger game directed by the user |
 
 **Current priority:** By user direction, milestone 16 simplifies creation before
-the C game checkpoint. Goal 1 is complete for review: the
+the C game checkpoint. Goals 1–2 are complete: scope-based creation and optional
+viewport bindings are implemented and verified. The
 [scoped creation contract](docs/scoped_creation_contract.md) defines optional
 external references, automatic wiring within the selected creation scope, project
 instance ownership/access, and the three starter alternatives. Whole-project
 creation owns its scene, viewports, controllers, and all authored sound/music
 resources; global engine/window settings remain an explicit startup step, and
 audio playback remains explicit. Only the project path is active in the planned
-starter; object and individual-entity alternatives are commented out and verified
-separately. These changes are specified, not implemented. Stop for review and
-commit; Goal 2 requires explicit user instruction. Physics remains paused.
+starter; object and individual-entity alternatives will be commented out and
+verified separately. The project API and teaching starter remain planned for
+Goals 3–4. Stop at Goal 2 for review and commit; Goal 3 awaits explicit user
+instruction. Physics remains paused.
 
 Milestone 15 is complete. Its Goal 1 defines the
 [creation and viewport contract](docs/creation_and_viewport_contract.md).
@@ -855,13 +857,28 @@ by default. Preserve existing physics, presentation, and developer-owned code.
    preservation of internal authored wiring. Source consistency, local links,
    and whitespace checks pass. Documentation only: runtime behavior is unchanged;
    no build, test executable, sanitizer, or platform execution is claimed.
-2. [ ] **Implement scope-based creation and optional viewport bindings.**
+2. [x] **Implement scope-based creation and optional viewport bindings.**
    Resolve internal entity/object references, omit optional external links when
    unbound, preserve independent settings and initial poses, and keep required
    physics-reference validation. Standalone viewports create their layout without
    requiring cameras; explicit creation-time and later runtime bindings remain
    supported. Verify omission, invalid bindings, full-object parity, independent
-   instances, empty screens, and focused failure/lifecycle behavior.
+   instances, empty screens, and focused failure/lifecycle behavior. **Result:
+   complete for review.** Optional external links remain unbound without changing
+   immutable recipes, initial poses, deadlines, or required physics dependencies.
+   Empty viewport screens retain backgrounds/UI; binding, clearing, and paused
+   rebinding work without cached-content trails. The user accepts the preview.
+   All 23 focused tests and five installed-SDK checks pass in Release and
+   ASan/UBSan, including 1,000-cycle lifecycle and failure rollback coverage;
+   three generated-project integration checks pass. All 14 SDK consumer targets
+   and four independent examples build on Linux and cross-build for Windows.
+   Linux examples launch outside the source tree in Release and sanitizer builds;
+   both car runs reach the full 60-second simulation endpoint with matching work
+   counts. No new compiler warnings or sanitizer findings remain. Native Windows
+   execution is unverified; generic archive/workflow integration remains Goal 5.
+   See the [verification record](docs/scoped_creation_contract.md#goal-2-verification)
+   and `sandbox/milestone_16/goal_2/`. Physics settings and failure inventories
+   remain unchanged. Stop for review and commit.
 3. [ ] **Implement whole-project creation and ownership.** Add
    `rohr_project_create()` and instance lookup/destruction through shared creators.
    Wire the full scene and viewports; create separate controllers/actions and load

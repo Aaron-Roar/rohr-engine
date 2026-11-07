@@ -1,9 +1,8 @@
 # Automatic viewports
 
-Milestone 16's [scoped creation contract](scoped_creation_contract.md) plans
-background-only standalone screens without required runtime camera bindings and
-automatic camera wiring during whole-project creation. These changes are not yet
-implemented; this guide describes the existing runtime API.
+Milestone 16 Goal 2 implements background-only standalone screens without required
+runtime camera bindings, as defined by the [scoped creation contract](scoped_creation_contract.md).
+Whole-project creation and its automatic camera wiring remain Goal 3.
 
 Milestone 15 Goal 3 implements complete viewport creation and automatic scene
 rendering. Unified `project.h` generation is described in
@@ -51,10 +50,24 @@ separate viewport options structure or `_with_options` call.
 A screen item names its authored camera object and member. An object binding
 resolves that member inside the chosen instance during creation. Alternatively,
 `ViewportCameraBinding` overrides a named screen with exactly one camera entity
-or low-level camera handle. Overrides take precedence. Duplicate, missing,
-unconsumed, stale, or incompatible bindings fail; no camera is implicitly spawned.
-An item without an authored camera or override remains unbound and displays the
-existing missing-camera placeholder and report warning.
+or low-level camera handle. Overrides take precedence. Duplicate, unconsumed,
+stale, or incompatible explicit bindings fail; no camera is implicitly spawned.
+An item without a runtime binding remains unbound even if its recipe names an
+authored camera. It displays only its background, without scene content, fallback
+cameras, warning stripes, or missing-camera diagnostics. Authored camera references
+are still validated; a malformed reference is not treated as an empty screen.
+
+For example, `rohr_viewport_create(&project.initial_viewport)` creates the authored
+layout without scene bindings. Use item lookup to retrieve a screen, then call
+`rohr_screen_camera_set(screen, camera)` to connect it later. Passing
+`CAMERA_INVALID` clears the binding. Invalid nonzero camera IDs are rejected by
+this setter without replacing its current binding. A new binding invalidates
+old screen content, so a paused camera starts with its background rather than
+reusing another camera's image. UI remains available while screens are empty.
+
+A camera destroyed after binding is different from an intentional empty screen:
+its stale handle still produces the existing warning/placeholder until explicitly
+cleared or rebound. Slot reuse never silently selects a replacement camera.
 
 Instance matching uses copied catalog-root ID/name, member ID and retained kind,
 then walks direct authored member names. It does not retain catalog pointers or
@@ -93,6 +106,8 @@ Screens and UI retain viewport-item transforms, clipping and layer order; at equ
 item layers screens precede UI. Later-created scene entities need no registration
 with the viewport. The test's `--preview` mode demonstrates two screens and a
 runtime-added Toggle button controlling entity visibility.
+The `--preview-unbound` mode cycles between empty screens, both cameras bound,
+cleared screens, and only the inset bound, while keeping UI available.
 
 Automatic scenes also honor the global AABB/contact debug toggles. Optional
 `rohr_graphics_hit_boxes_debug_set`, `rohr_graphics_particles_debug_set`, and
