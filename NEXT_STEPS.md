@@ -14,7 +14,8 @@ priority order.
 | 3 | COM, inertia, and origin semantics | Complete |
 | 4 | Cross-path feature parity | Complete by user acceptance; recorded verification exceptions remain |
 | 14 | Frame pacing before game development | Complete; corrected pacing verified and initial previews accepted |
-| — | [C game experiment](#c-game-experiment) | Next: agree concept and completion criteria with the user |
+| 15 | [Descriptor-based creation and automatic viewport rendering](#15-descriptor-based-creation-and-automatic-viewport-rendering) | Goal 1 complete for review; goals 2–6 pending explicit instruction |
+| — | [C game experiment](#c-game-experiment) | Follows milestone 15; agree concept and completion criteria with the user |
 | 13 | Physics rebuild from the simpler baseline | Paused by user direction for frame pacing and game development; goals 1, 2a, 2b and 4a complete; goals 2 and 3 failed; goal 4 blocking remains incomplete; goals 5–8 not started |
 | 12 | Real-time physics pipeline rework | Closed by user direction; superseded by milestone 13, not complete; goals 1–13 complete, goal 14 unfinished, goals 15–19 not started; evidence preserved |
 | 11 | Soft-body correctness and real-time performance | Superseded by milestone 12; not complete; evidence preserved |
@@ -25,11 +26,19 @@ priority order.
 | 7 | Editor implementation scalability | Deferred until after Python unless game development makes it necessary sooner |
 | 10 | End-to-end game | Pending; separate larger game directed by the user |
 
-**Current priority:** Milestone 14 Goal 1 is complete. Corrected car/pit runs
-achieve about 60.06/60.05 FPS without accumulating pacing lag; Linux/sanitizer
-checks, Windows cross-builds and VSync/window-switch checks pass. The user
-accepted the initial corrected previews. See the [report](docs/frame_pacing.md).
-Stop for review and commit; next agree the small C game's concept and criteria.
+**Current priority:** By user direction, milestone 15 precedes the C game
+checkpoint. Goal 1 defines the [creation and viewport contract](docs/creation_and_viewport_contract.md)
+and is complete for review; the runtime APIs are not implemented by this goal.
+Stop for review and commit. Do not start Goal 2 without explicit instruction.
+Descriptions remain immutable, created instances remain mutable, camera bindings
+are explicit and applied during viewport creation, and live viewports remain
+extensible from application code. Automatic rendering reuses runtime visual
+state and uses discovery order within equal layers.
+
+Milestone 14 remains complete: corrected car/pit runs achieve about
+60.06/60.05 FPS without accumulating pacing lag; the recorded Linux/sanitizer,
+Windows cross-build, VSync/window-switch checks and initial preview acceptance
+remain in the [report](docs/frame_pacing.md).
 The user explicitly paused further physics development
 to learn from a playable game. Preserve the current physics defaults, unfinished
 requirements and known failures; do not resume physics automatically.
@@ -612,7 +621,8 @@ over-budget work from unnecessary limiter waits.
    car/pit workloads with controlled before/after runs. Verify VSync and window
    switching, relevant Linux/sanitizer checks, Windows cross-builds and standalone
    SDK consumers. Obtain visual feedback. Stop for review and commit; the next
-   checkpoint is agreeing the C game's concept, not more physics optimization.
+   checkpoint at completion was agreeing the C game's concept, not more physics
+   optimization. The user subsequently inserted milestone 15 before that work.
    **Result: complete.** Software limiting now includes presentation in its frame
    budget; late frames start a fresh interval without catch-up bursts. Three
    complete runs per workload/version improve car from 59.029–59.124 to
@@ -624,6 +634,60 @@ over-budget work from unnecessary limiter waits.
    native Windows timing is unverified. The user accepted the initial previews.
    The ten-second car remains a diagnostic, not full physics acceptance. See
    [the report](docs/frame_pacing.md) and `sandbox/frame_pacing/`.
+
+### 15. Descriptor-based creation and automatic viewport rendering
+
+Make editor-authored content usable through shared engine creation functions,
+with viewports drawing from runtime entity state without application camera
+callbacks or object-specific generated creators. Immutable descriptions produce
+independent mutable instances. Viewports apply authored camera assignments using
+explicit runtime bindings at creation and remain extensible from application
+code afterward. Preserve current physics and frame-pacing behavior.
+
+1. [x] **Define the API and ownership contract.** Specify entity, object, and
+   viewport descriptions; creation results; access to created members; camera
+   bindings; destruction; and multiple-viewport presentation. Define individual
+   member dependencies and existing API migration. **Result: complete for
+   review.** The [contract](docs/creation_and_viewport_contract.md) records the
+   user's immutable-description, explicit-camera-instance, runtime-extension,
+   creation-time camera assignment, and equal-layer discovery decisions. It
+   distinguishes existing machinery from target APIs and defines ownership,
+   rollback, reports, compatibility, and later verification. Documentation/source
+   consistency, local links, and whitespace are checked; no runtime code changes,
+   builds, sanitizer runs, or platform execution are claimed for this goal.
+2. [ ] **Implement shared entity and object creation.** Support whole-object
+   creation and individual members such as
+   `rohr_entity_create(&project.water.particle)`. Reuse existing spawning
+   machinery, resolve internal and explicit external references, preserve
+   independent instances, and clean up partial creation failures.
+3. [ ] **Implement automatic viewport rendering.** Reuse existing runtime
+   appearance, visibility, and layer data, adding only confirmed missing
+   information. Implement complete viewport creation and its runtime camera
+   bindings, keep later screen/UI extension available, remove the need for
+   application camera callbacks, use discovery order within equal layers, and
+   present multiple viewports once per frame.
+4. [ ] **Generate descriptions through a unified project interface.** Expose
+   named object, entity, and viewport descriptions through a project header,
+   with definitions in generated source files. Replace object-specific creation
+   code with data consumed by shared engine APIs. Preserve editor properties,
+   persistence, references, and deterministic generation.
+5. [ ] **Migrate starter projects and affected examples.** Demonstrate shared
+   creation functions and viewport-driven rendering in a straightforward game
+   loop. Update documentation and regeneration behavior while preserving
+   developer-edited `main.c` files.
+6. [ ] **Verify SDK parity, lifecycle, performance, and game workflow.** Build
+   and run generated and handwritten consumers against the installed generic
+   Linux SDK, cross-build for Windows, verify independent instances and cleanup
+   under sanitizers, measure rendering overhead without changing physics
+   settings, and review the resulting workflow visually. Include adding screens
+   and interactive UI to a created viewport from application code.
+
+Each implementation goal includes relevant focused verification before its
+boundary; Goal 6 integrates those checks rather than postponing them. The
+contract defines the acceptance inventory, including the existing 1,000-cycle
+lifecycle criterion and controlled rendering comparisons. No implementation goal
+starts automatically. After this milestone, resume planning the C game
+experiment; physics work remains paused with its failures preserved.
 
 ### 13. Physics rebuild from the simpler baseline
 
@@ -2215,8 +2279,9 @@ collision semantics.
 
 ### C game experiment
 
-Build a small, playful game in C after the frame-pacing fix to discover practical
-engine needs before runtime isolation. By user direction, further physics work
+Build a small, playful game in C after the frame-pacing fix and milestone 15's
+creation/rendering workflow to discover practical engine needs before runtime
+isolation. By user direction, further physics work
 is paused with its known failures preserved; robust general physics is no longer
 a prerequisite for this checkpoint. This intermediate checkpoint is separate
 from the larger end-to-end game in milestone 10. Agree its concept, scope, and
