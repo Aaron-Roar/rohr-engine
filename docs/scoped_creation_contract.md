@@ -2,9 +2,9 @@
 
 Milestone 16 Goal 1 design contract, 2026-11-07. This document defines the target
 behavior approved for the new milestone. Goal 2 implements optional external-link
-omission and background-only unbound viewport screens. **The project instance APIs
-and teaching starter below remain planned for Goals 3–4.** Goal 5 integrates
-verification. The current API is documented in [shared creation](shared_creation.md)
+omission and background-only unbound viewport screens. Goal 3 implements the
+project instance API below. **Generated project descriptions and the teaching
+starter remain planned for Goal 4.** Goal 5 integrates verification. The current API is documented in [shared creation](shared_creation.md)
 and [automatic viewports](automatic_viewports.md).
 
 This contract supersedes the milestone 15 rules that require bindings for every
@@ -329,6 +329,54 @@ The ordered goals and status are authoritative in
 [Milestone 16](../NEXT_STEPS.md#16-scoped-creation-and-a-teaching-starter).
 
 
+## Project instance implementation
+
+The public types and direct APIs are in
+[project_instance.h](../include/project_instance.h); `rohr.h` exposes equivalent
+`rohr_project_*` names. `ProjectDescription` begins with an `ObjectDescription`
+root, followed by pointer/count pairs for `ProjectViewportDescription`,
+`ProjectControllerDescription`, `ProjectSoundDescription`, and
+`ProjectMusicDescription`. Each input controller has a copied controller
+configuration and an array of `ProjectActionDescription` values, which contain
+no runtime controller handle. Viewport entries pair a project-local name with a
+plain immutable viewport recipe; runtime bindings and template chains are not
+accepted in project recipes. Audio entries pair a project-local name with the
+existing sound/music descriptions. Names are bounded by the existing entity or
+input name limits and unique within each resource list.
+
+The root must be a parentless container and is the same initial member used by
+object-only creation. Authored children refer to `&description.root` (or their
+actual nested parent). The typed-view adapter requires a real initial
+`ProjectDescription` member; it is not valid to cast an older generated object
+catalog to a project description. Goal 4 will generate the new layout. Until
+then, applications can compose a `ProjectDescription` directly through this SDK
+API, while existing generated object/entity/viewport paths remain compatible.
+
+Creation allocates a bounded ownership record and invokes the existing creators.
+It resolves camera-object paths only in the new root hierarchy and publishes the
+project ID only after every resource succeeds. `ROHR_PROJECT_LIMIT` is 16; other
+resource counts use their existing engine-wide limits. Project IDs are monotonic
+64-bit values that are never reset or wrapped. Input runtime names use checked
+internal names with bounded collision retries; authored names remain available
+through project-local lookup. Input generations now survive engine restart, and
+exhausted input slots retire rather than reusing old handles.
+
+Creation and destruction run on the application thread between system updates;
+there is no project update loop or per-frame allocation. The audio service keeps
+its existing synchronization and deferred playback-control semantics. Creation
+loads audio stopped without calling audio update or changing the active track.
+Failure destroys acquired resources and removes newly introduced layer names;
+successful project destruction preserves globally shared layer registrations.
+
+Destroy projects before service teardown. Engine shutdown also destroys any
+remaining project owners before stopping audio/input and clearing entity tables.
+If an independently stopped service has already invalidated a borrowed resource,
+lookup fails and project destruction skips that stale handle. Resources created
+after a service restart or slot reuse are not adopted by an older project. Normal
+callers must still leave project-owned root, viewport, input, and audio owners to
+project destruction. Entity members and runtime viewport extensions retain their
+existing mutation and ownership rules.
+
 ## Goal 2 verification
 
 The implementation preserves required physics dependencies while allowing valid
@@ -371,3 +419,45 @@ configuration coverage now expects successful unbound viewport rendering rather
 than the superseded missing-binding error. The user's `dist/` installation is
 unchanged. Existing physics failure inventories and rendered performance gates
 are not reopened or claimed fixed.
+
+
+## Goal 3 verification
+
+- Linux Release and ASan/UBSan: all 19 focused engine tests and five selected
+  installed-SDK consumers pass. The final project test also passes after adding
+  root-expiry coverage and requiring nonzero camera/drawing work. Leak detection
+  is enabled in sanitizer runs; no sanitizer findings remain.
+- The new project test covers two instances with the same authored names,
+  cross-object camera/transform wiring, copied names, independent input and visual
+  state, shared immutable sound data, stopped audio with authored settings,
+  unchanged global settings, missing files, malformed references, resource limits,
+  and recovery after failure. All 24 injected allocation failures roll back
+  without changing a survivor's entities, input, audio, or text/font ownership.
+- Each project test completes 1,000 create/extend/destroy cycles beside a surviving
+  project. Root expiry, member deletion, slot reuse, stale lookups, and engine
+  restart are covered. Project IDs and borrowed input handles do not revive after
+  restart. The normal `rohr_tests` build target includes the new test.
+- The engine, editor/CLI, affected tests, five SDK consumers, and four independent
+  examples cross-build for Windows. Native Windows execution remains unverified.
+  SDK installs are isolated from the user's `dist/`; generic Linux packaging and
+  the generated whole-project starter remain later milestone work.
+- All four independent examples launch from `/tmp` in Release and sanitizer
+  builds. Both car runs reach their full 3,600-frame / 60-second simulation
+  endpoint with 14,400 substeps, 7,222,164 candidates, and 1,195,541 contacts,
+  matching Goal 2. These are correctness/completion checks; the user was running
+  another example, and timings are not controlled performance evidence.
+- The user accepts the corrected installed-SDK two-project preview: two rows of
+  views with rotated insets, moving particles, and independent orange/blue body
+  visibility. The initial black preview came from disabled viewport defaults in
+  the test fixture, not a project-creation failure. The fixture now enables its
+  viewports and checks actual drawing work as well as report success.
+
+Evidence and reproducible scripts are under `sandbox/milestone_16/goal_3/`.
+The project test uses unique audio fixture filenames so parallel suites cannot
+interfere. A disk-full Nix invocation was retried after removing only Goal 2's
+disposable sanitizer consumer/example build directory; its logs and SDK remain.
+The initial test build's incorrect default-description function name is corrected;
+final builds have no compiler warnings. Existing HarfBuzz pkg-config fallback
+messages remain as documented for Goal 2. Physics settings, rendered performance
+requirements, and known physics failures are unchanged. Goal 4 still owns the
+new generated project layout and teaching starter; those are not implemented here.

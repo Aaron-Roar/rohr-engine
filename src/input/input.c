@@ -342,13 +342,13 @@ SDL_Rect input_host_text_area_get(int *cursor) {
     return input_host_text_area;
 }
 
+/* Preserve generations across restarts; exhausted slots are retired rather than
+ * allowing an old borrowed controller/action handle to become live again. */
 void input_start(void) {
     input_host_mode_set(false);
     memset(&input_snapshot, 0, sizeof(input_snapshot));
     memset(input_controllers, 0, sizeof(input_controllers));
-    memset(input_controller_generations, 0, sizeof(input_controller_generations));
     memset(input_actions, 0, sizeof(input_actions));
-    memset(input_action_generations, 0, sizeof(input_action_generations));
     input_snapshot.text.selected_candidate = -1;
 }
 
@@ -506,7 +506,7 @@ InputControllerIdResult input_controller_create(
         InputControllerIdResult, result.result.error);
     size_t slot;
     for(slot = 0; slot < ROHR_INPUT_CONTROLLER_LIMIT; slot += 1)
-        if(!input_controllers[slot].used) break;
+        if(!input_controllers[slot].used && input_controller_generations[slot] < UINT16_MAX) break;
     if(slot == ROHR_INPUT_CONTROLLER_LIMIT) return ERROR_RESULT_MAKE_ERROR(
         InputControllerIdResult, ERROR_ENGINE_INPUT_CAPACITY_EXCEEDED);
     input_controller_generations[slot] += 1;
@@ -673,7 +673,7 @@ InputActionIdResult input_action_create(InputActionDescription description) {
         InputActionIdResult, result.result.error);
     size_t slot;
     for(slot = 0; slot < ROHR_INPUT_ACTION_LIMIT; slot += 1)
-        if(!input_actions[slot].used) break;
+        if(!input_actions[slot].used && input_action_generations[slot] < UINT16_MAX) break;
     if(slot == ROHR_INPUT_ACTION_LIMIT) return ERROR_RESULT_MAKE_ERROR(
         InputActionIdResult, ERROR_ENGINE_INPUT_CAPACITY_EXCEEDED);
     input_action_generations[slot] += 1;

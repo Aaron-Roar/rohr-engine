@@ -18,12 +18,21 @@
 #include "math2d.h"
 #include "physics.h"
 #include "object.h"
+#include "project_instance.h"
 #include "report.h"
 #include "systems.h"
 #include "tools.h"
 #include "ui.h"
 
 /* Generated views and runtime description pointers share the same C interface. */
+#define rohr_project_create project_create
+#define rohr_project_destroy project_destroy
+#define rohr_project_root_get project_root_get
+#define rohr_project_viewport_by_name_get project_viewport_by_name_get
+#define rohr_project_viewports_get project_viewports_get
+#define rohr_project_controller_by_name_get project_controller_by_name_get
+#define rohr_project_sound_by_name_get project_sound_by_name_get
+#define rohr_project_music_by_name_get project_music_by_name_get
 #define rohr_entity_appearance_get entity_appearance_get
 #define rohr_entity_appearance_set entity_appearance_set
 #define rohr_graphics_hit_boxes_debug_set graphics_hit_boxes_debug_set

@@ -11,6 +11,8 @@
 #include "physics/collision/interaction_set.h"
 #include "physics/broadphase/aabb_tree.h"
 
+bool engine_started_check(void);
+
 /**
  * Ensure all entity-indexed subsystem tables can address capacity slots.
  */

@@ -15,7 +15,7 @@ priority order.
 | 4 | Cross-path feature parity | Complete by user acceptance; recorded verification exceptions remain |
 | 14 | Frame pacing before game development | Complete; corrected pacing verified and initial previews accepted |
 | 15 | [Descriptor-based creation and automatic viewport rendering](#15-descriptor-based-creation-and-automatic-viewport-rendering) | Complete; all six goals verified, final generated workflow accepted |
-| 16 | [Scoped creation and a teaching starter](#16-scoped-creation-and-a-teaching-starter) | Goals 1–2 complete; Goals 3–5 await user instruction |
+| 16 | [Scoped creation and a teaching starter](#16-scoped-creation-and-a-teaching-starter) | Goals 1–3 complete; Goals 4–5 await user instruction |
 | — | [C game experiment](#c-game-experiment) | Follows milestone 16 by user direction; agree concept and completion criteria with the user |
 | 13 | Physics rebuild from the simpler baseline | Paused by user direction for frame pacing and game development; goals 1, 2a, 2b and 4a complete; goals 2 and 3 failed; goal 4 blocking remains incomplete; goals 5–8 not started |
 | 12 | Real-time physics pipeline rework | Closed by user direction; superseded by milestone 13, not complete; goals 1–13 complete, goal 14 unfinished, goals 15–19 not started; evidence preserved |
@@ -37,9 +37,10 @@ creation owns its scene, viewports, controllers, and all authored sound/music
 resources; global engine/window settings remain an explicit startup step, and
 audio playback remains explicit. Only the project path is active in the planned
 starter; object and individual-entity alternatives will be commented out and
-verified separately. The project API and teaching starter remain planned for
-Goals 3–4. Stop at Goal 2 for review and commit; Goal 3 awaits explicit user
-instruction. Physics remains paused.
+verified separately. Goal 3 is complete: project creation, instance lookup, and
+ownership are implemented and verified. The generated project description and
+teaching starter remain Goal 4. Stop at Goal 3 for review and commit; Goal 4 awaits
+explicit user instruction. Physics remains paused.
 
 Milestone 15 is complete. Its Goal 1 defines the
 [creation and viewport contract](docs/creation_and_viewport_contract.md).
@@ -879,12 +880,28 @@ by default. Preserve existing physics, presentation, and developer-owned code.
    See the [verification record](docs/scoped_creation_contract.md#goal-2-verification)
    and `sandbox/milestone_16/goal_2/`. Physics settings and failure inventories
    remain unchanged. Stop for review and commit.
-3. [ ] **Implement whole-project creation and ownership.** Add
+3. [x] **Implement whole-project creation and ownership.** Add
    `rohr_project_create()` and instance lookup/destruction through shared creators.
    Wire the full scene and viewports; create separate controllers/actions and load
    every authored sound/music resource without playback. Keep global settings
    explicit, validate prerequisites, handle duplicate authored names across
    instances, and verify rollback and destruction without affecting survivors.
+   **Result: complete for review.** The public project description/instance API
+   composes existing creators, binds cameras within its new hierarchy, loads all
+   audio stopped, and copies names for project-local lookup. Generation-safe
+   ownership, input restart handles, root expiry, and failed-attempt layer cleanup
+   preserve survivors and global settings. All 19 focused tests and five selected
+   installed-SDK consumers pass in Release and ASan/UBSan, including 24 injected
+   allocation failures and 1,000 project lifecycles. Four independent examples
+   build and launch outside their source trees in both Linux configurations;
+   full car runs retain Goal 2's work counts. Engine/editor, affected tests, SDK
+   consumers, and examples cross-build for Windows; native Windows execution
+   remains unverified. The user accepts the corrected two-project preview.
+   No compiler warnings or sanitizer findings remain. Concurrent user activity
+   means elapsed timings are not performance evidence. See the
+   [verification record](docs/scoped_creation_contract.md#goal-3-verification)
+   and `sandbox/milestone_16/goal_3/`. Generated whole-project descriptions and
+   teaching mains remain Goal 4. Stop for review and commit.
 4. [ ] **Generate the new project description and teaching starter.** Expose the
    project recipe through `project.h`. Make whole-project creation the only active
    main; include complete commented object/entity alternatives with clear dividers,

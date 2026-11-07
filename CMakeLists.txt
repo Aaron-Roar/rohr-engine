@@ -198,6 +198,7 @@ set(ROHR_ENGINE_SOURCES
     src/audio/audio.c
     src/core/console.c
     src/core/engine.c
+    src/core/project_instance.c
     src/core/error.c
     src/core/platform_process.c
     src/core/report.c
@@ -1283,6 +1284,27 @@ if(ROHR_BUILD_TESTS)
     set_target_properties(object_instances_test PROPERTIES RUNTIME_OUTPUT_DIRECTORY ${ROHR_BUILD_OUTPUT_DIRECTORY}/tests)
     add_test(NAME object_instances COMMAND object_instances_test)
 
+    add_executable(project_creation_test tests/project_creation.c)
+    target_link_libraries(project_creation_test PRIVATE rohr_engine)
+    target_include_directories(project_creation_test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
+    target_compile_definitions(project_creation_test PRIVATE ROHR_TEST_PROJECT_INTERNAL)
+    if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+        target_compile_definitions(project_creation_test PRIVATE ROHR_TEST_ALLOCATION_WRAP)
+        target_link_options(project_creation_test PRIVATE -Wl,--wrap=malloc -Wl,--wrap=calloc -Wl,--wrap=realloc)
+    endif()
+    if(MSVC)
+        target_compile_options(project_creation_test PRIVATE /UNDEBUG)
+    else()
+        target_compile_options(project_creation_test PRIVATE -Wall -Wextra -Wpedantic -UNDEBUG)
+    endif()
+    if(ROHR_ENABLE_SANITIZERS)
+        target_compile_options(project_creation_test PRIVATE ${ROHR_SANITIZER_COMPILE_OPTIONS})
+    endif()
+    set_target_properties(project_creation_test PROPERTIES RUNTIME_OUTPUT_DIRECTORY ${ROHR_BUILD_OUTPUT_DIRECTORY}/tests)
+    add_test(NAME project_creation COMMAND project_creation_test)
+    set_tests_properties(project_creation PROPERTIES
+        ENVIRONMENT "SDL_VIDEODRIVER=dummy;SDL_AUDIODRIVER=dummy;SDL_RENDER_DRIVER=software" TIMEOUT 180)
+
     add_executable(descriptor_creation_test tests/descriptor_creation.c)
     target_link_libraries(descriptor_creation_test PRIVATE rohr_engine)
     target_include_directories(descriptor_creation_test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
@@ -1645,6 +1667,7 @@ if(ROHR_BUILD_TESTS)
         runtime_persistence_test
         object_instances_test
         descriptor_creation_test
+        project_creation_test
         automatic_viewports_test
         angles_test
         example_flies_angles_test

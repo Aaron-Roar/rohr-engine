@@ -11,6 +11,7 @@
 #include "engine.h"
 #include "audio.h"
 #include "core/engine_internal.h"
+#include "core/project_internal.h"
 #include "entity_components.h"
 #include "physics.h"
 #include "graphics.h"
@@ -20,6 +21,8 @@ SDL_Event sdl_event;
 
 bool engine_running = false;
 bool engine_paused = false;
+
+bool engine_started_check(void) { return engine_running; }
 
 Tick engine_tick_count = 0;
 static Tick engine_tick_delta = 0;
@@ -169,6 +172,7 @@ EngineResult engine_time_per_tick_set(Time value) {
 Time engine_time_per_tick_get(void) { return engine_time_per_tick; }
 
 void engine_stop(void) {
+    project_instances_destroy();
     audio_stop();
     input_stop();
     game_state_runtime_reset();

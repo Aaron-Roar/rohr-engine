@@ -134,6 +134,14 @@ else()
     target_compile_options(rohr_generated_workflow PRIVATE -Wall -Wextra -Wpedantic -UNDEBUG)
 endif()
 
+add_executable(rohr_project_creation ../project_creation.c)
+target_link_libraries(rohr_project_creation PRIVATE Rohr::Engine)
+if(MSVC)
+    target_compile_options(rohr_project_creation PRIVATE /UNDEBUG)
+else()
+    target_compile_options(rohr_project_creation PRIVATE -Wall -Wextra -Wpedantic -UNDEBUG)
+endif()
+
 if(BUILD_TESTING AND NOT CMAKE_CROSSCOMPILING)
     foreach(consumer
             rohr_installed_sdk_consumer rohr_object_descriptions
@@ -141,7 +149,7 @@ if(BUILD_TESTING AND NOT CMAKE_CROSSCOMPILING)
             rohr_forces rohr_runtime_persistence rohr_asset_descriptions
             rohr_audio_descriptions rohr_input_descriptions
             rohr_camera_descriptions rohr_viewport_descriptions rohr_automatic_viewports
-            rohr_generated_workflow)
+            rohr_generated_workflow rohr_project_creation)
         # Each consumer owns its temporary fixtures and runs outside the source tree.
         set(runtime_directory "${CMAKE_CURRENT_BINARY_DIR}/test_work/${consumer}")
         file(MAKE_DIRECTORY "${runtime_directory}")
@@ -152,5 +160,5 @@ if(BUILD_TESTING AND NOT CMAKE_CROSSCOMPILING)
             TIMEOUT 30)
     endforeach()
     # This consumer renders two frames in each of 1,000 complete object cycles.
-    set_tests_properties(rohr_generated_workflow PROPERTIES TIMEOUT 120)
+    set_tests_properties(rohr_generated_workflow rohr_project_creation PROPERTIES TIMEOUT 180)
 endif()

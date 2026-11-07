@@ -53,6 +53,7 @@ static bool graphics_pointer_down_check(void) {
 }
 
 static SDL_Renderer *sdl_renderer = NULL;
+bool graphics_started_check(void) { return sdl_renderer != NULL; }
 static SDL_Window *sdl_window = NULL;
 static TTF_TextEngine *ttf_text_engine = NULL;
 static bool ttf_initialized = false;
