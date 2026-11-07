@@ -8,6 +8,8 @@ see [shared creation](shared_creation.md) for the available calls. Goal 3 implem
 Goals 2–6 in [the roadmap](../NEXT_STEPS.md#15-descriptor-based-creation-and-automatic-viewport-rendering)
 implement, migrate, and verify it. Source inspection used baseline `7bae1db6`.
 No physics algorithm, timestep, or solver setting changes are part of this work.
+Goal 6's [integrated verification](creation_rendering_verification.md) records
+completion, measured rendering costs and final user acceptance.
 
 ## User decisions
 

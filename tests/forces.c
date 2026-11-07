@@ -49,13 +49,13 @@ static bool body_create(Entity *body, EntityIndex *index) {
     return true;
 }
 
-static bool sources_check(const ForceApi *api, unsigned substeps, bool adaptive) {
+static bool sources_check(const ForceApi *api, unsigned substeps, bool colliders) {
     Entity body;
     EntityIndex index;
     CHECK(body_create(&body, &index));
-    if(adaptive) {
-        /* A distant enabled collider selects adaptive timing without adding
-         * contact impulses to the analytic force/torque expectations. */
+    if(colliders) {
+        /* Exercise collision-enabled timing without adding contact impulses
+         * to the analytic force/torque expectations. */
         EntityResult other = rohr_entity_add(); OK(other);
         OK(rohr_physics_hitbox_set(other.result.value, rohr_math_square_create(2, 2)));
         OK(rohr_physics_position_set(other.result.value, (Position){1000, 1000}));
@@ -86,13 +86,15 @@ static bool sources_check(const ForceApi *api, unsigned substeps, bool adaptive)
     OK(api->torque_apply((TorqueDescription){.target = body, .magnitude = -10}));
     Report first = rohr_system_physics_update(0.1);
     CHECK(first.header.status != ROHR_REPORT_FAILED);
-    if(adaptive) {
+    if(colliders) {
         uint64_t completed = 0;
         for(size_t i = 0; i < first.statistic_count; ++i)
             if(first.statistics[i].report_id == ROHR_PHYSICS_REPORT_ID &&
                     first.statistics[i].metric_id == ROHR_REPORT_SUBSTEPS_COMPLETED_COUNT)
                 completed = first.statistics[i].value;
-        CHECK(completed > substeps);
+        /* Fixed-step builds use the configured count; legacy adaptive builds
+         * may refine it. Both must complete at least the requested substeps. */
+        CHECK(completed >= substeps);
     }
     CHECK(near(velocities[index].x, 0.3f) && near(velocities[index].y, 0.2f));
     CHECK(near(rohr_math_degrees_to_radians(angular_velocities[index]), 0.25f));
@@ -413,9 +415,9 @@ int main(void) {
             if(!passed) return 1;
         }
         if(rohr_error_check(rohr_engine_start())) return 1;
-        bool adaptive_passed = sources_check(&apis[api], 1, true);
+        bool collision_passed = sources_check(&apis[api], 1, true);
         rohr_engine_stop();
-        if(!adaptive_passed) return 1;
+        if(!collision_passed) return 1;
         if(rohr_error_check(rohr_engine_start())) return 1;
         bool passed = persistence_check(&apis[api]);
         rohr_engine_stop();

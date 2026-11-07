@@ -14,7 +14,7 @@ priority order.
 | 3 | COM, inertia, and origin semantics | Complete |
 | 4 | Cross-path feature parity | Complete by user acceptance; recorded verification exceptions remain |
 | 14 | Frame pacing before game development | Complete; corrected pacing verified and initial previews accepted |
-| 15 | [Descriptor-based creation and automatic viewport rendering](#15-descriptor-based-creation-and-automatic-viewport-rendering) | Goals 1–4 complete; Goal 4 ready for review; goals 5–6 pending explicit instruction |
+| 15 | [Descriptor-based creation and automatic viewport rendering](#15-descriptor-based-creation-and-automatic-viewport-rendering) | Complete; all six goals verified, final generated workflow accepted; Goal 6 ready for review and commit |
 | — | [C game experiment](#c-game-experiment) | Follows milestone 15; agree concept and completion criteria with the user |
 | 13 | Physics rebuild from the simpler baseline | Paused by user direction for frame pacing and game development; goals 1, 2a, 2b and 4a complete; goals 2 and 3 failed; goal 4 blocking remains incomplete; goals 5–8 not started |
 | 12 | Real-time physics pipeline rework | Closed by user direction; superseded by milestone 13, not complete; goals 1–13 complete, goal 14 unfinished, goals 15–19 not started; evidence preserved |
@@ -26,16 +26,19 @@ priority order.
 | 7 | Editor implementation scalability | Deferred until after Python unless game development makes it necessary sooner |
 | 10 | End-to-end game | Pending; separate larger game directed by the user |
 
-**Current priority:** By user direction, milestone 15 precedes the C game
-checkpoint. Goal 1 defines the [creation and viewport contract](docs/creation_and_viewport_contract.md).
+**Current priority:** Milestone 15 is complete. Stop for Goal 6 review and commit;
+the next user-directed checkpoint is agreeing the C game's concept and completion
+criteria. Do not start it automatically. Goal 1 defines the
+[creation and viewport contract](docs/creation_and_viewport_contract.md).
 Goal 2 implements [shared entity/object creation](docs/shared_creation.md).
 Goal 3 implements [automatic viewport rendering](docs/automatic_viewports.md),
 complete creation from one descriptor, explicit camera bindings and selected/batched
 presentation. Goal 4 implements unified project generation and, by explicit user
 direction, removes generated viewport compatibility helpers and migrates the
-starter and simulation entry points. Its final starter preview is accepted and
-verification is complete. Stop for review and commit; do not start Goal 5 without
-explicit instruction.
+starter and simulation entry points. Goal 5 migrates every graphical example.
+Goal 6 verifies generic Linux SDK packaging, lifecycle, Windows cross-builds and
+controlled rendering performance; the user accepts the final extended-viewport
+workflow. See the [integrated results](docs/creation_rendering_verification.md).
 Descriptions remain immutable, created instances remain mutable, camera bindings
 are explicit and applied during viewport creation, and live viewports remain
 extensible from application code. Automatic rendering reuses runtime visual
@@ -783,12 +786,35 @@ code afterward. Preserve current physics and frame-pacing behavior.
    Evidence and reproducible scripts: `sandbox/milestone_15/goal_5/`; disposable
    sanitizer/Windows consumer directories and the sanitizer SDK are cleaned up
    after verification. Integrated distribution/performance checks remain Goal 6.
-6. [ ] **Verify SDK parity, lifecycle, performance, and game workflow.** Build
+6. [x] **Verify SDK parity, lifecycle, performance, and game workflow.** Build
    and run generated and handwritten consumers against the installed generic
    Linux SDK, cross-build for Windows, verify independent instances and cleanup
    under sanitizers, measure rendering overhead without changing physics
    settings, and review the resulting workflow visually. Include adding screens
    and interactive UI to a created viewport from application code.
+   **Result: complete for review.** Generic Linux SDK packaging and all fourteen
+   consumers pass; all thirteen examples independently build and launch outside
+   their sources. The relocated SDK CLI creates a fresh starter without engine
+   source access, and the starter builds and runs. Portable archives now support
+   PIE consumers. Twenty focused Release and twenty ASan/UBSan checks pass, plus
+   fourteen sanitizer SDK consumers, including 1,000 complete generated-object/
+   viewport lifecycle cycles. Updated consumers, affected tests and comparison
+   tools cross-build for Windows; native Windows execution remains unverified.
+
+   Three serial comparisons per rendering path expose and then resolve a pit
+   regression from invisible outline submission. Skipping zero-alpha outlines
+   reduces automatic pit drawing work from about 4.42 to 3.26 ms, versus 2.92 ms
+   for callbacks. Corrected car runs remain near 60.06 FPS and all three automatic
+   pit runs pass the existing real-time gate at 59.94–59.98 FPS. Lightweight and
+   shared-screen multi-viewport runs, VSync, stall recovery and focus switching
+   pass; mode-switch transients remain documented. Physics settings and exact
+   car/pit work counts are unchanged. By explicit user approval, the obsolete
+   adaptive-only forces-test assertion now allows fixed-step timing, with every
+   force/torque numerical check unchanged; other known physics failures remain.
+   The user accepts the generated independent scenes, rotated insets and runtime
+   toggle. See the [verification report](docs/creation_rendering_verification.md)
+   and `sandbox/milestone_15/goal_6/`. The SDK and evidence remain isolated from
+   the user's `dist/` installation. Stop for review and commit.
 
 Each implementation goal includes relevant focused verification before its
 boundary; Goal 6 integrates those checks rather than postponing them. The

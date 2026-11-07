@@ -178,6 +178,8 @@ Windows execution is still unverified.
 Discovery adds no allocation and scans live entities once per redrawn automatic
 screen; drawing retains existing command/resource costs. Creation allocates render
 targets and loads requested fonts/text. No rendering speedup is claimed from the
-shorter application API. The controlled three-run lightweight/car/pit and
-multiple-viewport comparisons, generic Linux distribution packaging, integrated
-generated workflow and final review remain Goal 6 after generation/migration.
+shorter application API. Goal 6 completes the controlled three-run lightweight/
+car/pit and multi-viewport comparisons, generic Linux packaging and integrated
+generated workflow review. It also removes invisible zero-alpha outline work.
+See the [integrated verification report](creation_rendering_verification.md) for
+measured overhead, platform results, preserved failures and user acceptance.

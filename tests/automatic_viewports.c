@@ -114,6 +114,18 @@ static void selection_and_rendering(Entity root) {
     assert(metric(r,ROHR_GRAPHICS_CAMERAS_REPORT_ID,ROHR_REPORT_PROCESSED_COUNT)==4);
     assert(metric(r,ROHR_GRAPHICS_PRESENTATION_REPORT_ID,ROHR_REPORT_PROCESSED_COUNT)==1);
     assert(metric(r,ROHR_GRAPHICS_COMMANDS_REPORT_ID,ROHR_REPORT_PROCESSED_COUNT)==8);
+    /* Transparent borders emit no lines; nonzero alpha restores them on the
+     * next frame, without changing the fill or selected/shared screen count. */
+    Entity particle=member(root,"particle");
+    ObjectAppearance border=rohr_entity_appearance_get(particle).result.value;
+    border.border_color.alpha=0; OK(rohr_entity_appearance_set(particle,border));
+    r=rohr_graphics_viewports_show((ViewportId[]){a,b},2);
+    assert(metric(r,ROHR_GRAPHICS_COMMANDS_REPORT_ID,ROHR_REPORT_PROCESSED_COUNT)==4);
+    assert(metric(r,ROHR_GRAPHICS_CAMERAS_REPORT_ID,ROHR_REPORT_PROCESSED_COUNT)==4);
+    border.border_color.alpha=1; OK(rohr_entity_appearance_set(particle,border));
+    r=rohr_graphics_viewports_show((ViewportId[]){a,b},2);
+    assert(metric(r,ROHR_GRAPHICS_COMMANDS_REPORT_ID,ROHR_REPORT_PROCESSED_COUNT)==8);
+    border.border_color.alpha=255; OK(rohr_entity_appearance_set(particle,border));
     ObjectAppearance appearance=rohr_entity_appearance_get(root).result.value;
     appearance.visible=false; OK(rohr_entity_appearance_set(root,appearance));
     r=show(a); assert(metric(r,ROHR_GRAPHICS_CAMERAS_REPORT_ID,ROHR_REPORT_PROCESSED_COUNT)==0);

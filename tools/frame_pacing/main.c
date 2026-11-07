@@ -11,6 +11,10 @@
 #define FRAME_COUNT 600
 static Uint64 animation_start;
 static bool draw_ok;
+static bool automatic, multiple;
+static Entity bars[3];
+static Position bar_positions[3];
+static ViewportId views[2];
 static volatile sig_atomic_t interrupted;
 static void interrupt_run(int signal_number) { (void)signal_number; interrupted = 1; }
 
@@ -21,14 +25,26 @@ static bool result_check(EngineResult result) {
 }
 static void render(CameraId camera, void *context) {
     (void)camera; (void)context;
-    double seconds = (SDL_GetTicksNS() - animation_start) / 1e9;
     rohr_graphics_background_draw((Color){18, 24, 34, 255});
     draw_ok = true;
     for(int row = 0; row < 3; ++row) {
-        float x = 40 + (float)fmod(seconds * (120 + row * 120), 1160);
-        draw_ok &= rohr_graphics_screen_rect_draw(x, 100 + row * 180, 40, 100,
+        draw_ok &= rohr_graphics_screen_rect_draw(bar_positions[row].x + 620, 310 - bar_positions[row].y, 40, 100,
             (Color){(Uint8)(100 + row * 65), 200, 230, 255});
     }
+}
+static Report show(void) {
+    double seconds = (SDL_GetTicksNS() - animation_start) / 1e9;
+    for(int row = 0; row < 3; ++row) {
+        bar_positions[row] = (Position){-580 + fmod(seconds * (120 + row * 120), 1160), 210 - row * 180};
+        if(!result_check(rohr_physics_position_set(bars[row], bar_positions[row]))) draw_ok = false;
+    }
+    Report report=rohr_graphics_viewports_show(views, multiple ? 2 : 1);
+    uint64_t cameras=0;
+    for(size_t i=0;i<report.statistic_count;++i)
+        if(report.statistics[i].report_id==ROHR_GRAPHICS_CAMERAS_REPORT_ID &&
+           report.statistics[i].metric_id==ROHR_REPORT_PROCESSED_COUNT) cameras=report.statistics[i].value;
+    if(cameras!=(multiple ? 2u : 1u)) draw_ok=false;
+    return report;
 }
 static int number_compare(const void *a, const void *b) {
     double x = *(const double *)a, y = *(const double *)b;
@@ -42,7 +58,9 @@ int main(int argc, char **argv) {
         if(!strcmp(argv[i], "--vsync")) vsync = true;
         else if(!strcmp(argv[i], "--stall")) stall = true;
         else if(!strcmp(argv[i], "--toggle")) toggle = true;
-        else { fprintf(stderr, "usage: frame_pacing [--vsync] [--stall] [--toggle]\n"); return 2; }
+        else if(!strcmp(argv[i], "--automatic")) automatic = true;
+        else if(!strcmp(argv[i], "--multiple")) multiple = true;
+        else { fprintf(stderr, "usage: frame_pacing [--vsync] [--stall] [--toggle] [--automatic] [--multiple]\n"); return 2; }
     }
     if(!result_check(rohr_directory_working_set(rohr_directory_base_get())) ||
        !result_check(rohr_engine_start())) return 2;
@@ -59,14 +77,45 @@ int main(int argc, char **argv) {
     SDL_Window **windows = SDL_GetWindows(&window_count);
     if(windows && window_count) SDL_SetWindowTitle(windows[0], "Frame pacing review - moving bars - Escape closes");
     SDL_free(windows);
-    CameraId camera = rohr_camera_active_get();
-    ViewportIdResult viewport = rohr_viewport_create(rohr_viewport_description_default_get());
-    if(rohr_error_check(viewport)) { fprintf(stderr, "%s\n", rohr_error_message_get(viewport)); goto done; }
-    if(!result_check(rohr_viewport_camera_set(viewport.result.value, camera)) ||
-       !result_check(rohr_viewport_enable_set(viewport.result.value)) ||
-       !result_check(rohr_camera_render_callback_set(camera, render, NULL))) goto done;
+    for(int row = 0; row < 3; ++row) {
+        EntityResult entity = rohr_entity_add();
+        if(rohr_error_check(entity)) goto done;
+        bars[row] = entity.result.value;
+        if(!result_check(rohr_physics_hitbox_set(bars[row], rohr_math_square_create(40,100))) ||
+           !result_check(rohr_entity_appearance_set(bars[row], (ObjectAppearance){.kind=OBJECT_BODY,
+                .color={(Uint8)(100+row*65),200,230,255},.visible=true,.enabled=true}))) goto done;
+    }
+    ScreenId shared = SCREEN_INVALID;
+    for(unsigned i = 0; i < (multiple ? 2u : 1u); ++i) {
+        CameraDescription c = rohr_camera_description_default_get();
+        c.dimensions = (Vec2D){1280,720}; c.render_callback = render;
+        CameraIdResult camera = rohr_camera_create(c);
+        if(rohr_error_check(camera)) goto done;
+        ScreenDescription screen = rohr_screen_description_default_get();
+        screen.camera=camera.result.value; screen.width=1280; screen.height=720;
+        screen.content_mode=automatic ? SCREEN_CONTENT_AUTOMATIC : SCREEN_CONTENT_CALLBACK;
+        screen.background_color=(Color){18,24,34,255};
+        ScreenIdResult created = rohr_screen_create(screen);
+        if(rohr_error_check(created)) goto done;
+        ViewportDescription description=rohr_viewport_description_default_get();
+        description.enabled=true;
+        description.rectangle=(ViewportRectangle){multiple ? i*640 : 0,0,multiple ? 640 : 1280,720};
+        ViewportIdResult view=rohr_viewport_create(description);
+        if(rohr_error_check(view)) goto done;
+        views[i]=view.result.value;
+        ViewportItemDescription item=rohr_viewport_item_description_default_get();
+        item.rectangle=(ViewportRectangle){0,0,multiple ? 640 : 1280,720};
+        if(rohr_error_check(rohr_viewport_screen_add(views[i],created.result.value,item))) goto done;
+        if(i==0) shared=created.result.value;
+        else {
+            item.rectangle=(ViewportRectangle){80,380,450,250}; item.orientation=12; item.layer=2;
+            item.clip_enabled=true; item.clip_rectangle=(ViewportRectangle){0,0,500,600};
+            if(rohr_error_check(rohr_viewport_screen_add(views[i],shared,item))) goto done;
+        }
+    }
     animation_start = SDL_GetTicksNS();
-    Report report = rohr_graphics_show(); /* Warm up outside the measured endpoint. */
+    draw_ok = true;
+    Report report = show(); /* Warm up outside the measured endpoint. */
     if(report.has_fatal || !draw_ok) goto done;
     double intervals[FRAME_COUNT], work[FRAME_COUNT], waits[FRAME_COUNT];
     Uint64 start = SDL_GetTicksNS(), previous = start;
@@ -87,7 +136,7 @@ int main(int argc, char **argv) {
             vsync = !vsync;
             if(!result_check(rohr_graphics_vsync_set(vsync))) { healthy = false; break; }
         }
-        report = rohr_graphics_show();
+        report = show();
         if(report.has_fatal || !draw_ok) { healthy = false; break; }
         Uint64 now = SDL_GetTicksNS(), wait = 0;
         for(size_t i = 0; i < report.statistic_count; ++i) {

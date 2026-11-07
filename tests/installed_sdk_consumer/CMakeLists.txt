@@ -10,6 +10,11 @@ set(CMAKE_C_STANDARD_REQUIRED ON)
 set(CMAKE_C_EXTENSIONS OFF)
 
 find_package(Rohr CONFIG REQUIRED)
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+    include(CheckPIESupported)
+    check_pie_supported(LANGUAGES C)
+    set(CMAKE_POSITION_INDEPENDENT_CODE ON)
+endif()
 
 set(object_fixture ${CMAKE_CURRENT_SOURCE_DIR}/../../examples/center_of_mass/src/generated)
 add_executable(rohr_object_descriptions object_descriptions.c ${object_fixture}/project_objects.c)
@@ -109,12 +114,24 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_C_COMPILER_ID MATCHES "GNU|Clang
         -Wl,--wrap=SDL_CreateTexture -Wl,--wrap=SDL_GetMouseState)
 endif()
 
-add_executable(rohr_automatic_viewports ../automatic_viewports.c)
+add_executable(rohr_automatic_viewports ../automatic_viewports.c
+    ../../examples/cmake/example_viewport.c)
+target_include_directories(rohr_automatic_viewports PRIVATE ../../examples/cmake)
 target_link_libraries(rohr_automatic_viewports PRIVATE Rohr::Engine)
 if(MSVC)
     target_compile_options(rohr_automatic_viewports PRIVATE /UNDEBUG)
 else()
     target_compile_options(rohr_automatic_viewports PRIVATE -Wall -Wextra -Wpedantic -UNDEBUG)
+endif()
+
+add_executable(rohr_generated_workflow generated_workflow.c
+    ${object_fixture}/project_objects.c ../../examples/cmake/example_viewport.c)
+target_include_directories(rohr_generated_workflow PRIVATE ${object_fixture} ../../examples/cmake)
+target_link_libraries(rohr_generated_workflow PRIVATE Rohr::Engine)
+if(MSVC)
+    target_compile_options(rohr_generated_workflow PRIVATE /UNDEBUG)
+else()
+    target_compile_options(rohr_generated_workflow PRIVATE -Wall -Wextra -Wpedantic -UNDEBUG)
 endif()
 
 if(BUILD_TESTING AND NOT CMAKE_CROSSCOMPILING)
@@ -123,7 +140,8 @@ if(BUILD_TESTING AND NOT CMAKE_CROSSCOMPILING)
             rohr_system_reports rohr_entity_info rohr_entity_info_adversarial
             rohr_forces rohr_runtime_persistence rohr_asset_descriptions
             rohr_audio_descriptions rohr_input_descriptions
-            rohr_camera_descriptions rohr_viewport_descriptions rohr_automatic_viewports)
+            rohr_camera_descriptions rohr_viewport_descriptions rohr_automatic_viewports
+            rohr_generated_workflow)
         # Each consumer owns its temporary fixtures and runs outside the source tree.
         set(runtime_directory "${CMAKE_CURRENT_BINARY_DIR}/test_work/${consumer}")
         file(MAKE_DIRECTORY "${runtime_directory}")
@@ -133,4 +151,6 @@ if(BUILD_TESTING AND NOT CMAKE_CROSSCOMPILING)
             ENVIRONMENT "SDL_VIDEODRIVER=dummy;SDL_AUDIODRIVER=dummy"
             TIMEOUT 30)
     endforeach()
+    # This consumer renders two frames in each of 1,000 complete object cycles.
+    set_tests_properties(rohr_generated_workflow PROPERTIES TIMEOUT 120)
 endif()

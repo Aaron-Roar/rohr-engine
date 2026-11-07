@@ -108,3 +108,8 @@ or the editor, then rebuild against the same SDK version. Legacy generated
 must adopt `project.h` and explicit viewport creation; regeneration deliberately
 does not replace developer gameplay. The [migration guide](../docs/shared_creation.md#unified-generated-project)
 explains that transition.
+
+The [integrated SDK verification](../docs/creation_rendering_verification.md)
+records generic Linux packaging, Windows cross-builds, lifecycle checks and
+measured rendering costs. Its generated workflow consumer demonstrates two
+independent instances and application-created inset screens and controls.

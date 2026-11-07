@@ -37,6 +37,11 @@ if(NOT ROHR_PHYSICS_PARTICLE_PASSES MATCHES "^(0|[1-9][0-9]*)$" OR
 endif()
 set(ROHR_SDK_INSTALL_PREFIX "" CACHE PATH
     "Installed SDK prefix used by external consumer tests")
+if(ROHR_PORTABLE_SDK AND CMAKE_SYSTEM_NAME STREQUAL "Linux")
+    # Portable static archives must also link into consumers whose toolchain
+    # enables PIE by default (including current distro and Nix compilers).
+    set(CMAKE_POSITION_INDEPENDENT_CODE ON)
+endif()
 if(ROHR_ENABLE_SANITIZERS)
     if(NOT CMAKE_SYSTEM_NAME STREQUAL "Linux")
         message(FATAL_ERROR "ROHR_ENABLE_SANITIZERS is supported only on Linux")

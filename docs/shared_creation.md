@@ -234,3 +234,9 @@ engine archive, then relinks the unchanged tests. Neither sanitizer run reports
 a memory or undefined-behavior finding for those assertion failures. The focused
 eight-suite result does not imply the full suite is clean; physics defaults and
 these inherited failures remain unchanged.
+
+This is the historical Goal 2 result. In Goal 6, the user approved updating only
+the obsolete forces-test timing assertion to allow the adopted fixed-step mode.
+All force/torque numerical checks remain intact and pass; the joint and other
+physics failures are not claimed resolved. See the
+[integrated verification report](creation_rendering_verification.md).

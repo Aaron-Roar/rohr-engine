@@ -3570,7 +3570,9 @@ static void graphics_scene_draw(void) {
         if(retained) {
             if(appearance.kind == OBJECT_BODY || appearance.kind == OBJECT_PARTICLE) {
                 graphics_hit_box_colored_draw(entity, GRAPHICS_FILLED, appearance.color);
-                graphics_hit_box_colored_draw(entity, GRAPHICS_OUTLINE, appearance.border_color);
+                /* A disabled border needs no geometry, command or GPU work. */
+                if(appearance.border_color.alpha)
+                    graphics_hit_box_colored_draw(entity, GRAPHICS_OUTLINE, appearance.border_color);
             } else if(appearance.kind == OBJECT_NODE || appearance.kind == OBJECT_BEAM || appearance.kind == OBJECT_AREA)
                 (void)graphics_soft_body_element_draw(entity, appearance.color);
             else if(appearance.kind == OBJECT_JOINT || appearance.kind == OBJECT_FORCE || appearance.kind == OBJECT_TORQUE)

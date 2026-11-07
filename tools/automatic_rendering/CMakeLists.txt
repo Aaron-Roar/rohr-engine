@@ -1,0 +1,36 @@
+# Copyright 2026 Aaron Rohrer
+# SPDX-License-Identifier: LGPL-3.0-only
+cmake_minimum_required(VERSION 3.20)
+project(automatic_rendering LANGUAGES C)
+find_package(Rohr CONFIG REQUIRED)
+get_filename_component(repo "${CMAKE_CURRENT_SOURCE_DIR}/../.." ABSOLUTE)
+set(ROHR_CALLBACK_SOURCE_DIR "" CACHE PATH "Extracted pre-migration examples (8934dc85)")
+if(NOT EXISTS "${ROHR_CALLBACK_SOURCE_DIR}/examples/soft-body/src/main.c")
+    message(FATAL_ERROR "Set ROHR_CALLBACK_SOURCE_DIR to the pre-migration source snapshot")
+endif()
+function(measure target)
+    target_sources(${target} PRIVATE samples.c)
+    target_link_libraries(${target} PRIVATE Rohr::Engine)
+    target_compile_options(${target} PRIVATE -Wall -Wextra -Wpedantic -UNDEBUG)
+    foreach(symbol main rohr_graphics_show graphics_viewport_show graphics_viewports_show SDL_RenderPresent)
+        target_link_options(${target} PRIVATE "LINKER:--wrap=${symbol}")
+    endforeach()
+endfunction()
+foreach(variant callback automatic)
+    if(variant STREQUAL "callback")
+        set(source "${ROHR_CALLBACK_SOURCE_DIR}")
+    else()
+        set(source "${repo}")
+    endif()
+    add_executable(car_${variant} "${source}/examples/soft-body/src/main.c"
+        "${source}/examples/soft-body/src/car_controls.c"
+        "${source}/examples/soft-body/src/generated/project_objects.c"
+        "${source}/examples/cmake/example_viewport.c")
+    target_include_directories(car_${variant} PRIVATE "${source}/examples/soft-body/src"
+        "${source}/examples/soft-body/src/generated" "${source}/examples/cmake")
+    measure(car_${variant})
+endforeach()
+add_executable(pit pit.c)
+measure(pit)
+add_executable(light ../frame_pacing/main.c)
+measure(light)
