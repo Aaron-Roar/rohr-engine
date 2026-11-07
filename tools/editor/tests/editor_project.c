@@ -438,6 +438,7 @@ int main(void) {
             workspace_project.layout_viewports[0].ui_items[0].graphics_layer = hud->id;
             workspace_project.layout_viewports[0].camera_items[0].graphics_layer =
                 hud->id;
+            workspace_project.layout_viewports[0].camera_items[0].background_color = UINT32_C(0x305070ff);
             EditorViewportUiItem *slider = editor_viewport_ui_add(
                 &workspace_project, &workspace_project.layout_viewports[0],
                 EDITOR_VIEWPORT_UI_SLIDER);
@@ -612,6 +613,7 @@ int main(void) {
                     VIEWPORT_UI_SLIDER_THUMB_CIRCLE ||
                 fabsf(loaded_slider->value.slider.thumb_radius - 14.0f) > 0.001f ||
                 fabsf(loaded_slider->value.slider.thumb_offset + 18.0f) > 0.001f ||
+                loaded_project.layout_viewports[0].camera_items[0].background_color != UINT32_C(0x305070ff) ||
                 loaded_project.layout_viewports[0].camera_items[0].graphics_layer !=
                     loaded_project.graphics_layers[0].id ||
                 loaded_project.layout_viewports[0].camera_items[0].placement.
@@ -729,6 +731,8 @@ int main(void) {
                 !file_contains(path, ".drag_mode=1") ||
                 !file_contains(path, ".drag_mode=2") ||
                 !file_contains(path, ".background_color=") ||
+                !file_contains(path, "0x305070ff") ||
+                !file_contains(path, ".clear_background=true") ||
                 !file_contains(path, "rohr_graphics_font_default_get") ||
                 !file_contains(path, "rohr_graphics_font_release") ||
                 file_contains(path, "rohr_graphics_font_destroy") ||

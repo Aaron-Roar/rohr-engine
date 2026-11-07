@@ -1,3 +1,4 @@
+#include "graphics/scene_image.h"
 /* Copyright 2026 Aaron Rohrer
  * SPDX-License-Identifier: LGPL-3.0-only
  */
@@ -29,7 +30,7 @@ static void wait_state(EditorSceneState state) {
 static EditorSceneAction frame(Position point, MouseButtonState button) {
     rohr_ui_input_set((UIInput){.pointer=point, .primary_button=button});
     EditorSceneAction action = editor_scene_panel_draw(&panel, viewport, false);
-    rohr_ui_update(); assert(rohr_graphics_show().header.status != ROHR_REPORT_FAILED);
+    rohr_ui_update(); assert(graphics_editor_show().header.status != ROHR_REPORT_FAILED);
     return action;
 }
 static EditorSceneAction tab_event(Uint32 type, Position point, bool blocked) {
@@ -244,11 +245,11 @@ int main(int argc, char **argv) {
     assert(!rohr_error_check(graphics_scene_image_update(image,pixels,4,4,16)));
     assert(!rohr_error_check(graphics_scene_image_draw(image,(SDL_FRect){0,0,20,20})));
     assert(rohr_error_check(graphics_scene_image_update(image,pixels,2,2,8)));
-    assert(rohr_graphics_show().header.status != ROHR_REPORT_FAILED);
+    assert(graphics_editor_show().header.status != ROHR_REPORT_FAILED);
     assert(!rohr_error_check(graphics_scene_image_update(image,pixels,2,2,8)));
     assert(!rohr_error_check(graphics_scene_image_draw(image,(SDL_FRect){0,0,20,20})));
     graphics_scene_image_destroy(image);
-    assert(rohr_graphics_show().header.status != ROHR_REPORT_FAILED);
+    assert(graphics_editor_show().header.status != ROHR_REPORT_FAILED);
     editor_scene_panel_destroy(&panel);
     assert(editor_scene_panel_create(&panel,&font,&terminal,&notifications));
     assert(panel.tab_visible[0] && panel.tab_visible[1] && panel.tab_order[0] == EDITOR_SCENE_TAB_EDITOR);

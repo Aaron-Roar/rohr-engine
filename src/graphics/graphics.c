@@ -10,6 +10,8 @@
 #include "camera_state.h"
 #include "layer_state.h"
 #include "object_drawing.h"
+#include "viewport_creation.h"
+#include "entity/object_internal.h"
 #include "marker_geometry.h"
 #include "core/report_internal.h"
 #include "graphics/triangle_draw.h"
@@ -322,6 +324,11 @@ typedef struct GraphicsScreen {
     int width;
     int height;
     SDL_Texture *texture;
+    ScreenContentMode content_mode;
+    Color background_color;
+    bool clear_background;
+    Entity camera_entity;
+    bool initialized;
 } GraphicsScreen;
 
 typedef enum GraphicsViewportItemKind {
@@ -818,10 +825,9 @@ EngineResult graphics_tables_init(void) {
     memset(camera_runtime, 0, sizeof(camera_runtime));
     memset(camera_motion, 0, sizeof(camera_motion));
     memset(camera_zoom_motion, 0, sizeof(camera_zoom_motion));
-    memset(camera_generations, 0, sizeof(camera_generations));
     memset(cameras_used, 0, sizeof(cameras_used));
     cameras_used[0] = true;
-    camera_generations[0] = 1;
+    if(++camera_generations[0] == 0) camera_generations[0] = 1;
     active_camera = graphics_camera_id(0);
     camera = graphics_camera_from_description_get(default_config);
     cameras[0] = camera;
@@ -829,13 +835,8 @@ EngineResult graphics_tables_init(void) {
     camera_attachment = (ActiveCameraAttachment){0};
     memset(screens, 0, sizeof(screens));
     memset(viewports, 0, sizeof(viewports));
-    memset(screen_generations, 0, sizeof(screen_generations));
-    memset(viewport_generations, 0, sizeof(viewport_generations));
     memset(graphics_ui_elements, 0, sizeof(graphics_ui_elements));
-    memset(graphics_ui_generations, 0, sizeof(graphics_ui_generations));
     memset(graphics_registered_layers, 0, sizeof(graphics_registered_layers));
-    memset(graphics_registered_layer_generations, 0,
-        sizeof(graphics_registered_layer_generations));
     memset(graphics_entity_layer_bindings, 0,
         sizeof(graphics_entity_layer_bindings));
     memset(graphics_sprite_layer_bindings, 0,
@@ -844,7 +845,6 @@ EngineResult graphics_tables_init(void) {
         sizeof(graphics_animation_layer_bindings));
     memset(screens_used, 0, sizeof(screens_used));
     memset(viewports_used, 0, sizeof(viewports_used));
-    graphics_viewport_item_next_id = 1;
     graphics_ui_dragging_item = VIEWPORT_ITEM_INVALID;
     graphics_ui_drag_pointer = (Position){0};
     graphics_ui_drag_mouse_down = false;
@@ -1615,6 +1615,10 @@ ScreenIdResult graphics_screen_create(ScreenDescription config) {
     if(sdl_renderer == NULL) {
         return ERROR_RESULT_MAKE_ERROR(ScreenIdResult, ERROR_ENGINE_GRAPHICS_INIT_FAILED);
     }
+    if(config.content_mode < SCREEN_CONTENT_CALLBACK || config.content_mode > SCREEN_CONTENT_AUTOMATIC ||
+            (config.camera_entity && (error_check(entity_object_camera_get(config.camera_entity)) ||
+             entity_object_camera_get(config.camera_entity).result.value != config.camera)))
+        return ERROR_RESULT_MAKE_ERROR(ScreenIdResult, ERROR_ENGINE_STATE_INVALID);
     if(config.width < 0 || config.height < 0)
         return ERROR_RESULT_MAKE_ERROR(ScreenIdResult, ERROR_ENGINE_STATE_INVALID);
     if(config.width == 0) config.width = WINDOW_WIDTH;
@@ -1641,6 +1645,10 @@ ScreenIdResult graphics_screen_create(ScreenDescription config) {
         screens_used[slot] = true;
         screens[slot] = (GraphicsScreen){
             .camera = config.camera,
+            .content_mode = config.content_mode,
+            .background_color = config.background_color,
+            .clear_background = config.clear_background,
+            .camera_entity = config.camera_entity,
             .width = config.width,
             .height = config.height,
             .texture = texture,
@@ -1659,20 +1667,24 @@ ScreenDescriptionResult graphics_screen_description_get(ScreenId id) {
         return ERROR_RESULT_MAKE_ERROR(ScreenDescriptionResult, ERROR_ENGINE_COMPONENT_MISSING);
     return ERROR_RESULT_MAKE_VALUE(ScreenDescriptionResult,
         ((ScreenDescription){.camera = screens[slot].camera,
-            .width = screens[slot].width, .height = screens[slot].height}));
+            .width = screens[slot].width, .height = screens[slot].height,
+            .content_mode = screens[slot].content_mode, .background_color = screens[slot].background_color,
+            .clear_background = screens[slot].clear_background, .camera_entity = screens[slot].camera_entity}));
 }
 
 EngineResult graphics_screen_description_set(ScreenId id, ScreenDescription description) {
     size_t slot;
     if(!graphics_screen_slot(id, &slot))
         return error_result_error(ERROR_ENGINE_COMPONENT_MISSING);
+    if(description.content_mode < SCREEN_CONTENT_CALLBACK || description.content_mode > SCREEN_CONTENT_AUTOMATIC ||
+            (description.camera_entity && (error_check(entity_object_camera_get(description.camera_entity)) ||
+             entity_object_camera_get(description.camera_entity).result.value != description.camera)))
+        return error_result_error(ERROR_ENGINE_STATE_INVALID);
     if(description.width < 0 || description.height < 0)
         return error_result_error(ERROR_ENGINE_STATE_INVALID);
     if(description.width == 0) description.width = WINDOW_WIDTH;
     if(description.height == 0) description.height = WINDOW_HEIGHT;
     GraphicsScreen *screen = &screens[slot];
-    if(screen->width == description.width && screen->height == description.height &&
-            screen->camera == description.camera) return error_result_value(true);
     if(id == drawing_screen) return error_result_error(ERROR_ENGINE_STATE_INVALID);
     if(screen->width != description.width || screen->height != description.height) {
         SDL_Texture *texture = SDL_CreateTexture(sdl_renderer, SDL_PIXELFORMAT_RGBA8888,
@@ -1686,8 +1698,13 @@ EngineResult graphics_screen_description_set(ScreenId id, ScreenDescription desc
         screen->texture = texture;
         screen->width = description.width;
         screen->height = description.height;
+        screen->initialized = false;
     }
     screen->camera = description.camera;
+    screen->camera_entity = description.camera_entity;
+    screen->content_mode = description.content_mode;
+    screen->background_color = description.background_color;
+    screen->clear_background = description.clear_background;
     return error_result_value(true);
 }
 
@@ -1715,6 +1732,7 @@ EngineResult graphics_screen_camera_set(ScreenId id, CameraId camera_id) {
     if(!graphics_screen_slot(id, &screen_slot))
         return error_result_error(ERROR_ENGINE_COMPONENT_MISSING);
     screens[screen_slot].camera = camera_id;
+    screens[screen_slot].camera_entity = ENTITY_INVALID;
     return error_result_value(true);
 }
 
@@ -2030,7 +2048,7 @@ EngineResult graphics_viewport_description_set(ViewportId id, ViewportDescriptio
     return error_result_value(true);
 }
 
-ViewportIdResult graphics_viewport_create(ViewportDescription config) {
+ViewportIdResult (graphics_viewport_create)(ViewportDescription config) {
     size_t slot;
     if(!graphics_viewport_description_prepare(&config))
         return ERROR_RESULT_MAKE_ERROR(ViewportIdResult, ERROR_ENGINE_STATE_INVALID);
@@ -2141,6 +2159,8 @@ static ViewportItemId graphics_viewport_item_id_create(void) {
 ViewportItemIdResult graphics_viewport_camera_add(ViewportId id, CameraId camera_id,
         ViewportItemDescription config) {
     size_t screen_slot;
+    if(graphics_viewport_recipe_check(id))
+        return graphics_viewport_owned_camera_add(id, camera_id, config);
     if(!graphics_screen_for_camera(camera_id, &screen_slot)) {
         ScreenDescription screen_config = graphics_screen_description_default_get();
         ScreenIdResult created;
@@ -2899,14 +2919,25 @@ EngineResult graphics_layer_ui_clear(ViewportItemId item) {
 
 EngineResult graphics_viewport_destroy(ViewportId id) {
     size_t slot;
+    if(drawing_screen != SCREEN_INVALID || graphics_image_target)
+        return error_result_error(ERROR_ENGINE_STATE_INVALID);
     if(!graphics_viewport_slot(id, &slot)) {
         return error_result_error(ERROR_ENGINE_COMPONENT_MISSING);
     }
     for(size_t item = 0; item < MAX_VIEWPORT_ITEMS; item += 1)
         graphics_viewport_item_release(&viewports[slot], item);
+    graphics_viewport_resources_release(id);
     viewports[slot] = (GraphicsViewport){0};
     viewports_used[slot] = false;
     return error_result_value(true);
+}
+
+void graphics_ui_owned_destroy(GraphicsUiId ui) {
+    for(size_t v = 0; v < MAX_VIEWPORTS; ++v)
+        if(viewports_used[v]) for(size_t i = 0; i < MAX_VIEWPORT_ITEMS; ++i)
+            if(viewports[v].items[i].used && viewports[v].items[i].kind == GRAPHICS_VIEWPORT_ITEM_UI &&
+                    viewports[v].items[i].value.ui == ui) graphics_viewport_item_release(&viewports[v], i);
+    (void)graphics_ui_destroy(ui);
 }
 
 EngineResult graphics_viewport_camera_set(ViewportId id, CameraId camera_id) {
@@ -3247,6 +3278,8 @@ void graphics_renderer_end(void) {
     size_t screen_slot;
     graphics_commands_discard();
     graphics_pending_commands = graphics_report_create(ROHR_GRAPHICS_COMMANDS_REPORT_ID);
+    for(size_t slot = 0; slot < MAX_VIEWPORTS; ++slot)
+        if(viewports_used[slot]) (void)graphics_viewport_destroy(graphics_resource_id(viewport_generations[slot], slot));
     graphics_ui_elements_clear();
     graphics_text_assets_clear();
     graphics_animation_assets_clear();
@@ -3474,11 +3507,86 @@ static void graphics_camera_motions_update(void) {
     }
 }
 
-static void graphics_render_viewport_cameras(void) {
+typedef struct GraphicsSelection {
+    size_t slots[MAX_VIEWPORTS];
+    size_t count;
+    bool included[MAX_VIEWPORTS];
+    bool screens[MAX_SCREENS];
+} GraphicsSelection;
+
+static bool graphics_selection_get(const ViewportId *ids, size_t count, bool all,
+        GraphicsSelection *selection, Report *report) {
+    *selection = (GraphicsSelection){0};
+    if(!all && ((count && !ids) || count > MAX_VIEWPORTS)) goto invalid;
+    for(size_t i = 0; i < (all ? MAX_VIEWPORTS : count); ++i) {
+        size_t slot = i;
+        if(all) { if(!viewports_used[slot]) continue; }
+        else if(!graphics_viewport_slot(ids[i], &slot) || selection->included[slot]) goto invalid;
+        selection->included[slot] = true;
+        selection->slots[selection->count++] = slot;
+        if(!viewports[slot].enabled) continue;
+        for(size_t item = 0; item < MAX_VIEWPORT_ITEMS; ++item) {
+            size_t screen;
+            if(viewports[slot].items[item].used && viewports[slot].items[item].config.visible &&
+                    viewports[slot].items[item].kind == GRAPHICS_VIEWPORT_ITEM_SCREEN &&
+                    graphics_screen_slot(viewports[slot].items[item].value.screen, &screen))
+                selection->screens[screen] = true;
+        }
+    }
+    return true;
+invalid:
+    graphics_report_issue(report, 0, ERROR_ENGINE_STATE_INVALID, true,
+        (ReportObjectRef){0}, (ReportObjectRef){0}, "Invalid or duplicate viewport selection");
+    return false;
+}
+
+/* Dense live inventory: no hierarchy traversal, duplicate aliases, or discovery allocation.
+ * Existing draw helpers select current component layers; command buckets order them. */
+static void graphics_scene_draw(void) {
+    int saved_layer = graphics_layer_active_get();
+    uint32_t count = entity_alive_count_get();
+    for(uint32_t n = 0; n < count; ++n) {
+        EntityResult found = entity_alive_at_get(n);
+        if(error_check(found)) continue;
+        Entity entity = found.result.value;
+        if(!entity_visible_check(entity)) continue;
+        ObjectAppearance appearance;
+        bool retained = object_instance_appearance_get(entity, &appearance);
+        if(retained && !appearance.enabled) continue;
+        graphics_layer_active_set(0);
+        if(retained) {
+            if(appearance.kind == OBJECT_BODY || appearance.kind == OBJECT_PARTICLE) {
+                graphics_hit_box_colored_draw(entity, GRAPHICS_FILLED, appearance.color);
+                graphics_hit_box_colored_draw(entity, GRAPHICS_OUTLINE, appearance.border_color);
+            } else if(appearance.kind == OBJECT_NODE || appearance.kind == OBJECT_BEAM || appearance.kind == OBJECT_AREA)
+                (void)graphics_soft_body_element_draw(entity, appearance.color);
+            else if(appearance.kind == OBJECT_JOINT || appearance.kind == OBJECT_FORCE || appearance.kind == OBJECT_TORQUE)
+                (void)graphics_marker_entity_draw(entity, appearance.kind, appearance.visuals);
+        } else if((entity_components_check(entity, ROHR_SOFT_BODY_NODE) || entity_components_check(entity, ROHR_SOFT_BODY_BEAM) || entity_components_check(entity, ROHR_SOFT_BODY_AREA))) {
+            /* These components carry explicit visual settings, unlike ordinary hitboxes. */
+            (void)graphics_soft_body_element_draw(entity, (Color){255,255,255,255});
+        }
+        if(entity_components_check(entity, ROHR_SPRITE)) (void)graphics_sprite_draw(entity);
+        if(entity_components_check(entity, ROHR_ANIMATED_SPRITE)) (void)graphics_animated_sprite_draw(entity);
+    }
+    graphics_layer_active_set(saved_layer);
+}
+
+static bool graphics_screen_camera_live_check(const GraphicsScreen *screen, size_t *slot) {
+    if(!graphics_camera_slot(screen->camera, slot)) return false;
+    if(screen->camera_entity) {
+        CameraIdResult bound = entity_object_camera_get(screen->camera_entity);
+        if(error_check(bound) || bound.result.value != screen->camera) return false;
+    }
+    return true;
+}
+
+static void graphics_render_viewport_cameras(const GraphicsSelection *selection) {
     GraphicsReportContext *context = graphics_report_context;
     bool rendered[MAX_SCREENS] = {0};
     size_t viewport_slot;
-    for(viewport_slot = 0; viewport_slot < MAX_VIEWPORTS; viewport_slot += 1) {
+    for(size_t selected = 0; selected < selection->count; ++selected) {
+        viewport_slot = selection->slots[selected];
         if(!viewports_used[viewport_slot] || !viewports[viewport_slot].enabled) continue;
         for(size_t item = 0; item < MAX_VIEWPORT_ITEMS; item += 1) {
             CameraId camera_id;
@@ -3495,10 +3603,13 @@ static void graphics_render_viewport_cameras(void) {
                 continue;
             rendered[screen_slot] = true;
             camera_id = screens[screen_slot].camera;
-            if(!graphics_camera_slot(camera_id, &camera_slot)) continue;
+            if(!graphics_screen_camera_live_check(&screens[screen_slot], &camera_slot)) continue;
             runtime = &camera_runtime[camera_slot];
-            if(!runtime->enabled || runtime->callback == NULL
-                    || (runtime->pause_with_engine && engine_paused_get())) continue;
+            bool automatic = screens[screen_slot].content_mode == SCREEN_CONTENT_AUTOMATIC;
+            bool paused = runtime->pause_with_engine && engine_paused_get();
+            if(screens[screen_slot].camera_entity && !entity_visible_check(screens[screen_slot].camera_entity)) continue;
+            if(!runtime->enabled || (!automatic && runtime->callback == NULL)
+                    || (paused && (!automatic || screens[screen_slot].initialized))) continue;
             if(context->report->header.status == ROHR_REPORT_FAILED) return;
             context->source = (ReportObjectRef){ROHR_REPORT_OBJECT_CAMERA, camera_id};
             context->target = (ReportObjectRef){ROHR_REPORT_OBJECT_SCREEN,
@@ -3508,8 +3619,16 @@ static void graphics_render_viewport_cameras(void) {
             if(begun.kind == ERROR_RESULT_ERROR && !context->report->has_fatal)
                 graphics_report_issue(context->report, context->stage, begun.result.error, true,
                     context->source, context->target, "Cannot begin camera screen");
-            if(context->report->header.status != ROHR_REPORT_FAILED)
-                runtime->callback(camera_id, runtime->context);
+            if(context->report->header.status != ROHR_REPORT_FAILED) {
+                if(automatic || screens[screen_slot].clear_background) {
+                    /* Clear immediately before queued drawing, independently of scene layer values. */
+                    Color background = screens[screen_slot].background_color;
+                    if(GRAPHICS_STATE(SDL_SetRenderDrawColor(sdl_renderer, background.red, background.green, background.blue, background.alpha)))
+                        screens[screen_slot].initialized = GRAPHICS_STATE(SDL_RenderClear(sdl_renderer));
+                }
+                if(automatic && !paused) graphics_scene_draw();
+                else if(!automatic) runtime->callback(camera_id, runtime->context);
+            }
             if(drawing_screen != SCREEN_INVALID) {
                 EngineResult ended = graphics_camera_end();
                 if(ended.kind == ERROR_RESULT_ERROR && !context->report->has_fatal)
@@ -4010,16 +4129,18 @@ static void graphics_missing_camera_draw(const GraphicsViewport *viewport,
     }
 }
 
-static void graphics_viewports_draw(void) {
+static void graphics_viewports_draw(const GraphicsSelection *selection) {
     bool missing_camera_reported[MAX_SCREENS] = {0};
     GraphicsReportContext *context = graphics_report_context;
     size_t viewport_slot;
-    bool has_viewport = false;
-    bool has_enabled_viewport = false;
     Position pointer = graphics_mouse_screen_position_get();
     bool mouse_down = graphics_pointer_down_check();
     bool mouse_pressed = mouse_down && !graphics_ui_drag_mouse_down;
     ViewportItemId drag_candidate = VIEWPORT_ITEM_INVALID;
+    for(size_t v = 0; v < MAX_VIEWPORTS; ++v)
+        if(viewports_used[v] && (!selection->included[v] || !viewports[v].enabled))
+            for(size_t i = 0; i < MAX_VIEWPORT_ITEMS; ++i)
+                if(viewports[v].items[i].used) graphics_viewport_item_interaction_clear(&viewports[v], i);
     if(!mouse_down) {
         graphics_ui_dragging_item = VIEWPORT_ITEM_INVALID;
         graphics_ui_slider_dragging_item = VIEWPORT_ITEM_INVALID;
@@ -4028,7 +4149,7 @@ static void graphics_viewports_draw(void) {
         size_t drag_viewport;
         size_t drag_item;
         if(graphics_viewport_item_slot(graphics_ui_dragging_item,
-                &drag_viewport, &drag_item)) {
+                &drag_viewport, &drag_item) && selection->included[drag_viewport] && viewports[drag_viewport].enabled) {
             ViewportItemDescription *drag = &viewports[drag_viewport].items[
                 drag_item].config;
             Vec2D delta = {pointer.x - graphics_ui_drag_pointer.x,
@@ -4045,27 +4166,10 @@ static void graphics_viewports_draw(void) {
     (void)GRAPHICS_STATE(SDL_SetRenderTarget(sdl_renderer, NULL));
     (void)GRAPHICS_STATE(SDL_SetRenderViewport(sdl_renderer, NULL));
     (void)GRAPHICS_STATE(SDL_SetRenderClipRect(sdl_renderer, NULL));
-    for(viewport_slot = 0; viewport_slot < MAX_VIEWPORTS; viewport_slot += 1) {
-        if(!viewports_used[viewport_slot]) continue;
-        has_viewport = true;
-        if(viewports[viewport_slot].enabled) {
-            has_enabled_viewport = true;
-            break;
-        }
-    }
-    if(!has_viewport) {
-        GRAPHICS_STATE(SDL_SetRenderDrawColor(sdl_renderer, 0, 0, 0, SDL_ALPHA_OPAQUE));
-        (void)GRAPHICS_DRAW(SDL_RenderClear(sdl_renderer));
-        graphics_ui_drag_mouse_down = mouse_down;
-        return;
-    }
-    if(!has_enabled_viewport) {
-        graphics_ui_drag_mouse_down = mouse_down;
-        return;
-    }
     GRAPHICS_STATE(SDL_SetRenderDrawColor(sdl_renderer, 0, 0, 0, SDL_ALPHA_OPAQUE));
     (void)GRAPHICS_DRAW(SDL_RenderClear(sdl_renderer));
-    for(viewport_slot = 0; viewport_slot < MAX_VIEWPORTS; viewport_slot += 1) {
+    for(size_t selected = 0; selected < selection->count; ++selected) {
+        viewport_slot = selection->slots[selected];
         GraphicsViewport *viewport;
         SDL_Rect clip;
         bool drawn[MAX_VIEWPORT_ITEMS] = {0};
@@ -4112,6 +4216,23 @@ static void graphics_viewports_draw(void) {
             context->item_failed = false;
             drawn[item] = true;
             config = &viewport->items[item].config;
+            (void)GRAPHICS_STATE(SDL_SetRenderClipRect(sdl_renderer, &clip));
+            if(config->clip_enabled) {
+                float left = fmaxf(viewport->rectangle.x,
+                    viewport->rectangle.x + config->clip_rectangle.x);
+                float top = fmaxf(viewport->rectangle.y,
+                    viewport->rectangle.y + config->clip_rectangle.y);
+                float right = fminf(viewport->rectangle.x + viewport->rectangle.width,
+                    viewport->rectangle.x + config->clip_rectangle.x +
+                        config->clip_rectangle.width);
+                float bottom = fminf(viewport->rectangle.y + viewport->rectangle.height,
+                    viewport->rectangle.y + config->clip_rectangle.y +
+                        config->clip_rectangle.height);
+                SDL_Rect item_clip = {(int)left, (int)top,
+                    (int)fmaxf(0.0f, right - left),
+                    (int)fmaxf(0.0f, bottom - top)};
+                (void)GRAPHICS_STATE(SDL_SetRenderClipRect(sdl_renderer, &item_clip));
+            }
             if(viewport->items[item].kind == GRAPHICS_VIEWPORT_ITEM_UI) {
                 size_t ui_slot;
                 context->target = (ReportObjectRef){ROHR_REPORT_OBJECT_UI, viewport->items[item].value.ui};
@@ -4120,23 +4241,6 @@ static void graphics_viewports_draw(void) {
                         false, context->source, context->target, "Viewport UI is unavailable");
                     context->skipped++;
                     continue;
-                }
-                if(config->clip_enabled && config->clip_rectangle.width > 0.0f &&
-                        config->clip_rectangle.height > 0.0f) {
-                    float left = fmaxf(viewport->rectangle.x,
-                        viewport->rectangle.x + config->clip_rectangle.x);
-                    float top = fmaxf(viewport->rectangle.y,
-                        viewport->rectangle.y + config->clip_rectangle.y);
-                    float right = fminf(viewport->rectangle.x + viewport->rectangle.width,
-                        viewport->rectangle.x + config->clip_rectangle.x +
-                            config->clip_rectangle.width);
-                    float bottom = fminf(viewport->rectangle.y + viewport->rectangle.height,
-                        viewport->rectangle.y + config->clip_rectangle.y +
-                            config->clip_rectangle.height);
-                    SDL_Rect item_clip = {(int)left, (int)top,
-                        (int)fmaxf(0.0f, right - left),
-                        (int)fmaxf(0.0f, bottom - top)};
-                    (void)GRAPHICS_STATE(SDL_SetRenderClipRect(sdl_renderer, &item_clip));
                 }
                 if(graphics_ui_elements[ui_slot].kind == GRAPHICS_UI_SHAPE)
                     graphics_viewport_ui_shape_draw(viewport, config,
@@ -4198,7 +4302,7 @@ static void graphics_viewports_draw(void) {
             if(viewport->items[item].hovered)
                 drag_candidate = viewport->items[item].id;
             size_t camera_slot;
-            if(!graphics_camera_slot(screen->camera, &camera_slot)) {
+            if(!graphics_screen_camera_live_check(screen, &camera_slot)) {
                 if(!missing_camera_reported[screen_slot]) {
                     graphics_report_issue(context->report, context->stage,
                         ERROR_ENGINE_STATE_REFERENCE_NOT_FOUND, false,
@@ -4212,6 +4316,8 @@ static void graphics_viewports_draw(void) {
                 else context->processed++;
                 continue;
             }
+            if((screen->camera_entity && !entity_visible_check(screen->camera_entity)) ||
+                    (screen->content_mode == SCREEN_CONTENT_AUTOMATIC && !camera_runtime[camera_slot].enabled)) continue;
             destination = (SDL_FRect){
                 viewport->rectangle.x + config->rectangle.x,
                 viewport->rectangle.y + config->rectangle.y,
@@ -4284,7 +4390,7 @@ static void graphics_commands_discard(void) {
     graphics_clip_stack_count = 0;
 }
 
-static void graphics_commands_execute(void) {
+static void graphics_commands_execute(const GraphicsSelection *selection) {
     SDL_Texture *target = NULL;
     bool target_known = false;
     GraphicsReportContext *context = graphics_report_context;
@@ -4306,6 +4412,24 @@ static void graphics_commands_execute(void) {
                 : (ReportObjectRef){ROHR_REPORT_OBJECT_SCREEN, command->screen};
             context->item_failed = false;
             if(context->report->header.status == ROHR_REPORT_FAILED) {
+                context->skipped++;
+                continue;
+            }
+            size_t selected_slot;
+            bool allowed = !selection || (graphics_screen_slot(command->screen, &selected_slot) && selection->screens[selected_slot]);
+            if(selection && command->image_target) {
+                allowed = false;
+                for(size_t l = 0; l < graphics_layer_count && !allowed; ++l)
+                    for(size_t c = 0; c < graphics_layers[l].count; ++c) {
+                        const GraphicsCommand *sample = &graphics_layers[l].commands[c];
+                        if(sample->type == GRAPHICS_COMMAND_TEXTURE && sample->data.texture.scene_image == command->image_target &&
+                                graphics_screen_slot(sample->screen, &selected_slot) && selection->screens[selected_slot]) {
+                            allowed = true; break;
+                        }
+                    }
+            }
+            if(!allowed) {
+                graphics_item_issue(ERROR_ENGINE_STATE_INVALID, "Queued command targets content outside the selected viewports");
                 context->skipped++;
                 continue;
             }
@@ -4476,7 +4600,7 @@ static void graphics_commands_execute(void) {
     graphics_commands_discard();
 }
 
-Report graphics_pipeline_cameras_update(void) {
+static Report graphics_cameras_update_selected(const GraphicsSelection *selection) {
     Uint64 start = SDL_GetTicksNS();
     Report report = graphics_report_create(ROHR_GRAPHICS_CAMERAS_REPORT_ID);
     GraphicsReportContext context = {.stage = ROHR_GRAPHICS_CAMERA_CALLBACK};
@@ -4498,7 +4622,7 @@ Report graphics_pipeline_cameras_update(void) {
     }
     if(!report.has_fatal) {
         graphics_camera_motions_update();
-        graphics_render_viewport_cameras();
+        graphics_render_viewport_cameras(selection);
     }
     graphics_render_state_restore();
     if(report.header.status == ROHR_REPORT_FAILED) {
@@ -4511,7 +4635,7 @@ Report graphics_pipeline_cameras_update(void) {
     return report;
 }
 
-Report graphics_pipeline_commands_execute(void) {
+static Report graphics_commands_execute_selected(const GraphicsSelection *selection) {
     Uint64 start = SDL_GetTicksNS();
     Report report = graphics_report_create(ROHR_GRAPHICS_COMMANDS_REPORT_ID);
     GraphicsReportContext context = {.stage = ROHR_GRAPHICS_COMMAND_EXECUTION};
@@ -4527,13 +4651,13 @@ Report graphics_pipeline_commands_execute(void) {
         report_publish_internal(&report);
         return report;
     }
-    graphics_commands_execute();
+    graphics_commands_execute(selection);
     graphics_pipeline_end(&context, start);
     report_publish_internal(&report);
     return report;
 }
 
-Report graphics_pipeline_viewports_draw(void) {
+static Report graphics_viewports_draw_selected(const GraphicsSelection *selection) {
     Uint64 start = SDL_GetTicksNS();
     Report report = graphics_report_create(ROHR_GRAPHICS_VIEWPORTS_REPORT_ID);
     GraphicsReportContext context = {.stage = ROHR_GRAPHICS_VIEWPORT_COMPOSITION};
@@ -4541,7 +4665,7 @@ Report graphics_pipeline_viewports_draw(void) {
         report_publish_internal(&report);
         return report;
     }
-    graphics_viewports_draw();
+    graphics_viewports_draw(selection);
     graphics_render_state_restore();
     graphics_pipeline_end(&context, start);
     report_publish_internal(&report);
@@ -4596,7 +4720,7 @@ Report graphics_pipeline_present(void) {
     return report;
 }
 
-Report graphics_show(void) {
+static Report graphics_show_selected(const ViewportId *ids, size_t count, bool all, bool editor) {
     Uint64 start = SDL_GetTicksNS();
     Report report = graphics_report_create(ROHR_GRAPHICS_REPORT_ID);
     if(graphics_frame_active || graphics_report_context != NULL) {
@@ -4605,11 +4729,16 @@ Report graphics_show(void) {
         report_publish_internal(&report);
         return report;
     }
+    GraphicsSelection selection;
+    if(!graphics_selection_get(ids, count, all, &selection, &report)) {
+        report_publish_internal(&report);
+        return report;
+    }
     graphics_frame_active = true;
-    Report child = graphics_pipeline_cameras_update();
+    Report child = graphics_cameras_update_selected(&selection);
     (void)report_merge(&report, &child);
     if(child.header.status != ROHR_REPORT_FAILED) {
-        child = graphics_pipeline_commands_execute();
+        child = graphics_commands_execute_selected(editor ? NULL : &selection);
         (void)report_merge(&report, &child);
     } else {
         /* Keep submission evidence even when unsafe camera state prevents execution. */
@@ -4621,8 +4750,8 @@ Report graphics_show(void) {
         graphics_commands_discard();
         graphics_pending_commands = graphics_report_create(ROHR_GRAPHICS_COMMANDS_REPORT_ID);
     }
-    if(report.header.status != ROHR_REPORT_FAILED) {
-        child = graphics_pipeline_viewports_draw();
+    if(report.header.status != ROHR_REPORT_FAILED && !editor) {
+        child = graphics_viewports_draw_selected(&selection);
         (void)report_merge(&report, &child);
     }
     if(report.header.status != ROHR_REPORT_FAILED) {
@@ -6442,3 +6571,28 @@ EngineResult graphics_animated_sprite_description_set(Entity entity, AnimatedSpr
     if(error_check(current)) return error_result_error(current.result.error);
     return graphics_animated_sprite_add(entity, description);
 }
+
+Report graphics_viewports_show(const ViewportId *viewports, size_t count) {
+    return graphics_show_selected(viewports, count, false, false);
+}
+Report graphics_viewport_show(ViewportId viewport) { return graphics_viewports_show(&viewport, 1); }
+Report graphics_show(void) { return graphics_show_selected(NULL, 0, true, false); }
+static Report graphics_selected_stage(const ViewportId *ids, size_t count, bool all, bool cameras) {
+    Report report = graphics_report_create(cameras ? ROHR_GRAPHICS_CAMERAS_REPORT_ID : ROHR_GRAPHICS_VIEWPORTS_REPORT_ID);
+    GraphicsSelection selection;
+    if(!graphics_selection_get(ids, count, all, &selection, &report)) {
+        report_publish_internal(&report); return report;
+    }
+    return cameras ? graphics_cameras_update_selected(&selection) : graphics_viewports_draw_selected(&selection);
+}
+Report graphics_pipeline_cameras_update_for_viewports(const ViewportId *ids, size_t count) {
+    return graphics_selected_stage(ids, count, false, true);
+}
+Report graphics_pipeline_viewports_draw_selected(const ViewportId *ids, size_t count) {
+    return graphics_selected_stage(ids, count, false, false);
+}
+Report graphics_pipeline_cameras_update(void) { return graphics_selected_stage(NULL, 0, true, true); }
+Report graphics_pipeline_viewports_draw(void) { return graphics_selected_stage(NULL, 0, true, false); }
+Report graphics_pipeline_commands_execute(void) { return graphics_commands_execute_selected(NULL); }
+
+Report graphics_editor_show(void) { return graphics_show_selected(NULL, 0, true, true); }

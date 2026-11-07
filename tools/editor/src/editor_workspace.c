@@ -2134,7 +2134,6 @@ static bool editor_workspace_generated_viewports_write(
         "    ProjectObjects *objects = context;\n"
         "    (void)camera;\n"
         "    rohr_graphics_layer_active_set(-100);\n"
-        "    rohr_graphics_background_draw((Color){18, 22, 30, 255});\n"
         "    rohr_graphics_layer_active_set(0);\n"
         "    project_objects_draw_all(objects);\n"
         "}\n\n");
@@ -2306,7 +2305,8 @@ static bool editor_workspace_generated_viewports_write(
                 "        if(rohr_error_check(result = rohr_camera_render_callback_set("
                     "objects->%s.camera_%s, render_scene, objects))) goto fail;\n"
                 "      { ScreenIdResult screen = rohr_screen_create((ScreenDescription){"
-                    "objects->%s.camera_%s, %d, %d});\n"
+                    ".camera=objects->%s.camera_%s, .width=%d, .height=%d, "
+                    ".clear_background=true, .background_color=rohr_graphics_color_hex_create(UINT32_C(0x%08x))});\n"
                 "        if(rohr_error_check(screen)) { result = "
                     "rohr_error_result_error(screen.result.error); goto fail; }\n"
                 "        resources->screens[resources->screen_count++] = "
@@ -2323,6 +2323,7 @@ static bool editor_workspace_generated_viewports_write(
                 object_name, camera->name, object_name, camera->name,
                 item->render_size_explicit ? item->render_width : (int)camera->dimensions.x,
                 item->render_size_explicit ? item->render_height : (int)camera->dimensions.y,
+                item->background_color,
                 item->placement.rectangle.x, item->placement.rectangle.y,
                 item->placement.rectangle.width, item->placement.rectangle.height,
                 (int)item->placement.fit, item->placement.orientation,

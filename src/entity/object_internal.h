@@ -8,18 +8,17 @@
 #define OBJECT_DEPTH_MAX 128
 bool object_flags_check(EntityObjectFlags flags);
 bool object_entity_settings_check(ObjectEntitySettings value);
+typedef struct ObjectInstanceOrigin {
+    uint64_t id, catalog;
+    char catalog_name[ENTITY_NAME_MAX];
+} ObjectInstanceOrigin;
+bool object_instance_origin_get(Entity entity, ObjectInstanceOrigin *origin);
+EngineResult object_instance_origin_set(Entity entity, ObjectInstanceOrigin origin);
+bool object_instance_description_check(Entity entity, const ObjectDescription *description);
 void object_instance_resources_clear(EntityIndex index);
 EngineResult object_instance_camera_restore(Entity entity, CameraId camera);
 Entity object_instance_anchor_owner_get(Entity entity);
 EngineResult object_instance_anchor_restore(Entity entity, Entity owner, JointAnchorId anchor);
-typedef struct ObjectAppearance {
-    ObjectKind kind;
-    ObjectVisuals visuals;
-    Color color;
-    Color border_color;
-    bool visible;
-    bool enabled;
-} ObjectAppearance;
 bool object_instance_appearance_get(Entity entity, ObjectAppearance *appearance);
 EngineResult object_instance_appearance_set(Entity entity, ObjectAppearance appearance);
 void object_description_tree_destroy(ObjectDescription *description);

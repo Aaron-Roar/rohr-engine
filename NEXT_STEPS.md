@@ -14,7 +14,7 @@ priority order.
 | 3 | COM, inertia, and origin semantics | Complete |
 | 4 | Cross-path feature parity | Complete by user acceptance; recorded verification exceptions remain |
 | 14 | Frame pacing before game development | Complete; corrected pacing verified and initial previews accepted |
-| 15 | [Descriptor-based creation and automatic viewport rendering](#15-descriptor-based-creation-and-automatic-viewport-rendering) | Goals 1–2 complete; Goal 2 ready for review; goals 3–6 pending explicit instruction |
+| 15 | [Descriptor-based creation and automatic viewport rendering](#15-descriptor-based-creation-and-automatic-viewport-rendering) | Goals 1–3 complete; Goal 3 ready for review; goals 4–6 pending explicit instruction |
 | — | [C game experiment](#c-game-experiment) | Follows milestone 15; agree concept and completion criteria with the user |
 | 13 | Physics rebuild from the simpler baseline | Paused by user direction for frame pacing and game development; goals 1, 2a, 2b and 4a complete; goals 2 and 3 failed; goal 4 blocking remains incomplete; goals 5–8 not started |
 | 12 | Real-time physics pipeline rework | Closed by user direction; superseded by milestone 13, not complete; goals 1–13 complete, goal 14 unfinished, goals 15–19 not started; evidence preserved |
@@ -28,9 +28,11 @@ priority order.
 
 **Current priority:** By user direction, milestone 15 precedes the C game
 checkpoint. Goal 1 defines the [creation and viewport contract](docs/creation_and_viewport_contract.md).
-Goal 2 implements [shared entity/object creation](docs/shared_creation.md) and is
-complete for review. Viewport creation/rendering changes remain Goal 3.
-Stop for review and commit. Do not start Goal 3 without explicit instruction.
+Goal 2 implements [shared entity/object creation](docs/shared_creation.md).
+Goal 3 implements [automatic viewport rendering](docs/automatic_viewports.md),
+complete creation from one descriptor, explicit camera bindings and selected/batched
+presentation. Its interactive preview is accepted. Stop for review and commit.
+Do not start Goal 4's unified project generation without explicit instruction.
 Descriptions remain immutable, created instances remain mutable, camera bindings
 are explicit and applied during viewport creation, and live viewports remain
 extensible from application code. Automatic rendering reuses runtime visual
@@ -679,12 +681,32 @@ code afterward. Preserve current physics and frame-pacing behavior.
    or sanitizer findings were observed in the focused checks. Native Windows
    execution and generic Linux distribution packaging are not claimed here.
    Evidence and isolated installed SDKs: `sandbox/milestone_15/goal_2/`.
-3. [ ] **Implement automatic viewport rendering.** Reuse existing runtime
+3. [x] **Implement automatic viewport rendering.** Reuse existing runtime
    appearance, visibility, and layer data, adding only confirmed missing
    information. Implement complete viewport creation and its runtime camera
    bindings, keep later screen/UI extension available, remove the need for
    application camera callbacks, use discovery order within equal layers, and
-   present multiple viewports once per frame.
+   present multiple viewports once per frame. **Result: complete for review.**
+   One creation descriptor combines an immutable recipe with explicit runtime
+   camera bindings; separate viewport creation options are removed by user
+   direction. Automatic screens discover live visual state, honor visibility and
+   layers, clear their backgrounds, and share one presentation per selected batch.
+   Runtime extension, recipe-owned resource teardown, legacy callbacks and manual
+   stages remain supported. Screen backgrounds persist through the editor, JSON
+   and existing generation. Thirteen focused Release and thirteen ASan/UBSan
+   checks pass, including 1,000 lifecycle cycles, allocation rollback, paused
+   initialization and engine/graphics restart. Six installed Linux SDK consumers
+   pass; all consumer targets and independent car/flies/viewport examples build
+   on Linux and cross-build for Windows. The generated starter and examples launch
+   outside the source tree and stop cleanly. The user accepted the two-screen
+   preview and runtime Toggle button. The 600-frame headless car retains 2,400
+   substeps, 701,387 candidates and 108,585 contacts; no full physics or rendered
+   performance acceptance is claimed. No compiler warnings or sanitizer findings
+   were observed in the focused checks. Native Windows execution is unverified;
+   generic Linux distribution packaging and the controlled rendering comparison
+   remain Goal 6. Physics settings and the known Goal 2 failure inventory remain
+   unchanged. See the [guide and results](docs/automatic_viewports.md); local
+   evidence is under `sandbox/milestone_15/goal_3/`.
 4. [ ] **Generate descriptions through a unified project interface.** Expose
    named object, entity, and viewport descriptions through a project header,
    with definitions in generated source files. Replace object-specific creation

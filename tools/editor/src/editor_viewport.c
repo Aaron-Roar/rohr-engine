@@ -7401,14 +7401,16 @@ static void editor_viewport_empty_camera_background_draw(
     }
 }
 
+typedef struct EditorCameraImageContext { const EditorObject *object; uint32_t background; } EditorCameraImageContext;
 static void editor_viewport_camera_image_draw(void *context) {
+    const EditorCameraImageContext *image = context;
     EditorViewportState preview_state = {.mode = EDITOR_VIEWPORT_HIERARCHY,
         .dragged_vertex = -1};
     editor_view_content_layer_set(EDITOR_GRAPHICS_LAYER_CONTENT);
-    rohr_graphics_background_draw((Color){0});
+    rohr_graphics_background_draw(rohr_graphics_color_hex_create(image->background));
     /* Source clipping happens at the camera texture edge, before any screen
      * placement/content transforms, just as in the runtime compositor. */
-    editor_viewport_camera_preview_object_draw(context, &preview_state);
+    editor_viewport_camera_preview_object_draw(image->object, &preview_state);
 }
 
 static void editor_viewport_screen_camera_preview_draw(
@@ -7464,8 +7466,9 @@ static void editor_viewport_screen_camera_preview_draw(
      * runtime renderer intentionally remains world-wide. */
     GraphicsSceneImage **image = &editor_camera_images[editor_camera_image_count++];
     if(*image == NULL) *image = graphics_scene_image_create();
+    EditorCameraImageContext image_context = {camera_object, screen->background_color};
     EngineResult rendered = graphics_scene_image_render(*image, render_width,
-        render_height, editor_viewport_camera_image_draw, (void *)camera_object);
+        render_height, editor_viewport_camera_image_draw, &image_context);
     editor_view_camera_preview = false;
     editor_view_origin = saved_origin;
     editor_view_scale = saved_scale;

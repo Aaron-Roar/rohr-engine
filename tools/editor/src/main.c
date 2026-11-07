@@ -1,3 +1,4 @@
+#include "graphics/scene_image.h"
 /* Copyright 2026 Aaron Rohrer
  * SPDX-License-Identifier: LGPL-3.0-only
  */
@@ -5048,7 +5049,7 @@ int main(int argc, char **argv) {
         editor_log_update();
         (void)SDL_SetCursor(viewport_state.reference_picker_hovered && reference_cursor != NULL ?
             reference_cursor : SDL_GetDefaultCursor());
-        rohr_graphics_show();
+        graphics_editor_show();
     }
 
     editor_command_executed_callback_set(NULL, NULL);

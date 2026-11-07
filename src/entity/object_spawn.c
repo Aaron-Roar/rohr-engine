@@ -38,6 +38,40 @@ static CameraId instance_cameras[MAX_ENTITIES];
 static JointAnchorId instance_anchors[MAX_ENTITIES];
 static ObjectAppearance instance_appearance[MAX_ENTITIES];
 static bool instance_appearance_used[MAX_ENTITIES];
+static ObjectInstanceOrigin instance_origins[MAX_ENTITIES];
+
+static bool description_origin_get(const ObjectDescription *description, ObjectInstanceOrigin *origin) {
+    if(!description) return false;
+    const ObjectDescription *root = description;
+    size_t depth = 0;
+    while(root->parent && depth++ < OBJECT_DEPTH_MAX) root = root->parent;
+    if(root->parent || !root->name || strlen(root->name) >= ENTITY_NAME_MAX) return false;
+    *origin = (ObjectInstanceOrigin){.id = description->id, .catalog = root->id};
+    memcpy(origin->catalog_name, root->name, strlen(root->name) + 1);
+    return true;
+}
+bool object_instance_origin_get(Entity entity, ObjectInstanceOrigin *origin) {
+    EntityIndex index;
+    if(!origin || !entity_index_get(entity, &index) || !instance_origins[index].id) return false;
+    *origin = instance_origins[index];
+    return true;
+}
+EngineResult object_instance_origin_set(Entity entity, ObjectInstanceOrigin origin) {
+    EntityIndex index;
+    if(!entity_index_get(entity, &index) || !origin.id || !origin.catalog ||
+            !memchr(origin.catalog_name, 0, sizeof(origin.catalog_name)))
+        return error_result_error(ERROR_ENGINE_STATE_INVALID);
+    instance_origins[index] = origin;
+    return error_result_value(true);
+}
+bool object_instance_description_check(Entity entity, const ObjectDescription *description) {
+    ObjectInstanceOrigin actual, expected;
+    ObjectAppearance appearance;
+    return object_instance_origin_get(entity, &actual) && description_origin_get(description, &expected) &&
+        actual.id == expected.id && actual.catalog == expected.catalog &&
+        !strcmp(actual.catalog_name, expected.catalog_name) &&
+        object_instance_appearance_get(entity, &appearance) && appearance.kind == description->kind;
+}
 
 bool object_instance_appearance_get(Entity entity, ObjectAppearance *appearance) {
     EntityIndex index;
@@ -50,6 +84,27 @@ EngineResult object_instance_appearance_set(Entity entity, ObjectAppearance appe
         return error_result_error(ERROR_ENGINE_STATE_INVALID);
     instance_appearance[index] = appearance; instance_appearance_used[index] = true;
     return error_result_value(true);
+}
+ObjectAppearanceResult entity_appearance_get(Entity entity) {
+    ObjectAppearance appearance;
+    if(!object_instance_appearance_get(entity, &appearance))
+        return ERROR_RESULT_MAKE_ERROR(ObjectAppearanceResult, ERROR_ENGINE_COMPONENT_MISSING);
+    return ERROR_RESULT_MAKE_VALUE(ObjectAppearanceResult, appearance);
+}
+EngineResult entity_appearance_set(Entity entity, ObjectAppearance appearance) {
+    return object_instance_appearance_set(entity, appearance);
+}
+bool entity_visible_check(Entity entity) {
+    if(!entity) return false;
+    for(size_t depth = 0; entity && depth < MAX_ENTITIES; ++depth) {
+        if(!entity_alive_check(entity)) return false;
+        ObjectAppearance appearance;
+        if(object_instance_appearance_get(entity, &appearance) && !appearance.visible) return false;
+        EntityResult owner = entity_owner_get(entity);
+        if(error_check(owner)) return false;
+        entity = owner.result.value;
+    }
+    return entity == ENTITY_INVALID;
 }
 bool entity_object_draw(Entity entity) {
     if(!entity_alive_check(entity)) return false;
@@ -143,6 +198,7 @@ void object_instance_resources_clear(EntityIndex index) {
     if(instance_anchors[index]) (void)physics_joint_anchor_remove(instance_anchors[index]);
     instance_anchors[index] = 0;
     instance_appearance_used[index] = false; instance_appearance[index] = (ObjectAppearance){0};
+    instance_origins[index] = (ObjectInstanceOrigin){0};
 }
 CameraIdResult entity_object_camera_get(Entity entity) {
     EntityIndex index;
@@ -891,6 +947,13 @@ static EntityResult description_spawn(const ObjectDescription *description,
         if(error_check(result)) goto fail;
     }
     Entity root = c.entries[0].entity;
+    for(size_t i = 0; i < c.count; ++i) {
+        EntityIndex index;
+        ObjectInstanceOrigin origin;
+        if(!c.entries[i].alias && entity_index_get(c.entries[i].entity, &index) &&
+                description_origin_get(c.entries[i].description, &origin))
+            instance_origins[index] = origin;
+    }
     if(strict && !entity_alive_check(root)) {
         result = error_result_error(ERROR_ENGINE_STATE_INVALID);
         goto fail;

@@ -26,6 +26,20 @@ typedef enum ObjectKind {
     OBJECT_SPRITE, OBJECT_ANIMATION, OBJECT_CAMERA, OBJECT_FORCE, OBJECT_TORQUE
 } ObjectKind;
 
+/** Retained runtime appearance. Geometry alone does not opt into scene drawing. */
+typedef struct ObjectAppearance {
+    ObjectKind kind;
+    ObjectVisuals visuals;
+    Color color;
+    Color border_color;
+    bool visible;
+    bool enabled;
+} ObjectAppearance;
+ERROR_DECLARE_RESULT_TYPE(ObjectAppearanceResult, ObjectAppearance);
+ObjectAppearanceResult entity_appearance_get(Entity entity);
+EngineResult entity_appearance_set(Entity entity, ObjectAppearance appearance);
+bool entity_visible_check(Entity entity);
+
 /** Stable authored identity. A zero id disconnects the reference. In compiled
  * catalogs id is the catalog description id; soft_body is then zero. */
 typedef struct ObjectEntityReference {

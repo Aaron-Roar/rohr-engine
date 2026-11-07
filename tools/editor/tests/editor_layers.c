@@ -1,3 +1,4 @@
+#include "graphics/scene_image.h"
 /* Copyright 2026 Aaron Rohrer
  * SPDX-License-Identifier: LGPL-3.0-only
  */
@@ -139,7 +140,7 @@ static bool rotated_preview_background_check(void) {
     editor_viewport_draw(&project, &state, false);
     trace_preview = false;
     CHECK(preview_geometry_valid && preview_backgrounds == 2 && preview_stripes > 2);
-    rohr_graphics_show();
+    graphics_editor_show();
     editor_viewport_state_destroy(&state); editor_project_destroy(&project);
     return true;
 }
@@ -196,7 +197,7 @@ static bool rotated_preview_content_check(void) {
         camera_sources = camera_composites = 0;
         preview_geometry_valid = true; trace_camera_content = true;
         editor_viewport_draw(&project, &state, false);
-        Report report = rohr_graphics_show();
+        Report report = graphics_editor_show();
         trace_camera_content = false;
         CHECK(report.header.status == ROHR_REPORT_COMPLETE && report.diagnostic_count == 0);
         if(!preview_geometry_valid || camera_sources != 2 || camera_composites != 2)
@@ -234,7 +235,7 @@ static void draw(EditorProject *project, EditorViewportState *state) {
     rohr_graphics_layer_active_set(EDITOR_GRAPHICS_LAYER_BACKGROUND);
     rohr_graphics_background_draw((Color){0,0,0,255});
     editor_viewport_draw(project, state, false);
-    rohr_graphics_show();
+    graphics_editor_show();
 }
 
 static bool body_layers_check(void) {
@@ -498,7 +499,7 @@ static bool animation_direction_check(void) {
         rohr_graphics_background_draw((Color){0,0,0,255});
         rohr_graphics_layer_active_set(EDITOR_GRAPHICS_LAYER_ANIMATION);
         CHECK(rohr_graphics_animated_sprite_draw(entity.result.value));
-        rohr_graphics_show();
+        graphics_editor_show();
         unsigned seen = 0;
         CHECK(direction_pixels_check((Position){640,360}, 0, sprite.direction, 1, &seen));
         OK(rohr_entity_delete(entity.result.value));
@@ -522,7 +523,7 @@ static bool animation_direction_check(void) {
         rohr_graphics_background_draw((Color){0,0,0,255});
         rohr_graphics_layer_active_set(EDITOR_GRAPHICS_LAYER_ANIMATION);
         CHECK(rohr_graphics_animated_sprite_draw(entity.result.value));
-        rohr_graphics_show();
+        graphics_editor_show();
         unsigned seen = 0;
         CHECK(direction_pixels_check((Position){660,390}, 135, sprite.direction, 1, &seen));
         CHECK(animation_extent_check((Position){660,390}, 135,
@@ -698,7 +699,7 @@ static bool frame_flips_check(void) {
                 animated_sprites[rohr_entity_index_get(entity).result.value].direction = direction;
                 rohr_graphics_background_draw((Color){0,0,0,255});
                 CHECK(rohr_graphics_animated_sprite_draw(entity));
-                rohr_graphics_show();
+                graphics_editor_show();
             } else {
                 animation->frames[0].scale = scale;
                 animation->direction = direction;
@@ -720,7 +721,7 @@ static bool frame_flips_check(void) {
             OK(rohr_graphics_animated_sprite_frame_scale_set(entity, 0, (Scale){0,10}));
             rohr_graphics_background_draw((Color){0,0,0,255});
             CHECK(rohr_graphics_animated_sprite_draw(entity));
-            rohr_graphics_show();
+            graphics_editor_show();
         } else {
             animation->frames[0].scale = (Scale){0,10};
             draw(&project, &state);

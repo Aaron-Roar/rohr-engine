@@ -1,0 +1,155 @@
+# Automatic viewports
+
+Milestone 15 Goal 3 implements complete viewport creation and automatic scene
+rendering. Unified `project.h` generation and starter migration remain Goals 4
+and 5. Existing generated projects still compile through the compatibility APIs.
+See the [contract](creation_and_viewport_contract.md) for the full milestone and
+[shared creation](shared_creation.md) for entity/object creation.
+
+## Create and show
+
+Pass one `ViewportCreateDescription` to `rohr_viewport_create`. It contains scalar
+viewport configuration, named screen/UI items, named layer definitions and runtime
+camera bindings. For an immutable authored recipe, use a local descriptor whose
+`.template` points to that recipe and whose binding arrays choose live instances:
+
+```c
+/* authored_viewport and player_description are immutable description data;
+ * player is an already-created instance of player_description. */
+ViewportObjectBinding binding = { &player_description, player };
+ViewportCreateDescription creation = {
+    .template = &authored_viewport,
+    .objects = &binding,
+    .object_count = 1,
+};
+ViewportIdResult created = rohr_viewport_create(&creation);
+if (rohr_error_check(created)) {
+    /* Handle the creation error before using the result. */
+    return;
+}
+ViewportId viewport = created.result.value;
+/* In the application's frame loop, after its explicit updates: */
+Report frame = rohr_graphics_viewport_show(viewport);
+/* Check frame.header.status and diagnostics. */
+```
+
+The template supplies all configuration; use only `.template` and binding arrays
+in the local descriptor. Template chains and bindings inside referenced templates
+are rejected. Without a template, supply configuration and bindings together.
+`graphics_viewport_description_default_get()` (public alias
+`rohr_viewport_description_default_get()`) supplies scalar defaults. There is no
+separate viewport options structure or `_with_options` call.
+
+A screen item names its authored camera object and member. An object binding
+resolves that member inside the chosen instance during creation. Alternatively,
+`ViewportCameraBinding` overrides a named screen with exactly one camera entity
+or low-level camera handle. Overrides take precedence. Duplicate, missing,
+unconsumed, stale, or incompatible bindings fail; no camera is implicitly spawned.
+An item without an authored camera or override remains unbound and displays the
+existing missing-camera placeholder and report warning.
+
+Instance matching uses copied catalog-root ID/name, member ID and retained kind,
+then walks direct authored member names. It does not retain catalog pointers or
+search global runtime names. This provenance is optional runtime persistence
+data; older snapshots still load, but need explicit camera bindings if they lack
+provenance. Independently authored catalogs must keep their namespaces distinct.
+
+Use `rohr_graphics_viewports_show(ids, count)` for multiple viewports in one frame.
+It composes in array order and presents/captures once. Shared screens render once;
+distinct screens using one camera render separately at their own dimensions.
+Camera motion advances once. Two singular show calls are two frames. Physics,
+gameplay, audio and sprite animation updates remain application-owned.
+
+## Live scene and extension
+
+Automatic screens discover the current dense live-entity inventory on every
+redraw. Retained body/particle appearance, soft-body element settings, markers,
+sprites and animated sprites supply their existing draw data. A plain physics
+hitbox does not become visible without appearance or a visual component. Attached
+visual aliases are visited once with their actual entity. Low-level soft-body
+elements have explicit visual settings and are eligible without retained object
+appearance; their fallback color is white.
+
+`rohr_entity_appearance_get/set` exposes the existing retained appearance, and
+`rohr_entity_visible_check` includes containing-owner visibility. Hiding an owner
+does not rewrite child flags or disable physics. Component visibility and graphics
+layers still apply. Lower layers draw first; equal layers use discovery order
+without stability guarantees. Use distinct layers when overlap order matters.
+Each screen clears to its configured background before drawing, preventing trails.
+Camera entity visibility suppresses its content; an already-rendered paused camera
+keeps its content, while a new paused screen initializes only its background.
+
+Use `rohr_viewport_item_by_name_get` for an authored item, then the existing item
+get/set/remove APIs. Existing camera/screen/UI add calls extend the live viewport.
+Screens and UI retain viewport-item transforms, clipping and layer order; at equal
+item layers screens precede UI. Later-created scene entities need no registration
+with the viewport. The test's `--preview` mode demonstrates two screens and a
+runtime-added Toggle button controlling entity visibility.
+
+## Ownership and compatibility
+
+- Creation borrows input arrays, strings and descriptions only for the call. It
+  copies runtime values and names, acquires assets and rolls back failed creation.
+- The returned viewport owns its recipe-created screens/UI/text/fonts and screens
+  created by its camera-add convenience helper. Removing their items unmounts
+  them; resource lifetime lasts until viewport destruction. Destruction unmounts
+  borrowed uses of those owned resources elsewhere before releasing them.
+- Cameras and object instances are borrowed. Deleting one leaves a safe missing
+  reference; slot reuse cannot bind a replacement implicitly. Binding a low-level
+  camera directly clears any prior camera-entity association.
+- Separately created screens/UI mounted through low-level add calls are borrowed.
+  Their callers retain ownership. Existing legacy scalar viewport camera-add
+  behavior remains graphics-lifetime ownership.
+- Named layers are reused only with matching values. Failed creation removes new
+  registrations; successful shared registrations last until explicit destruction
+  or graphics teardown. Repeated creation does not accumulate layers.
+- Legacy by-value `rohr_viewport_create(ViewportDescription)` and its callable
+  symbol remain available through a C11 dispatch adapter. Direct `graphics_`
+  functions have equivalent behavior. Rebuild consumers for extended structures.
+
+Low-level screens default to `SCREEN_CONTENT_CALLBACK`. Recipe-created screens
+use `SCREEN_CONTENT_AUTOMATIC`, ignoring any callback on their camera. A camera
+can serve both modes through separate screens. Callback screens may opt into a
+configured background clear with `clear_background`; automatic screens always
+clear on redraw. Project JSON, editor camera previews and current generated
+callbacks preserve screen background colors. Older project files use `0x12161eff`,
+the previous generated background. Editor camera previews retain their owning
+object restriction, while runtime automatic screens discover the runtime scene.
+
+Invalid selections fail without consuming queued work. Empty/all-disabled
+selections clear the window and still present. Full-frame selection discards
+commands outside its visible screens; manual command execution remains explicit.
+See [graphics reports](reports.md#graphics-reports) for diagnostics and stage
+boundaries. Frame limiting, VSync, recording and hosted capture use the existing
+frame pipeline.
+
+## Verification and remaining scope
+
+The focused `automatic_viewports` fixture covers two instances, explicit camera
+overrides, scene visibility/layers, late-created entities, alias drawing,
+shared screens, selection failures, manual stages, legacy callback recursion,
+runtime interaction/extension, removal, allocation rollback, retained text/font
+counts, camera deletion/slot reuse, saved instance bindings, paused initialization,
+engine/graphics restart and 1,000 create/extend/destroy cycles.
+
+Goal 3 evidence is kept in ignored `sandbox/milestone_15/goal_3/`:
+
+- Thirteen focused Linux Release tests and the same thirteen ASan/UBSan tests.
+- Six selected installed Linux SDK consumers; all consumer targets compile on
+  Linux and cross-compile for Windows, as do independent car, flies and viewport
+  examples. The generated starter builds and launches outside the source tree;
+  flies and viewport examples also launch there and stop cleanly on interrupt.
+- Windows engine/editor/test cross-builds; native Windows execution is unverified.
+- The user accepted the installed-SDK two-screen interactive preview, including
+  moving content without trails and the runtime Toggle button.
+- The 600-frame headless car diagnostic retains 2,400 substeps, 701,387 candidates
+  and 108,585 contacts. This is neither a complete 60-second physics run nor a
+  rendered performance acceptance result. Existing joints/forces failures remain
+  in the Goal 2 inventory.
+
+Discovery adds no allocation and scans live entities once per redrawn automatic
+screen; drawing retains existing command/resource costs. Creation allocates render
+targets and loads requested fonts/text. No rendering speedup is claimed from the
+shorter application API. The controlled three-run lightweight/car/pit and
+multiple-viewport comparisons, generic Linux distribution packaging, integrated
+generated workflow and final review remain Goal 6 after generation/migration.

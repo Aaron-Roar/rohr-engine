@@ -662,13 +662,15 @@ A child entry remains a summary; export does not invent nested child reports.
 
 ## Graphics reports
 
-`rohr_graphics_show()` now returns an owned `Report` with ID
-`ROHR_GRAPHICS_REPORT_ID`. It runs the following directly callable pipelines in
-order; each also has a direct API without `rohr_`:
+`rohr_graphics_show()`, `rohr_graphics_viewport_show(viewport)`, and
+`rohr_graphics_viewports_show(viewports, count)` return an owned `Report` with ID
+`ROHR_GRAPHICS_REPORT_ID`. The first selects all viewports; the others select one
+or an explicit batch. Each runs the following pipelines in order; each also has
+a direct API without `rohr_`:
 
 | API returning `Report` | Report ID | Work measured |
 | --- | --- | --- |
-| `rohr_graphics_pipeline_cameras_update()` | `ROHR_GRAPHICS_CAMERAS_REPORT_ID` | Camera motion/zoom and callbacks for enabled visible screens. |
+| `rohr_graphics_pipeline_cameras_update()` | `ROHR_GRAPHICS_CAMERAS_REPORT_ID` | Camera motion/zoom, automatic scene submission or legacy callbacks for enabled visible screens. |
 | `rohr_graphics_pipeline_commands_execute()` | `ROHR_GRAPHICS_COMMANDS_REPORT_ID` | Layer ordering and execution of queued clears, shapes, lines, text, and textures. |
 | `rohr_graphics_pipeline_viewports_draw()` | `ROHR_GRAPHICS_VIEWPORTS_REPORT_ID` | Composition of screens and viewport UI, including transforms and clipping. |
 | `rohr_graphics_pipeline_recording_update()` | `ROHR_GRAPHICS_RECORDING_REPORT_ID` | Capture, conversion, and writing/flushing one frame to the recording process. |
@@ -708,9 +710,12 @@ the next commands execution call. That call consumes this evidence exactly once,
 adds execution results, and clears it for the next invocation. Previously returned
 reports never change. Completed values are published to the latest-report cache; output remains explicit.
 
-Camera callbacks execute once per visible screen, preserving existing enabled and
-pause rules. Camera setup/restoration errors belong to the cameras report; errors
-from draw calls inside a callback belong to the commands report. Calling a frame
+Automatic screens discover live visual entities; callback screens invoke their
+legacy callback. Each selected shared screen renders once. Automatic backgrounds
+clear before scene submission; a newly created paused automatic screen initializes
+its background once without drawing entities. Later paused frames reuse content.
+Camera setup/restoration errors belong to the cameras report; errors
+from scene or callback draw submission belong to the commands report. Calling a frame
 pipeline or `graphics_show()` recursively from a camera callback returns a failed
 report without consuming the outer queue or changing its collector. Animation
 updates are independent and remain permitted inside callbacks.
@@ -720,6 +725,18 @@ composition, recording after composition, and presentation last. Each pipeline
 returns only its own invocation; it does not automatically run prerequisites or
 merge previously returned reports. Merge each returned child once if building a
 custom parent. Repeat calls perform another invocation, not a cached lookup.
+
+For a manually selected frame, use
+`rohr_graphics_pipeline_cameras_update_for_viewports(viewports, count)` and
+`rohr_graphics_pipeline_viewports_draw_selected(viewports, count)` around ordinary
+command execution. Selection is local to each call, never sticky. Manual command
+execution consumes the entire queue. Full-frame calls instead discard commands
+outside the selected visible screens, including direct window commands, with
+warning/skipped evidence and normal resource release. Private scene-image
+dependencies sampled by selected screens remain eligible. Invalid or duplicate
+selections fail before consuming work. Empty/all-disabled selections clear the
+window and present once. The editor uses a private full-frame entry point for its
+direct window canvas; this does not change application selection semantics.
 
 Execution or discard releases every queued text/texture reference exactly once,
 including on fatal failure. A failed camera pass discards unsafe queued drawing
@@ -745,8 +762,10 @@ fabricated before composition attempts to use them.
 Missing queued resources and invalid submission geometry retain available asset/entity
 and screen evidence. Backend diagnostic text is copied before cleanup or later
 backend calls can overwrite it. `GraphicsReportStage` identifies submission,
-camera callback/setup, command execution, viewport composition, recording capture
+camera rendering/setup, command execution, viewport composition, recording capture
 or write, presentation, and restoration context.
+`ROHR_GRAPHICS_CAMERA_RENDER` is the canonical rendering stage name; the old
+`ROHR_GRAPHICS_CAMERA_CALLBACK` name remains an alias with the same numeric value.
 
 A required target, clipping, scale, or other render-state failure is fatal to
 its pipeline. Dependent work is not rendered against an unknown state. Restoration
@@ -762,9 +781,10 @@ Viewport interaction behavior remains unchanged; separate UI interaction reports
 belong to the later UI goal.
 
 - Header milliseconds measure CPU-side elapsed wall time, not GPU execution time.
-  Camera time includes callback work. Command time starts when execution is called;
+  Camera time includes scene discovery/submission, background initialization and
+  callback work. Command time starts when execution is called;
   it does not include earlier application time spent submitting commands.
-- `PROCESSED_COUNT` counts successful callbacks for cameras, successful commands
+- `PROCESSED_COUNT` counts successfully rendered/initialized screens for cameras, successful commands
   for commands, successful visible screen/UI items for viewports, captured frames
   for recording, presented frames for presentation, and visited valid animated
   sprites with frames for animation. A viewport background is included in time/diagnostics,
@@ -786,9 +806,9 @@ belong to the later UI goal.
 - All these counters sum when reports merge. Missing counters represent zero.
   Parent times are inclusive; never sum parent and child times as separate work.
 
-Rendering order, camera/screen sharing, viewport layers, clipping, and resource
-lifetimes retain their existing contracts. No project JSON or generated-object
-format changes are required.
+See [automatic viewports](automatic_viewports.md) for screen modes, scene ordering,
+camera bindings and resource ownership. Project screen backgrounds are persisted;
+older projects default to the preceding generated background color.
 
 ## Audio reports
 

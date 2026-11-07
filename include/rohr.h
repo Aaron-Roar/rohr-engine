@@ -24,6 +24,14 @@
 #include "ui.h"
 
 /* Generated views and runtime description pointers share the same C interface. */
+#define rohr_entity_appearance_get entity_appearance_get
+#define rohr_entity_appearance_set entity_appearance_set
+#define rohr_entity_visible_check entity_visible_check
+#define rohr_viewport_item_by_name_get graphics_viewport_item_by_name_get
+#define rohr_graphics_viewport_show graphics_viewport_show
+#define rohr_graphics_viewports_show graphics_viewports_show
+#define rohr_graphics_pipeline_cameras_update_for_viewports graphics_pipeline_cameras_update_for_viewports
+#define rohr_graphics_pipeline_viewports_draw_selected graphics_pipeline_viewports_draw_selected
 #define rohr_entity_create entity_create
 #define rohr_entity_create_with_options entity_create_with_options
 #define rohr_entity_create_options_default_get entity_create_options_default_get
@@ -2762,4 +2770,7 @@ UISliderResult rohr_ui_slider(const char *id, float value, const UISliderConfig 
 UISliderResult rohr_ui_slider_with_text(const char *id, float value,
     const UISliderConfig *config, const UISliderText *text);
 
+#define rohr_viewport_create(...) _Generic((__VA_ARGS__), \
+    ViewportDescription: (rohr_viewport_create), \
+    default: graphics_viewport_create_description)(__VA_ARGS__)
 #endif

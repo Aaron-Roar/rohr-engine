@@ -281,7 +281,7 @@ static const char *physics_stage_name(uint32_t value) {
 static const char *graphics_stage_name(uint32_t value) {
     switch(value) {
         case ROHR_GRAPHICS_SUBMISSION: return "ROHR_GRAPHICS_SUBMISSION";
-        case ROHR_GRAPHICS_CAMERA_CALLBACK: return "ROHR_GRAPHICS_CAMERA_CALLBACK";
+        case ROHR_GRAPHICS_CAMERA_RENDER: return "ROHR_GRAPHICS_CAMERA_RENDER";
         case ROHR_GRAPHICS_COMMAND_EXECUTION: return "ROHR_GRAPHICS_COMMAND_EXECUTION";
         case ROHR_GRAPHICS_VIEWPORT_COMPOSITION: return "ROHR_GRAPHICS_VIEWPORT_COMPOSITION";
         case ROHR_GRAPHICS_RECORDING_CAPTURE: return "ROHR_GRAPHICS_RECORDING_CAPTURE";

@@ -1151,6 +1151,7 @@ bool editor_project_save(const EditorProject *project, const char *path) {
             yyjson_mut_obj_add_bool(document, item, "render_size_explicit", camera->render_size_explicit);
             yyjson_mut_obj_add_int(document, item, "render_width", camera->render_width);
             yyjson_mut_obj_add_int(document, item, "render_height", camera->render_height);
+            yyjson_mut_obj_add_uint(document, item, "background_color", camera->background_color);
             yyjson_mut_obj_add_real(document, item, "x", camera->placement.rectangle.x);
             yyjson_mut_obj_add_real(document, item, "y", camera->placement.rectangle.y);
             yyjson_mut_obj_add_real(document, item, "width",
@@ -2863,7 +2864,7 @@ EditorResult editor_project_load(EditorProject *project, const char *path) {
         for(size_t j = 0; j < viewport->camera_item_count; j += 1) {
             yyjson_val *item_value = yyjson_arr_get(camera_items, j);
             EditorViewportCameraItem *item = &viewport->camera_items[j];
-            *item = (EditorViewportCameraItem){0};
+            *item = (EditorViewportCameraItem){.background_color = UINT32_C(0x12161eff)};
             uint32_t item_fit;
             yyjson_val *content_x = yyjson_obj_get(item_value, "content_x");
             yyjson_val *content_y = yyjson_obj_get(item_value, "content_y");
@@ -2875,7 +2876,9 @@ EditorResult editor_project_load(EditorProject *project, const char *path) {
                 "content_rotation");
             yyjson_val *drag_mode = yyjson_obj_get(item_value, "drag_mode");
             item->content_scale = (Scale){1.0f, 1.0f};
-            if((yyjson_obj_get(item_value, "render_size_explicit") &&
+            if((yyjson_obj_get(item_value, "background_color") &&
+                    !editor_json_uint(item_value, "background_color", &item->background_color)) ||
+                    (yyjson_obj_get(item_value, "render_size_explicit") &&
                     !editor_json_bool(item_value, "render_size_explicit", &item->render_size_explicit)) ||
                     (yyjson_obj_get(item_value, "render_width") &&
                     !editor_json_int(item_value, "render_width", &item->render_width)) ||

@@ -187,6 +187,14 @@ bool state_visuals_write(yyjson_mut_doc *doc,yyjson_mut_val *components,Entity e
     EntityIndex index;
     if(!entity_index_get(entity,&index)) return false;
 #define WRITE(condition) do { if(!(condition)) return false; } while(0)
+    ObjectInstanceOrigin origin;
+    if(object_instance_origin_get(entity, &origin)) {
+        yyjson_mut_val *v = yyjson_mut_obj(doc);
+        WRITE(v && yyjson_mut_obj_add_uint(doc,v,"id",origin.id) &&
+            yyjson_mut_obj_add_uint(doc,v,"catalog",origin.catalog) &&
+            yyjson_mut_obj_add_strcpy(doc,v,"catalog_name",origin.catalog_name) &&
+            yyjson_mut_obj_add_val(doc,components,"object_origin",v));
+    }
     ObjectAppearance appearance;
     if(object_instance_appearance_get(entity,&appearance)) {
         yyjson_mut_val *v=yyjson_mut_obj(doc);
@@ -301,7 +309,19 @@ static EngineResult animation_read(Entity entity,yyjson_val *v) {
     return result;
 }
 EngineResult state_visuals_load(Entity entity,yyjson_val *components) {
-    yyjson_val *v=yyjson_obj_get(components,"object_appearance");
+    yyjson_val *v=yyjson_obj_get(components,"object_origin");
+    if(v) {
+        ObjectInstanceOrigin origin = {0};
+        yyjson_val *name = yyjson_obj_get(v,"catalog_name");
+        if(!integer(v,"id",&origin.id) || !integer(v,"catalog",&origin.catalog) ||
+                !yyjson_is_str(name) || yyjson_get_len(name) >= sizeof(origin.catalog_name) ||
+                strlen(yyjson_get_str(name)) != yyjson_get_len(name))
+            return error_result_error(ERROR_ENGINE_STATE_INVALID);
+        memcpy(origin.catalog_name, yyjson_get_str(name), yyjson_get_len(name) + 1);
+        EngineResult result = object_instance_origin_set(entity,origin);
+        if(error_check(result)) return result;
+    }
+    v=yyjson_obj_get(components,"object_appearance");
     if(v) {
         uint64_t kind; ObjectAppearance appearance;
         if(!integer(v,"kind",&kind) || kind>OBJECT_TORQUE || !boolean(v,"visible",&appearance.visible) ||

@@ -41,7 +41,8 @@
 /** Diagnostic context within a graphics pipeline; zero means unspecified. */
 typedef enum GraphicsReportStage {
     ROHR_GRAPHICS_SUBMISSION = 1,
-    ROHR_GRAPHICS_CAMERA_CALLBACK,
+    ROHR_GRAPHICS_CAMERA_RENDER,
+    ROHR_GRAPHICS_CAMERA_CALLBACK = ROHR_GRAPHICS_CAMERA_RENDER,
     ROHR_GRAPHICS_COMMAND_EXECUTION,
     ROHR_GRAPHICS_VIEWPORT_COMPOSITION,
     ROHR_GRAPHICS_RECORDING_CAPTURE,
@@ -163,10 +164,21 @@ typedef struct LayerDescription {
 } LayerDescription;
 ERROR_DECLARE_RESULT_TYPE(LayerDescriptionResult, LayerDescription);
 
+typedef enum ScreenContentMode {
+    SCREEN_CONTENT_CALLBACK,
+    SCREEN_CONTENT_AUTOMATIC,
+} ScreenContentMode;
+
 typedef struct ScreenDescription {
     CameraId camera;
     int width;
     int height;
+    ScreenContentMode content_mode;
+    Color background_color;
+    /** Also clear before a legacy callback; automatic content always clears. */
+    bool clear_background;
+    /** Optional borrowed entity owning camera. Direct camera assignment clears it. */
+    Entity camera_entity;
 } ScreenDescription;
 
 ERROR_DECLARE_RESULT_TYPE(ScreenIdResult, ScreenId);
@@ -394,6 +406,62 @@ typedef struct TextDescription {
     int wrap_width;
 } TextDescription;
 ERROR_DECLARE_RESULT_TYPE(TextDescriptionResult, TextDescription);
+
+struct ObjectDescription;
+typedef enum ViewportCreateItemKind {
+    VIEWPORT_CREATE_SCREEN, VIEWPORT_CREATE_SHAPE,
+    VIEWPORT_CREATE_TEXT, VIEWPORT_CREATE_SLIDER,
+} ViewportCreateItemKind;
+
+/** Immutable recipe. Runtime handles in placement and UI descriptions must be zero.
+ * Screen content is automatic; camera references use the creation descriptor's bindings. */
+typedef struct ViewportCreateItemDescription {
+    const char *name;
+    ViewportCreateItemKind kind;
+    ViewportItemDescription placement;
+    const char *layer_name;
+    int render_width, render_height;
+    Color background_color;
+    const struct ObjectDescription *camera_object;
+    const struct ObjectDescription *camera_member;
+    ViewportUiShapeDescription shape;
+    ViewportUiTextDescription text;
+    ViewportUiSliderDescription slider;
+    /** Null value means no text. Font file null selects the built-in font. */
+    const char *text_value;
+    FontDescription font;
+    Color text_color;
+    int text_wrap_width;
+} ViewportCreateItemDescription;
+
+typedef struct ViewportObjectBinding {
+    const struct ObjectDescription *description;
+    Entity instance;
+} ViewportObjectBinding;
+typedef struct ViewportCameraBinding {
+    const char *item_name;
+    /** Exactly one of these borrowed references must be supplied. */
+    Entity entity;
+    CameraId camera;
+} ViewportCameraBinding;
+/** Complete creation input. A local descriptor may reference an immutable template
+ * and supply only runtime bindings. Template chains and bindings in templates are
+ * rejected. Input storage is borrowed for this call only. */
+typedef struct ViewportCreateDescription {
+    const struct ViewportCreateDescription *template;
+    ViewportDescription viewport;
+    const ViewportCreateItemDescription *items;
+    size_t item_count;
+    const LayerDescription *layers;
+    size_t layer_count;
+    const ViewportObjectBinding *objects;
+    size_t object_count;
+    const ViewportCameraBinding *cameras;
+    size_t camera_count;
+} ViewportCreateDescription;
+
+ViewportIdResult graphics_viewport_create_description(const ViewportCreateDescription *description);
+ViewportItemIdResult graphics_viewport_item_by_name_get(ViewportId viewport, const char *name);
 
 /** Generation-checked handle for an engine-owned animation resource. */
 typedef uint32_t AnimationHandle;
@@ -644,7 +712,11 @@ bool graphics_screen_quad_radians_draw(
  * Frame pipelines must not be called recursively from camera callbacks.
  */
 Report graphics_show(void);
-/** Update camera motion and queue camera callback drawing. */
+Report graphics_viewport_show(ViewportId viewport);
+Report graphics_viewports_show(const ViewportId *viewports, size_t count);
+Report graphics_pipeline_cameras_update_for_viewports(const ViewportId *viewports, size_t count);
+Report graphics_pipeline_viewports_draw_selected(const ViewportId *viewports, size_t count);
+/** Update camera motion and queue selected screen content. */
 Report graphics_pipeline_cameras_update(void);
 /** Consume pending submission diagnostics and execute queued commands. */
 Report graphics_pipeline_commands_execute(void);
@@ -1105,4 +1177,8 @@ EngineResult graphics_soft_body_area_visibility_set(Entity area, bool visible);
 EngineResult graphics_soft_body_node_color_set(Entity soft_body, Entity node, Color color);
 EngineResult graphics_soft_body_beam_color_set(
     Entity soft_body, Entity node_a, Entity node_b, Color color);
+/* Preserve the by-value symbol, including function-pointer callers. */
+#define graphics_viewport_create(...) _Generic((__VA_ARGS__), \
+    ViewportDescription: (graphics_viewport_create), \
+    default: graphics_viewport_create_description)(__VA_ARGS__)
 #endif

@@ -109,13 +109,21 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_C_COMPILER_ID MATCHES "GNU|Clang
         -Wl,--wrap=SDL_CreateTexture -Wl,--wrap=SDL_GetMouseState)
 endif()
 
+add_executable(rohr_automatic_viewports ../automatic_viewports.c)
+target_link_libraries(rohr_automatic_viewports PRIVATE Rohr::Engine)
+if(MSVC)
+    target_compile_options(rohr_automatic_viewports PRIVATE /UNDEBUG)
+else()
+    target_compile_options(rohr_automatic_viewports PRIVATE -Wall -Wextra -Wpedantic -UNDEBUG)
+endif()
+
 if(BUILD_TESTING AND NOT CMAKE_CROSSCOMPILING)
     foreach(consumer
             rohr_installed_sdk_consumer rohr_object_descriptions
             rohr_system_reports rohr_entity_info rohr_entity_info_adversarial
             rohr_forces rohr_runtime_persistence rohr_asset_descriptions
             rohr_audio_descriptions rohr_input_descriptions
-            rohr_camera_descriptions rohr_viewport_descriptions)
+            rohr_camera_descriptions rohr_viewport_descriptions rohr_automatic_viewports)
         # Each consumer owns its temporary fixtures and runs outside the source tree.
         set(runtime_directory "${CMAKE_CURRENT_BINARY_DIR}/test_work/${consumer}")
         file(MAKE_DIRECTORY "${runtime_directory}")

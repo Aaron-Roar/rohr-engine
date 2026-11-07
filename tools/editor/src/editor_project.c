@@ -1087,6 +1087,7 @@ EditorViewportCameraItem *editor_viewport_camera_add(EditorProject *project,
     item = &viewport->camera_items[viewport->camera_item_count++];
     *item = (EditorViewportCameraItem){
         .id = project->next_viewport_camera_item_id++,
+        .background_color = UINT32_C(0x12161eff),
         .object = object_id,
         .camera = camera_id,
         .placement = rohr_viewport_item_description_default_get(),

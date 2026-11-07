@@ -4,6 +4,10 @@
 #ifndef ROHR_GRAPHICS_SCENE_IMAGE_H
 #define ROHR_GRAPHICS_SCENE_IMAGE_H
 #include "error.h"
+#include "report.h"
+/* Private editor canvas presentation: commands already compose the editor window.
+ * Shares camera, commands, recording and presentation; bypasses runtime composition. */
+Report graphics_editor_show(void);
 #include <SDL3/SDL.h>
 /* Private editor presentation resource. Create explicitly; destroy before
  * graphics_stop. Queued draws retain it until command completion/discard.

@@ -663,9 +663,10 @@ bool editor_layout_camera_editor_draw(EditorLayoutViewportEditor *editor,
         editor_mode_accordion_layout_section(&accordion,
             &editor->placement_section,
             "editor.layout.screen.section.placement", placement_rows, 5, 10.0f);
+    const float appearance_rows[] = {layer_height, 28};
     EditorModeAccordionLayoutResult appearance_section = editor_mode_accordion_layout_section(
         &accordion, &editor->screen_appearance_section, "editor.layout.screen.section.appearance",
-        &layer_height, 1, 0);
+        appearance_rows, 2, 10);
     EditorModeAccordionLayoutResult interaction_section =
         editor_mode_accordion_layout_section(&accordion,
             &editor->interaction_section,
@@ -761,6 +762,11 @@ bool editor_layout_camera_editor_draw(EditorLayoutViewportEditor *editor,
                 context->x, y, context->width);
         item->placement.layer = layer_binding.value;
         item->graphics_layer = layer_binding.layer;
+        y += layer_height + 10;
+        rohr_ui_label(&editor->background_color_label,
+            (UIRect){context->x + 8, y, context->width - 64, 28});
+        (void)layout_local_swatch("editor.layout.screen.background", &item->background_color,
+            (UIRect){context->x + context->width - 46, y + 4, 30, 20}, context);
     }
     if(interaction_section.expanded) {
         y = interaction_section.content_y;

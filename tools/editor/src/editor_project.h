@@ -561,6 +561,7 @@ typedef struct EditorViewportCameraItem {
     bool app_hidden;
     bool render_size_explicit;
     int render_width, render_height;
+    uint32_t background_color;
 } EditorViewportCameraItem;
 
 typedef enum EditorViewportUiKind {

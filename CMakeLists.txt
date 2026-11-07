@@ -224,6 +224,7 @@ set(ROHR_ENGINE_SOURCES
     src/graphics/animation_assets.c
     src/graphics/font_assets.c
     src/graphics/graphics.c
+    src/graphics/viewport_creation.c
     src/graphics/text_assets.c
     src/graphics/texture_assets.c
     src/graphics/graphics_layer_order.c
@@ -703,6 +704,28 @@ if(ROHR_BUILD_TESTS)
         endif()
         add_test(NAME physics_simple_baseline COMMAND physics_simple_baseline_test)
     endif()
+
+    add_executable(automatic_viewports_test tests/automatic_viewports.c)
+    target_link_libraries(automatic_viewports_test PRIVATE rohr_engine)
+    target_include_directories(automatic_viewports_test PRIVATE src)
+    set_target_properties(automatic_viewports_test PROPERTIES RUNTIME_OUTPUT_DIRECTORY ${ROHR_BUILD_OUTPUT_DIRECTORY}/tests)
+    if(MSVC)
+        target_compile_options(automatic_viewports_test PRIVATE /UNDEBUG)
+    else()
+        target_compile_options(automatic_viewports_test PRIVATE -Wall -Wextra -Wpedantic -UNDEBUG)
+    endif()
+    if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+        target_compile_definitions(automatic_viewports_test PRIVATE ROHR_TEST_VIEWPORT_WRAP)
+        target_link_options(automatic_viewports_test PRIVATE
+            -Wl,--wrap=SDL_CreateTexture -Wl,--wrap=SDL_RenderPresent -Wl,--wrap=SDL_RenderClear
+            -Wl,--wrap=SDL_RenderGeometry -Wl,--wrap=SDL_GetMouseState)
+    endif()
+    if(ROHR_ENABLE_SANITIZERS)
+        target_compile_options(automatic_viewports_test PRIVATE ${ROHR_SANITIZER_COMPILE_OPTIONS})
+    endif()
+    add_test(NAME automatic_viewports COMMAND automatic_viewports_test)
+    set_tests_properties(automatic_viewports PROPERTIES
+        ENVIRONMENT "SDL_VIDEODRIVER=dummy;SDL_AUDIODRIVER=dummy;SDL_RENDER_DRIVER=software")
 
     add_executable(graphics_reports_test tests/graphics_reports.c)
     target_link_libraries(graphics_reports_test PRIVATE rohr_engine)
@@ -1616,6 +1639,7 @@ if(ROHR_BUILD_TESTS)
         runtime_persistence_test
         object_instances_test
         descriptor_creation_test
+        automatic_viewports_test
         angles_test
         example_flies_angles_test
         example_soft_body_angles_test

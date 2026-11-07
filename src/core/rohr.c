@@ -802,7 +802,7 @@ ScreenDescription rohr_screen_description_default_get(void) { return graphics_sc
 ScreenIdResult rohr_screen_create(ScreenDescription config) { return graphics_screen_create(config); }
 EngineResult rohr_screen_destroy(ScreenId screen) { return graphics_screen_destroy(screen); }
 EngineResult rohr_screen_camera_set(ScreenId screen, CameraId camera) { return graphics_screen_camera_set(screen, camera); }
-ViewportIdResult rohr_viewport_create(ViewportDescription config) { return graphics_viewport_create(config); }
+ViewportIdResult (rohr_viewport_create)(ViewportDescription config) { return graphics_viewport_create(config); }
 EngineResult rohr_viewport_destroy(ViewportId viewport) { return graphics_viewport_destroy(viewport); }
 ViewportItemIdResult rohr_viewport_camera_add(ViewportId viewport, CameraId camera, ViewportItemDescription config) { return graphics_viewport_camera_add(viewport, camera, config); }
 ViewportItemIdResult rohr_viewport_screen_add(ViewportId viewport, ScreenId screen, ViewportItemDescription config) { return graphics_viewport_screen_add(viewport, screen, config); }

@@ -2,8 +2,9 @@
 
 Milestone 15 Goal 1 design contract, 2026-11-06. This document specifies the
 target API and behavior. Goal 2 implements the entity/object creation portion;
-see [shared creation](shared_creation.md) for the available calls. The viewport
-APIs and unified project generation below remain unimplemented targets.
+see [shared creation](shared_creation.md) for the available calls. Goal 3 implements
+[viewport creation and automatic rendering](automatic_viewports.md); unified
+project generation below remains a later target.
 Goals 2–6 in [the roadmap](../NEXT_STEPS.md#15-descriptor-based-creation-and-automatic-viewport-rendering)
 implement, migrate, and verify it. Source inspection used baseline `7bae1db6`.
 No physics algorithm, timestep, or solver setting changes are part of this work.
@@ -45,8 +46,10 @@ appearance or visual component determines eligibility.
 
 ## Description and instance model
 
-Descriptions contain configuration and authored references, never mutable
-instance handles, frame counters, playback progress, or callback context.
+Authored descriptions contain configuration and authored references, never mutable
+instance handles, frame counters, playback progress, or callback context. A local
+viewport creation descriptor may additionally supply borrowed runtime camera
+bindings; it does not modify the authored template.
 Generated `project.h` exposes a `const` catalog; generated source files hold its
 definitions. Named children such as `project.water.particle` are views of the
 same description data traversed by creation, not another copy of that data.
@@ -65,7 +68,7 @@ object instance has a root entity owning its created members; this is a runtime
 implementation detail, not a mutable authored object. An individual entity can
 exist independently even when its description is nested inside an object.
 
-Creators borrow input descriptions, options, arrays, strings, and bindings for
+Creators borrow input descriptions, entity/object options, arrays, strings, and bindings for
 the duration of the call. They copy required runtime values and acquire required
 asset references. After a successful call, releasing a loaded catalog or an
 editable description copy cannot invalidate the instance. Generated static
@@ -79,8 +82,9 @@ There is no new implicit deep-copy or per-frame template interpretation facility
 ## Creation API
 
 The entity/object creation and member-lookup calls below are implemented in
-Goal 2. Complete viewport-description creation and named viewport-item lookup
-remain target call forms. Result values must be checked before handles are used.
+Goal 2. Goal 3 adds complete viewport creation, item lookup, and selected show.
+The user simplified viewport creation to one descriptor, replacing the originally
+proposed separate options argument. Result values must be checked before handles are used.
 
 | Target call | Result and responsibility |
 | --- | --- |
@@ -89,8 +93,8 @@ remain target call forms. Result values must be checked before handles are used.
 | `rohr_object_create(&project.water)` | `EntityResult`; instantiate the full hierarchy and return its owning root. |
 | `rohr_object_create_with_options(description, options)` | `EntityResult`; explicit creation options for the hierarchy. |
 | `rohr_object_member_get(instance, "particle")` | `EntityResult`; find a direct named member of this instance. |
-| `rohr_viewport_create(&project.main_viewport)` | `ViewportIdResult`; instantiate a self-contained viewport description with default options. |
-| `rohr_viewport_create_with_options(description, options)` | `ViewportIdResult`; create all described content and resolve its authored camera references using explicit bindings. |
+| `rohr_viewport_create(&project.main_viewport)` | `ViewportIdResult`; instantiate a self-contained viewport description without external bindings. |
+| `rohr_viewport_create(&creation)` | `ViewportIdResult`; a local creation descriptor references the immutable authored template and supplies explicit runtime camera bindings. |
 | `rohr_viewport_item_by_name_get(viewport, "world")` | `ViewportItemIdResult`; find the named created item for later modification. |
 | `rohr_entity_delete(entity)` | Existing operation; destroy an entity and its owned members/resources. |
 | `rohr_viewport_destroy(viewport)` | Destroy the viewport and resources it created and owns. |
@@ -176,7 +180,12 @@ definitions, and authored camera references. Preserve `ViewportDescription` as
 the existing scalar runtime configuration used by its get/set APIs. A scalar
 replacement must not rebuild content or reset live UI state.
 
-`ViewportCreateOptions` supplies runtime camera bindings. Bindings can identify
+`ViewportCreateDescription` supplies runtime camera bindings in the same input as
+the authored recipe. An application can use a local descriptor with `.template`
+pointing to the immutable authored recipe and `.objects`/`.cameras` arrays naming
+chosen live instances. There is no viewport `_with_options` call or separate
+options-default getter. `graphics_viewport_description_default_get()` remains the
+scalar configuration default getter. Bindings can identify
 the chosen object instance for an authored object reference, letting creation
 resolve its authored camera member automatically, or override a particular named
 screen item with an explicit camera entity. An explicit item override takes
@@ -184,7 +193,7 @@ precedence over an object-instance binding. Duplicate/conflicting entries and
 unconsumed binding keys are errors, not order-dependent choices. Direct camera
 handles are also supported for cameras created through the low-level API.
 
-The option arrays are explicit pointer/count pairs. Each object-instance binding
+The binding arrays are explicit pointer/count pairs. Each object-instance binding
 contains an authored object description reference and its runtime root entity.
 Each item-camera binding contains the authored item name and exactly one live
 camera entity or direct camera handle. Empty arrays mean no bindings. Defaults
@@ -242,7 +251,8 @@ explicit while allowing arbitrary runtime item replacement.
 
 Release item dependencies before screens/UI, UI before text, and text before
 custom font references. Preserve queued draw payload references through execution
-or discard. Forced graphics shutdown invalidates all prior graphics handles.
+or discard. Graphics shutdown invalidates renderer-owned resources. Cameras remain
+engine-owned state; an engine/graphics restart invalidates their prior handles too.
 
 Named layer definitions are registered/reused by name and value during creation.
 A conflicting definition fails rather than changing other instances' ordering.
