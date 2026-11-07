@@ -14,7 +14,7 @@ priority order.
 | 3 | COM, inertia, and origin semantics | Complete |
 | 4 | Cross-path feature parity | Complete by user acceptance; recorded verification exceptions remain |
 | 14 | Frame pacing before game development | Complete; corrected pacing verified and initial previews accepted |
-| 15 | [Descriptor-based creation and automatic viewport rendering](#15-descriptor-based-creation-and-automatic-viewport-rendering) | Goal 1 complete for review; goals 2–6 pending explicit instruction |
+| 15 | [Descriptor-based creation and automatic viewport rendering](#15-descriptor-based-creation-and-automatic-viewport-rendering) | Goals 1–2 complete; Goal 2 ready for review; goals 3–6 pending explicit instruction |
 | — | [C game experiment](#c-game-experiment) | Follows milestone 15; agree concept and completion criteria with the user |
 | 13 | Physics rebuild from the simpler baseline | Paused by user direction for frame pacing and game development; goals 1, 2a, 2b and 4a complete; goals 2 and 3 failed; goal 4 blocking remains incomplete; goals 5–8 not started |
 | 12 | Real-time physics pipeline rework | Closed by user direction; superseded by milestone 13, not complete; goals 1–13 complete, goal 14 unfinished, goals 15–19 not started; evidence preserved |
@@ -27,9 +27,10 @@ priority order.
 | 10 | End-to-end game | Pending; separate larger game directed by the user |
 
 **Current priority:** By user direction, milestone 15 precedes the C game
-checkpoint. Goal 1 defines the [creation and viewport contract](docs/creation_and_viewport_contract.md)
-and is complete for review; the runtime APIs are not implemented by this goal.
-Stop for review and commit. Do not start Goal 2 without explicit instruction.
+checkpoint. Goal 1 defines the [creation and viewport contract](docs/creation_and_viewport_contract.md).
+Goal 2 implements [shared entity/object creation](docs/shared_creation.md) and is
+complete for review. Viewport creation/rendering changes remain Goal 3.
+Stop for review and commit. Do not start Goal 3 without explicit instruction.
 Descriptions remain immutable, created instances remain mutable, camera bindings
 are explicit and applied during viewport creation, and live viewports remain
 extensible from application code. Automatic rendering reuses runtime visual
@@ -655,11 +656,29 @@ code afterward. Preserve current physics and frame-pacing behavior.
    rollback, reports, compatibility, and later verification. Documentation/source
    consistency, local links, and whitespace are checked; no runtime code changes,
    builds, sanitizer runs, or platform execution are claimed for this goal.
-2. [ ] **Implement shared entity and object creation.** Support whole-object
+2. [x] **Implement shared entity and object creation.** Support whole-object
    creation and individual members such as
    `rohr_entity_create(&project.water.particle)`. Reuse existing spawning
    machinery, resolve internal and explicit external references, preserve
-   independent instances, and clean up partial creation failures.
+   independent instances, and clean up partial creation failures. **Result:
+   complete for review.** Shared creators, options, and direct member lookup
+   reuse the existing catalog/spawner. Strict dependency validation, explicit
+   external bindings, dependency ordering, and final owner attachment preserve
+   independent state and roll back failed attempts. Individual creation excludes
+   separately authored children. Existing generated catalogs work now; unified
+   `project.h` generation remains Goal 4. The [API guide](docs/shared_creation.md)
+   records ownership and usage. Eight focused Release tests and the same eight
+   ASan/UBSan tests pass, including allocation-failure rollback and 1,000 lifecycle
+   cycles. Three selected installed SDK consumers pass; all consumer targets and
+   independent car/flies examples build on Linux and cross-build for Windows.
+   Linux consumers and examples also launch outside the source tree. The car's
+   requested 600-frame diagnostic preserves 2,400 substeps, 701,387 candidates,
+   and 108,585 contacts; it is not full 60-second or rendered acceptance.
+   Existing joints and forces failures reproduce with both pre-change and new
+   implementations and remain in the failure inventory. No compiler warnings
+   or sanitizer findings were observed in the focused checks. Native Windows
+   execution and generic Linux distribution packaging are not claimed here.
+   Evidence and isolated installed SDKs: `sandbox/milestone_15/goal_2/`.
 3. [ ] **Implement automatic viewport rendering.** Reuse existing runtime
    appearance, visibility, and layer data, adding only confirmed missing
    information. Implement complete viewport creation and its runtime camera

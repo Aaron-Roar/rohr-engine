@@ -1,7 +1,9 @@
 # Descriptor creation and automatic viewport rendering
 
 Milestone 15 Goal 1 design contract, 2026-11-06. This document specifies the
-target API and behavior; it does **not** describe a shipped implementation.
+target API and behavior. Goal 2 implements the entity/object creation portion;
+see [shared creation](shared_creation.md) for the available calls. The viewport
+APIs and unified project generation below remain unimplemented targets.
 Goals 2–6 in [the roadmap](../NEXT_STEPS.md#15-descriptor-based-creation-and-automatic-viewport-rendering)
 implement, migrate, and verify it. Source inspection used baseline `7bae1db6`.
 No physics algorithm, timestep, or solver setting changes are part of this work.
@@ -76,8 +78,9 @@ There is no new implicit deep-copy or per-frame template interpretation facility
 
 ## Creation API
 
-The following are target call forms, not declarations available in today's SDK.
-Result values must be checked before their handles are used.
+The entity/object creation and member-lookup calls below are implemented in
+Goal 2. Complete viewport-description creation and named viewport-item lookup
+remain target call forms. Result values must be checked before handles are used.
 
 | Target call | Result and responsibility |
 | --- | --- |
@@ -100,9 +103,10 @@ generated per-object creator implementations. Keep compiled, handwritten, and
 loaded descriptions on the same implementation path.
 
 An object creator accepts object/container and aggregate roots and traverses
-their members. An entity creator does not silently instantiate siblings or an
-entire object. Aggregate templates, such as a soft body with topology, go through
-object creation; invalid use of the entity creator reports an error. A member's
+their members. An entity creator does not instantiate separately authored
+children, siblings, or an entire object. Aggregate templates, such as a soft body
+with topology, go through object creation; invalid use of the entity creator
+reports an error. A member's
 configured components are created together, but a separately authored sibling
 sprite is not implicitly pulled in by creating only its particle.
 

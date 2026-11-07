@@ -1254,6 +1254,24 @@ if(ROHR_BUILD_TESTS)
     set_target_properties(object_instances_test PROPERTIES RUNTIME_OUTPUT_DIRECTORY ${ROHR_BUILD_OUTPUT_DIRECTORY}/tests)
     add_test(NAME object_instances COMMAND object_instances_test)
 
+    add_executable(descriptor_creation_test tests/descriptor_creation.c)
+    target_link_libraries(descriptor_creation_test PRIVATE rohr_engine)
+    target_include_directories(descriptor_creation_test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
+    if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+        target_compile_definitions(descriptor_creation_test PRIVATE ROHR_TEST_ALLOCATION_WRAP)
+        target_link_options(descriptor_creation_test PRIVATE -Wl,--wrap=malloc -Wl,--wrap=calloc -Wl,--wrap=realloc)
+    endif()
+    if(MSVC)
+        target_compile_options(descriptor_creation_test PRIVATE /UNDEBUG)
+    else()
+        target_compile_options(descriptor_creation_test PRIVATE -Wall -Wextra -Wpedantic -UNDEBUG)
+    endif()
+    if(ROHR_ENABLE_SANITIZERS)
+        target_compile_options(descriptor_creation_test PRIVATE ${ROHR_SANITIZER_COMPILE_OPTIONS})
+    endif()
+    set_target_properties(descriptor_creation_test PROPERTIES RUNTIME_OUTPUT_DIRECTORY ${ROHR_BUILD_OUTPUT_DIRECTORY}/tests)
+    add_test(NAME descriptor_creation COMMAND descriptor_creation_test)
+
     add_executable(empty_animations_test tests/empty_animations.c)
     target_link_libraries(empty_animations_test PRIVATE rohr_engine)
     target_include_directories(empty_animations_test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
@@ -1524,6 +1542,7 @@ if(ROHR_BUILD_TESTS)
         shared_sources
         runtime_persistence
         object_instances
+        descriptor_creation
         angles
         rigid_contact_stability
         component_registry
@@ -1596,6 +1615,7 @@ if(ROHR_BUILD_TESTS)
         shared_sources_test
         runtime_persistence_test
         object_instances_test
+        descriptor_creation_test
         angles_test
         example_flies_angles_test
         example_soft_body_angles_test

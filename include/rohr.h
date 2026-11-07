@@ -24,6 +24,13 @@
 #include "ui.h"
 
 /* Generated views and runtime description pointers share the same C interface. */
+#define rohr_entity_create entity_create
+#define rohr_entity_create_with_options entity_create_with_options
+#define rohr_entity_create_options_default_get entity_create_options_default_get
+#define rohr_object_create object_create
+#define rohr_object_create_with_options object_create_with_options
+#define rohr_object_create_options_default_get object_create_options_default_get
+#define rohr_object_member_get object_member_get
 #define rohr_object_get object_get
 #define rohr_object_load object_load
 #define rohr_object_copy object_copy

@@ -1337,6 +1337,36 @@ EngineResult entity_object_member_restore(Entity object, Entity member,
     return error_result_value(true);
 }
 
+EntityResult object_member_get(Entity object, const char *name) {
+    GroupIdResult members = entity_object_members_get(object);
+    if(error_check(members)) return ERROR_RESULT_MAKE_ERROR(EntityResult, members.result.error);
+    if(!name || !name[0] || strlen(name) >= ENTITY_NAME_MAX)
+        return ERROR_RESULT_MAKE_ERROR(EntityResult, ERROR_ENGINE_INVALID_ENTITY_NAME);
+    EntityGroupResult group = entity_group_get(members.result.value);
+    if(error_check(group)) return ERROR_RESULT_MAKE_ERROR(EntityResult, group.result.error);
+    Entity found = ENTITY_INVALID;
+    for(size_t i = 0; i < group.result.value.entities.capacity; ++i) {
+        if(!group.result.value.entities.used[i]) continue;
+        Entity member = group.result.value.entities.objects[i];
+        EntityIndex index;
+        if(!entity_index_get(member, &index))
+            return ERROR_RESULT_MAKE_ERROR(EntityResult, ERROR_ENGINE_STATE_INVALID);
+        if(strcmp(object_member_names[index].value, name)) continue;
+        if(found) return ERROR_RESULT_MAKE_ERROR(EntityResult, ERROR_ENGINE_STATE_INVALID);
+        found = member;
+    }
+    EntityIndex index;
+    if(!entity_index_get(object, &index))
+        return ERROR_RESULT_MAKE_ERROR(EntityResult, ERROR_ENGINE_INVALID_ENTITY);
+    for(size_t i = 0; i < object_alias_counts[index]; ++i) {
+        if(strcmp(object_aliases[index][i].name.value, name)) continue;
+        if(found) return ERROR_RESULT_MAKE_ERROR(EntityResult, ERROR_ENGINE_STATE_INVALID);
+        found = object_aliases[index][i].entity;
+    }
+    return found ? ERROR_RESULT_MAKE_VALUE(EntityResult, found) :
+        ERROR_RESULT_MAKE_ERROR(EntityResult, ERROR_ENGINE_ENTITY_NOT_FOUND);
+}
+
 EntityResult entity_object_member_by_name_get(Entity object, const char *name) {
     GroupIdResult group = entity_object_members_get(object);
     if(error_check(group)) return ERROR_RESULT_MAKE_ERROR(EntityResult, group.result.error);

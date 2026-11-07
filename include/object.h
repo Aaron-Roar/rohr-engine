@@ -203,6 +203,63 @@ typedef struct ObjectDescription ObjectDescription;
 struct ObjectDescription { ROHR_OBJECT_DESCRIPTION_FIELDS; };
 ERROR_DECLARE_RESULT_TYPE(ObjectDescriptionResult, const ObjectDescription *);
 
+/** Immutable member template. Shares catalog storage with ObjectDescription;
+ * unlike EntityDescription, this describes components, not just metadata. */
+typedef ObjectDescription EntityCreateDescription;
+
+/** Borrowed for creation only. The description must belong to the same catalog
+ * as the template being created; the live entity must match its kind. */
+typedef struct ObjectCreateBinding {
+    const ObjectDescription *description;
+    Entity entity;
+} ObjectCreateBinding;
+
+typedef struct EntityCreateOptions {
+    Entity owner;
+    Position offset;
+    const ObjectCreateBinding *bindings;
+    size_t binding_count;
+} EntityCreateOptions;
+
+typedef struct ObjectCreateOptions {
+    Entity owner;
+    Position offset;
+    EntityObjectFlags flags;
+    const ObjectCreateBinding *bindings;
+    size_t binding_count;
+} ObjectCreateOptions;
+
+EntityCreateOptions entity_create_options_default_get(void);
+ObjectCreateOptions object_create_options_default_get(void);
+/** Create one member without its separately authored children or siblings.
+ * Container and soft-body aggregate templates are rejected.
+ * Input is borrowed during the call; returned state and asset references are
+ * independently owned. Creation may allocate/load assets. Failure rolls back
+ * the attempt without altering borrowed instances. Delete with entity_delete. */
+EntityResult entity_create(const EntityCreateDescription *description);
+EntityResult entity_create_with_options(const EntityCreateDescription *description,
+    EntityCreateOptions options);
+/** Create a container/aggregate and its members. Internal references resolve
+ * within this instance; external references require explicit bindings. */
+EntityResult object_create(const ObjectDescription *description);
+EntityResult object_create_with_options(const ObjectDescription *description,
+    ObjectCreateOptions options);
+/** Get a borrowed direct member by authored name. Does not search descendants;
+ * missing/ambiguous names fail. Visual aliases may name the same body entity. */
+EntityResult object_member_get(Entity object, const char *name);
+
+/* Generated views begin with ObjectDescription (possibly in their first union).
+ * Pointer conversion addresses that initial member and evaluates input once.
+ * The parenthesized function names also remain usable as function pointers. */
+#define entity_create(description) \
+    (entity_create)((const EntityCreateDescription *)(description))
+#define entity_create_with_options(description, options) \
+    (entity_create_with_options)((const EntityCreateDescription *)(description), (options))
+#define object_create(description) \
+    (object_create)((const ObjectDescription *)(description))
+#define object_create_with_options(description, options) \
+    (object_create_with_options)((const ObjectDescription *)(description), (options))
+
 /* Accept a generated view lvalue or a common description pointer. Generated
  * views start with a union whose first member is ObjectDescription. */
 #define object_description_ref(value) _Generic((value), \
