@@ -15,10 +15,10 @@ static size_t occurrences(const char *text, const char *needle) {
 }
 static void check_generated(const EditorWorkspace *workspace, size_t objects, size_t screens, size_t viewports) {
     char *text = read_file(workspace, "src/generated/scene/project_objects.c");
-    assert(occurrences(text, "entity_object_add(objects.") == objects); SDL_free(text);
-    text = read_file(workspace, "src/generated/scene/project_viewports.c");
-    assert(occurrences(text, "rohr_screen_create(") == screens);
-    assert(occurrences(text, "rohr_viewport_create(") == viewports); SDL_free(text);
+    assert(occurrences(text, "rohr_object_create(&objects.") == objects); SDL_free(text);
+    text = read_file(workspace, "src/generated/scene/project_objects.c");
+    assert(occurrences(text, ".kind=VIEWPORT_CREATE_SCREEN") == screens);
+    assert(occurrences(text, ".viewport={.rectangle=") == viewports); SDL_free(text);
 }
 int main(int argc, char **argv) {
     assert(argc >= 2);
@@ -47,7 +47,7 @@ int main(int argc, char **argv) {
     }
     /* Invalid authored references must fail before replacing any generated file. */
     char *before_objects = read_file(&workspace, "src/generated/project_objects.c");
-    char *before_viewports = read_file(&workspace, "src/generated/project_viewports.c");
+    char *before_viewports = read_file(&workspace, "src/generated/project.h");
     EditorObjectId saved_object = screen->object; EditorCameraId saved_camera = screen->camera;
     screen->object = UINT32_MAX;
     EditorResult invalid_reference = editor_workspace_scene_generate(&workspace, &project, NULL);
@@ -60,17 +60,17 @@ int main(int argc, char **argv) {
     screen->camera = saved_camera;
     char *unchanged = read_file(&workspace, "src/generated/project_objects.c");
     assert(!strcmp(before_objects, unchanged)); SDL_free(unchanged); SDL_free(before_objects);
-    unchanged = read_file(&workspace, "src/generated/project_viewports.c");
+    unchanged = read_file(&workspace, "src/generated/project.h");
     assert(!strcmp(before_viewports, unchanged)); SDL_free(unchanged); SDL_free(before_viewports);
     assert(editor_workspace_save(&workspace, &project));
     OK(editor_workspace_scene_generate(&workspace, &project, NULL));
     check_generated(&workspace, 2, 1, 1); /* Default uses the first, not both, viewports. */
     char *app_objects = read_file(&workspace, "src/generated/project_objects.c");
-    char *app_viewports = read_file(&workspace, "src/generated/project_viewports.c");
+    char *app_viewports = read_file(&workspace, "src/generated/project.h");
     EditorSceneSelection selection = {.objects_selected = true, .objects = &tug_id, .object_count = 1, .viewport = viewport_id};
     OK(editor_workspace_scene_generate(&workspace, &project, &selection)); check_generated(&workspace, 1, 1, 1);
     char *text = read_file(&workspace, "src/generated/project_objects.c"); assert(!strcmp(text, app_objects)); SDL_free(text);
-    text = read_file(&workspace, "src/generated/project_viewports.c"); assert(!strcmp(text, app_viewports)); SDL_free(text);
+    text = read_file(&workspace, "src/generated/project.h"); assert(!strcmp(text, app_viewports)); SDL_free(text);
     selection.viewport = project.layout_viewports[0].id;
     OK(editor_workspace_scene_generate(&workspace, &project, &selection)); check_generated(&workspace, 1, 0, 1);
     selection.object_count = 0; selection.objects = NULL; selection.viewport = viewport_id;

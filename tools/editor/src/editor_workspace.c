@@ -815,39 +815,14 @@ static void catalog_instance_binding_write(FILE *f, const EditorObject *o,
     fprintf(f, "    (void)object;\n    if(rohr_error_check(result)) goto fail;\n    *output = bound;\n    return result;\nfail:\n    return result;\n}\n\n");
 }
 
-static bool entity_settings_active(ObjectEntitySettings s) {
-    return s.lifetime.deadline.time_enabled || s.lifetime.deadline.tick_enabled ||
-        s.angular_acceleration != 0 || s.angular_velocity_maximum_enabled ||
-        s.gameplay_target.id || s.axis_lock_enabled || s.transform_driver.id;
-}
-
-/* Configuration with references must be applied after the entire owned graph
- * exists. Use the same catalog transaction as normal project spawning. */
-static bool catalog_constructor_required(const EditorObject *object) {
-    if(object->force_count || object->torque_count || entity_settings_active(object->entity_settings)) return true;
-#define CHECK(array, count) for(size_t i = 0; i < object->count; ++i) \
-    if(entity_settings_active(object->array[i].entity_settings)) return true
-    CHECK(rigid_bodies, rigid_body_count); CHECK(soft_body_items, soft_body_count);
-    CHECK(anchors, anchor_count); CHECK(joint_items, joint_count);
-    CHECK(sprites, sprite_count); CHECK(animated_sprite_items, animated_sprite_count); CHECK(cameras, camera_count);
-#undef CHECK
-    for(size_t i = 0; i < object->soft_body_count; ++i) {
-        const EditorSoftBody *body = &object->soft_body_items[i];
-        for(size_t j = 0; j < body->node_count; ++j) if(entity_settings_active(body->nodes[j].entity_settings)) return true;
-        for(size_t j = 0; j < body->beam_count; ++j) if(entity_settings_active(body->beams[j].entity_settings)) return true;
-        for(size_t j = 0; j < body->area_count; ++j) if(entity_settings_active(body->areas[j].entity_settings)) return true;
-    }
-    return false;
-}
-
 static void catalog_constructor_write(FILE *f, const EditorObject *o, const char *variable) {
     fprintf(f, "EngineResult %s_create(%s *object, Position position) {\n"
         "    if(!object) return rohr_error_result_error(ERROR_MEMORY_POOL_NULL_POINTER);\n"
         "    *object = (%s){0};\n"
         "    const ObjectDescription *description = rohr_object_get(objects.%s);\n"
-        "    EntityResult added = rohr_entity_object_description_add(description,\n"
-        "        (ObjectSpawnDescription){.flags=ROHR_ENTITY_OBJECT_ALL,\n"
-        "            .offset={position.x - description->position.x, position.y - description->position.y}});\n"
+        "    EntityResult added = rohr_object_create_with_options(description,\n"
+        "        ((ObjectCreateOptions){.flags=ROHR_ENTITY_OBJECT_ALL,\n"
+        "            .offset={position.x - description->position.x, position.y - description->position.y}}));\n"
         "    if(rohr_error_check(added)) return rohr_error_result_error(added.result.error);\n"
         "    object->source_instance = added.result.value;\n"
         "    EngineResult result = rohr_error_result_value(true);\n", variable,o->name,o->name,variable);
@@ -935,116 +910,7 @@ static bool editor_workspace_generated_objects_write(const EditorWorkspace *work
         " * The project's developer may use, modify, and distribute it without restriction.\n"
         " */\n\n"
         "#include \"project_objects.h\"\n\n"
-        "static inline EngineResult generated_body_create(Entity *output, Position position,\n"
-        "    float rotation, Velocity velocity, Acceleration acceleration,\n"
-        "    AngularVelocity angular_velocity, Shape hitbox, float mass_value, float friction,\n"
-        "    float restitution, bool static_body, bool kinematic_driven, bool rotation_locked,\n"
-        "    bool gravity_enabled, bool collision_enabled, bool particle,\n"
-        "    Position particle_origin, float particle_radius,\n"
-        "    RohrCollisionCategoryMask collision_category,\n"
-        "    RohrCollisionCategoryMask responds_to) {\n"
-        "    EntityResult added = rohr_entity_add();\n"
-        "    EngineResult result;\n"
-        "    if(rohr_error_check(added)) return rohr_error_result_error(added.result.error);\n"
-        "    *output = added.result.value;\n"
-        "#define GENERATED_APPLY(call) do { result = (call); if(rohr_error_check(result)) "
-        "goto fail; } while(0)\n"
-        "    GENERATED_APPLY(rohr_physics_position_set(*output, position));\n"
-        "    GENERATED_APPLY(rohr_physics_orientation_set(*output, rotation));\n"
-        "    if(hitbox.amount_of_vertices > 0)\n"
-        "        GENERATED_APPLY(rohr_physics_hitbox_set(*output, hitbox));\n"
-        "    GENERATED_APPLY(rohr_physics_collision_category_set(*output,\n"
-        "        collision_enabled ? collision_category : ROHR_COLLISION_CATEGORY_NONE));\n"
-        "    GENERATED_APPLY(rohr_physics_collision_response_set(*output,\n"
-        "        collision_enabled ? responds_to : ROHR_COLLISION_CATEGORY_NONE));\n"
-        "    if(collision_enabled) {\n"
-        "        GENERATED_APPLY(rohr_entity_components_add(*output, ROHR_COLLISION));\n"
-        "        if(particle) {\n"
-        "            GENERATED_APPLY(rohr_physics_particle_origin_set(*output, particle_origin));\n"
-        "            GENERATED_APPLY(rohr_physics_particle_radius_set(*output, particle_radius));\n"
-        "        }\n"
-        "    }\n"
-        "    GENERATED_APPLY(rohr_physics_friction_set(*output, friction));\n"
-        "    GENERATED_APPLY(rohr_physics_restitution_set(*output, restitution));\n"
-        "    GENERATED_APPLY(rohr_physics_mass_set(*output, mass_value));\n"
-        "    GENERATED_APPLY(rohr_physics_velocity_set(*output, velocity));\n"
-        "    GENERATED_APPLY(rohr_physics_angular_velocity_set(*output, angular_velocity));\n"
-        "    GENERATED_APPLY(rohr_physics_acceleration_set(*output, acceleration));\n"
-        "    if(kinematic_driven) GENERATED_APPLY(rohr_physics_kinematic_driven_set(*output));\n"
-        "    if(static_body) GENERATED_APPLY(rohr_physics_static_set(*output));\n"
-        "    else GENERATED_APPLY(rohr_physics_dynamic_set(*output));\n"
-        "    if(rotation_locked) GENERATED_APPLY(rohr_physics_angle_lock_set(*output, rotation, rotation));\n"
-        "    if(gravity_enabled) GENERATED_APPLY(rohr_physics_gravity_enable(*output));\n"
-        "#undef GENERATED_APPLY\n"
-        "    return rohr_error_result_value(true);\n"
-        "fail:\n"
-        "#undef GENERATED_APPLY\n"
-        "    (void)rohr_entity_delete(*output);\n"
-        "    *output = ENTITY_INVALID;\n"
-        "    return result;\n"
-        "}\n\n");
-    fprintf(source,
-        "static inline EngineResult generated_sprite_create(Entity *output, Entity target,\n"
-        "    Position position, const char *path, Scale size, bool follow_rotation,\n"
-        "    Orientation rotation, bool visible) {\n"
-        "    EntityResult added = {.kind = ERROR_RESULT_VALUE};\n"
-        "    TextureAssetResult loaded = {0};\n"
-        "    SpriteDescription sprite;\n"
-        "    EngineResult result;\n"
-        "    bool owned = target == ENTITY_INVALID;\n"
-        "    if(owned) { added = rohr_entity_add();\n"
-        "      if(rohr_error_check(added)) return rohr_error_result_error(added.result.error);\n"
-        "      target = added.result.value;\n"
-        "      result = rohr_physics_position_set(target, position);\n"
-        "      if(rohr_error_check(result)) goto fail; }\n"
-        "    *output = target;\n"
-        "    loaded = rohr_graphics_texture_load((TextureDescription){path, size});\n"
-        "    if(rohr_error_check(loaded)) {\n"
-        "        result = rohr_error_result_error(loaded.result.error);\n"
-        "        goto fail;\n"
-        "    }\n"
-        "    sprite = rohr_graphics_sprite_description_default_get();\n"
-        "    sprite.texture = loaded.result.value;\n"
-        "    sprite.body_offset = owned ? (Position){0} : position;\n"
-        "    sprite.orientation_offset = rotation;\n"
-        "    sprite.follow_entity_rotation = follow_rotation;\n"
-        "    sprite.visible = visible;\n"
-        "    result = rohr_graphics_sprite_add(*output, sprite);\n"
-        "    if(rohr_error_check(result)) goto fail;\n"
-        "    (void)rohr_graphics_texture_release(&loaded.result.value);\n"
-        "    return rohr_error_result_value(true);\n"
-        "fail:\n"
-        "    if(loaded.kind == ERROR_RESULT_VALUE)\n"
-        "        (void)rohr_graphics_texture_release(&loaded.result.value);\n"
-        "    if(owned) (void)rohr_entity_delete(*output);\n"
-        "    *output = ENTITY_INVALID;\n"
-        "    return result;\n"
-        "}\n\n");
-    fprintf(source,
-        "static inline EngineResult generated_world_anchor_create(Entity *owner,\n"
-        "    JointAnchorId *anchor, Position position) {\n"
-        "    EntityResult added = rohr_entity_add();\n"
-        "    JointAnchorIdResult created;\n"
-        "    EngineResult result;\n"
-        "    if(rohr_error_check(added)) return rohr_error_result_error(added.result.error);\n"
-        "    *owner = added.result.value;\n"
-        "    result = rohr_physics_position_set(*owner, position);\n"
-        "    if(rohr_error_check(result)) goto fail;\n"
-        "    result = rohr_physics_static_set(*owner);\n"
-        "    if(rohr_error_check(result)) goto fail;\n"
-        "    created = rohr_physics_joint_anchor_add((JointAnchorDescription){.entity = *owner, .local_offset = (Vec2D){0}});\n"
-        "    if(rohr_error_check(created)) {\n"
-        "        result = rohr_error_result_error(created.result.error);\n"
-        "        goto fail;\n"
-        "    }\n"
-        "    *anchor = created.result.value;\n"
-        "    return rohr_error_result_value(true);\n"
-        "fail:\n"
-        "    (void)rohr_entity_delete(*owner);\n"
-        "    *owner = ENTITY_INVALID;\n"
-        "    *anchor = JOINT_ANCHOR_INVALID;\n"
-        "    return result;\n"
-        "}\n\n");
+        "/* Legacy instance wrappers use the shared descriptor creators. */\n");
     for(size_t object_index = 0; object_index < project->object_count; object_index += 1) {
         const EditorObject *object = &project->objects[object_index];
         char function_name[EDITOR_OBJECT_NAME_MAX];
@@ -1121,733 +987,7 @@ static bool editor_workspace_generated_objects_write(const EditorWorkspace *work
             "EngineResult %s_instance_bind(%s *output, Entity instance);\n\n",
             function_name, function_name, object->name);
         catalog_instance_binding_write(source, object, function_name);
-        if(catalog_constructor_required(object)) {
-            catalog_constructor_write(source,object,function_name);
-            continue;
-        }
-        fprintf(source, "EngineResult %s_create(%s *object, Position position) {\n"
-            "    EngineResult result;\n"
-            "    if(object == NULL) return rohr_error_result_error("
-            "ERROR_MEMORY_POOL_NULL_POINTER);\n"
-            "    *object = (%s){0};\n", function_name, object->name, object->name);
-        for(size_t body_index = 0; body_index < object->rigid_body_count; body_index += 1) {
-            const EditorRigidBody *body = &object->rigid_bodies[body_index];
-            const EditorHitbox *initial_hitbox = body->hitbox_count > 0 ?
-                &body->hitboxes[0] : NULL;
-            float particle_radius = body->particle_auto_fit ?
-                editor_project_particle_auto_radius_get(body) : body->particle_radius;
-
-            if(body->particle && body->standalone_particle) {
-                char config_name[EDITOR_OBJECT_NAME_MAX * 2 + 32];
-                const EditorHitbox *active_hitbox = body->hitbox_count > 0 ?
-                    &body->hitboxes[body->active_hitbox_index < body->hitbox_count ?
-                        body->active_hitbox_index : 0] : NULL;
-                editor_workspace_particle_config_name(config_name,
-                    sizeof(config_name), function_name, body);
-                fprintf(source,
-                    "    { ParticleDescription config = %s;\n"
-                    "      EntityResult created;\n"
-                    "      config.position.x += position.x;\n"
-                    "      config.position.y += position.y;\n"
-                    "      created = rohr_physics_particle_add(config);\n"
-                    "      if(rohr_error_check(created)) { result = "
-                        "rohr_error_result_error(created.result.error); goto fail; }\n"
-                    "      object->%s = created.result.value; }\n",
-                    config_name, body->name);
-                if(active_hitbox != NULL)
-                    fprintf(source,
-                        "    result = rohr_physics_hitbox_id_at_set(object->%s, 0, "
-                            "UINT32_C(%u));\n"
-                        "    if(rohr_error_check(result)) goto fail;\n",
-                        body->name, active_hitbox->id);
-                continue;
-            }
-
-            fprintf(source,
-                "    result = generated_body_create(&object->%s, "
-                "(Position){position.x + %#.9gf, position.y + %#.9gf}, %#.9gf, "
-                "(Velocity){%#.9gf, %#.9gf}, (Acceleration){%#.9gf, %#.9gf}, %#.9gf, "
-                "(Shape){.amount_of_vertices = %u, .vertices = {",
-                body->name, body->position.x, body->position.y, body->rotation,
-                body->initial_velocity.x, body->initial_velocity.y,
-                body->initial_acceleration.x, body->initial_acceleration.y,
-                body->initial_angular_velocity,
-                initial_hitbox == NULL ? 0 : initial_hitbox->vertex_count);
-            if(initial_hitbox != NULL) {
-                for(uint32_t vertex = 0; vertex < initial_hitbox->vertex_count;
-                        vertex += 1)
-                    fprintf(source, "%s{%#.9gf, %#.9gf}",
-                        vertex == 0 ? "" : ", ",
-                        initial_hitbox->vertices[vertex].position.x,
-                        initial_hitbox->vertices[vertex].position.y);
-            } else fprintf(source, "{0}");
-            fprintf(source,
-                "}}, %#.9gf, %#.9gf, %#.9gf, %s, %s, %s, %s, %s, %s, "
-                "(Position){%#.9gf, %#.9gf}, %#.9gf, "
-                "UINT64_C(%llu), UINT64_C(%llu));\n"
-                "    if(rohr_error_check(result)) goto fail;\n",
-                body->mass_value, body->friction, body->restitution,
-                body->static_body ? "true" : "false",
-                body->kinematic_driven ? "true" : "false",
-                body->rotation_locked ? "true" : "false",
-                body->gravity_enabled ? "true" : "false",
-                body->collision_enabled ? "true" : "false",
-                body->particle ? "true" : "false",
-                body->particle_origin.x, body->particle_origin.y,
-                particle_radius,
-                (unsigned long long)body->collision_category,
-                (unsigned long long)body->responds_to);
-            if(body->center_of_mass_explicit)
-                fprintf(source,
-                    "    result = rohr_physics_center_of_mass_local_position_set(object->%s, "
-                    "(Position){%#.9gf, %#.9gf});\n"
-                    "    if(rohr_error_check(result)) goto fail;\n",
-                    body->name, body->center_of_mass_offset.x,
-                    body->center_of_mass_offset.y);
-            else
-                fprintf(source,
-                    "    result = rohr_physics_center_of_mass_automatic_set(object->%s);\n"
-                    "    if(rohr_error_check(result)) goto fail;\n", body->name);
-            if(initial_hitbox != NULL)
-                fprintf(source,
-                    "    result = rohr_physics_hitbox_id_at_set(object->%s, 0, UINT32_C(%u));\n"
-                    "    if(rohr_error_check(result)) goto fail;\n",
-                    body->name, initial_hitbox->id);
-            for(size_t hitbox_index = 1; hitbox_index < body->hitbox_count;
-                    hitbox_index += 1) {
-                const EditorHitbox *hitbox = &body->hitboxes[hitbox_index];
-                fprintf(source,
-                    "    result = rohr_physics_hitbox_add(object->%s, "
-                    "(Shape){.amount_of_vertices = %u, .vertices = {",
-                    body->name, hitbox->vertex_count);
-                for(uint32_t vertex = 0; vertex < hitbox->vertex_count; vertex += 1) {
-                    fprintf(source, "%s{%#.9gf, %#.9gf}", vertex == 0 ? "" : ", ",
-                        hitbox->vertices[vertex].position.x,
-                        hitbox->vertices[vertex].position.y);
-                }
-                fprintf(source, "}});\n    if(rohr_error_check(result)) goto fail;\n");
-                fprintf(source,
-                    "    result = rohr_physics_hitbox_id_at_set(object->%s, %zu, UINT32_C(%u));\n"
-                    "    if(rohr_error_check(result)) goto fail;\n",
-                    body->name, hitbox_index, hitbox->id);
-            }
-            if(body->hitbox_count > 0 && body->active_hitbox_index != 0)
-                fprintf(source,
-                    "    result = rohr_physics_hitbox_active_index_set(object->%s, %zu);\n"
-                    "    if(rohr_error_check(result)) goto fail;\n",
-                    body->name, body->active_hitbox_index);
-        }
-        for(size_t body_index = 0; body_index < object->rigid_body_count;
-                body_index += 1) {
-            const EditorRigidBody *body = &object->rigid_bodies[body_index];
-            const EditorRigidBody *parent;
-            if(body->parent == 0) continue;
-            parent = editor_workspace_body_get(object, body->parent);
-            if(parent == NULL) {
-                fclose(header);
-                fclose(source);
-                return false;
-            }
-            fprintf(source,
-                "    result = rohr_entity_parent_set(object->%s, object->%s);\n"
-                "    if(rohr_error_check(result)) goto fail;\n",
-                body->name, parent->name);
-        }
-        for(size_t sprite_index = 0; sprite_index < object->sprite_count;
-                sprite_index += 1) {
-            const EditorSprite *sprite = &object->sprites[sprite_index];
-            const EditorRigidBody *body = editor_workspace_body_get(object,
-                sprite->rigid_body);
-            char target[EDITOR_OBJECT_NAME_MAX + 16];
-            char sprite_position[128];
-            if(body == NULL) snprintf(target, sizeof(target), "ENTITY_INVALID");
-            else snprintf(target, sizeof(target), "object->%s", body->name);
-            if(body == NULL) snprintf(sprite_position, sizeof(sprite_position),
-                "(Position){position.x + %#.9gf, position.y + %#.9gf}",
-                sprite->position.x, sprite->position.y);
-            else snprintf(sprite_position, sizeof(sprite_position),
-                "(Position){%#.9gf, %#.9gf}", sprite->position.x,
-                sprite->position.y);
-            fprintf(source,
-                "    result = generated_sprite_create(&object->sprite_%s, %s, %s, ",
-                sprite->name, target, sprite_position);
-            editor_workspace_c_string_write(source, sprite->path);
-            fprintf(source, ", (Scale){%#.9gf, %#.9gf}, %s, %#.9gf, %s);\n"
-                "    if(rohr_error_check(result)) goto fail;\n",
-                sprite->size.x, sprite->size.y,
-                sprite->follow_body_rotation ? "true" : "false",
-                sprite->rotation,
-                !sprite->app_hidden ? "true" : "false");
-        }
-        for(size_t sprite_index = 0; sprite_index < object->animated_sprite_count;
-                sprite_index += 1) {
-            const EditorAnimatedSprite *sprite = &object->animated_sprite_items[sprite_index];
-            const EditorRigidBody *body = editor_workspace_body_get(object,
-                sprite->rigid_body);
-            char target[EDITOR_OBJECT_NAME_MAX + 24];
-            if(sprite->frame_count > MAX_ANIMATIONS_FRAMES) continue;
-            if(body == NULL) {
-                snprintf(target, sizeof(target), "animation_%s", sprite->name);
-                fprintf(source,
-                    "    { EntityResult added = rohr_entity_add();\n"
-                    "      if(rohr_error_check(added)) { result = rohr_error_result_error("
-                    "added.result.error); goto fail; }\n"
-                    "      object->%s = added.result.value;\n"
-                    "      result = rohr_physics_position_set(object->%s, "
-                    "(Position){position.x + %#.9gf, position.y + %#.9gf});\n"
-                    "      if(rohr_error_check(result)) goto fail; }\n",
-                    target, target, sprite->editor_position.x,
-                    sprite->editor_position.y);
-            } else snprintf(target, sizeof(target), "%s", body->name);
-            fprintf(source,
-                "    { AnimationDescription descriptor = {.id = UINT32_C(%u), "
-                ".frame_count = %zu, "
-                ".ticks_per_frame = UINT64_C(%llu), .time_per_frame = %.17g, "
-                ".frame_ids = {",
-                sprite->id, sprite->frame_count,
-                (unsigned long long)sprite->ticks_per_frame,
-                sprite->time_per_frame);
-            if(sprite->frame_count == 0) fputs("0", source);
-            for(size_t frame = 0; frame < sprite->frame_count; frame += 1)
-                fprintf(source, "%sUINT32_C(%u)", frame == 0 ? "" : ", ",
-                    sprite->frames[frame].id);
-            fprintf(source, "}, .frame_files = {");
-            if(sprite->frame_count == 0) fputs("NULL", source);
-            for(size_t frame = 0; frame < sprite->frame_count; frame += 1) {
-                const EditorAnimationFrame *asset = &sprite->frames[frame];
-                fprintf(source, "%s", frame == 0 ? "" : ", ");
-                editor_workspace_c_string_write(source, asset->path);
-            }
-            fprintf(source,
-                "}};\n"
-                "      AnimationAssetResult loaded = {.kind = ERROR_RESULT_VALUE};\n"
-                "      if(descriptor.frame_count > 0) loaded = rohr_graphics_animation_load(descriptor);\n"
-                "      AnimatedSpriteDescription animated;\n"
-                "      if(rohr_error_check(loaded)) { result = rohr_error_result_error("
-                "loaded.result.error); goto fail; }\n");
-            fprintf(source,
-                "      AnimatedSpriteDescriptionResult prepared = rohr_graphics_animated_sprite_description_from_animation_get(loaded.result.value);\n"
-                "      if(rohr_error_check(prepared)) { (void)rohr_graphics_animation_release(&loaded.result.value); result = rohr_error_result_error(prepared.result.error); goto fail; }\n"
-                "      animated = prepared.result.value;\n"
-                "      animated.scale = (Scale){%#.9gf, %#.9gf};\n"
-                "      animated.player.ticks_per_frame = descriptor.ticks_per_frame;\n"
-                "      animated.player.time_per_frame = descriptor.time_per_frame;\n"
-                "      animated.body_offset = (Position){%#.9gf, %#.9gf};\n"
-                "      animated.orientation_offset = %#.9gf;\n"
-                "      animated.direction = %s;\n"
-                "      animated.follow_entity_rotation = %s;\n"
-                "      animated.visible = %s;\n",
-                sprite->scale.x, sprite->scale.y,
-                body == NULL ? 0.0f : sprite->editor_position.x,
-                body == NULL ? 0.0f : sprite->editor_position.y,
-                sprite->editor_rotation,
-                sprite->direction == DIRECTION_LEFT ? "DIRECTION_LEFT" :
-                    "DIRECTION_RIGHT",
-                sprite->follow_body_rotation ? "true" : "false",
-                !sprite->app_hidden ? "true" : "false");
-            for(size_t frame = 0; frame < sprite->frame_count; frame += 1) {
-                const EditorAnimationFrame *value = &sprite->frames[frame];
-                fprintf(source,
-                    "      animated.frames[%zu].scale = (Scale){%#.9gf, %#.9gf};\n"
-                    "      animated.frames[%zu].offset = (Position){%#.9gf, %#.9gf};\n"
-                    "      animated.frames[%zu].rotation = %#.9gf;\n",
-                    frame, value->scale.x, value->scale.y,
-                    frame, value->offset.x, value->offset.y, frame, value->rotation);
-            }
-            fprintf(source,
-                "      result = rohr_graphics_animated_sprite_add(object->%s, animated);\n"
-                "      if(!rohr_error_check(result) && animated.frame_count > 0) result = rohr_graphics_animated_sprite_frame_index_set(object->%s, %u);\n"
-                "      (void)rohr_graphics_animation_release(&loaded.result.value);\n"
-                "      if(rohr_error_check(result)) goto fail; }\n", target, target, sprite->starting_frame);
-            if(body != NULL) {
-                for(size_t binding_index = 0;
-                        binding_index < body->hitbox_animation_binding_count;
-                        binding_index += 1) {
-                    const EditorHitboxAnimationBinding *binding =
-                        &body->hitbox_animation_bindings[binding_index];
-                    if(binding->animation != sprite->id) continue;
-                    fprintf(source,
-                        "    result = rohr_physics_hitbox_animation_binding_set(object->%s, "
-                        "UINT32_C(%u), UINT32_C(%u), UINT32_C(%u));\n"
-                        "    if(rohr_error_check(result)) goto fail;\n",
-                        body->name, binding->animation, binding->frame,
-                        binding->hitbox);
-                }
-            }
-        }
-        for(size_t anchor_index = 0; anchor_index < object->anchor_count; anchor_index += 1) {
-            const EditorAnchor *anchor = &object->anchors[anchor_index];
-            const EditorRigidBody *body = editor_workspace_body_get(
-                object, anchor->rigid_body);
-            /* Node anchors are emitted after their soft bodies exist. */
-            if(anchor->attachment_kind == EDITOR_ANCHOR_ATTACHMENT_SOFT_NODE &&
-                    anchor->position_follows_body) continue;
-            if(body != NULL && anchor->position_follows_body) {
-                fprintf(source,
-                    "    { JointAnchorIdResult created = rohr_physics_joint_anchor_add((JointAnchorDescription){.entity = "
-                    "object->%s, .local_offset = (Vec2D){%#.9gf, %#.9gf}});\n"
-                    "      if(rohr_error_check(created)) { result = rohr_error_result_error("
-                    "created.result.error); goto fail; }\n"
-                    "      object->anchor_%s = created.result.value; }\n",
-                    body->name, anchor->position.x, anchor->position.y, anchor->name);
-            } else {
-                fprintf(source,
-                    "    result = generated_world_anchor_create(&object->anchor_%s_owner, "
-                    "&object->anchor_%s, (Position){position.x + %#.9gf, "
-                    "position.y + %#.9gf});\n"
-                    "    if(rohr_error_check(result)) goto fail;\n",
-                    anchor->name, anchor->name, anchor->position.x, anchor->position.y);
-            }
-        }
-        for(size_t joint_index = 0; joint_index < object->joint_count; joint_index += 1) {
-            const EditorJoint *joint = &object->joint_items[joint_index];
-            const EditorAnchor *anchor_a = editor_workspace_anchor_get(object, joint->anchor_a);
-            const EditorAnchor *anchor_b = editor_workspace_anchor_get(object, joint->anchor_b);
-            if((anchor_a && anchor_a->attachment_kind == EDITOR_ANCHOR_ATTACHMENT_SOFT_NODE) ||
-                    (anchor_b && anchor_b->attachment_kind == EDITOR_ANCHOR_ATTACHMENT_SOFT_NODE)) continue;
-            fprintf(source,
-                "    { EntityResult added = rohr_entity_add();\n"
-                "      if(rohr_error_check(added)) { result = rohr_error_result_error("
-                "added.result.error); goto fail; }\n"
-                "      object->joint_%s = added.result.value; }\n",
-                joint->name);
-            fprintf(source,
-                "    result = rohr_physics_joint_description_set(object->joint_%s, (JointDescription){"
-                ".type = %s, .anchor_a = %s%s, .anchor_b = %s%s, "
-                ".rest_length = %#.9gf, .rest_length_explicit = true, "
-                ".stiffness = %#.9gf, .damping = %#.9gf, "
-                ".rest_angle = %#.9gf, .rest_angle_explicit = true});\n",
-                joint->name, joint->kind == EDITOR_JOINT_REVOLUTE ? "JOINT_PIN" :
-                    joint->kind == EDITOR_JOINT_WELD ? "JOINT_WELD" : "JOINT_SPRING",
-                anchor_a ? "object->anchor_" : "", anchor_a ? anchor_a->name : "JOINT_ANCHOR_INVALID",
-                anchor_b ? "object->anchor_" : "", anchor_b ? anchor_b->name : "JOINT_ANCHOR_INVALID", joint->rest_length,
-                joint->stiffness, joint->damping, joint->rest_angle);
-            fprintf(source, "    if(rohr_error_check(result)) goto fail;\n");
-        }
-        for(size_t soft_body_index = 0; soft_body_index < object->soft_body_count;
-                soft_body_index += 1) {
-            const EditorSoftBody *body = &object->soft_body_items[soft_body_index];
-            fprintf(source,
-                "    { EntityResult created = rohr_physics_soft_body_add((SoftBodyDescription){\n"
-                "        .position = {position.x + %#.9gf, position.y + %#.9gf}, .orientation = %#.9gf});\n"
-                "      if(rohr_error_check(created)) { result = rohr_error_result_error("
-                "created.result.error); goto fail; }\n"
-                "      object->%s = created.result.value; }\n",
-                body->position.x, body->position.y, body->rotation, body->name);
-            bool inherited_motion = false;
-            Position motion_points[SOFT_BODY_MAX_NODES];
-            Mass motion_masses[SOFT_BODY_MAX_NODES];
-            Velocity motion_velocities[SOFT_BODY_MAX_NODES];
-            if(body->node_count > SOFT_BODY_MAX_NODES) {
-                fclose(header); fclose(source); return false;
-            }
-            for(size_t i = 0; i < body->node_count; i += 1) {
-                motion_points[i] = math_vector_rotate(body->nodes[i].position, body->rotation);
-                motion_masses[i] = body->nodes[i].node_mass;
-                motion_velocities[i] = body->initial_velocity;
-                inherited_motion |= body->nodes[i].initial_motion_inherited;
-            }
-            if(inherited_motion && body->initial_angular_velocity != 0.0f &&
-                    !physics_soft_angular_velocities_get(motion_points, motion_masses,
-                        motion_velocities, (uint32_t)body->node_count,
-                        body->initial_angular_velocity, motion_velocities)) {
-                fclose(header); fclose(source); return false;
-            }
-            for(size_t node_index = 0; node_index < body->node_count; node_index += 1) {
-                const EditorSoftNode *node = &body->nodes[node_index];
-                float cosine = cosf(math_degrees_to_radians(body->rotation));
-                float sine = (-sinf(math_degrees_to_radians(body->rotation)));
-                Position transformed = {
-                    body->position.x + node->position.x * cosine - node->position.y * sine,
-                    body->position.y + node->position.x * sine + node->position.y * cosine
-                };
-                Velocity velocity = node->initial_motion_inherited ?
-                    motion_velocities[node_index] : node->initial_velocity;
-                Acceleration acceleration = node->initial_motion_inherited ?
-                    body->initial_acceleration : node->initial_acceleration;
-                fprintf(source,
-                    "    { EntityResult created = rohr_physics_soft_body_node_add((SoftBodyNodeDescription){.restitution = 0.25f, .collision_enabled = %s, .collision_filter = {.category = ROHR_COLLISION_CATEGORY_SOFT_BODY_NODE, .responds_to = ROHR_COLLISION_CATEGORY_ALL & ~ROHR_COLLISION_CATEGORY_SOFT_BODY_NODE}, "
-                    ".owner = object->%s, .position = {position.x + %#.9gf, "
-                    "position.y + %#.9gf}, .mass = %#.9gf, .radius = %#.9gf});\n"
-                    "      if(rohr_error_check(created)) { result = rohr_error_result_error("
-                    "created.result.error); goto fail; }\n"
-                    "      object->%s = created.result.value; }\n",
-                    node->collision_enabled ? "true" : "false",
-                    body->name, transformed.x, transformed.y,
-                    node->node_mass, node->radius, node->name);
-                fprintf(source,
-                    "    result = rohr_physics_velocity_set(object->%s, "
-                    "(Velocity){%#.9gf, %#.9gf});\n"
-                    "    if(rohr_error_check(result)) goto fail;\n"
-                    "    result = rohr_physics_acceleration_set(object->%s, "
-                    "(Acceleration){%#.9gf, %#.9gf});\n"
-                    "    if(rohr_error_check(result)) goto fail;\n",
-                    node->name, velocity.x, velocity.y,
-                    node->name, acceleration.x, acceleration.y);
-                if(node->gravity_enabled) {
-                    fprintf(source,
-                        "    result = rohr_physics_gravity_enable(object->%s);\n"
-                        "    if(rohr_error_check(result)) goto fail;\n",
-                        node->name);
-                }
-                fprintf(source,
-                    "    result = rohr_physics_friction_set(object->%s, %#.9gf);\n"
-                    "    if(rohr_error_check(result)) goto fail;\n"
-                    "    result = rohr_physics_restitution_set(object->%s, %#.9gf);\n"
-                    "    if(rohr_error_check(result)) goto fail;\n",
-                    node->name, node->friction, node->name, node->restitution);
-                /* The focused restitution setter enables collision. Restore
-                 * the authored flag after applying material settings. */
-                if(!node->collision_enabled) fprintf(source,
-                    "    result = rohr_entity_components_delete(object->%s, ROHR_COLLISION);\n"
-                    "    if(rohr_error_check(result)) goto fail;\n", node->name);
-                fprintf(source,
-                    "    result = rohr_physics_soft_body_node_collision_filter_description_set("
-                    "object->%s, (CollisionFilterDescription){.category = UINT64_C(%llu), .responds_to = UINT64_C(%llu)});\n"
-                    "    if(rohr_error_check(result)) goto fail;\n",
-                    node->name,
-                    (unsigned long long)node->collision_category,
-                    (unsigned long long)node->responds_to);
-                if(node->kinematic_driven) fprintf(source,
-                    "    result = rohr_physics_kinematic_driven_set(object->%s);\n"
-                    "    if(rohr_error_check(result)) goto fail;\n", node->name);
-                if(node->static_body) fprintf(source,
-                    "    result = rohr_physics_static_set(object->%s);\n"
-                    "    if(rohr_error_check(result)) goto fail;\n", node->name);
-            }
-            for(size_t beam_index = 0; beam_index < body->beam_count; beam_index += 1) {
-                const EditorSoftBeam *beam = &body->beams[beam_index];
-                const EditorSoftNode *node_a = editor_workspace_soft_node_get(
-                    body, beam->node_a);
-                const EditorSoftNode *node_b = editor_workspace_soft_node_get(
-                    body, beam->node_b);
-                if(node_a == NULL || node_b == NULL) continue;
-                fprintf(source,
-                    "    { EntityResult created = rohr_physics_soft_body_beam_add((SoftBodyBeamDescription){.restitution = 0.25f, .collision = {.thickness = ROHR_SOFT_BODY_BEAM_COLLISION_THICKNESS_MIN, .filter = {.category = ROHR_COLLISION_CATEGORY_SOFT_BODY_NODE, .responds_to = ROHR_COLLISION_CATEGORY_ALL & ~ROHR_COLLISION_CATEGORY_SOFT_BODY_NODE}}, "
-                    ".owner = object->%s, .node_a = object->%s, "
-                    ".node_b = object->%s, .stiffness = %#.9gf, .damping = %#.9gf, .rest_length_explicit = %s, .rest_length = %#.9gf});\n"
-                    "      if(rohr_error_check(created)) { result = rohr_error_result_error("
-                    "created.result.error); goto fail; }\n"
-                    "      object->%s = created.result.value; }\n",
-                    body->name, node_a->name, node_b->name, beam->stiffness,
-                    beam->damping, beam->rest_length_explicit ? "true" : "false",
-                    beam->rest_length, beam->name);
-                fprintf(source,
-                    "    result = rohr_physics_friction_set(object->%s, %#.9gf);\n"
-                    "    if(rohr_error_check(result)) goto fail;\n"
-                    "    result = rohr_physics_restitution_set(object->%s, %#.9gf);\n"
-                    "    if(rohr_error_check(result)) goto fail;\n",
-                    beam->name, beam->friction, beam->name, beam->restitution);
-                fprintf(source,
-                    "    result = rohr_physics_soft_body_beam_collision_description_set("
-                    "object->%s, (SoftBodyBeamCollisionDescription){"
-                    ".enabled = %s, .thickness = %#.9gf, .filter = {"
-                    ".category = UINT64_C(%llu), .responds_to = UINT64_C(%llu)}});\n"
-                    "    if(rohr_error_check(result)) goto fail;\n",
-                    beam->name,
-                    beam->collision_enabled ? "true" : "false",
-                    beam->collision_thickness,
-                    (unsigned long long)beam->collision_category,
-                    (unsigned long long)beam->responds_to);
-                if(beam->color_overridden) {
-                    fprintf(source,
-                        "    result = rohr_graphics_soft_body_beam_color_set(object->%s, "
-                        "object->%s, object->%s, rohr_graphics_color_hex_create("
-                        "UINT32_C(0x%08x)));\n"
-                        "    if(rohr_error_check(result)) goto fail;\n",
-                        body->name, node_a->name, node_b->name, beam->color);
-                }
-            }
-
-            for(size_t area_index = 0; area_index < body->area_count; area_index += 1) {
-                const EditorSoftArea *area = &body->areas[area_index];
-                fprintf(source, "    { SoftBodyAreaGeometry geometry = {0};\n"
-                    "      geometry.hole_count = %u;\n", area->hole_count);
-                for(uint32_t loop_index = 0; loop_index <= area->hole_count; loop_index += 1) {
-                    const EditorSoftAreaLoop *loop = loop_index == 0 ? &area->outer :
-                        &area->holes[loop_index - 1].loop;
-                    char member[64];
-                    if(loop_index == 0) snprintf(member, sizeof(member), "outer");
-                    else snprintf(member, sizeof(member), "holes[%u]", loop_index - 1);
-                    fprintf(source, "      geometry.%s.node_count = %u;\n", member, loop->node_count);
-                    for(uint32_t n = 0; n < loop->node_count; n += 1) {
-                        const EditorSoftNode *node = editor_workspace_soft_node_get(body, loop->nodes[n]);
-                        fprintf(source, "      geometry.%s.nodes[%u] = object->%s;\n",
-                            member, n, node->name);
-                    }
-                }
-                fprintf(source,
-                    "      EntityResult created = rohr_physics_soft_body_area_add((SoftBodyAreaDescription){.visible = true, .owner = object->%s, .geometry = geometry});\n"
-                    "      if(rohr_error_check(created)) { result = rohr_error_result_error(created.result.error); goto fail; }\n"
-                    "      object->%s_areas[%zu] = created.result.value; }\n"
-                    "    result = rohr_graphics_soft_body_area_color_set(object->%s_areas[%zu], "
-                    "rohr_graphics_color_hex_create(UINT32_C(0x%08x)));\n"
-                    "    if(rohr_error_check(result)) goto fail;\n"
-                    "    result = rohr_graphics_soft_body_area_visibility_set(object->%s_areas[%zu], %s);\n"
-                    "    if(rohr_error_check(result)) goto fail;\n",
-                    body->name, body->name, area_index, body->name, area_index, area->color,
-                    body->name, area_index, !body->app_hidden && !area->app_hidden ? "true" : "false");
-            }
-
-            for(size_t node_index = 0; node_index < body->node_count; node_index += 1) {
-                const EditorSoftNode *node = &body->nodes[node_index];
-                if(!node->color_overridden) continue;
-                fprintf(source,
-                    "    result = rohr_graphics_soft_body_node_color_set(object->%s, "
-                    "object->%s, rohr_graphics_color_hex_create(UINT32_C(0x%08x)));\n"
-                    "    if(rohr_error_check(result)) goto fail;\n",
-                    body->name, node->name, node->color);
-            }
-        }
-        for(size_t anchor_index = 0; anchor_index < object->anchor_count; anchor_index += 1) {
-            const EditorAnchor *anchor = &object->anchors[anchor_index];
-            const EditorSoftBody *soft_body;
-            const EditorSoftNode *soft_node;
-            if(anchor->attachment_kind != EDITOR_ANCHOR_ATTACHMENT_SOFT_NODE ||
-                    !anchor->position_follows_body) continue;
-            soft_body = editor_workspace_soft_body_get(object,
-                anchor->attachment_soft_body);
-            soft_node = editor_workspace_soft_node_get(soft_body,
-                anchor->attachment_soft_node);
-            if(soft_node == NULL) {
-                fclose(header);
-                fclose(source);
-                return false;
-            }
-            fprintf(source,
-                "    { JointAnchorIdResult created = rohr_physics_joint_anchor_add((JointAnchorDescription){.entity = "
-                "object->%s, .local_offset = (Vec2D){%#.9gf, %#.9gf}});\n"
-                "      if(rohr_error_check(created)) { result = rohr_error_result_error("
-                "created.result.error); goto fail; }\n"
-                "      object->anchor_%s = created.result.value; }\n",
-                soft_node->name, anchor->position.x, anchor->position.y,
-                anchor->name);
-        }
-        for(size_t joint_index = 0; joint_index < object->joint_count; joint_index += 1) {
-            const EditorJoint *joint = &object->joint_items[joint_index];
-            const EditorAnchor *anchor_a = editor_workspace_anchor_get(object,
-                joint->anchor_a);
-            const EditorAnchor *anchor_b = editor_workspace_anchor_get(object,
-                joint->anchor_b);
-            if(!(anchor_a && anchor_a->attachment_kind == EDITOR_ANCHOR_ATTACHMENT_SOFT_NODE) &&
-                    !(anchor_b && anchor_b->attachment_kind == EDITOR_ANCHOR_ATTACHMENT_SOFT_NODE)) continue;
-            fprintf(source,
-                "    { EntityResult added = rohr_entity_add();\n"
-                "      if(rohr_error_check(added)) { result = rohr_error_result_error("
-                "added.result.error); goto fail; }\n"
-                "      object->joint_%s = added.result.value; }\n",
-                joint->name);
-            fprintf(source,
-                "    result = rohr_physics_joint_description_set(object->joint_%s, (JointDescription){"
-                ".type = %s, .anchor_a = %s%s, .anchor_b = %s%s, "
-                ".rest_length = %#.9gf, .rest_length_explicit = true, "
-                ".stiffness = %#.9gf, .damping = %#.9gf, "
-                ".rest_angle = %#.9gf, .rest_angle_explicit = true});\n",
-                joint->name, joint->kind == EDITOR_JOINT_REVOLUTE ? "JOINT_PIN" :
-                    joint->kind == EDITOR_JOINT_WELD ? "JOINT_WELD" : "JOINT_SPRING",
-                anchor_a ? "object->anchor_" : "", anchor_a ? anchor_a->name : "JOINT_ANCHOR_INVALID",
-                anchor_b ? "object->anchor_" : "", anchor_b ? anchor_b->name : "JOINT_ANCHOR_INVALID", joint->rest_length,
-                joint->stiffness, joint->damping, joint->rest_angle);
-            fprintf(source, "    if(rohr_error_check(result)) goto fail;\n");
-        }
-        for(size_t camera_index = 0; camera_index < object->camera_count;
-                camera_index += 1) {
-            const EditorCamera *camera = &object->cameras[camera_index];
-            const char *target_name = NULL;
-            char target[EDITOR_OBJECT_NAME_MAX + 16];
-            if(camera->attachment_kind == EDITOR_CAMERA_ATTACHMENT_RIGID_BODY) {
-                const EditorRigidBody *body = editor_workspace_body_get(object,
-                    camera->attachment);
-                if(body != NULL) target_name = body->name;
-            } else if(camera->attachment_kind == EDITOR_CAMERA_ATTACHMENT_SOFT_BODY) {
-                for(size_t i = 0; i < object->soft_body_count; i += 1)
-                    if(object->soft_body_items[i].id == camera->attachment)
-                        target_name = object->soft_body_items[i].name;
-            } else if(camera->attachment_kind == EDITOR_CAMERA_ATTACHMENT_SOFT_NODE) {
-                for(size_t i = 0; i < object->soft_body_count; i += 1)
-                    if(object->soft_body_items[i].id == camera->attachment_soft_body)
-                        for(size_t n = 0; n < object->soft_body_items[i].node_count; n += 1)
-                            if(object->soft_body_items[i].nodes[n].id == camera->attachment)
-                                target_name = object->soft_body_items[i].nodes[n].name;
-            } else if(camera->attachment_kind == EDITOR_CAMERA_ATTACHMENT_ANCHOR) {
-                const EditorAnchor *anchor = editor_project_anchor_get(
-                    (EditorObject *)object, camera->attachment);
-                if(anchor != NULL && anchor->attachment_kind ==
-                        EDITOR_ANCHOR_ATTACHMENT_SOFT_NODE) {
-                    const EditorSoftBody *soft_body = editor_workspace_soft_body_get(
-                        object, anchor->attachment_soft_body);
-                    const EditorSoftNode *node = editor_workspace_soft_node_get(
-                        soft_body, anchor->attachment_soft_node);
-                    if(node != NULL) target_name = node->name;
-                } else if(anchor != NULL && editor_workspace_body_get(object,
-                        anchor->rigid_body) == NULL)
-                    snprintf(target, sizeof(target), "anchor_%s_owner", anchor->name);
-                else if(anchor != NULL) {
-                    const EditorRigidBody *body = editor_workspace_body_get(object,
-                        anchor->rigid_body);
-                    if(body != NULL) target_name = body->name;
-                }
-            }
-            if(target_name != NULL)
-                snprintf(target, sizeof(target), "%s", target_name);
-            fprintf(source,
-                "    { CameraIdResult created = rohr_camera_create((CameraDescription){"
-                ".enabled = true, .position = (Position){%s%#.9gf, %s%#.9gf}, "
-                ".orientation = %#.9gf, .dimensions = {%#.9gf, %#.9gf}, .zoom = %#.9gf, .pause_with_engine = %s});\n"
-                "      if(rohr_error_check(created)) { result = rohr_error_result_error("
-                "created.result.error); goto fail; }\n"
-                "      object->camera_%s = created.result.value;\n",
-                camera->attachment_kind == EDITOR_CAMERA_ATTACHMENT_NONE ?
-                    "position.x + " : "", camera->position.x,
-                camera->attachment_kind == EDITOR_CAMERA_ATTACHMENT_NONE ?
-                    "position.y + " : "", camera->position.y,
-                camera->rotation, camera->dimensions.x, camera->dimensions.y,
-                camera->zoom, camera->pause_with_engine ? "true" : "false",
-                camera->name);
-            if(camera->attachment_kind != EDITOR_CAMERA_ATTACHMENT_NONE) fprintf(source,
-                "      result = rohr_camera_attachment_description_set(object->camera_%s, "
-                "(CameraAttachmentDescription){.entity = object->%s, "
-                ".position_offset = {%s%#.9gf, %s%#.9gf}, .orientation_offset = %#.9gf, "
-                ".follow_position = %s, .follow_orientation = %s});\n"
-                "      if(rohr_error_check(result)) goto fail;\n",
-                camera->name, target,
-                camera->position_follow_disabled ? "position.x + " : "", camera->position.x,
-                camera->position_follow_disabled ? "position.y + " : "", camera->position.y,
-                camera->rotation, camera->position_follow_disabled ? "false" : "true",
-                camera->inherit_orientation ? "true" : "false");
-            fprintf(source, "    }\n");
-        }
-        fprintf(source,
-            "    return rohr_error_result_value(true);\n"
-            "fail:\n"
-            "    %s_destroy(object);\n"
-            "    return result;\n"
-            "}\n\n"
-            "void %s_draw(const %s *object) {\n"
-            "    if(object == NULL) return;\n"
-            "    if(object->source_instance != ENTITY_INVALID) {\n"
-            "        (void)rohr_entity_object_draw(object->source_instance);\n"
-            "        return;\n    }\n",
-            function_name, function_name, object->name);
-        for(size_t body_index = 0; body_index < object->rigid_body_count; body_index += 1) {
-            const EditorRigidBody *body = &object->rigid_bodies[body_index];
-            fprintf(source, "    if(object->%s != ENTITY_INVALID) {\n", body->name);
-            fprintf(source,
-                "        (void)rohr_graphics_hit_box_colored_draw(object->%s, GRAPHICS_FILLED, "
-                "rohr_graphics_color_hex_create(UINT32_C(0x%08x)));\n"
-                "        (void)rohr_graphics_hit_box_colored_draw(object->%s, GRAPHICS_OUTLINE, "
-                "rohr_graphics_color_hex_create(UINT32_C(0x%08x)));\n",
-                body->name,
-                body->standalone_particle ? body->particle_fill_color :
-                    body->surface_color,
-                body->name,
-                body->standalone_particle ? body->particle_ring_color :
-                    body->border_color);
-            fprintf(source, "    }\n");
-        }
-        for(size_t soft_body_index = 0; soft_body_index < object->soft_body_count;
-                soft_body_index += 1) {
-            const EditorSoftBody *body = &object->soft_body_items[soft_body_index];
-            fprintf(source, "    if(object->%s != ENTITY_INVALID)\n", body->name);
-            fprintf(source,
-                "        (void)rohr_graphics_soft_body_draw(object->%s, "
-                "rohr_graphics_color_hex_create(UINT32_C(0x%08x)), "
-                "rohr_graphics_color_hex_create(UINT32_C(0x%08x)), "
-                "rohr_graphics_color_hex_create(UINT32_C(0x%08x)));\n",
-                body->name, UINT32_C(0x00000000), body->beam_color, body->node_color);
-        }
-        /* Catalog instances draw their own visuals above. Ordinary generated
-         * instances draw only their own components, avoiding a second global pass. */
-        for(size_t i = 0; i < object->sprite_count; ++i) {
-            const EditorSprite *sprite = &object->sprites[i];
-            const EditorRigidBody *body = editor_workspace_body_get(object, sprite->rigid_body);
-            bool already_drawn = false;
-            for(size_t prior = 0; body != NULL && prior < i; ++prior)
-                already_drawn |= object->sprites[prior].rigid_body == body->id;
-            if(already_drawn) continue;
-            fprintf(source, "    if(object->%s%s != ENTITY_INVALID)\n",
-                body ? "" : "sprite_", body ? body->name : sprite->name);
-            fprintf(source, "        (void)rohr_graphics_sprite_draw(object->%s%s);\n",
-                body ? "" : "sprite_", body ? body->name : sprite->name);
-        }
-        for(size_t i = 0; i < object->animated_sprite_count; ++i) {
-            const EditorAnimatedSprite *animation = &object->animated_sprite_items[i];
-            const EditorRigidBody *body = editor_workspace_body_get(object, animation->rigid_body);
-            bool already_drawn = false;
-            for(size_t prior = 0; body != NULL && prior < i; ++prior)
-                already_drawn |= object->animated_sprite_items[prior].rigid_body == body->id;
-            if(already_drawn) continue;
-            fprintf(source, "    if(object->%s%s != ENTITY_INVALID)\n",
-                body ? "" : "animation_", body ? body->name : animation->name);
-            fprintf(source, "        (void)rohr_graphics_animated_sprite_draw(object->%s%s);\n",
-                body ? "" : "animation_", body ? body->name : animation->name);
-        }
-        fprintf(source,
-            "}\n\n"
-            "void %s_destroy(%s *object) {\n"
-            "    if(object == NULL) return;\n"
-            "    if(object->source_instance != ENTITY_INVALID) {\n"
-            "        if(rohr_entity_alive_check(object->source_instance))\n"
-            "            (void)rohr_entity_delete(object->source_instance);\n"
-            "        *object = (%s){0};\n        return;\n    }\n",
-            function_name, object->name, object->name);
-        for(size_t joint_index = 0; joint_index < object->joint_count; joint_index += 1) {
-            const EditorJoint *joint = &object->joint_items[joint_index];
-            fprintf(source,
-                "    if(object->joint_%s != ENTITY_INVALID) "
-                "(void)rohr_entity_delete(object->joint_%s);\n",
-                joint->name, joint->name);
-        }
-        for(size_t camera_index = 0; camera_index < object->camera_count;
-                camera_index += 1)
-            fprintf(source,
-                "    if(object->camera_%s != CAMERA_INVALID) "
-                "(void)rohr_camera_destroy(object->camera_%s);\n",
-                object->cameras[camera_index].name,
-                object->cameras[camera_index].name);
-        for(size_t soft_body_index = 0; soft_body_index < object->soft_body_count;
-                soft_body_index += 1) {
-            const EditorSoftBody *body = &object->soft_body_items[soft_body_index];
-            fprintf(source,
-                "    if(object->%s != ENTITY_INVALID) "
-                "(void)rohr_entity_delete(object->%s);\n",
-                body->name, body->name);
-        }
-        for(size_t sprite_index = 0; sprite_index < object->sprite_count;
-                sprite_index += 1) {
-            const EditorSprite *sprite = &object->sprites[sprite_index];
-            if(editor_workspace_body_get(object, sprite->rigid_body) != NULL) continue;
-            fprintf(source,
-                "    if(object->sprite_%s != ENTITY_INVALID) "
-                "(void)rohr_entity_delete(object->sprite_%s);\n",
-                sprite->name, sprite->name);
-        }
-        for(size_t sprite_index = 0; sprite_index < object->animated_sprite_count;
-                sprite_index += 1) {
-            const EditorAnimatedSprite *sprite = &object->animated_sprite_items[sprite_index];
-            if(editor_workspace_body_get(object, sprite->rigid_body) != NULL) continue;
-            fprintf(source,
-                "    if(object->animation_%s != ENTITY_INVALID) "
-                "(void)rohr_entity_delete(object->animation_%s);\n",
-                sprite->name, sprite->name);
-        }
-        for(size_t anchor_index = 0; anchor_index < object->anchor_count; anchor_index += 1) {
-            const EditorAnchor *anchor = &object->anchors[anchor_index];
-            if(anchor->attachment_kind == EDITOR_ANCHOR_ATTACHMENT_NONE ||
-                    !anchor->position_follows_body)
-                fprintf(source,
-                    "    if(object->anchor_%s_owner != ENTITY_INVALID) "
-                    "(void)rohr_entity_delete(object->anchor_%s_owner);\n",
-                    anchor->name, anchor->name);
-        }
-        for(size_t body_index = 0; body_index < object->rigid_body_count; body_index += 1) {
-            const EditorRigidBody *body = &object->rigid_bodies[body_index];
-            fprintf(source,
-                "    if(object->%s != ENTITY_INVALID) "
-                "(void)rohr_entity_delete(object->%s);\n",
-                body->name, body->name);
-        }
-        fprintf(source, "    *object = (%s){0};\n}\n\n", object->name);
+        catalog_constructor_write(source,object,function_name);
     }
     fprintf(header, "typedef struct ProjectControllers {\n");
     for(size_t controller_index = 0;
@@ -2030,7 +1170,7 @@ static bool editor_workspace_generated_objects_write(const EditorWorkspace *work
         char variable[EDITOR_OBJECT_NAME_MAX];
         editor_project_property_name_format(variable, sizeof(variable), object->name);
         fprintf(source,
-            "    { EntityResult added = entity_object_add(objects.%s);\n"
+            "    { EntityResult added = rohr_object_create(&objects.%s);\n"
             "      if(rohr_error_check(added)) { result = rohr_error_result_error(added.result.error); goto fail; }\n"
             "      instances->%s.source_instance = added.result.value;\n"
             "      result = %s_instance_bind(&instances->%s, added.result.value);\n"
@@ -2066,6 +1206,15 @@ static bool editor_workspace_generated_objects_write(const EditorWorkspace *work
         "    project_controllers_destroy(&objects->controllers);\n"
         "    *objects = (ProjectObjects){0};\n}\n\n");
     bool catalog_written = editor_object_catalog_write(header, source, project);
+    char project_header_path[EDITOR_WORKSPACE_PATH_MAX * 2];
+    FILE *project_header = NULL;
+    if(editor_workspace_file_path(workspace, project_header_path, sizeof(project_header_path),
+            scene ? "src/generated/scene/project.h" : "src/generated/project.h"))
+        project_header = fopen(project_header_path, "wb");
+    if(project_header) {
+        catalog_written = editor_project_catalog_write(project_header, source, project) && catalog_written;
+        catalog_written = fclose(project_header) == 0 && catalog_written;
+    } else catalog_written = false;
     fprintf(header, "#endif\n");
     {
         bool header_closed = fclose(header) == 0;
@@ -2074,518 +1223,15 @@ static bool editor_workspace_generated_objects_write(const EditorWorkspace *work
     }
 }
 
-static size_t editor_workspace_ui_font_index_get(const EditorProject *project,
-        EditorUiFontId id) {
-    if(id == 0 || project == NULL) return 0;
-    for(size_t i = 0; i < project->ui_font_count; i += 1)
-        if(project->ui_fonts[i].id == id) return i + 1;
-    return 0;
-}
-
-static bool editor_workspace_generated_viewports_write(
-        const EditorWorkspace *workspace, const EditorProject *project, bool scene) {
-    char header_path[EDITOR_WORKSPACE_PATH_MAX * 2];
-    char source_path[EDITOR_WORKSPACE_PATH_MAX * 2];
-    FILE *header;
-    FILE *source;
-    size_t text_count = 0;
-    if(workspace == NULL || project == NULL ||
-            !editor_workspace_file_path(workspace, header_path, sizeof(header_path), scene ? "src/generated/scene/project_viewports.h" : "src/generated/project_viewports.h") ||
-            !editor_workspace_file_path(workspace, source_path, sizeof(source_path), scene ? "src/generated/scene/project_viewports.c" : "src/generated/project_viewports.c")) return false;
-    header = fopen(header_path, "wb");
-    if(header == NULL) return false;
-    source = fopen(source_path, "wb");
-    if(source == NULL) { fclose(header); return false; }
-    fprintf(header,
-        "/* Generated by Rohr Engine. */\n"
-        "#ifndef ROHR_GENERATED_PROJECT_VIEWPORTS_H\n"
-        "#define ROHR_GENERATED_PROJECT_VIEWPORTS_H\n\n"
-        "#include \"project_objects.h\"\n\n"
-        "typedef struct ProjectViewports {\n"
-        "    ViewportId viewports[MAX_VIEWPORTS];\n"
-        "    ScreenId screens[MAX_SCREENS];\n"
-        "    FontAsset fonts[MAX_VIEWPORT_ITEMS + 1];\n"
-        "    TextAsset texts[MAX_VIEWPORTS * MAX_VIEWPORT_ITEMS];\n"
-        "    GraphicsUiId ui_elements[MAX_VIEWPORTS * MAX_VIEWPORT_ITEMS];\n"
-        "    ViewportItemId ui_items[MAX_VIEWPORTS * MAX_VIEWPORT_ITEMS];\n"
-        "    GraphicsLayerId layers[MAX_GRAPHICS_LAYERS];\n"
-        "    size_t viewport_count;\n"
-        "    size_t screen_count;\n"
-        "    size_t font_count;\n"
-        "    size_t text_count;\n"
-        "    size_t ui_element_count;\n"
-        "    size_t ui_item_count;\n"
-        "    size_t layer_count;\n"
-        "} ProjectViewports;\n\n"
-        "EngineResult project_viewports_create(ProjectViewports *resources, "
-            "ProjectObjects *objects);\n"
-        "void project_viewports_destroy(ProjectViewports *resources);\n\n"
-        "#endif\n");
-    fprintf(source,
-        "/* Generated by Rohr Engine. */\n\n"
-        "#include \"project_viewports.h\"\n\n");
-    bool has_screens = false;
-    bool has_failure_path = project->layout_viewport_count > 0 ||
-        project->graphics_layer_count > 0 || project->ui_font_count > 0;
-    for(size_t i = 0; i < project->layout_viewport_count; ++i)
-        has_screens |= project->layout_viewports[i].camera_item_count > 0;
-    if(has_screens) fprintf(source,
-        "static void render_scene(CameraId camera, void *context) {\n"
-        "    ProjectObjects *objects = context;\n"
-        "    (void)camera;\n"
-        "    rohr_graphics_layer_active_set(-100);\n"
-        "    rohr_graphics_layer_active_set(0);\n"
-        "    project_objects_draw_all(objects);\n"
-        "}\n\n");
-    fprintf(source,
-        "EngineResult project_viewports_create(ProjectViewports *resources, "
-            "ProjectObjects *objects) {\n"
-        "    EngineResult result = rohr_error_result_value(true);\n"
-        "    if(resources == NULL || objects == NULL) return "
-            "rohr_error_result_error(ERROR_ENGINE_COMPONENT_MISSING);\n"
-        "    *resources = (ProjectViewports){0};\n");
-    for(size_t i = 0; i < project->graphics_layer_count; i += 1) {
-        fprintf(source,
-            "    { GraphicsLayerIdResult created = rohr_graphics_layer_create("
-                "(LayerDescription){.name = \"%s\", .value = %d});\n"
-            "      if(rohr_error_check(created)) { result = "
-                "rohr_error_result_error(created.result.error); goto fail; }\n"
-            "      resources->layers[resources->layer_count++] = "
-                "created.result.value; }\n",
-            project->graphics_layers[i].name, project->graphics_layers[i].value);
+static bool editor_workspace_viewport_modules_remove(const EditorWorkspace *workspace) {
+    const char *files[] = {"src/generated/project_viewports.c", "src/generated/project_viewports.h",
+        "src/generated/scene/project_viewports.c", "src/generated/scene/project_viewports.h"};
+    for(size_t i = 0; i < SDL_arraysize(files); ++i) {
+        char path[EDITOR_WORKSPACE_PATH_MAX * 2]; SDL_PathInfo info;
+        if(!editor_workspace_file_path(workspace, path, sizeof(path), files[i])) return false;
+        if(SDL_GetPathInfo(path, &info) && (info.type != SDL_PATHTYPE_FILE || !SDL_RemovePath(path))) return false;
     }
-    for(size_t object_index = 0; object_index < project->object_count;
-            object_index += 1) {
-        const EditorObject *object = &project->objects[object_index];
-        char object_variable[EDITOR_OBJECT_NAME_MAX];
-        editor_project_property_name_format(object_variable,
-            sizeof(object_variable), object->name);
-#define WRITE_ENTITY_LAYER(Binding, Prefix, Name) do { \
-    fprintf(source, "    if(objects->%s.%s%s != ENTITY_INVALID)\n", object_variable, Prefix, Name); \
-    has_failure_path = true; \
-    bool found = false; \
-    if((Binding).layer != 0) { \
-        for(size_t layer_index = 0; layer_index < project->graphics_layer_count; \
-                layer_index += 1) if(project->graphics_layers[layer_index].id == \
-                    (Binding).layer) { \
-            fprintf(source, "        if(rohr_error_check(result = " \
-                "rohr_graphics_layer_entity_id_set(objects->%s.%s%s, " \
-                "resources->layers[%zu]))) goto fail;\n", object_variable, \
-                Prefix, Name, layer_index); \
-            found = true; \
-            break; \
-        } \
-    } \
-    if(!found) fprintf(source, "        if(rohr_error_check(result = " \
-        "rohr_graphics_layer_entity_set(objects->%s.%s%s, %d))) goto fail;\n", \
-        object_variable, Prefix, Name, (Binding).value); \
-} while(0)
-#define WRITE_AREA_LAYER(Binding, Name, Index) do { \
-    fprintf(source, "    if(objects->%s.%s_areas[%zu] != ENTITY_INVALID)\n", object_variable, Name, Index); \
-    has_failure_path = true; \
-    bool found = false; \
-    if((Binding).layer != 0) { \
-        for(size_t layer_index = 0; layer_index < project->graphics_layer_count; \
-                layer_index += 1) if(project->graphics_layers[layer_index].id == \
-                    (Binding).layer) { \
-            fprintf(source, "        if(rohr_error_check(result = " \
-                "rohr_graphics_layer_entity_id_set(objects->%s.%s_areas[%zu], " \
-                "resources->layers[%zu]))) goto fail;\n", object_variable, \
-                Name, Index, layer_index); \
-            found = true; \
-            break; \
-        } \
-    } \
-    if(!found) fprintf(source, "        if(rohr_error_check(result = " \
-        "rohr_graphics_layer_entity_set(objects->%s.%s_areas[%zu], %d))) goto fail;\n", \
-        object_variable, Name, Index, (Binding).value); \
-} while(0)
-#define WRITE_COMPONENT_LAYER(Binding, Component, Prefix, Name) do { \
-    fprintf(source, "    if(objects->%s.%s%s != ENTITY_INVALID)\n", object_variable, Prefix, Name); \
-    has_failure_path = true; \
-    bool found = false; \
-    if((Binding).layer != 0) { \
-        for(size_t layer_index = 0; layer_index < project->graphics_layer_count; \
-                layer_index += 1) if(project->graphics_layers[layer_index].id == \
-                    (Binding).layer) { \
-            fprintf(source, "        if(rohr_error_check(result = " \
-                "rohr_graphics_layer_%s_id_set(objects->%s.%s%s, " \
-                "resources->layers[%zu]))) goto fail;\n", Component, object_variable, \
-                Prefix, Name, layer_index); \
-            found = true; \
-            break; \
-        } \
-    } \
-    if(!found) fprintf(source, "        if(rohr_error_check(result = " \
-        "rohr_graphics_layer_%s_set(objects->%s.%s%s, %d))) goto fail;\n", \
-        Component, object_variable, Prefix, Name, (Binding).value); \
-} while(0)
-        for(size_t i = 0; i < object->rigid_body_count; i += 1)
-            WRITE_ENTITY_LAYER(object->rigid_bodies[i].graphics_layer, "",
-                object->rigid_bodies[i].name);
-        for(size_t i = 0; i < object->joint_count; i += 1)
-            WRITE_ENTITY_LAYER(object->joint_items[i].graphics_layer, "joint_",
-                object->joint_items[i].name);
-        for(size_t i = 0; i < object->soft_body_count; i += 1) {
-            const EditorSoftBody *body = &object->soft_body_items[i];
-            WRITE_ENTITY_LAYER(body->graphics_layer, "", body->name);
-            for(size_t area = 0; area < body->area_count; area += 1)
-                WRITE_AREA_LAYER((body->areas[area].graphics_layer_inherited ?
-                    body->graphics_layer : body->areas[area].graphics_layer), body->name, area);
-            for(size_t child = 0; child < body->node_count; child += 1)
-                if(!body->nodes[child].graphics_layer_inherited)
-                    WRITE_ENTITY_LAYER(body->nodes[child].graphics_layer, "",
-                        body->nodes[child].name);
-            for(size_t child = 0; child < body->beam_count; child += 1)
-                if(!body->beams[child].graphics_layer_inherited)
-                    WRITE_ENTITY_LAYER(body->beams[child].graphics_layer, "",
-                        body->beams[child].name);
-        }
-        for(size_t i = 0; i < object->sprite_count; i += 1)
-            WRITE_COMPONENT_LAYER(object->sprites[i].graphics_layer, "sprite", "sprite_",
-                object->sprites[i].name);
-        for(size_t i = 0; i < object->animated_sprite_count; i += 1) {
-            const EditorAnimatedSprite *animation =
-                &object->animated_sprite_items[i];
-            const EditorRigidBody *body = editor_workspace_body_get(object,
-                animation->rigid_body);
-            WRITE_COMPONENT_LAYER(animation->graphics_layer, "animation",
-                body == NULL ? "animation_" : "",
-                body == NULL ? animation->name : body->name);
-        }
-#undef WRITE_ENTITY_LAYER
-#undef WRITE_AREA_LAYER
-#undef WRITE_COMPONENT_LAYER
-    }
-    fprintf(source, "    resources->fonts[resources->font_count++] = "
-        "rohr_graphics_font_default_get();\n");
-    for(size_t i = 0; i < project->ui_font_count; i += 1) {
-        fprintf(source, "    { FontAssetResult loaded = rohr_graphics_font_load("
-            "(FontDescription){.file=");
-        editor_workspace_c_string_write(source, project->ui_fonts[i].path);
-        fprintf(source, ", .point_size=%.9ef});\n"
-            "      if(rohr_error_check(loaded)) { result = "
-                "rohr_error_result_error(loaded.result.error); goto fail; }\n"
-            "      resources->fonts[resources->font_count++] = loaded.result.value; }\n",
-            (double)project->ui_fonts[i].point_size);
-    }
-    for(size_t viewport_index = 0;
-            viewport_index < project->layout_viewport_count; viewport_index += 1) {
-        const EditorLayoutViewport *viewport =
-            &project->layout_viewports[viewport_index];
-        fprintf(source,
-            "    { ViewportIdResult created = rohr_viewport_create((ViewportDescription){"
-            ".rectangle={%.8ff, %.8ff, %.8ff, %.8ff}, .fit=%d, "
-            ".background_color=rohr_graphics_color_hex_create(UINT32_C(0x%08x))});\n"
-            "      if(rohr_error_check(created)) { result = "
-                "rohr_error_result_error(created.result.error); goto fail; }\n"
-            "      resources->viewports[resources->viewport_count++] = "
-                "created.result.value;\n",
-            viewport->config.rectangle.x, viewport->config.rectangle.y,
-            viewport->config.rectangle.width, viewport->config.rectangle.height,
-            (int)viewport->config.fit, viewport->background_color);
-        for(size_t item_index = 0; item_index < viewport->camera_item_count;
-                item_index += 1) {
-            const EditorViewportCameraItem *item =
-                &viewport->camera_items[item_index];
-            const EditorObject *object = NULL;
-            const EditorCamera *camera = NULL;
-            char object_name[EDITOR_OBJECT_NAME_MAX];
-            for(size_t i = 0; i < project->object_count; i += 1)
-                if(project->objects[i].id == item->object) object =
-                    &project->objects[i];
-            if(object != NULL) camera = editor_project_camera_get(
-                (EditorObject *)object, item->camera);
-            if(object == NULL || camera == NULL) goto write_fail;
-            editor_project_property_name_format(object_name, sizeof(object_name),
-                object->name);
-            fprintf(source, "      if(!rohr_error_check(rohr_camera_get(objects->%s.camera_%s)))\n",
-                object_name, camera->name);
-            fprintf(source,
-                "        if(rohr_error_check(result = rohr_camera_render_callback_set("
-                    "objects->%s.camera_%s, render_scene, objects))) goto fail;\n"
-                "      { ScreenIdResult screen = rohr_screen_create((ScreenDescription){"
-                    ".camera=objects->%s.camera_%s, .width=%d, .height=%d, "
-                    ".clear_background=true, .background_color=rohr_graphics_color_hex_create(UINT32_C(0x%08x))});\n"
-                "        if(rohr_error_check(screen)) { result = "
-                    "rohr_error_result_error(screen.result.error); goto fail; }\n"
-                "        resources->screens[resources->screen_count++] = "
-                    "screen.result.value;\n"
-                "        ViewportItemIdResult item = rohr_viewport_screen_add("
-                    "resources->viewports[resources->viewport_count - 1], "
-                    "screen.result.value, (ViewportItemDescription){"
-                    ".rectangle={%.8ff, %.8ff, %.8ff, %.8ff}, .fit=%d, "
-                    ".orientation=%.8ff, .content_offset={%.8ff, %.8ff}, "
-                    ".content_scale={%.8ff, %.8ff}, .content_orientation=%.8ff, "
-                    ".layer=%d, .visible=%s, .drag_mode=%d});\n"
-                "        if(rohr_error_check(item)) { result = "
-                    "rohr_error_result_error(item.result.error); goto fail; }\n",
-                object_name, camera->name, object_name, camera->name,
-                item->render_size_explicit ? item->render_width : (int)camera->dimensions.x,
-                item->render_size_explicit ? item->render_height : (int)camera->dimensions.y,
-                item->background_color,
-                item->placement.rectangle.x, item->placement.rectangle.y,
-                item->placement.rectangle.width, item->placement.rectangle.height,
-                (int)item->placement.fit, item->placement.orientation,
-                item->content_offset.x, item->content_offset.y,
-                item->content_scale.x, item->content_scale.y,
-                item->content_rotation, item->placement.layer,
-                !item->app_hidden ? "true" : "false",
-                (int)item->placement.drag_mode);
-            if(item->graphics_layer != 0)
-                for(size_t layer_index = 0;
-                        layer_index < project->graphics_layer_count;
-                        layer_index += 1)
-                    if(project->graphics_layers[layer_index].id ==
-                            item->graphics_layer)
-                        fprintf(source,
-                            "        if(rohr_error_check(result = "
-                                "rohr_graphics_layer_ui_id_set(item.result.value, "
-                                "resources->layers[%zu]))) goto fail;\n",
-                            layer_index);
-            fprintf(source, "      }\n");
-        }
-        for(size_t item_index = 0; item_index < viewport->ui_item_count;
-                item_index += 1) {
-            const EditorViewportUiItem *item = &viewport->ui_items[item_index];
-            const EditorViewportUiDefinition *definition =
-                editor_project_ui_definition_get((EditorProject *)project,
-                    item->definition);
-            if(definition == NULL) goto write_fail;
-            const EditorViewportUiText *text = definition->kind ==
-                    EDITOR_VIEWPORT_UI_SHAPE ? &definition->value.shape.text :
-                definition->kind == EDITOR_VIEWPORT_UI_TEXT ?
-                    &definition->value.text : NULL;
-            size_t font_index = text == NULL ? 0 :
-                editor_workspace_ui_font_index_get(project, text->font);
-            bool has_text = text != NULL && text->text[0] != '\0';
-            if(has_text) {
-                fprintf(source, "      { TextAssetResult text = "
-                    "rohr_graphics_text_create((TextDescription){.font = resources->fonts[%zu], .value = ", font_index);
-                editor_workspace_c_string_write(source, text->text);
-                fprintf(source, ", .wrap_width=%d, .color = rohr_graphics_color_hex_create(UINT32_C(0x%08x))});\n"
-                    "        if(rohr_error_check(text)) { result = "
-                        "rohr_error_result_error(text.result.error); goto fail; }\n"
-                    "        resources->texts[resources->text_count++] = "
-                        "text.result.value; }\n", text->wrap_width, text->color);
-            }
-            if(definition->kind == EDITOR_VIEWPORT_UI_SHAPE) {
-                const EditorViewportUiShape *shape = &definition->value.shape;
-                fprintf(source, "      { ViewportUiShapeDescription ui = {"
-                    ".orientation=%.8ff, "
-                    ".border_enabled=%s, .border_type=%d, "
-                    ".border_thickness=%.8ff, .border_hash_spacing=%.8ff, "
-                    ".border_corner_radius=%.8ff, "
-                    ".border_color=rohr_graphics_color_hex_create(UINT32_C(0x%08x)), "
-                    ".fill_color=rohr_graphics_color_hex_create(UINT32_C(0x%08x)), "
-                    ".button_enabled=%s, "
-                    ".hover_border_color=rohr_graphics_color_hex_create(UINT32_C(0x%08x)), "
-                    ".hover_fill_color=rohr_graphics_color_hex_create(UINT32_C(0x%08x)), "
-                    ".click_border_color=rohr_graphics_color_hex_create(UINT32_C(0x%08x)), "
-                    ".click_fill_color=rohr_graphics_color_hex_create(UINT32_C(0x%08x)), "
-                    ".text={.text=%s, .offset={%.8ff, %.8ff}, "
-                    ".scale={%.8ff, %.8ff}, .orientation=%.8ff}};\n",
-                    shape->rotation,
-                    definition->border_enabled ? "true" : "false",
-                    definition->border_type,
-                    definition->border_thickness, definition->border_hash_spacing,
-                    definition->border_corner_radius, definition->border_color,
-                    definition->fill_color,
-                    shape->button_enabled ? "true" : "false",
-                    definition->hover_border_color, definition->hover_fill_color,
-                    definition->click_border_color, definition->click_fill_color,
-                    has_text ? "resources->texts[resources->text_count - 1]" :
-                        "(TextAsset){0}",
-                    text->offset.x, text->offset.y,
-                    text->width_scale * 2.0f, text->height_scale * 2.0f, text->rotation);
-                fprintf(source, "        ui.shape.amount_of_vertices = %zu;\n",
-                    shape->vertex_count);
-                for(size_t vertex = 0; vertex < shape->vertex_count; vertex += 1)
-                    fprintf(source, "        ui.shape.vertices[%zu] = "
-                        "(Position){%.8ff, %.8ff};\n", vertex,
-                        shape->vertices[vertex].x, shape->vertices[vertex].y);
-                fprintf(source, "        GraphicsUiIdResult created_ui = "
-                    "rohr_graphics_ui_shape_create(ui);\n"
-                    "        if(rohr_error_check(created_ui)) { result = "
-                        "rohr_error_result_error(created_ui.result.error); goto fail; }\n"
-                    "        resources->ui_elements[resources->ui_element_count++] = "
-                        "created_ui.result.value;\n"
-                    "        ViewportItemIdResult added = rohr_viewport_ui_add("
-                    "resources->viewports[resources->viewport_count - 1], "
-                    "created_ui.result.value, (ViewportItemDescription){"
-                    ".rectangle={%.8ff, %.8ff, 0.0f, 0.0f}, "
-                    ".content_scale={%.8ff, %.8ff}, .orientation=%.8ff, "
-                    ".layer=%d, .visible=%s, .drag_mode=%d, .clip_enabled=%s, "
-                    ".clip_rectangle={%.8ff, %.8ff, %.8ff, %.8ff}});\n"
-                    "        if(rohr_error_check(added)) { result = "
-                        "rohr_error_result_error(added.result.error); goto fail; }\n",
-                    item->position.x, item->position.y,
-                    item->scale.x, item->scale.y, item->rotation,
-                    item->layer, !item->app_hidden ? "true" : "false",
-                    (int)item->drag_mode,
-                    item->clip_enabled ? "true" : "false",
-                    item->clip_rectangle.x, item->clip_rectangle.y,
-                    item->clip_rectangle.width, item->clip_rectangle.height);
-                fprintf(source, "        resources->ui_items[resources->ui_item_count++] = "
-                    "added.result.value;\n");
-                if(item->graphics_layer != 0)
-                    for(size_t layer_index = 0;
-                            layer_index < project->graphics_layer_count;
-                            layer_index += 1)
-                        if(project->graphics_layers[layer_index].id ==
-                                item->graphics_layer)
-                            fprintf(source,
-                                "        if(rohr_error_check(result = "
-                                    "rohr_graphics_layer_ui_id_set(added.result.value, "
-                                    "resources->layers[%zu]))) goto fail;\n",
-                                layer_index);
-                fprintf(source, "      }\n");
-            } else if(definition->kind == EDITOR_VIEWPORT_UI_TEXT) {
-                fprintf(source, "      { GraphicsUiIdResult created_ui = "
-                    "rohr_graphics_ui_text_create((ViewportUiTextDescription){"
-                    ".text=%s, "
-                    ".position={%.8ff, %.8ff}, .offset={%.8ff, %.8ff}, "
-                    ".scale={%.8ff, %.8ff}, .orientation=%.8ff});\n"
-                    "        if(rohr_error_check(created_ui)) { result = "
-                        "rohr_error_result_error(created_ui.result.error); goto fail; }\n"
-                    "        resources->ui_elements[resources->ui_element_count++] = "
-                        "created_ui.result.value;\n"
-                    "        ViewportItemIdResult added = rohr_viewport_ui_add("
-                    "resources->viewports[resources->viewport_count - 1], "
-                    "created_ui.result.value, (ViewportItemDescription){"
-                    ".rectangle={%.8ff, %.8ff, 0.0f, 0.0f}, "
-                    ".content_scale={%.8ff, %.8ff}, .orientation=%.8ff, "
-                    ".layer=%d, .visible=%s, .drag_mode=%d, .clip_enabled=%s, "
-                    ".clip_rectangle={%.8ff, %.8ff, %.8ff, %.8ff}});\n"
-                    "        if(rohr_error_check(added)) { result = "
-                        "rohr_error_result_error(added.result.error); goto fail; }\n",
-                    has_text ? "resources->texts[resources->text_count - 1]" :
-                        "(TextAsset){0}",
-                    text->box_width * 0.5f,
-                    text->box_height * 0.5f,
-                    text->offset.x, text->offset.y,
-                    text->width_scale * 2.0f, text->height_scale * 2.0f, text->rotation,
-                    item->position.x, item->position.y,
-                    item->scale.x, item->scale.y, item->rotation,
-                    item->layer, !item->app_hidden ? "true" : "false",
-                    (int)item->drag_mode,
-                    item->clip_enabled ? "true" : "false",
-                    item->clip_rectangle.x, item->clip_rectangle.y,
-                    item->clip_rectangle.width, item->clip_rectangle.height);
-                fprintf(source, "        resources->ui_items[resources->ui_item_count++] = "
-                    "added.result.value;\n");
-                if(item->graphics_layer != 0)
-                    for(size_t layer_index = 0;
-                            layer_index < project->graphics_layer_count;
-                            layer_index += 1)
-                        if(project->graphics_layers[layer_index].id ==
-                                item->graphics_layer)
-                            fprintf(source,
-                                "        if(rohr_error_check(result = "
-                                    "rohr_graphics_layer_ui_id_set(added.result.value, "
-                                    "resources->layers[%zu]))) goto fail;\n",
-                                layer_index);
-                fprintf(source, "      }\n");
-            } else {
-                const EditorViewportUiSlider *slider = &definition->value.slider;
-                fprintf(source,
-                    "      { GraphicsUiIdResult created_ui = "
-                    "rohr_graphics_ui_slider_create((ViewportUiSliderDescription){"
-                    ".minimum=%.8ff, .maximum=%.8ff, .value=%.8ff, .step=%.8ff, "
-                    ".length=%.8ff, .track_thickness=%.8ff, "
-                    ".thumb_width=%.8ff, .thumb_height=%.8ff, "
-                    ".thumb_radius=%.8ff, .thumb_offset=%.8ff, "
-                    ".thumb_shape=%d, "
-                    ".track_color=rohr_graphics_color_hex_create(UINT32_C(0x%08x)), "
-                    ".filled_track_color=rohr_graphics_color_hex_create(UINT32_C(0x%08x)), "
-                    ".thumb_color=rohr_graphics_color_hex_create(UINT32_C(0x%08x)), "
-                    ".hover_thumb_color=rohr_graphics_color_hex_create(UINT32_C(0x%08x)), "
-                    ".pressed_thumb_color=rohr_graphics_color_hex_create(UINT32_C(0x%08x)), "
-                    ".enabled=%s});\n"
-                    "        if(rohr_error_check(created_ui)) { result = "
-                        "rohr_error_result_error(created_ui.result.error); goto fail; }\n"
-                    "        resources->ui_elements[resources->ui_element_count++] = "
-                        "created_ui.result.value;\n"
-                    "        ViewportItemIdResult added = rohr_viewport_ui_add("
-                    "resources->viewports[resources->viewport_count - 1], "
-                    "created_ui.result.value, (ViewportItemDescription){"
-                    ".rectangle={%.8ff, %.8ff, 0.0f, 0.0f}, "
-                    ".content_scale={%.8ff, %.8ff}, .orientation=%.8ff, "
-                    ".layer=%d, .visible=%s, .drag_mode=%d, .clip_enabled=%s, "
-                    ".clip_rectangle={%.8ff, %.8ff, %.8ff, %.8ff}});\n"
-                    "        if(rohr_error_check(added)) { result = "
-                        "rohr_error_result_error(added.result.error); goto fail; }\n",
-                    slider->minimum, slider->maximum, slider->value, slider->step,
-                    slider->length, slider->track_thickness,
-                    slider->thumb_width, slider->thumb_height, slider->thumb_radius,
-                    slider->thumb_offset,
-                    (int)slider->thumb_shape,
-                    slider->track_color,
-                    slider->filled_track_color, slider->thumb_color,
-                    slider->hover_thumb_color, slider->pressed_thumb_color,
-                    slider->enabled ? "true" : "false",
-                    item->position.x, item->position.y,
-                    item->scale.x, item->scale.y, item->rotation,
-                    item->layer, !item->app_hidden ? "true" : "false",
-                    (int)item->drag_mode,
-                    item->clip_enabled ? "true" : "false",
-                    item->clip_rectangle.x, item->clip_rectangle.y,
-                    item->clip_rectangle.width, item->clip_rectangle.height);
-                fprintf(source, "        resources->ui_items[resources->ui_item_count++] = "
-                    "added.result.value;\n");
-                if(item->graphics_layer != 0)
-                    for(size_t layer_index = 0;
-                            layer_index < project->graphics_layer_count;
-                            layer_index += 1)
-                        if(project->graphics_layers[layer_index].id ==
-                                item->graphics_layer)
-                            fprintf(source,
-                                "        if(rohr_error_check(result = "
-                                    "rohr_graphics_layer_ui_id_set(added.result.value, "
-                                    "resources->layers[%zu]))) goto fail;\n",
-                                layer_index);
-                fprintf(source, "      }\n");
-            }
-            text_count += has_text ? 1 : 0;
-        }
-        if(!viewport->app_hidden) fprintf(source,
-            "      if(rohr_error_check(result = rohr_viewport_enable_set("
-                "resources->viewports[resources->viewport_count - 1]))) goto fail;\n");
-        fprintf(source, "    }\n");
-    }
-    (void)text_count;
-    fprintf(source, "    return result;\n");
-    if(has_failure_path) fprintf(source,
-        "fail:\n"
-        "    project_viewports_destroy(resources);\n"
-        "    return result;\n");
-    fprintf(source,
-        "}\n\n"
-        "void project_viewports_destroy(ProjectViewports *resources) {\n"
-        "    if(resources == NULL) return;\n"
-        "    for(size_t i = resources->viewport_count; i > 0; i -= 1) "
-            "(void)rohr_viewport_destroy(resources->viewports[i - 1]);\n"
-        "    for(size_t i = resources->screen_count; i > 0; i -= 1) "
-            "(void)rohr_screen_destroy(resources->screens[i - 1]);\n"
-        "    for(size_t i = resources->ui_element_count; i > 0; i -= 1) "
-            "(void)rohr_graphics_ui_destroy(resources->ui_elements[i - 1]);\n"
-        "    for(size_t i = resources->layer_count; i > 0; i -= 1) "
-            "(void)rohr_graphics_layer_destroy(resources->layers[i - 1]);\n"
-        "    for(size_t i = resources->text_count; i > 0; i -= 1) "
-            "rohr_graphics_text_destroy(&resources->texts[i - 1]);\n"
-        "    for(size_t i = resources->font_count; i > 0; i -= 1) "
-            "(void)rohr_graphics_font_release(&resources->fonts[i - 1]);\n"
-        "    *resources = (ProjectViewports){0};\n"
-        "}\n");
-    {
-        bool header_closed = fclose(header) == 0;
-        bool source_closed = fclose(source) == 0;
-        return header_closed && source_closed;
-    }
-write_fail:
-    fclose(header);
-    fclose(source);
-    return false;
+    return true;
 }
 
 static const char editor_workspace_main_source[] =
@@ -2593,22 +1239,56 @@ static const char editor_workspace_main_source[] =
     " * Generated by Rohr Engine.\n"
     " * This generated file is not covered by Rohr Engine's LGPL-3.0-only license.\n"
     " * The project's developer may use, modify, and distribute it without restriction.\n"
-    " */\n\n"
-    "#include \"project_viewports.h\"\n\n"
-    "#include <stdio.h>\n\n"
+    " */\n"
+    "\n"
+    "#include \"project.h\"\n"
+    "\n"
+    "#include <stdio.h>\n"
+    "\n"
     "static bool ok(EngineResult result) {\n"
     "    if(!rohr_error_check(result)) return true;\n"
     "    fprintf(stderr, \"error %d: %s\\n\", (int)result.result.error,\n"
     "        rohr_error_message_get(result));\n"
     "    return false;\n"
-    "}\n\n"
+    "}\n"
+    "\n"
+    "/* Bind each authored camera object to this scene's chosen runtime instance. */\n"
+    "static EngineResult viewport_create(const ViewportCreateDescription *recipe,\n"
+    "        Entity root, ViewportId *output) {\n"
+    "    ViewportObjectBinding bindings[MAX_VIEWPORT_ITEMS];\n"
+    "    size_t count = 0;\n"
+    "    for(size_t i = 0; i < recipe->item_count; ++i) {\n"
+    "        const ObjectDescription *object = recipe->items[i].camera_object;\n"
+    "        if(!object) continue;\n"
+    "        bool found = false;\n"
+    "        for(size_t j = 0; j < count; ++j) if(bindings[j].description == object) found = true;\n"
+    "        if(found) continue;\n"
+    "        if(count == MAX_VIEWPORT_ITEMS) return rohr_error_result_error(ERROR_MEMORY_POOL_FULL);\n"
+    "        EntityResult instance = rohr_object_member_get(root, object->name);\n"
+    "        if(rohr_error_check(instance)) return rohr_error_result_error(instance.result.error);\n"
+    "        bindings[count++] = (ViewportObjectBinding){object, instance.result.value};\n"
+    "    }\n"
+    "    ViewportCreateDescription description = {.template = recipe,\n"
+    "        .objects = bindings, .object_count = count};\n"
+    "    ViewportIdResult created = rohr_viewport_create(&description);\n"
+    "    if(rohr_error_check(created)) return rohr_error_result_error(created.result.error);\n"
+    "    *output = created.result.value;\n"
+    "    return rohr_error_result_value(true);\n"
+    "}\n"
+    "\n"
     "int main(void) {\n"
     "    if(!ok(rohr_directory_working_set(rohr_directory_base_get()))) return 1;\n"
-    "    ProjectObjects objects = {0};\n"
-    "    ProjectViewports viewports = {0};\n"
+    "    Entity objects = ENTITY_INVALID;\n"
+    "    ProjectControllers controllers = {0};\n"
+    "    ViewportId viewports[MAX_VIEWPORTS] = {0};\n"
     "    if(!ok(rohr_engine_start()) || !ok(rohr_graphics_start())) goto fail;\n"
-    "    if(!ok(project_objects_create_all(&objects)) ||\n"
-    "            !ok(project_viewports_create(&viewports, &objects))) goto fail;\n"
+    "    if(!ok(project_settings_apply()) || !ok(project_controllers_create(&controllers))) goto fail;\n"
+    "    EntityResult created = rohr_object_create(&project);\n"
+    "    if(rohr_error_check(created)) goto fail;\n"
+    "    objects = created.result.value;\n"
+    "    if(project.viewport_count > MAX_VIEWPORTS) goto fail;\n"
+    "    for(size_t i = 0; i < project.viewport_count; ++i)\n"
+    "        if(!ok(viewport_create(project.viewports[i], objects, &viewports[i]))) goto fail;\n"
     "    while(true) {\n"
     "        SDL_Event event;\n"
     "        rohr_input_frame_begin();\n"
@@ -2618,24 +1298,28 @@ static const char editor_workspace_main_source[] =
     "        if(rohr_input_key_pressed_check(SDL_SCANCODE_ESCAPE)) break;\n"
     "        if(rohr_engine_update().header.status == ROHR_REPORT_FAILED) goto fail;\n"
     "        if(rohr_physics_update(rohr_engine_tick_delta_get()).header.status == ROHR_REPORT_FAILED) goto fail;\n"
-    "        rohr_graphics_sprite_frames_update(rohr_engine_tick_get(), "
-    "rohr_engine_time_get());\n"
-    "        rohr_graphics_show();\n"
+    "        rohr_graphics_sprite_frames_update(rohr_engine_tick_get(), rohr_engine_time_get());\n"
+    "        if(rohr_graphics_viewports_show(viewports, project.viewport_count).header.status == ROHR_REPORT_FAILED) goto fail;\n"
     "    }\n"
     "done:\n"
-    "    project_viewports_destroy(&viewports);\n"
-    "    project_objects_destroy_all(&objects);\n"
+    "    for(size_t i = 0; i < MAX_VIEWPORTS; ++i)\n"
+    "        if(viewports[i]) (void)rohr_viewport_destroy(viewports[i]);\n"
+    "    if(rohr_entity_alive_check(objects)) (void)rohr_entity_delete(objects);\n"
+    "    project_controllers_destroy(&controllers);\n"
     "    rohr_graphics_stop();\n"
     "    rohr_engine_stop();\n"
     "    return 0;\n"
     "fail:\n"
     "    fprintf(stderr, \"Game initialization failed\\n\");\n"
-    "    project_viewports_destroy(&viewports);\n"
-    "    project_objects_destroy_all(&objects);\n"
+    "    for(size_t i = 0; i < MAX_VIEWPORTS; ++i)\n"
+    "        if(viewports[i]) (void)rohr_viewport_destroy(viewports[i]);\n"
+    "    if(rohr_entity_alive_check(objects)) (void)rohr_entity_delete(objects);\n"
+    "    project_controllers_destroy(&controllers);\n"
     "    rohr_graphics_stop();\n"
     "    rohr_engine_stop();\n"
     "    return 1;\n"
-    "}\n";
+    "}\n"
+    ;
 
 static bool editor_workspace_main_write(const EditorWorkspace *workspace,
     const EditorProject *project, bool tutorial) {
@@ -2658,12 +1342,12 @@ static bool editor_workspace_tick_main_check(const char *contents) {
     static const char new_tick[] =
         "        if(rohr_engine_update().header.status == ROHR_REPORT_FAILED) goto fail;\n"
         "        if(rohr_physics_update(rohr_engine_tick_delta_get()).header.status == ROHR_REPORT_FAILED) goto fail;\n";
-    const char *start = strstr(editor_workspace_main_source, new_tick);
+    const char *start = strstr(editor_workspace_main_legacy_viewport_source, new_tick);
     if(contents == NULL || start == NULL) return false;
-    size_t prefix = (size_t)(start - editor_workspace_main_source);
+    size_t prefix = (size_t)(start - editor_workspace_main_legacy_viewport_source);
     size_t old_length = strlen(old_tick);
     return strlen(contents) >= prefix + old_length &&
-        strncmp(contents, editor_workspace_main_source, prefix) == 0 &&
+        strncmp(contents, editor_workspace_main_legacy_viewport_source, prefix) == 0 &&
         strncmp(contents + prefix, old_tick, old_length) == 0 &&
         strcmp(contents + prefix + old_length, start + strlen(new_tick)) == 0;
 }
@@ -2734,7 +1418,7 @@ static bool editor_workspace_cmake_format(const EditorWorkspace *workspace, char
         "add_dependencies(${PROJECT_NAME} ${PROJECT_NAME}_assets)\n", workspace->config.name);
     return n >= 0 && (size_t)n < capacity;
 }
-static bool editor_workspace_scene_cmake_format(const EditorWorkspace *workspace, char *output, size_t capacity) {
+static bool editor_workspace_scene_cmake_previous_format(const EditorWorkspace *workspace, char *output, size_t capacity) {
     (void)workspace;
     const char *text =
         "# Rohr managed scene scaffold v2\ninclude(\"${CMAKE_SOURCE_DIR}/.rohr/project_paths.cmake\")\n"
@@ -2744,6 +1428,32 @@ static bool editor_workspace_scene_cmake_format(const EditorWorkspace *workspace
         "set_property(TARGET ${PROJECT_NAME} PROPERTY SOURCES \"${_rohr_app_sources}\")\n"
         "add_executable(${PROJECT_NAME}_scene \"${ROHR_GENERATED_DIRECTORY}/project_scene.c\"\n"
         "  \"${ROHR_GENERATED_DIRECTORY}/scene/project_objects.c\" \"${ROHR_GENERATED_DIRECTORY}/scene/project_viewports.c\")\n"
+        "target_include_directories(${PROJECT_NAME}_scene PRIVATE \"${ROHR_GENERATED_DIRECTORY}/scene\")\n"
+        "target_link_libraries(${PROJECT_NAME}_scene PRIVATE ${ROHR_ENGINE_TARGET})\n"
+        "rohr_project_output(${PROJECT_NAME}_scene SCENE)\n"
+        "add_custom_target(${PROJECT_NAME}_scene_assets ALL COMMAND ${CMAKE_COMMAND} -E copy_directory\n"
+        "  \"${ROHR_ASSET_DIRECTORY}\" \"$<TARGET_FILE_DIR:${PROJECT_NAME}_scene>/assets\" VERBATIM)\n"
+        "if(TARGET ${PROJECT_NAME}_assets)\n  add_dependencies(${PROJECT_NAME}_scene_assets ${PROJECT_NAME}_assets)\nendif()\n"
+        "add_dependencies(${PROJECT_NAME}_scene ${PROJECT_NAME}_scene_assets)\n"
+        "add_custom_target(${PROJECT_NAME}_project DEPENDS ${PROJECT_NAME} ${PROJECT_NAME}_scene)\n"
+        "file(WRITE \"${CMAKE_BINARY_DIR}/rohr_target_application.txt\" \"${PROJECT_NAME}\")\n"
+        "file(WRITE \"${CMAKE_BINARY_DIR}/rohr_target_scene.txt\" \"${PROJECT_NAME}_scene\")\n"
+        "file(WRITE \"${CMAKE_BINARY_DIR}/rohr_target_project.txt\" \"${PROJECT_NAME}_project\")\n"
+        "file(GENERATE OUTPUT \"${CMAKE_BINARY_DIR}/rohr_application_$<CONFIG>.path\" CONTENT \"$<TARGET_FILE:${PROJECT_NAME}>\")\n"
+        "file(GENERATE OUTPUT \"${CMAKE_BINARY_DIR}/rohr_scene_$<CONFIG>.path\" CONTENT \"$<TARGET_FILE:${PROJECT_NAME}_scene>\")\n";
+    return SDL_strlcpy(output, text, capacity) < capacity;
+}
+
+static bool editor_workspace_scene_cmake_format(const EditorWorkspace *workspace, char *output, size_t capacity) {
+    (void)workspace;
+    const char *text =
+        "# Rohr managed scene scaffold v2\ninclude(\"${CMAKE_SOURCE_DIR}/.rohr/project_paths.cmake\")\n"
+        "configure_file(\"${CMAKE_SOURCE_DIR}/.rohr/project_paths.cmake\" \"${CMAKE_BINARY_DIR}/rohr_paths_configured.cmake\" COPYONLY)\n"
+        "get_target_property(_rohr_app_sources ${PROJECT_NAME} SOURCES)\n"
+        "list(FILTER _rohr_app_sources EXCLUDE REGEX \"(^|/)project_scene[.]c$\")\n"
+        "set_property(TARGET ${PROJECT_NAME} PROPERTY SOURCES \"${_rohr_app_sources}\")\n"
+        "add_executable(${PROJECT_NAME}_scene \"${ROHR_GENERATED_DIRECTORY}/project_scene.c\"\n"
+        "  \"${ROHR_GENERATED_DIRECTORY}/scene/project_objects.c\")\n"
         "target_include_directories(${PROJECT_NAME}_scene PRIVATE \"${ROHR_GENERATED_DIRECTORY}/scene\")\n"
         "target_link_libraries(${PROJECT_NAME}_scene PRIVATE ${ROHR_ENGINE_TARGET})\n"
         "rohr_project_output(${PROJECT_NAME}_scene SCENE)\n"
@@ -2861,6 +1571,7 @@ EditorResult editor_workspace_build_paths_write(const EditorWorkspace *workspace
 static bool scaffold_known(const EditorWorkspace *workspace, const char *text, bool scene) {
     char expected[EDITOR_WORKSPACE_PATH_MAX * 8];
     if(scene) {
+        if(editor_workspace_scene_cmake_previous_format(workspace, expected, sizeof(expected)) && !strcmp(text, expected)) return true;
         if(editor_workspace_scene_cmake_legacy_format(workspace, expected, sizeof(expected)) && !strcmp(text, expected)) return true;
         return editor_workspace_scene_cmake_format(workspace, expected, sizeof(expected)) && !strcmp(text, expected);
     }
@@ -2929,6 +1640,16 @@ static EditorResult editor_workspace_cmake_restore_file(const EditorWorkspace *w
         bool closed = fclose(existing) == 0;
         if(!readable || !closed) return editor_result_error(EDITOR_ERROR_FILE_IO,
             "Could not read existing CMake file: %s", path);
+        if(!strcmp(relative, "src/generated/project_scene.cmake")) {
+            char *text = SDL_LoadFile(path, NULL);
+            bool upgrade = text && scaffold_known(workspace, text, true) && strcmp(text, contents);
+            SDL_free(text);
+            if(upgrade) {
+                if(!editor_workspace_file_write(path, contents))
+                    return editor_result_error(EDITOR_ERROR_FILE_IO, "Could not update scene build %s", path);
+                *restored = true;
+            }
+        }
         return editor_result_value(true);
     }
     FILE *file = fopen(path, "wbx");
@@ -3011,8 +1732,7 @@ static bool editor_workspace_scene_modules_write(const EditorWorkspace *workspac
         }
         break;
     }
-    written = editor_workspace_generated_objects_write(workspace, &filtered, true) &&
-        editor_workspace_generated_viewports_write(workspace, &filtered, true);
+    written = editor_workspace_generated_objects_write(workspace, &filtered, true);
 done:
     free(items); free(objects); return written;
 }
@@ -3033,6 +1753,7 @@ static bool editor_workspace_scene_write(const EditorWorkspace *workspace,
         char *existing_scene = SDL_LoadFile(path, NULL);
         if(!existing_scene) return false;
         bool known = strcmp(existing_scene, editor_workspace_main_source) == 0 ||
+            strcmp(existing_scene, editor_workspace_main_legacy_viewport_source) == 0 ||
             strcmp(existing_scene, editor_scene_source_legacy) == 0;
         SDL_free(existing_scene);
         if(known) { if(!SDL_RemovePath(path)) return false; }
@@ -3140,9 +1861,14 @@ static bool editor_workspace_legacy_main_upgrade(const EditorWorkspace *workspac
     contents = SDL_LoadFile(path, NULL);
     if(contents == NULL) return false;
     bool legacy_joints = strcmp(contents, editor_starter_main_legacy_joint_source) == 0;
-    legacy = legacy_joints || editor_workspace_tick_main_check(contents);
+    bool legacy_viewport = !strcmp(contents, editor_starter_main_legacy_viewport_source);
+    legacy = legacy_joints || legacy_viewport || !strcmp(contents, editor_workspace_main_legacy_viewport_source) ||
+        editor_workspace_tick_main_check(contents);
+    if(!legacy && (strstr(contents, "project_viewports.h") || strstr(contents, "project_viewports_create(")))
+        console_write(LOG_ENGINE, "Preserved developer-owned %s. Generated viewport helpers were removed; "
+            "migrate to project.h, rohr_viewport_create and rohr_graphics_viewports_show.\n", path);
     SDL_free(contents);
-    return !legacy || editor_workspace_main_write(workspace, project, legacy_joints);
+    return !legacy || editor_workspace_main_write(workspace, project, legacy_joints || legacy_viewport);
 }
 
 static bool editor_workspace_c_generate_selected(const EditorWorkspace *workspace,
@@ -3156,12 +1882,14 @@ static bool editor_workspace_c_generate_selected(const EditorWorkspace *workspac
         editor_project_presentation_check(project) &&
         editor_soft_areas_generation_validate(project).kind != ERROR_RESULT_ERROR &&
         editor_workspace_generated_objects_write(workspace, project, false) &&
-        editor_workspace_generated_viewports_write(workspace, project, false) &&
         editor_workspace_legacy_main_upgrade(workspace, project) &&
-        editor_workspace_scene_write(workspace, project, selection);
+        editor_workspace_scene_write(workspace, project, selection) &&
+        editor_workspace_viewport_modules_remove(workspace);
 }
 
 static EditorResult editor_workspace_screen_references_validate(const EditorProject *project) {
+    EditorResult catalog = editor_project_catalog_validate(project);
+    if(editor_result_check(catalog)) return catalog;
     for(size_t v = 0; v < project->layout_viewport_count; ++v) {
         const EditorLayoutViewport *viewport = &project->layout_viewports[v];
         for(size_t i = 0; i < viewport->camera_item_count; ++i) {
@@ -3268,9 +1996,6 @@ EditorResult editor_workspace_create(EditorWorkspace *workspace, EditorProject *
     if(!editor_workspace_generated_objects_write(&created, project, false))
         return editor_result_error(EDITOR_ERROR_FILE_IO,
             "Could not write initial generated C under: %s", directory);
-    if(!editor_workspace_generated_viewports_write(&created, project, false))
-        return editor_result_error(EDITOR_ERROR_FILE_IO,
-            "Could not write initial generated viewport C under: %s", directory);
     if(!editor_workspace_main_write(&created, project, true)) return editor_result_error(
         EDITOR_ERROR_FILE_IO, "Could not write initial main.c under: %s", directory);
     if(!editor_workspace_scene_write(&created, project, NULL)) return editor_result_error(

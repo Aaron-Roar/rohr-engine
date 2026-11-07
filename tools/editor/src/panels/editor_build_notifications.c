@@ -16,14 +16,13 @@ void editor_build_notification_codegen_success(EditorTerminalPanel *terminal, Ed
     if(project == NULL) return;
     snprintf(detail, sizeof(detail),
         "Updated generated project files:\n"
+        "- src/generated/project.h\n"
         "- src/generated/project_objects.h\n"
         "- src/generated/project_objects.c\n"
-        "- src/generated/project_viewports.h\n"
-        "- src/generated/project_viewports.c\n"
         "- src/generated/project_scene.cmake\n"
         "- src/generated/project_scene.c\n"
-        "- src/generated/scene/project_objects.{h,c}\n"
-        "- src/generated/scene/project_viewports.{h,c}\n\n"
+        "- src/generated/scene/project.h\n"
+        "- src/generated/scene/project_objects.{h,c}\n\n"
         "Generated %zu object%s.%s",
         project->object_count, project->object_count == 1 ? "" : "s",
         tree_shown ? " The generated object tree is shown in the terminal." :

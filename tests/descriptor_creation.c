@@ -327,11 +327,46 @@ static void invalid_and_rollback(void) {
 #endif
 }
 
+static void named_layers(void) {
+    ObjectDescription a = project.water.particle;
+    a.parent = NULL; a.layer = 5;
+    snprintf(a.layer_name, sizeof(a.layer_name), "world");
+    ObjectDescription b = a;
+    snprintf(b.layer_name, sizeof(b.layer_name), "effects");
+    ObjectDescription unnamed = a; unnamed.layer_name[0] = 0;
+    ObjectDescriptionResult copy = rohr_object_copy(a); OK(copy);
+    Entity first = value(rohr_entity_create(copy.result.value));
+    OK(rohr_object_destroy(copy.result.value));
+    Entity second = value(rohr_entity_create(&b));
+    Entity third = value(rohr_entity_create(&unnamed));
+    GraphicsLayerId world = rohr_graphics_layer_name_id_get("world").result.value;
+    GraphicsLayerId effects = rohr_graphics_layer_name_id_get("effects").result.value;
+    assert(world && effects && world != effects);
+    assert(rohr_graphics_layer_entity_id_get(first).result.value == world);
+    assert(rohr_graphics_layer_entity_id_get(second).result.value == effects);
+    assert(rohr_error_check(rohr_graphics_layer_entity_id_get(third)));
+    OK(rohr_graphics_layer_set(world, 9));
+    assert(rohr_graphics_layer_entity_get(first).result.value == 9);
+    assert(rohr_graphics_layer_entity_get(second).result.value == 5);
+    assert(rohr_graphics_layer_entity_get(third).result.value == 5);
+    assert(rohr_error_check(rohr_entity_create(&a))); /* Conflicting definition. */
+    clean(first); clean(second); clean(third);
+    OK(rohr_graphics_layer_destroy(world)); OK(rohr_graphics_layer_destroy(effects));
+
+    Fixture f; fixture_init(&f);
+    snprintf(f.body.layer_name, sizeof(f.body.layer_name), "rolled_back");
+    f.anchor.target = 999;
+    assert(rohr_error_check(rohr_object_create(&f.root)));
+    assert(rohr_error_check(rohr_graphics_layer_name_id_get("rolled_back")));
+    memset(a.layer_name, 'x', sizeof(a.layer_name));
+    assert(rohr_error_check(rohr_entity_create(&a)));
+}
+
 int main(void) {
     OK(rohr_engine_start());
     assert(SDL_SaveFile("creation_pixel.png", test_png, sizeof(test_png)));
     OK(rohr_graphics_start());
-    instances(); owners_and_names(); dependencies(); topology(); invalid_and_rollback();
+    instances(); owners_and_names(); dependencies(); topology(); invalid_and_rollback(); named_layers();
     uint32_t before = rohr_entity_alive_count_get();
     GraphicsTextureAssetStats texture_before = graphics_texture_assets_stats_get();
     Fixture fixture; fixture_init(&fixture);

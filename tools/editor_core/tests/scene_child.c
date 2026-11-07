@@ -48,7 +48,8 @@ static EngineResult initialize(void *context) {
     for(unsigned i = 0; i < 2; ++i) {
         CameraIdResult camera = graphics_camera_create(graphics_camera_description_default_get()); OK(camera);
         OK(graphics_camera_render_callback_set(camera.result.value, camera_draw, &indices[i]));
-        ScreenIdResult screen = graphics_screen_create((ScreenDescription){camera.result.value, 160, 180}); OK(screen);
+        ScreenIdResult screen = graphics_screen_create((ScreenDescription){
+            .camera = camera.result.value, .width = 160, .height = 180}); OK(screen);
         ViewportItemIdResult item = graphics_viewport_screen_add(viewport.result.value, screen.result.value,
             (ViewportItemDescription){.rectangle = {i ? 160 : -10, 0, i ? 145 : 170, 180}, .fit = SCREEN_FIT_STRETCH,
                 .orientation = i ? 15 : 0, .layer = i ? 2 : 0, .visible = true}); OK(item);

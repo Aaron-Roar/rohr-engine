@@ -46,7 +46,7 @@ static void number(EditorSoftBodyEditor *ui, EditorAutoShapeEditor *shape,
 }
 static void fixture_remove(const char *root) {
     const char *files[] = {"project.rohr.json", "objects/project.rohr.json", "src/main.c",
-        "src/generated/project_objects.c", "src/generated/project_objects.h",
+        "src/generated/project.h", "src/generated/project_objects.c", "src/generated/project_objects.h",
         "src/generated/project_viewports.c", "src/generated/project_viewports.h",
         "CMakeLists.txt", ".gitignore", "editor.lua", "assets/tutorial_frame_1.png",
         "assets/tutorial_frame_2.png", "src/generated", "src", "assets", "objects", ""};
@@ -233,10 +233,10 @@ int main(int argc, char **argv) {
     editor_project_destroy(&loaded);
     char source_path[2048]; snprintf(source_path,sizeof(source_path),"%s/src/generated/project_objects.c",fixture);
     char *source = SDL_LoadFile(source_path,NULL); assert(source != NULL);
-    assert(strstr(source,".position = {position.x + 7.00000000f, position.y + 9.00000000f}") != NULL);
-    assert(strstr(source,".orientation = 90.0000000f") != NULL);
-    assert(strstr(source,"}, .mass = 3.00000000f, .radius = 4.00000000f}") != NULL);
-    assert(strstr(source,"}, .mass = 5.00000000f, .radius = 4.00000000f}") != NULL);
+    assert(strstr(source,".position={7.00000000f,9.00000000f}") != NULL);
+    assert(strstr(source,".orientation=90.0000000f") != NULL);
+    assert(strstr(source,".mass=3.00000000f,.radius=4.00000000f") != NULL);
+    assert(strstr(source,".mass=5.00000000f,.radius=4.00000000f") != NULL);
     SDL_free(source);
     /* Derived readouts react immediately; empty and zero-total bodies have no COM. */
     soft->nodes[0].position.x -= 16;

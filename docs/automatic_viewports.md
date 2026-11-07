@@ -1,8 +1,11 @@
 # Automatic viewports
 
 Milestone 15 Goal 3 implements complete viewport creation and automatic scene
-rendering. Unified `project.h` generation and starter migration remain Goals 4
-and 5. Existing generated projects still compile through the compatibility APIs.
+rendering. Unified `project.h` generation is described in
+[shared creation](shared_creation.md#unified-generated-project). By user direction,
+Goal 4 also removes generated legacy viewport support and migrates starters and
+simulation scenes. Customized entry points need the documented manual migration;
+bundled example migration remains Goal 5.
 See the [contract](creation_and_viewport_contract.md) for the full milestone and
 [shared creation](shared_creation.md) for entity/object creation.
 

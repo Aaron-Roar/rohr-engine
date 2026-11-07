@@ -186,6 +186,8 @@ typedef struct ObjectDescription ObjectDescription;
     Color border_color; \
     bool color_overridden; \
     int layer; \
+    /** Empty uses the numeric layer; a name registers/reuses a shared layer. */ \
+    char layer_name[GRAPHICS_LAYER_NAME_MAX]; \
     uint64_t target; \
     uint64_t endpoint_a; \
     uint64_t endpoint_b; \

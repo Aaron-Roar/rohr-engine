@@ -1,7 +1,7 @@
 /* Copyright 2026 Aaron Rohrer
  * SPDX-License-Identifier: LGPL-3.0-only
  */
-#include "generated/project_objects.h"
+#include "generated/project.h"
 #include "incomplete_joint_checks.h"
 
 int main(void) {
@@ -9,15 +9,15 @@ int main(void) {
     for(unsigned path = 0; path < 4; ++path) {
         OK(rohr_engine_start());
         if(path == 0) {
-            /* No forces/configuration requiring a catalog constructor: this
-             * exercises direct API emission, including the soft-anchor pass. */
+            /* Generated compatibility wrappers now use the shared constructor,
+             * including incomplete joints and their soft-anchor dependencies. */
             Drafts instance = {0}; OK(drafts_create(&instance, (Position){0}));
-            assert(instance.source_instance == ENTITY_INVALID);
+            assert(rohr_entity_alive_check(instance.source_instance));
             DraftJoints handles = {.handles = {
                 {instance.joint_pin_0, instance.joint_pin_1, instance.joint_pin_2, instance.joint_pin_3},
                 {instance.joint_weld_0, instance.joint_weld_1, instance.joint_weld_2, instance.joint_weld_3},
                 {instance.joint_spring_0, instance.joint_spring_1, instance.joint_spring_2, instance.joint_spring_3}}};
-            draft_checks(handles, ENTITY_INVALID); drafts_destroy(&instance);
+            draft_checks(handles, instance.source_instance); drafts_destroy(&instance);
         } else {
             ObjectDescriptionResult file = {0};
             const ObjectDescription *description = rohr_object_get(objects.drafts);

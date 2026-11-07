@@ -8,8 +8,7 @@ if(NOT EXISTS "${SCENE_PROJECT_DIR}/src/main.c")
     message(FATAL_ERROR "Create a default project with rohr-cli and set SCENE_PROJECT_DIR")
 endif()
 add_executable(generated_scene probe.c
-    "${SCENE_PROJECT_DIR}/src/generated/project_objects.c"
-    "${SCENE_PROJECT_DIR}/src/generated/project_viewports.c")
+    "${SCENE_PROJECT_DIR}/src/generated/project_objects.c")
 target_include_directories(generated_scene PRIVATE "${SCENE_PROJECT_DIR}/src"
     "${SCENE_PROJECT_DIR}/src/generated")
 target_link_libraries(generated_scene PRIVATE Rohr::Engine)

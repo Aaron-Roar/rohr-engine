@@ -1169,6 +1169,11 @@ bool editor_project_save(const EditorProject *project, const char *path) {
             yyjson_mut_obj_add_bool(document, item, "visible_in_app", !camera->app_hidden);
             yyjson_mut_obj_add_uint(document, item, "drag_mode",
                 camera->placement.drag_mode);
+            yyjson_mut_obj_add_bool(document, item, "clip_enabled", camera->placement.clip_enabled);
+            yyjson_mut_obj_add_real(document, item, "clip_x", camera->placement.clip_rectangle.x);
+            yyjson_mut_obj_add_real(document, item, "clip_y", camera->placement.clip_rectangle.y);
+            yyjson_mut_obj_add_real(document, item, "clip_width", camera->placement.clip_rectangle.width);
+            yyjson_mut_obj_add_real(document, item, "clip_height", camera->placement.clip_rectangle.height);
             yyjson_mut_obj_add_real(document, item, "content_x",
                 camera->content_offset.x);
             yyjson_mut_obj_add_real(document, item, "content_y",
@@ -2913,6 +2918,13 @@ EditorResult editor_project_load(EditorProject *project, const char *path) {
             item->placement.drag_mode = drag_mode == NULL ?
                 VIEWPORT_ITEM_DRAG_NONE :
                 (ViewportItemDragMode)yyjson_get_uint(drag_mode);
+            if((yyjson_obj_get(item_value, "clip_enabled") && !editor_json_bool(item_value,
+                    "clip_enabled", &item->placement.clip_enabled)) ||
+                    !editor_json_optional_real(item_value, "clip_x", &item->placement.clip_rectangle.x, 0) ||
+                    !editor_json_optional_real(item_value, "clip_y", &item->placement.clip_rectangle.y, 0) ||
+                    !editor_json_optional_real(item_value, "clip_width", &item->placement.clip_rectangle.width, 0) ||
+                    !editor_json_optional_real(item_value, "clip_height", &item->placement.clip_rectangle.height, 0))
+                goto done;
             if(graphics_layer_value != NULL &&
                     (!yyjson_is_uint(graphics_layer_value) ||
                     yyjson_get_uint(graphics_layer_value) > UINT32_MAX)) goto done;

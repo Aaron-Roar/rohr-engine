@@ -50,11 +50,14 @@ static ObjectDescription *add(ImportContext *c, ObjectDescription *parent,
     c->entries[c->count++] = (ImportEntry){d, object, soft, id};
     return d;
 }
-static int layer(const EditorProject *project, EditorGraphicsLayerBinding binding) {
+static void layer_set(const EditorProject *project, ObjectDescription *d, EditorGraphicsLayerBinding binding) {
+    d->layer = binding.value;
     for(size_t i = 0; i < project->graphics_layer_count; ++i)
-        if(binding.layer && project->graphics_layers[i].id == binding.layer)
-            return project->graphics_layers[i].value;
-    return binding.value;
+        if(binding.layer && project->graphics_layers[i].id == binding.layer) {
+            d->layer = project->graphics_layers[i].value;
+            SDL_strlcpy(d->layer_name, project->graphics_layers[i].name, sizeof(d->layer_name));
+            return;
+        }
 }
 static char *asset_path(const char *document_path, const char *asset) {
     if(!asset || !asset[0]) return NULL;
@@ -87,7 +90,7 @@ static bool body_read(ImportContext *c, ObjectDescription *root, const EditorObj
     d->collision_filter = (CollisionFilterDescription){s->collision_category, s->responds_to};
     d->color = graphics_color_hex_create(s->standalone_particle ? s->particle_fill_color : s->surface_color);
     d->border_color = graphics_color_hex_create(s->standalone_particle ? s->particle_ring_color : s->border_color);
-    d->layer = layer(c->project, s->graphics_layer);
+    layer_set(c->project, d, s->graphics_layer);
     if(s->hitbox_count) {
         ObjectHitbox *geometry = calloc(s->hitbox_count, sizeof(*geometry));
         if(!geometry) return false;
@@ -157,7 +160,7 @@ static bool soft_read(ImportContext *c, ObjectDescription *root, const EditorObj
     if(!d) return false;
     d->position = s->position; d->orientation = s->rotation; d->velocity = s->initial_velocity;
     d->acceleration = s->initial_acceleration; d->angular_velocity = s->initial_angular_velocity;
-    d->visible = !s->app_hidden; d->layer = layer(c->project, s->graphics_layer);
+    d->visible = !s->app_hidden; layer_set(c->project, d, s->graphics_layer);
     Position points[SOFT_BODY_MAX_NODES]; Mass masses[SOFT_BODY_MAX_NODES]; Velocity motion_values[SOFT_BODY_MAX_NODES];
     for(size_t i = 0; i < s->node_count; ++i) {
         points[i] = math_vector_rotate(s->nodes[i].position, s->rotation);
@@ -180,7 +183,9 @@ static bool soft_read(ImportContext *c, ObjectDescription *root, const EditorObj
         v->collision_filter = (CollisionFilterDescription){n->collision_category, n->responds_to};
         v->visible = !n->app_hidden; v->color = graphics_color_hex_create(n->color_overridden ? n->color : s->node_color);
         v->color_overridden = true;
-        v->layer = n->graphics_layer_inherited ? d->layer : layer(c->project, n->graphics_layer);
+        if(n->graphics_layer_inherited) {
+            v->layer = d->layer; memcpy(v->layer_name, d->layer_name, sizeof(v->layer_name));
+        } else layer_set(c->project, v, n->graphics_layer);
     }
     for(size_t i = 0; i < s->beam_count; ++i) {
         const EditorSoftBeam *b = &s->beams[i];
@@ -196,7 +201,9 @@ static bool soft_read(ImportContext *c, ObjectDescription *root, const EditorObj
         v->collision_filter = (CollisionFilterDescription){b->collision_category, b->responds_to};
         v->visible = !b->app_hidden; v->color_overridden = true;
         v->color = graphics_color_hex_create(b->color_overridden ? b->color : s->beam_color);
-        v->layer = b->graphics_layer_inherited ? d->layer : layer(c->project, b->graphics_layer);
+        if(b->graphics_layer_inherited) {
+            v->layer = d->layer; memcpy(v->layer_name, d->layer_name, sizeof(v->layer_name));
+        } else layer_set(c->project, v, b->graphics_layer);
     }
     for(size_t i = 0; i < s->area_count; ++i) {
         const EditorSoftArea *a = &s->areas[i];
@@ -216,7 +223,9 @@ static bool soft_read(ImportContext *c, ObjectDescription *root, const EditorObj
             }
         }
         v->visible = !a->app_hidden; v->color_overridden = true; v->color = graphics_color_hex_create(a->color);
-        v->layer = a->graphics_layer_inherited ? d->layer : layer(c->project, a->graphics_layer);
+        if(a->graphics_layer_inherited) {
+            v->layer = d->layer; memcpy(v->layer_name, d->layer_name, sizeof(v->layer_name));
+        } else layer_set(c->project, v, a->graphics_layer);
     }
     return true;
 }
@@ -252,7 +261,7 @@ static bool sources_import(ImportContext *c, ObjectDescription *root, const Edit
         ObjectDescription *d = add(c, root, o, NULL, OBJECT_FORCE, f->id, f->name);
         if(!d || !object_visuals_check(f->visuals)) return false;
         d->force = f->description; d->visuals = f->visuals;
-        d->layer = layer(c->project, f->graphics_layer);
+        layer_set(c->project, d, f->graphics_layer);
         d->visible = !f->app_hidden; d->color = (Color){240, 180, 70, 255};
         ObjectForceOrientation *v = &d->force.orientation;
         if(!source_reference_import(c,o,&d->force.target) || !source_location_import(c,o,&d->force.location)) return false;
@@ -265,7 +274,7 @@ static bool sources_import(ImportContext *c, ObjectDescription *root, const Edit
         ObjectDescription *d = add(c,root,o,NULL,OBJECT_TORQUE,t->id,t->name);
         if(!d || !object_visuals_check(t->visuals)) return false;
         d->torque = t->description; d->visuals = t->visuals;
-        d->layer = layer(c->project, t->graphics_layer);
+        layer_set(c->project, d, t->graphics_layer);
         d->visible = !t->app_hidden; d->color = (Color){240, 180, 70, 255};
         if(!source_reference_import(c,o,&d->torque.target)) return false;
     }
@@ -297,7 +306,7 @@ static bool attachments_read(ImportContext *c, ObjectDescription *root, const Ed
         d->color = (Color){225, 190, 85, 255};
         d->joint_type = s->kind == EDITOR_JOINT_REVOLUTE ? JOINT_PIN : s->kind == EDITOR_JOINT_WELD ? JOINT_WELD : JOINT_SPRING;
         d->rest_length = s->rest_length; d->stiffness = s->stiffness; d->damping = s->damping; d->rest_angle = s->rest_angle;
-        d->visible = !s->app_hidden; d->layer = layer(c->project, s->graphics_layer);
+        d->visible = !s->app_hidden; layer_set(c->project, d, s->graphics_layer);
     }
     for(size_t i = 0; i < o->sprite_count; ++i) {
         const EditorSprite *s = &o->sprites[i];
@@ -306,7 +315,7 @@ static bool attachments_read(ImportContext *c, ObjectDescription *root, const Ed
         if(!d) return false;
         d->target = target ? target->id : 0; d->position = s->position; d->orientation = s->rotation;
         d->size = s->size; d->follow_orientation = s->follow_body_rotation; d->visible = !s->app_hidden;
-        d->asset_path = asset_path(c->path, s->path); d->layer = layer(c->project, s->graphics_layer);
+        d->asset_path = asset_path(c->path, s->path); layer_set(c->project, d, s->graphics_layer);
         if(!d->asset_path) return false;
     }
     for(size_t i = 0; i < o->animated_sprite_count; ++i) {
@@ -318,7 +327,7 @@ static bool attachments_read(ImportContext *c, ObjectDescription *root, const Ed
         d->scale = s->scale; d->ticks_per_frame = s->ticks_per_frame; d->time_per_frame = s->time_per_frame;
         d->starting_frame = s->starting_frame; d->direction = s->direction; d->playing = s->playing;
         d->follow_orientation = s->follow_body_rotation; d->visible = !s->app_hidden;
-        d->layer = layer(c->project, s->graphics_layer);
+        layer_set(c->project, d, s->graphics_layer);
         ObjectFrame *frames = calloc(s->frame_count, sizeof(*frames));
         if(s->frame_count && !frames) return false;
         d->frames = frames; d->frame_count = s->frame_count;

@@ -15,7 +15,7 @@ static void item_compare(ViewportItemId direct,ViewportItemId generated) {
     SAME(layer); SAME(visible); SAME(drag_mode); SAME(clip_enabled);
     SAME_XY(clip_rectangle); SAME(clip_rectangle.width); SAME(clip_rectangle.height);
 }
-static void direct_composition(const Parity *instance,const ProjectViewports *generated) {
+static void direct_composition(const Parity *instance,const TestViewports *generated) {
     EntityResult target=rohr_entity_add(); OK(target);
     OK(rohr_physics_position_set(target.result.value,(Position){12,23}));
     OK(rohr_physics_orientation_set(target.result.value,0));
@@ -43,7 +43,8 @@ static void direct_composition(const Parity *instance,const ProjectViewports *ge
     }
     ScreenId screens[2];
     for(int i=0;i<2;++i) {
-        ScreenIdResult screen=rohr_screen_create((ScreenDescription){camera.result.value,i?480:320,i?360:200}); OK(screen);
+        ScreenIdResult screen=rohr_screen_create((ScreenDescription){.camera=camera.result.value,
+            .width=i?480:320,.height=i?360:200}); OK(screen);
         screens[i]=screen.result.value;
         ScreenDescription a=rohr_screen_description_get(screens[i]).result.value;
         ScreenDescription b=rohr_screen_description_get(generated->screens[i]).result.value;

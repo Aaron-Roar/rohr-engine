@@ -3,8 +3,8 @@
 Milestone 15 Goal 1 design contract, 2026-11-06. This document specifies the
 target API and behavior. Goal 2 implements the entity/object creation portion;
 see [shared creation](shared_creation.md) for the available calls. Goal 3 implements
-[viewport creation and automatic rendering](automatic_viewports.md); unified
-project generation below remains a later target.
+[viewport creation and automatic rendering](automatic_viewports.md); Goal 4 adds
+[unified project generation](shared_creation.md#unified-generated-project).
 Goals 2–6 in [the roadmap](../NEXT_STEPS.md#15-descriptor-based-creation-and-automatic-viewport-rendering)
 implement, migrate, and verify it. Source inspection used baseline `7bae1db6`.
 No physics algorithm, timestep, or solver setting changes are part of this work.
@@ -21,6 +21,9 @@ No physics algorithm, timestep, or solver setting changes are part of this work.
 - Equal-layer scene entities use discovery order, with no stability guarantee
   and no creation-order bookkeeping. Applications use distinct layers when
   overlap order matters.
+- Named layers retain distinct identities even when their numeric draw order
+  matches. Future camera allowlists/blocklists select a named identity, never
+  every item sharing that number. Camera filtering remains future work.
 - Game code explicitly chooses the runtime camera instance. A description name
   must never silently select the first or most recently created matching entity.
 - An authored screen's camera assignment is applied during viewport creation,
@@ -397,8 +400,11 @@ size, but the public catalog does not require a separate viewport header or
 object-specific creator/draw functions. Generated modules hold any generated
 runtime support state; developer gameplay remains developer-owned.
 
-Retain current metadata APIs, low-level component/resource APIs, and legacy
-generated entry points during migration. For the existing by-value
+Retain current metadata APIs and low-level component/resource APIs. During Goal 4
+the user explicitly chose to remove generated legacy viewport files and helpers,
+folding required starter and scene migration into that goal. Preserve customized
+entry points and document their required manual migration. Existing object
+helpers remain available. For the existing by-value
 `rohr_viewport_create(ViewportDescription)` source form, use a narrow C11 adapter
 dispatching by value versus a complete-description pointer; keep the original
 by-value callable symbol for existing function-pointer users. Add a separately

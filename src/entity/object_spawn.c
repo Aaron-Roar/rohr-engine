@@ -27,7 +27,40 @@ typedef struct SpawnContext {
     ObjectCreateOptions creation;
     bool strict;
     bool single;
+    GraphicsLayerId introduced_layers[MAX_GRAPHICS_LAYERS];
+    size_t introduced_layer_count;
 } SpawnContext;
+static EngineResult description_layer_set(Entity entity, const ObjectDescription *d, ObjectKind kind) {
+    if(d->layer_name[0]) {
+        GraphicsLayerIdResult id = graphics_layer_name_id_get(d->layer_name);
+        if(error_check(id)) return error_result_error(id.result.error);
+        if(kind == OBJECT_SPRITE) return graphics_layer_sprite_id_set(entity, id.result.value);
+        if(kind == OBJECT_ANIMATION) return graphics_layer_animation_id_set(entity, id.result.value);
+        return graphics_layer_entity_id_set(entity, id.result.value);
+    }
+    if(kind == OBJECT_SPRITE) return graphics_layer_sprite_set(entity, d->layer);
+    if(kind == OBJECT_ANIMATION) return graphics_layer_animation_set(entity, d->layer);
+    return graphics_layer_entity_set(entity, d->layer);
+}
+static EngineResult description_layers_prepare(SpawnContext *c) {
+    for(size_t i = 0; i < c->count; ++i) {
+        const ObjectDescription *d = c->entries[i].description;
+        if(!(d->categories & c->options.flags & ROHR_ENTITY_OBJECT_VISUALS)) continue;
+        if(!memchr(d->layer_name, 0, sizeof(d->layer_name))) return error_result_error(ERROR_ENGINE_STATE_INVALID);
+        if(!d->layer_name[0]) continue;
+        GraphicsLayerIdResult id = graphics_layer_name_id_get(d->layer_name);
+        if(!error_check(id)) {
+            if(graphics_layer_get(id.result.value).result.value != d->layer)
+                return error_result_error(ERROR_ENGINE_DUPLICATE_GRAPHICS_LAYER_NAME);
+        } else {
+            if(c->introduced_layer_count == MAX_GRAPHICS_LAYERS) return error_result_error(ERROR_MEMORY_POOL_FULL);
+            id = graphics_layer_create((LayerDescription){d->layer_name,d->layer});
+            if(error_check(id)) return error_result_error(id.result.error);
+            c->introduced_layers[c->introduced_layer_count++] = id.result.value;
+        }
+    }
+    return error_result_value(true);
+}
 static bool object_description_visible_check(const ObjectDescription *description) {
     for(const ObjectDescription *item = description; item; item = item->parent)
         if(!item->visible) return false;
@@ -483,7 +516,7 @@ static EngineResult visuals_apply(Entity entity, const ObjectDescription *d, boo
         sprite.follow_entity_rotation = attached ? d->follow_orientation : true; sprite.visible = object_description_visible_check(d);
         EngineResult result = graphics_sprite_add(entity, sprite);
         (void)graphics_texture_release(&loaded.result.value);
-        if(!error_check(result)) result = graphics_layer_sprite_set(entity, d->layer);
+        if(!error_check(result)) result = description_layer_set(entity, d, OBJECT_SPRITE);
         return result;
     }
     if(d->kind == OBJECT_ANIMATION) {
@@ -521,7 +554,7 @@ static EngineResult visuals_apply(Entity entity, const ObjectDescription *d, boo
         if(!error_check(result) && sprite.frame_count > 0)
             result = graphics_animated_sprite_frame_index_set(entity, d->starting_frame);
         (void)graphics_animation_release(&loaded.result.value);
-        if(!error_check(result)) result = graphics_layer_animation_set(entity, d->layer);
+        if(!error_check(result)) result = description_layer_set(entity, d, OBJECT_ANIMATION);
         return result;
     }
     return error_result_value(true);
@@ -645,7 +678,7 @@ static EngineResult spawn_entry(SpawnContext *c, size_t i, unsigned pass) {
         }
     }
     if(visual) {
-        APPLY(graphics_layer_entity_set(e, d->layer));
+        APPLY(description_layer_set(e, d, OBJECT_BODY));
         APPLY(visuals_apply(e, d, false));
         /* A component stores one sprite of each kind. Keep additional attached
          * descriptions as owned entities instead of replacing the first. */
@@ -737,7 +770,8 @@ static EngineResult source_spawn(SpawnContext *c, SpawnEntry *entry) {
         .kind=d->kind, .visuals=d->visuals, .color=d->color,
         .visible=c->single ? object_description_visible_check(d) : d->visible,
         .enabled=(d->categories & c->options.flags & ROHR_ENTITY_OBJECT_VISUALS)!=0});
-    if(!error_check(result)) result = graphics_layer_entity_set(entry->entity, d->layer);
+    if(!error_check(result) && (d->categories & c->options.flags & ROHR_ENTITY_OBJECT_VISUALS))
+        result = description_layer_set(entry->entity, d, OBJECT_BODY);
     if(!error_check(result)) result = name_set(entry->entity, d, parent);
     if(!error_check(result) && parent) result = entity_object_member_restore(parent, entry->entity, d->name);
     if(!error_check(result) && mode == OBJECT_SOURCE_INITIAL)
@@ -878,6 +912,8 @@ static EntityResult description_spawn(const ObjectDescription *description,
     if(!c.entries) return ERROR_RESULT_MAKE_ERROR(EntityResult, ERROR_MEMORY_POOL_ALLOCATION_FAILED);
     EngineResult result = error_result_error(ERROR_ENGINE_STATE_INVALID);
     if(!collect(&c, description, 0)) goto fail;
+    result = description_layers_prepare(&c);
+    if(error_check(result)) goto fail;
     if(strict) {
         result = creation_validate(&c);
         if(error_check(result)) goto fail;
@@ -970,6 +1006,8 @@ fail:
     for(size_t i = c.count; i > 0; --i)
         if(!c.entries[i - 1].alias && entity_alive_check(c.entries[i - 1].entity))
             (void)entity_delete(c.entries[i - 1].entity);
+    for(size_t i = 0; i < c.introduced_layer_count; ++i)
+        (void)graphics_layer_destroy(c.introduced_layers[i]);
     free(c.entries);
     return ERROR_RESULT_MAKE_ERROR(EntityResult, result.result.error);
 }

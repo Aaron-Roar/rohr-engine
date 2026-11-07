@@ -1,9 +1,94 @@
 # Shared entity and object creation
 
 Milestone 15 Goal 2 implements the entity/object portion of the
-[creation contract](creation_and_viewport_contract.md). Viewport creation/show
-changes and the unified generated `project.h` remain later goals. Existing
-generated catalogs work with the new calls now.
+[creation contract](creation_and_viewport_contract.md). Goal 3 adds
+[automatic viewports](automatic_viewports.md), and Goal 4 adds the unified
+generated `project.h`. Existing generated catalogs remain compatible.
+
+## Unified generated project
+
+Regeneration now writes `src/generated/project.h` for applications and
+`src/generated/scene/project.h` for scene builds. It includes `rohr.h` and exposes
+one immutable `project` catalog containing named objects, nested members, and
+viewport creation templates. For the generated starter:
+
+```c
+#include "project.h"
+
+EntityResult instance = rohr_object_create(&project.starter);
+/* Check instance before using its value. */
+ViewportObjectBinding binding = {
+    .description = &project.starter._description,
+    .instance = instance.result.value
+};
+ViewportCreateDescription description = {
+    .template = &project.initial_viewport,
+    .objects = &binding,
+    .object_count = 1
+};
+ViewportIdResult viewport = rohr_viewport_create(&description);
+/* Check viewport before passing its value to rohr_graphics_viewport_show(). */
+```
+
+The authored screen selects its camera description; the binding selects the
+object instance containing that camera. Creating a viewport does not create the
+object. Named members and hierarchy traversal reference the same description
+records. Member dependencies still require the bindings described below.
+Generated C field names are normalized identifiers; runtime member lookup uses
+the authored name, available as `project.starter.name`. Conflicting or reserved
+generated names are rejected before writing output.
+
+Definitions live in the existing `project_objects.c` translation unit.
+`project.viewports` and `project.viewport_count` also allow application code to
+iterate every authored viewport recipe. `project.h` includes the declarations
+for project settings, controllers, audio, and existing object helpers.
+For object compatibility, generation still emits the legacy
+`objects` catalog and per-object instance wrappers; those wrappers now delegate
+to shared engine creation rather than generating a separate construction
+algorithm. The two catalogs temporarily duplicate immutable data and should not
+be mixed in one set of description bindings.
+
+By user direction, generated viewport compatibility support is removed in Goal 4.
+Regeneration removes editor-owned `project_viewports.h/.c` from both application
+and scene output. New starters and simulation scenes create the project hierarchy,
+bind each viewport's camera objects to its chosen instances, and create automatic
+viewports. Starters present the selected viewport batch once per frame; the
+simulation runner retains its existing frame/host pipeline. Additional direct
+entities carry explicit runtime appearance instead of an application draw callback.
+
+Exact recognized old starter/main and scene-build templates migrate automatically.
+Developer-edited `main.c` and CMake files remain untouched. Customized callers must
+replace `ProjectViewports` and its generated helpers with `ViewportId` handles,
+`rohr_viewport_create()` and `rohr_graphics_viewports_show()`, then destroy each
+viewport before its camera owner. Remove `project_viewports.c` from any custom
+explicit source list. Regeneration reports old viewport-helper use in preserved
+entry points. Archived template strings are only migration signatures; they are
+not generated compatibility code. The engine's low-level screen/UI/viewport and
+camera callback APIs remain available.
+
+Bundled example migration and the wider game workflow remain Goal 5.
+Regenerate and rebuild consumers against the matching SDK:
+`ObjectDescription` now includes named-layer identity, changing its binary layout.
+
+## Named layers
+
+`LayerDescription` contains a name and a numeric draw order. Creating it with
+`rohr_graphics_layer_create()` returns a `GraphicsLayerId`; the existing layer
+description getters/setters and destroy function remain available.
+
+Object/entity descriptions preserve the assigned name in `layer_name` and its
+authored value in `layer`. An empty name selects the numeric assignment. Creation
+registers missing named layers, reuses matching definitions, and rejects a name
+already registered with a different value. Successful registrations belong to
+graphics globally until explicit destruction or graphics shutdown. Failed
+creation removes only registrations introduced by that attempt. Destroying an
+object does not destroy a shared layer.
+
+Different names may have the same draw order. Changing one named layer affects
+its bound content, not other names or unnamed content with that number. Future
+camera allowlists/blocklists must use this identity; they are not implemented in
+this goal. Named layers remain rendering categories, separate from ECS groups
+and physics collision masks.
 
 ## Using descriptions
 
@@ -101,7 +186,19 @@ force or advance simulation.
 
 Verification results and inherited failures are recorded in the milestone 15
 entry in [NEXT_STEPS.md](../NEXT_STEPS.md#15-descriptor-based-creation-and-automatic-viewport-rendering).
-Detailed local logs and staged SDKs are under `sandbox/milestone_15/goal_2/`.
+Goal 4 evidence and staged SDKs are under `sandbox/milestone_15/goal_4/`.
+Eighteen focused Release checks pass. The sanitizer checks pass across the
+initial run and an isolated scene-session rerun; the initial session stress test
+overflowed its input queue, with no memory finding. The unchanged test passed
+after temporary-build cleanup freed disk space. Six installed-SDK consumers and
+the migrated starter execute on Linux and under ASan/UBSan, and cross-build for
+Windows. Generated consumers cover descriptor identity, named-layer separation,
+camera bindings, clipping, fonts, UI, independent instances and 1,000 lifecycle
+cycles. Preservation, partial-spawn, scaffold recovery, configured-path and
+relocation checks pass. The user accepted the final automatic-rendering starter
+preview. Native Windows execution and generic Linux packaging remain unverified.
+
+The following Goal 2 baseline evidence remains under `sandbox/milestone_15/goal_2/`.
 The focused creation suite covers public/direct calls, generated-layout views,
 independent instances, released description copies, nested member access,
 explicit bindings, forward references, ownership, malformed catalogs, allocation

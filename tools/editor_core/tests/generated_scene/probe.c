@@ -1,10 +1,7 @@
 /* Copyright 2026 Aaron Rohrer
  * SPDX-License-Identifier: LGPL-3.0-only
  */
-/* Compile the actual developer-owned tutorial, including its creation path. */
-#define main tutorial_application_main
-#include "main.c"
-#undef main
+#include "project.h"
 #include <assert.h>
 #include <math.h>
 #include <string.h>
@@ -30,9 +27,17 @@ static void tug_check(const Tug *tug) {
 
 static void run_check(bool tutorial) {
     ProjectObjects scene = {0};
-    ProjectViewports viewports = {0};
+    Entity root = ENTITY_INVALID;
     OK(rohr_engine_start()); OK(rohr_graphics_start());
-    if(tutorial) assert(create_tutorial(&scene));
+    if(tutorial) {
+        OK(project_settings_apply());
+        EntityResult created = rohr_object_create(&project); OK(created); root = created.result.value;
+        EntityResult starter = rohr_object_member_get(root,project.starter.name); OK(starter);
+        EntityResult tug = rohr_object_member_get(root,project.tug.name); OK(tug);
+        OK(starter_instance_bind(&scene.starter,starter.result.value));
+        OK(tug_instance_bind(&scene.tug,tug.result.value));
+        scene.created = true;
+    }
     else OK(project_objects_create_all(&scene));
     assert(scene.created);
     assert(scene.starter.source_instance && scene.tug.source_instance);
@@ -47,8 +52,11 @@ static void run_check(bool tutorial) {
         ROHR_ENTITY_INFO_PHYSICS_SOFT_BODY);
     OK(soft);
     OK(rohr_entity_info_release(&soft.result.value));
-    OK(project_viewports_create(&viewports, &scene));
-    assert(viewports.viewport_count == 1 && viewports.screen_count == 1);
+    assert(project.viewport_count == 1 && project.initial_viewport.item_count >= 1);
+    ViewportCameraBinding binding = {.item_name=project.initial_viewport.items[0].name,
+        .camera=scene.starter.camera_main_camera};
+    ViewportCreateDescription description = {.template=&project.initial_viewport,.cameras=&binding,.camera_count=1};
+    ViewportIdResult viewport = rohr_viewport_create(&description); OK(viewport);
 
     /* Another whole object must have entirely independent bindings. */
     Tug second = {0};
@@ -73,9 +81,10 @@ static void run_check(bool tutorial) {
     OK(after_a); OK(after_b);
     assert(after_a.result.value.x < before_a.result.value.x);
     assert(after_b.result.value.x > before_b.result.value.x);
-    assert(rohr_graphics_show().header.status != ROHR_REPORT_FAILED);
-    project_viewports_destroy(&viewports);
-    project_objects_destroy_all(&scene);
+    assert(rohr_graphics_viewport_show(viewport.result.value).header.status != ROHR_REPORT_FAILED);
+    OK(rohr_viewport_destroy(viewport.result.value));
+    if(root) OK(rohr_entity_delete(root));
+    else project_objects_destroy_all(&scene);
     assert(rohr_entity_alive_count_get() == 0);
     rohr_graphics_stop(); rohr_engine_stop();
 }
@@ -89,15 +98,14 @@ static void failure_check(void) {
     assert(memcmp(&output, &original, sizeof(output)) == 0);
     assert(rohr_entity_alive_check(added.result.value));
     OK(rohr_entity_delete(added.result.value));
-    assert(!own(entity_object_add(objects.starter.box), added.result.value));
+    EntityCreateOptions options = {.owner=added.result.value};
+    assert(rohr_error_check(rohr_entity_create_with_options(&project.starter.box, options)));
     assert(rohr_entity_alive_count_get() == 0);
     /* Fail after several successful spawns and verify tutorial rollback. */
     assert(SDL_RenamePath("assets/tutorial_frame_1.png", "assets/tutorial_frame_1.saved"));
-    ProjectObjects scene = {0};
-    bool created = create_tutorial(&scene);
+    EntityResult created = rohr_object_create(&project);
     assert(SDL_RenamePath("assets/tutorial_frame_1.saved", "assets/tutorial_frame_1.png"));
-    assert(!created);
-    project_objects_destroy_all(&scene);
+    assert(rohr_error_check(created));
     assert(rohr_entity_alive_count_get() == 0);
     rohr_graphics_stop(); rohr_engine_stop();
 }

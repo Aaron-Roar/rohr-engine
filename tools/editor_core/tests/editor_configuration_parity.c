@@ -521,8 +521,16 @@ static void generation_fixture(const char *directory, const char *font_path) {
         .logical_width = 450, .logical_height = 300, .aspect_ratio_auto = true};
     EditorObject *o = editor_project_object_add(&p, (Position){10, 20}); assert(o);
     snprintf(o->name, sizeof(o->name), "Parity");
+    EditorGraphicsLayer *layer = editor_project_graphics_layer_add(&p, "world", 5); assert(layer);
+    EditorGraphicsLayerId world = layer->id;
+    layer = editor_project_graphics_layer_add(&p, "effects", 5); assert(layer);
+    EditorGraphicsLayerId effects = layer->id;
+    layer = editor_project_graphics_layer_add(&p, "ui_only", 8); assert(layer);
+    EditorGraphicsLayerId ui_layer = layer->id;
+    assert(editor_project_graphics_layer_add(&p, "quoted \"layer\"\\", 8));
     EditorRigidBody *body = editor_project_rigid_body_add(&p, o); assert(body);
     snprintf(body->name, sizeof(body->name), "body");
+    body->graphics_layer.layer = world;
     body->position = (Position){2, 3};
     body->entity_settings = (ObjectEntitySettings){
         .lifetime = {.deadline = {.time_enabled = true, .expiry_time = 100, .tick_enabled = true, .expiry_tick = 1000}},
@@ -544,14 +552,20 @@ static void generation_fixture(const char *directory, const char *font_path) {
     camera->attachment = body->id; camera->position = (Position){7, 8};
     camera->position_follow_disabled = true; camera->inherit_orientation = true; camera->pause_with_engine = true;
     EditorLayoutViewport *viewport = editor_project_layout_viewport_add(&p); assert(viewport);
+    snprintf(viewport->name, sizeof(viewport->name), "play");
     viewport->config.rectangle = (ViewportRectangle){0, 0, 450, 300};
     EditorViewportCameraItem *screen = editor_viewport_camera_add(&p, viewport, o->id, camera->id); assert(screen);
     screen->render_size_explicit = true; screen->render_width = 320; screen->render_height = 200;
     screen->placement.rectangle = (ViewportRectangle){-20, 10, 250, 200}; screen->placement.orientation = 12;
+    screen->placement.clip_enabled = true;
+    screen->placement.clip_rectangle = (ViewportRectangle){5,10,210,160};
+    screen->background_color = 0x123456ff;
+    snprintf(screen->name, sizeof(screen->name), "front");
     screen = editor_viewport_camera_add(&p, viewport, o->id, camera->id); assert(screen);
     screen->render_size_explicit = true; screen->render_width = 480; screen->render_height = 360;
     screen->placement.rectangle = (ViewportRectangle){200, 50, 250, 200};
     screen->placement.orientation = -18; screen->placement.layer = 2;
+    snprintf(screen->name, sizeof(screen->name), "rear");
     size_t size = 0; void *bytes = SDL_LoadFile(font_path, &size); assert(bytes);
     char destination[2048]; snprintf(destination, sizeof(destination), "%s/assets/parity_font.ttf", directory);
     FILE *font_file = fopen(destination, "wb"); assert(font_file);
@@ -561,6 +575,7 @@ static void generation_fixture(const char *directory, const char *font_path) {
     snprintf(destination, sizeof(destination), "%s/assets/flip.png", directory);
     assert(SDL_SavePNG(image, destination)); SDL_DestroySurface(image);
     EditorSprite *sprite = editor_project_sprite_add(&p, o, "flipped", "assets/flip.png"); assert(sprite);
+    sprite->graphics_layer.layer = effects;
     sprite->position = (Position){4, 5}; sprite->rotation = 23;
     EditorCommand size_command = {.type = EDITOR_COMMAND_SPRITE_SIZE_SET,
         .data.sprite_size_set = {o->id, sprite->id, {-20, -10}}};
@@ -570,6 +585,7 @@ static void generation_fixture(const char *directory, const char *font_path) {
     assert(sprite->size.x == -20);
     EditorAnimatedSprite *animation=editor_project_animated_sprite_add(&p,o); assert(animation);
     snprintf(animation->name,sizeof(animation->name),"moving");
+    animation->graphics_layer.value = 5;
     animation->ticks_per_frame=3; animation->time_per_frame=.25; animation->playing=true;
     animation->scale=(Scale){2,3}; animation->direction=DIRECTION_LEFT;
     assert(editor_project_animation_frame_add(&p,animation,"first","assets/flip.png",(Scale){4,6}));
@@ -581,6 +597,7 @@ static void generation_fixture(const char *directory, const char *font_path) {
     EditorUiFont *font = editor_project_ui_font_add(&p, "assets/parity_font.ttf"); assert(font); font->point_size = 24;
     for(size_t i = 0; i < 2; ++i) {
         EditorViewportUiItem *ui = editor_viewport_ui_add(&p, viewport, EDITOR_VIEWPORT_UI_TEXT); assert(ui);
+        snprintf(ui->name, sizeof(ui->name), "%s", i ? "status" : "label");
         ui->value.text.font = font->id; ui->value.text.wrap_width = 70; ui->value.text.rotation = 17;
         snprintf(ui->value.text.text, sizeof(ui->value.text.text), "Wrapped text");
         ui->layer = i ? 3 : 1;
@@ -588,10 +605,24 @@ static void generation_fixture(const char *directory, const char *font_path) {
         assert(editor_project_ui_definition_sync_from_item(&p, ui->id));
     }
     EditorViewportUiItem *slider=editor_viewport_ui_add(&p,viewport,EDITOR_VIEWPORT_UI_SLIDER); assert(slider);
+    snprintf(slider->name, sizeof(slider->name), "slider");
     slider->value.slider.minimum=-2; slider->value.slider.maximum=6; slider->value.slider.value=3;
     slider->value.slider.step=.5f; slider->value.slider.thumb_offset=4;
     slider->rotation=35; slider->layer=4;
     assert(editor_project_ui_definition_sync_from_item(&p,slider->id));
+    viewport = editor_project_layout_viewport_add(&p); assert(viewport);
+    snprintf(viewport->name, sizeof(viewport->name), "overlay");
+    EditorViewportUiItem *button = editor_viewport_ui_add(&p, viewport, EDITOR_VIEWPORT_UI_SHAPE); assert(button);
+    snprintf(button->name, sizeof(button->name), "button");
+    button->graphics_layer = ui_layer;
+    button->value.shape.rotation = 21;
+    button->value.shape.button_enabled = true;
+    button->value.shape.text.font = font->id;
+    snprintf(button->value.shape.text.text, sizeof(button->value.shape.text.text), "Action");
+    assert(editor_project_ui_definition_sync_from_item(&p,button->id));
+    viewport = editor_project_layout_viewport_add(&p); assert(viewport);
+    snprintf(viewport->name, sizeof(viewport->name), "empty_view");
+    viewport->app_hidden = true;
     EditorAudioDefinition *sound = editor_project_audio_add(&p, false, "impact", "assets/impact.wav"); assert(sound);
     sound->volume = .75f; sound->pan = -.5f; sound->loop = true; sound->playback_rate = 1.5f;
     assert(editor_project_audio_add(&p, true, "theme", "assets/theme.ogg"));
@@ -609,11 +640,9 @@ static void generation_fixture(const char *directory, const char *font_path) {
     FILE *main_file=fopen(destination,"wb"); assert(main_file);
     assert(fputs("/* developer-owned main */\nint main(void) { return 42; }\n",main_file)>=0);
     assert(fclose(main_file)==0);
-    const char *files[]={"main.c","generated/project_objects.c","generated/project_objects.h",
-        "generated/project_viewports.c","generated/project_viewports.h",
+    const char *files[]={"main.c","generated/project.h","generated/scene/project.h","generated/project_objects.c","generated/project_objects.h",
         "generated/project_scene.c","generated/project_scene.cmake",
-        "generated/scene/project_objects.c","generated/scene/project_objects.h",
-        "generated/scene/project_viewports.c","generated/scene/project_viewports.h"};
+        "generated/scene/project_objects.c","generated/scene/project_objects.h"};
     void *contents[sizeof(files)/sizeof(files[0])];
     size_t lengths[sizeof(files)/sizeof(files[0])];
     for(size_t i=0;i<sizeof(files)/sizeof(files[0]);++i) {
@@ -627,10 +656,24 @@ static void generation_fixture(const char *directory, const char *font_path) {
             size_t length; void *content=SDL_LoadFile(destination,&length); assert(content);
             if(length!=lengths[i] || memcmp(content,contents[i],length)!=0) {
                 fprintf(stderr,"Generation changed %s after reload (pass %u)\n",files[i],pass);
+                size_t different=0;
+                while(different<length && different<lengths[i] &&
+                    ((char *)content)[different]==((char *)contents[i])[different]) ++different;
+                fprintf(stderr,"At byte %zu, before: %.180s\nafter: %.180s\n",different,
+                    (char *)contents[i]+different,(char *)content+different);
                 assert(false);
             }
             SDL_free(content);
         }
+    }
+    /* Name conflicts must fail before replacing any generated files. */
+    snprintf(loaded.layout_viewports[0].name, sizeof(loaded.layout_viewports[0].name), "Parity");
+    assert(!editor_workspace_c_generate(&loaded_workspace, &loaded));
+    for(size_t i=0;i<sizeof(files)/sizeof(files[0]);++i) {
+        snprintf(destination,sizeof(destination),"%s/src/%s",directory,files[i]);
+        size_t length; void *content=SDL_LoadFile(destination,&length); assert(content);
+        assert(length==lengths[i] && !memcmp(content,contents[i],length));
+        SDL_free(content);
     }
     for(size_t i=0;i<sizeof(files)/sizeof(files[0]);++i) SDL_free(contents[i]);
     editor_project_destroy(&loaded);

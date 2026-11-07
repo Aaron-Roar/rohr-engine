@@ -3,14 +3,46 @@
  *
  * Compiled against the installed SDK and the configuration parity fixture.
  */
-#include "generated/project_objects.h"
-#include "generated/project_viewports.h"
+#include "generated/project.h"
 #include <assert.h>
 #include <math.h>
 #include <stdio.h>
 #include <string.h>
 #define OK(call) assert(!rohr_error_check(call))
+typedef struct TestViewports {
+    ViewportId viewports[3];
+    ScreenId screens[2];
+    GraphicsUiId ui_elements[4];
+    ViewportItemId ui_items[4];
+    TextAsset texts[3];
+    size_t screen_count, text_count, ui_element_count;
+} TestViewports;
 #include "configuration_direct_checks.h"
+
+static void views_create(TestViewports *views, CameraId camera) {
+    ViewportCameraBinding bindings[] = {{.item_name="front",.camera=camera}, {.item_name="rear",.camera=camera}};
+    ViewportCreateDescription description = {.template=&project.play,.cameras=bindings,.camera_count=2};
+    ViewportIdResult created = rohr_viewport_create(&description); OK(created); views->viewports[0]=created.result.value;
+    created = rohr_viewport_create(&project.overlay); OK(created); views->viewports[1]=created.result.value;
+    created = rohr_viewport_create(&project.empty_view); OK(created); views->viewports[2]=created.result.value;
+    const char *screens[] = {"front","rear"}, *ui[] = {"label","status","slider","button"};
+    for(size_t i=0;i<2;++i) {
+        ViewportItemIdResult id = rohr_viewport_item_by_name_get(views->viewports[0],screens[i]); OK(id);
+        views->screens[i] = rohr_viewport_item_description_get(id.result.value).result.value.screen;
+    }
+    for(size_t i=0;i<4;++i) {
+        ViewportItemIdResult id = rohr_viewport_item_by_name_get(views->viewports[i==3],ui[i]); OK(id);
+        views->ui_items[i] = id.result.value;
+        views->ui_elements[i] = rohr_viewport_item_description_get(id.result.value).result.value.ui;
+        if(i<2) views->texts[i] = rohr_graphics_ui_text_description_get(views->ui_elements[i]).result.value.text;
+    }
+    views->texts[2] = rohr_graphics_ui_shape_description_get(views->ui_elements[3]).result.value.text.text;
+    views->screen_count=2; views->text_count=3; views->ui_element_count=4;
+}
+static void views_destroy(TestViewports *views) {
+    for(size_t i=0;i<3;++i) OK(rohr_viewport_destroy(views->viewports[i]));
+    *views=(TestViewports){0};
+}
 
 int main(void) {
     OK(rohr_directory_working_set(rohr_directory_base_get()));
@@ -48,13 +80,13 @@ int main(void) {
     assert(project_audio.sounds.impact.volume == .75f && project_audio.sounds.impact.pan == -.5f);
     assert(project_audio.sounds.impact.loop && project_audio.sounds.impact.playback_rate == 1.5f);
     assert(!strcmp(project_audio.music.theme.path, "assets/theme.ogg") && project_audio.music.theme.volume == 0);
-    ProjectViewports views = {0}; OK(project_viewports_create(&views, &objects_in_scene));
-    assert(views.screen_count == 2 && views.text_count == 2 && views.ui_element_count == 3);
+    TestViewports views = {0}; views_create(&views, instance->camera_camera);
+    assert(views.screen_count == 2 && views.text_count == 3 && views.ui_element_count == 4);
     direct_composition(instance,&views); direct_assets(instance);
-    ProjectViewports repeated={0}; OK(project_viewports_create(&repeated,&objects_in_scene));
+    TestViewports repeated={0}; views_create(&repeated,instance->camera_camera);
     OK(rohr_graphics_ui_slider_value_set(repeated.ui_elements[2],-1));
     assert(rohr_graphics_ui_slider_value_get(views.ui_elements[2]).result.value==3);
-    project_viewports_destroy(&repeated);
+    views_destroy(&repeated);
     ScreenDescription first = rohr_screen_description_get(views.screens[0]).result.value;
     ScreenDescription second = rohr_screen_description_get(views.screens[1]).result.value;
     assert(first.width == 320 && first.height == 200 && second.width == 480 && second.height == 360);
@@ -83,7 +115,12 @@ int main(void) {
     assert(rohr_entity_alive_check(instance->body));
     info=rohr_entity_info_get(instance->body,ROHR_ENTITY_INFO_CORE_TARGET); OK(info);
     assert(info.result.value.target==instance->soft); rohr_entity_info_release(&info.result.value);
-    project_viewports_destroy(&views); project_objects_destroy_all(&objects_in_scene);
+    views_create(&repeated,instance->camera_camera);
+    views_destroy(&views);
+    OK(rohr_graphics_layer_ui_get(repeated.ui_items[3]));
+    assert(rohr_graphics_layer_ui_get(repeated.ui_items[3]).result.value == 8);
+    views_destroy(&repeated);
+    project_objects_destroy_all(&objects_in_scene);
     rohr_graphics_stop(); rohr_engine_stop();
     return 0;
 }

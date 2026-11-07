@@ -98,7 +98,7 @@ static bool areas_check(void) {
     CHECK(SDL_SaveFile("editor_soft_areas_generated/src/main.c", "/* developer entry point */", 27));
     CHECK(editor_workspace_c_generate(&workspace, &project));
     char *first = SDL_LoadFile("editor_soft_areas_generated/src/generated/project_objects.c", NULL);
-    CHECK(first != NULL && strstr(first, "geometry.holes[0].node_count = 4") != NULL);
+    CHECK(first != NULL && strstr(first, ".holes[0]={.node_count=4") != NULL);
     CHECK(strstr(first, "cloth_areas[0]") != NULL);
     hole->loop.node_count = 0;
     EditorWorkspaceCommand generate = {.type = EDITOR_WORKSPACE_COMMAND_GENERATE_C};

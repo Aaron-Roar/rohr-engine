@@ -14,7 +14,7 @@ priority order.
 | 3 | COM, inertia, and origin semantics | Complete |
 | 4 | Cross-path feature parity | Complete by user acceptance; recorded verification exceptions remain |
 | 14 | Frame pacing before game development | Complete; corrected pacing verified and initial previews accepted |
-| 15 | [Descriptor-based creation and automatic viewport rendering](#15-descriptor-based-creation-and-automatic-viewport-rendering) | Goals 1–3 complete; Goal 3 ready for review; goals 4–6 pending explicit instruction |
+| 15 | [Descriptor-based creation and automatic viewport rendering](#15-descriptor-based-creation-and-automatic-viewport-rendering) | Goals 1–4 complete; Goal 4 ready for review; goals 5–6 pending explicit instruction |
 | — | [C game experiment](#c-game-experiment) | Follows milestone 15; agree concept and completion criteria with the user |
 | 13 | Physics rebuild from the simpler baseline | Paused by user direction for frame pacing and game development; goals 1, 2a, 2b and 4a complete; goals 2 and 3 failed; goal 4 blocking remains incomplete; goals 5–8 not started |
 | 12 | Real-time physics pipeline rework | Closed by user direction; superseded by milestone 13, not complete; goals 1–13 complete, goal 14 unfinished, goals 15–19 not started; evidence preserved |
@@ -31,8 +31,11 @@ checkpoint. Goal 1 defines the [creation and viewport contract](docs/creation_an
 Goal 2 implements [shared entity/object creation](docs/shared_creation.md).
 Goal 3 implements [automatic viewport rendering](docs/automatic_viewports.md),
 complete creation from one descriptor, explicit camera bindings and selected/batched
-presentation. Its interactive preview is accepted. Stop for review and commit.
-Do not start Goal 4's unified project generation without explicit instruction.
+presentation. Goal 4 implements unified project generation and, by explicit user
+direction, removes generated viewport compatibility helpers and migrates the
+starter and simulation entry points. Its final starter preview is accepted and
+verification is complete. Stop for review and commit; do not start Goal 5 without
+explicit instruction.
 Descriptions remain immutable, created instances remain mutable, camera bindings
 are explicit and applied during viewport creation, and live viewports remain
 extensible from application code. Automatic rendering reuses runtime visual
@@ -707,15 +710,50 @@ code afterward. Preserve current physics and frame-pacing behavior.
    remain Goal 6. Physics settings and the known Goal 2 failure inventory remain
    unchanged. See the [guide and results](docs/automatic_viewports.md); local
    evidence is under `sandbox/milestone_15/goal_3/`.
-4. [ ] **Generate descriptions through a unified project interface.** Expose
+4. [x] **Generate descriptions through a unified project interface.** Expose
    named object, entity, and viewport descriptions through a project header,
    with definitions in generated source files. Replace object-specific creation
    code with data consumed by shared engine APIs. Preserve editor properties,
-   persistence, references, and deterministic generation.
-5. [ ] **Migrate starter projects and affected examples.** Demonstrate shared
-   creation functions and viewport-driven rendering in a straightforward game
-   loop. Update documentation and regeneration behavior while preserving
-   developer-edited `main.c` files.
+   persistence, references, and deterministic generation. By explicit user
+   direction, preserve named-layer identity separately from numeric draw order,
+   remove generated `project_viewports.h/.c` and their helpers, and include the
+   necessary starter and simulation migration here. Retain engine screen/UI/
+   viewport APIs and preserve developer-edited entry points and build files.
+   **Result: complete for review.** `project.h` exposes immutable named object,
+   entity and viewport descriptions; definitions remain in `project_objects.c`.
+   Existing object wrappers delegate to shared creation and retain their owning
+   runtime root. Named layers preserve identity independently of draw order;
+   camera filters remain future work. Screen clipping now survives JSON round
+   trips. Generation validates names/references before writes and remains
+   deterministic. Old viewport modules are removed; exact recognized starter
+   and scene-build templates migrate, while custom main/build files survive and
+   require the documented manual viewport migration. The starter's direct
+   entities use runtime appearance and automatic rendering, and the user
+   accepted the final preview. Rebuild against the matching SDK because
+   `ObjectDescription` gained named-layer storage.
+
+   Eighteen focused Release checks pass. All eighteen sanitizer checks pass
+   across the initial run and an isolated scene-session rerun: the initial
+   scene-session stress test overflowed its input queue, and the unchanged test
+   passed after temporary-build cleanup freed disk space. This intermittent
+   stress-test result remains recorded; no ASan/UBSan memory findings occurred.
+   Six installed-SDK consumers and the migrated starter pass Linux execution
+   and sanitizer checks and cross-build for Windows. Partial spawning, custom
+   file preservation, scaffold recovery, configured paths and relocation pass.
+   Release assertions were restored in three authoring tests; obsolete generated
+   source expectations and a screen fixture initializer were corrected. Final
+   compilation has no outstanding warnings. Native Windows execution, generic
+   Linux distribution packaging and controlled rendering performance remain
+   unverified here; the integrated checks remain Goal 6. Existing physics
+   settings and failure inventory are unchanged. See
+   [shared creation](docs/shared_creation.md); evidence is under
+   `sandbox/milestone_15/goal_4/` (disposable consumer build directories may be
+   regenerated by the retained verification scripts).
+5. [ ] **Migrate affected examples and review the game workflow.** Demonstrate
+   shared creation and automatic viewports in the bundled examples, finish the
+   workflow documentation, and review a straightforward game loop. Starter and
+   simulation migration moved into Goal 4 by user direction; preserve
+   developer-edited `main.c` files throughout remaining regeneration work.
 6. [ ] **Verify SDK parity, lifecycle, performance, and game workflow.** Build
    and run generated and handwritten consumers against the installed generic
    Linux SDK, cross-build for Windows, verify independent instances and cleanup
@@ -2490,6 +2528,10 @@ is imposed on this milestone.
 
 ## Unordered later features
 
+- Camera named-layer allowlists and blocklists in descriptions and runtime APIs.
+  Match layer identity, not numeric draw order: different names sharing a number
+  must remain independently selectable. Goal 4 of milestone 15 preserves the
+  identities; filtering itself is not implemented there.
 - Tile maps.
 - Prefabs.
 - Navigation and pathfinding.

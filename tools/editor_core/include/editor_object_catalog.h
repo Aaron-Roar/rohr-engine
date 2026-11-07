@@ -6,4 +6,6 @@
 #include "editor_project.h"
 #include <stdio.h>
 bool editor_object_catalog_write(FILE *header, FILE *source, const EditorProject *project);
+bool editor_project_catalog_write(FILE *header, FILE *source, const EditorProject *project);
+EditorResult editor_project_catalog_validate(const EditorProject *project);
 #endif

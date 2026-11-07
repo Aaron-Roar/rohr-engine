@@ -22,9 +22,9 @@ static void workspace_fixture_remove(const char *root) {
     static const char *files[] = {
         "project.rohr.json", "objects/project.rohr.json", "src/main.c", "src/scene.c", "src/generated/project_scene.cmake",
         "src/generated/project_scene.c",
-        "src/generated/scene/project_objects.c", "src/generated/scene/project_objects.h",
-        "src/generated/scene/project_viewports.c", "src/generated/scene/project_viewports.h",
-        "src/generated/project_objects.c", "src/generated/project_objects.h",
+        "src/generated/scene/project.h", "src/generated/scene/project_objects.c", "src/generated/scene/project_objects.h",
+        "src/generated/scene/project_viewports.c", "src/generated/scene/project.h",
+        "src/generated/project.h", "src/generated/project_objects.c", "src/generated/project_objects.h",
         "src/generated/project_viewports.c", "src/generated/project_viewports.h",
         "CMakeLists.txt", ".gitignore", "editor.lua", ".rohr/project_paths.cmake",
         "assets/tutorial_frame_1.png", "assets/tutorial_frame_2.png"
@@ -75,10 +75,11 @@ static bool generated_soft_motion_check(const char *path, const EditorSoftBody *
     for(size_t i = 0; i < body->node_count && valid; i += 1) {
         const EditorSoftNode *node = &body->nodes[i];
         char prefix[256];
-        snprintf(prefix, sizeof(prefix), "rohr_physics_velocity_set(object->%s, (Velocity){", node->name);
+        snprintf(prefix, sizeof(prefix), "._description={.name=\"%s\"", node->name);
         const char *at = strstr(text, prefix);
+        if(at) at = strstr(at, ".velocity={");
         float x, y;
-        if(at == NULL || sscanf(at + strlen(prefix), "%ff, %ff", &x, &y) != 2) {
+        if(at == NULL || sscanf(at + strlen(".velocity={"), "%ff,%ff", &x, &y) != 2) {
             valid = false; break;
         }
         if(!node->initial_motion_inherited) {
@@ -223,8 +224,8 @@ static bool scene_scaffold_check(const EditorWorkspace *workspace,
     char *edited = NULL, *loaded = NULL;
     bool valid = false;
     if(!main_source || !scene_source || !cmake_source || SDL_GetPathInfo(legacy_path, NULL)) goto done;
-    if(!strstr(scene_source, "scene/project_viewports.h") ||
-            !strstr(main_source, "tug_create(&scene.authored.tug, (Position){0, 0})")) goto done;
+    if(!strstr(scene_source, "scene/project.h") ||
+            !strstr(main_source, "rohr_object_create(&project)")) goto done;
     const char *include = strstr(cmake_source, "\ninclude(\"${ROHR_GENERATED_DIRECTORY}/project_scene.cmake\")\n");
     if(!include) goto done;
     edited = SDL_malloc(strlen(cmake_source) + 64);
@@ -254,6 +255,14 @@ static bool scene_scaffold_check(const EditorWorkspace *workspace,
     for(size_t i = 0; i < sizeof(old) / sizeof(old[0]); ++i)
         if(!file_replace(legacy_path, old[i]) || !editor_workspace_c_generate(workspace, project) ||
                 SDL_GetPathInfo(legacy_path, NULL)) goto done;
+    /* The preceding untouched starter upgrades and obsolete editor-owned files disappear. */
+    char obsolete[2048];
+    snprintf(obsolete,sizeof(obsolete),"%s/src/generated/project_viewports.c",workspace->directory);
+    if(!file_replace(obsolete,"/* obsolete generated module */\n") ||
+            !file_replace(main_path,editor_starter_main_legacy_viewport_source) ||
+            !editor_workspace_c_generate(workspace,project) || SDL_GetPathInfo(obsolete,NULL)) goto done;
+    SDL_free(loaded); loaded=SDL_LoadFile(main_path,NULL);
+    if(!loaded || strcmp(loaded,main_source)) goto done;
     /* Exact old joint setters upgrade, but even a comment makes main developer-owned. */
     if(!file_replace(main_path, editor_starter_main_legacy_joint_source) ||
             !editor_workspace_c_generate(workspace, project)) goto done;
@@ -296,11 +305,13 @@ static bool tick_main_migration_check(const EditorWorkspace *workspace,
     strcpy(old + prefix + strlen(previous), match + strlen(current));
     if(!file_replace(path, old) || !editor_workspace_c_generate(workspace, project)) goto done;
     loaded = SDL_LoadFile(path, NULL);
-    if(loaded == NULL || strcmp(loaded, original) != 0) goto done;
+    if(loaded == NULL || !strstr(loaded, "#include \"project.h\"") ||
+            strstr(loaded, "project_viewports_create(")) goto done;
     SDL_free(loaded); loaded = NULL;
     if(!editor_workspace_c_generate(workspace, project)) goto done;
     loaded = SDL_LoadFile(path, NULL);
-    if(loaded == NULL || strcmp(loaded, original) != 0) goto done;
+    if(loaded == NULL || !strstr(loaded, "#include \"project.h\"") ||
+            strstr(loaded, "project_viewports_create(")) goto done;
     SDL_free(loaded); loaded = NULL;
     strcat(old, "\n/* developer customization */\n");
     if(!file_replace(path, old) || !editor_workspace_c_generate(workspace, project)) goto done;
@@ -645,7 +656,7 @@ int main(void) {
                 !file_contains(path, "rohr_directory_base_get()") ||
                 file_contains(path, "project_chdir") ||
                 file_contains(path, "SDL_GetBasePath()") ||
-                !file_contains(path, "starter_create(&scene.authored.starter, (Position){0, 0})") ||
+                !file_contains(path, "rohr_object_create(&project)") ||
                 file_contains(path, "create_tutorial") ||
                 file_contains(path, "entity_object_add(objects.starter.") ||
                 file_contains(path, "rohr_physics_joint_description_set") ||
@@ -654,10 +665,10 @@ int main(void) {
                 !file_contains(path, "rohr_physics_soft_body_node_local_add((SoftBodyNodeDescription)") ||
                 !file_contains(path, "rohr_physics_soft_body_beam_add((SoftBodyBeamDescription)") ||
                 !file_contains(path, "rohr_physics_soft_body_area_add((SoftBodyAreaDescription)") ||
-                !file_contains(path, "rohr_camera_render_callback_set(scene.authored.starter.camera_main_camera") ||
-                !file_contains(path, "project_viewports_create(&viewports") ||
-                !file_contains(path, "project_viewports_destroy(&viewports") ||
-                !file_contains(path, "project_objects_destroy_all(&scene.authored") ||
+                file_contains(path, "rohr_camera_render_callback_set(") ||
+                !file_contains(path, "rohr_viewport_create(&description)") ||
+                !file_contains(path, "rohr_viewport_destroy(viewports[i])") ||
+                !file_contains(path, "rohr_entity_delete(scene.authored)") ||
                 !file_contains(path, "rohr_input_frame_begin()") ||
                 !file_contains(path,
                     "rohr_input_key_pressed_check(SDL_SCANCODE_ESCAPE)")) {
@@ -708,43 +719,22 @@ int main(void) {
             return 1;
         }
         snprintf(path, sizeof(path), "%s/src/generated/project_viewports.c", fixture);
-        if(!SDL_GetPathInfo(path, &info) || info.type != SDL_PATHTYPE_FILE ||
-                !file_contains(path, "project_objects_draw_all(objects") ||
-                !file_contains(path, "rohr_camera_render_callback_set") ||
-                !file_contains(path, "rohr_screen_create") ||
-                !file_contains(path, "rohr_viewport_screen_add") ||
-                !file_contains(path, "rohr_graphics_ui_shape_create") ||
-                file_occurrence_count(path,
-                    "rohr_graphics_ui_shape_create") != 2 ||
-                file_occurrence_count(path, "rohr_graphics_ui_text_create") != 2 ||
-                file_occurrence_count(path, "rohr_graphics_ui_slider_create") != 2 ||
-                file_occurrence_count(path, "rohr_viewport_ui_add") != 6 ||
-                !file_contains(path, "rohr_viewport_ui_add") ||
-                !file_contains(path, "rohr_graphics_ui_slider_create") ||
-                !file_contains(path, ".minimum=-10.00000000f") ||
+        if(SDL_GetPathInfo(path, &info)) return 1;
+        snprintf(path, sizeof(path), "%s/src/generated/project_objects.c", fixture);
+        if(file_occurrence_count(path, ".kind=VIEWPORT_CREATE_SHAPE") != 2 ||
+                file_occurrence_count(path, ".kind=VIEWPORT_CREATE_TEXT") != 2 ||
+                file_occurrence_count(path, ".kind=VIEWPORT_CREATE_SLIDER") != 2 ||
+                !file_contains(path, ".minimum=-1.000000000e+01f") ||
                 !file_contains(path, ".thumb_shape=1") ||
-                !file_contains(path, ".thumb_radius=14.00000000f") ||
-                !file_contains(path, ".thumb_offset=-18.00000000f") ||
-                !file_contains(path, "rohr_graphics_layer_create((LayerDescription){.name = \"hud\", .value = 500})") ||
-                !file_contains(path, "rohr_graphics_layer_ui_id_set") ||
-                !file_contains(path, "rohr_graphics_layer_entity_id_set") ||
+                !file_contains(path, ".thumb_radius=1.400000000e+01f") ||
+                !file_contains(path, ".thumb_offset=-1.800000000e+01f") ||
+                !file_contains(path, ".name=\"hud\",.value=500") ||
+                !file_contains(path, ".layer_name=\"hud\"") ||
                 !file_contains(path, ".drag_mode=1") ||
                 !file_contains(path, ".drag_mode=2") ||
-                !file_contains(path, ".background_color=") ||
-                !file_contains(path, "0x305070ff") ||
-                !file_contains(path, ".clear_background=true") ||
-                !file_contains(path, "rohr_graphics_font_default_get") ||
-                !file_contains(path, "rohr_graphics_font_release") ||
-                file_contains(path, "rohr_graphics_font_destroy") ||
+                !file_contains(path, ".background_color={48,80,112,255}") ||
                 !file_contains(path, "sample text") ||
-                !file_contains(path, "independent text") ||
-                !file_contains(path,
-                    ".text=resources->texts[resources->text_count - 1]") ||
-                file_contains(path,
-                    ".text=&resources->texts[resources->text_count - 1]") ||
-                file_occurrence_count(path,
-                    "resources->ui_items[resources->ui_item_count++]") != 6 ||
-                !file_contains(path, "rohr_viewport_enable_set")) {
+                !file_contains(path, "independent text")) {
             workspace_fixture_remove(fixture);
             return 1;
         }
@@ -771,22 +761,11 @@ int main(void) {
         snprintf(path, sizeof(path), "%s/src/generated/project_objects.c", fixture);
         if(!SDL_GetPathInfo(path, &info) || info.type != SDL_PATHTYPE_FILE ||
                 !file_contains(path, "EngineResult starter_create") ||
-                !file_contains(path,
-                    "generated_body_create(&object->box") ||
-                !file_contains(path,
-                    "const ParticleDescription starter_particle_body_config") ||
-                !file_contains(path,
-                    "created = rohr_physics_particle_add(config)") ||
-                !file_contains(path,
-                    ".rigid_vertices = UINT32_C(16)") ||
-                !file_contains(path,
-                    ".radius = 28.0000000f") ||
-                !file_contains(path,
-                    "rohr_physics_hitbox_set(*output, hitbox)") ||
-                !file_contains(path, "rohr_physics_collision_category_set") ||
-                !file_contains(path, "ROHR_COLLISION_CATEGORY_NONE") ||
-                !file_contains(path,
-                    "rohr_entity_components_add(*output, ROHR_COLLISION)")) {
+                !file_contains(path, "rohr_object_create_with_options(description,") ||
+                !file_contains(path, "const ParticleDescription starter_particle_body_config") ||
+                !file_contains(path, ".rigid_vertices = UINT32_C(16)") ||
+                !file_contains(path, ".radius = 28.0000000f") ||
+                file_contains(path, "generated_body_create(")) {
             workspace_fixture_remove(fixture);
             return 1;
         }
@@ -978,75 +957,39 @@ int main(void) {
                 !file_contains(path,
                     "This generated file is not covered by Rohr Engine's "
                     "LGPL-3.0-only license.") ||
-                !file_contains(path, "rohr_physics_particle_origin_set") ||
-                !file_contains(path, "rohr_physics_particle_radius_set") ||
-                !file_contains(path,
-                    ".local_origin = {3.00000000f, -4.00000000f}") ||
+                !file_contains(path, ".local_origin = {3.00000000f, -4.00000000f}") ||
                 !file_contains(path, ".radius = 9.00000000f") ||
                 !file_contains(path, ".rigid_vertices = UINT32_C(12)") ||
                 !file_contains(path, ".static_body = true") ||
-                !file_contains(path, "UINT32_C(0x11223344)") ||
-                !file_contains(path, "UINT32_C(0x55667788)") ||
-                !file_contains(path, "generated_world_anchor_create") ||
-                !file_contains(path, "rohr_physics_joint_anchor_add") ||
-                !file_contains(path, "rohr_camera_create") ||
-                !file_contains(path, "rohr_camera_attach") ||
-                !file_contains(path, "rohr_physics_joint_description_set") ||
-                !file_contains(path, "rohr_physics_soft_body_add") ||
-                !file_contains(path, "rohr_physics_soft_body_node_add") ||
-                !file_contains(path, "(Velocity){11.0000000f, 12.0000000f}") ||
-                !file_contains(path, "(Acceleration){13.0000000f, 14.0000000f}") ||
-                !file_contains(path, "15.0000000f, (Shape)") ||
-                !file_contains(path, "(Velocity){31.0000000f, 32.0000000f}") ||
-                !file_contains(path, "(Acceleration){33.0000000f, 34.0000000f}") ||
+                !file_contains(path, ".color={17,34,51,68}") ||
+                !file_contains(path, ".border_color={85,102,119,136}") ||
+                !file_contains(path, ".velocity={11.0000000f,12.0000000f}") ||
+                !file_contains(path, ".acceleration={13.0000000f,14.0000000f}") ||
+                !file_contains(path, ".angular_velocity=15.0000000f") ||
+                !file_contains(path, ".velocity={31.0000000f,32.0000000f}") ||
+                !file_contains(path, ".acceleration={33.0000000f,34.0000000f}") ||
                 !file_contains(path, "6.50000000f") ||
-                !file_contains(path, "rohr_physics_friction_set") ||
-                !file_contains(path, "rohr_physics_restitution_set") ||
-                !file_contains(path,
-                    "rohr_physics_soft_body_node_collision_filter_description_set") ||
-                !file_contains(path, "rohr_physics_soft_body_beam_add") ||
-                !file_contains(path,
-                    "rohr_physics_soft_body_beam_collision_description_set") ||
-                !file_contains(path,
-                    ".enabled = false, .thickness = 4.00000000f") ||
-                /* Node-loop areas are generated for the starter soft body. */
-                !file_contains(path, "rohr_physics_soft_body_area_add") ||
-                !file_contains(path, "rohr_graphics_soft_body_node_color_set") ||
-                !file_contains(path, "rohr_graphics_animation_load") ||
-                !file_contains(path, "rohr_graphics_animation_release") ||
-                !file_contains(path, "rohr_graphics_texture_release") ||
-                !file_contains(path,
-                    "rohr_physics_hitbox_animation_binding_set") ||
-                !file_contains(path,
-                    "AnimationDescription descriptor = {.id = UINT32_C(") ||
-                !file_contains(path, ".frame_ids = {UINT32_C(") ||
-                !file_contains(path, "animated.frames[0].offset = (Position){13.0000000f, -9.00000000f}") ||
-                !file_contains(path, "animated.frames[0].rotation = 450.000000f") ||
-                !file_contains(path, "rohr_graphics_animated_sprite_frame_index_set(object->") ||
+                !file_contains(path, ".thickness=4.00000000f") ||
+                !file_contains(path, ".area=&") ||
+                !file_contains(path, ".hitbox_binding_count=") ||
+                !file_contains(path, ".offset={13.0000000f,-9.00000000f},.rotation=450.000000f") ||
                 !file_contains(path, "assets/fly frame.png") ||
-                !file_contains(path, "animated.follow_entity_rotation = false") ||
-                !file_contains(path, "animated.body_offset = (Position){6.00000000f, 7.00000000f}") ||
-                !file_contains(path, "animated.orientation_offset = -450.000000f") ||
-                !file_contains(path,
-                    "(Scale){32.0000000f, 24.0000000f}, true, 810.000000f, true") ||
-                !file_contains(path, "(Scale){2.00000000f, 3.00000000f}") ||
+                !file_contains(path, ".follow_orientation=UINT64_C(0)") ||
+                !file_contains(path, ".position={6.00000000f,7.00000000f}") ||
+                !file_contains(path, ".orientation=-450.000000f") ||
+                !file_contains(path, ".size={32.0000000f,24.0000000f}") ||
+                !file_contains(path, ".orientation=810.000000f") ||
+                !file_contains(path, ".scale={2.00000000f,3.00000000f}") ||
                 !file_contains(path, "void starter_draw") ||
                 !file_contains(path, "EngineResult project_objects_create_all") ||
                 !file_contains(path, "void project_objects_draw_all") ||
-                !file_contains(path, "rohr_graphics_sprite_draw(object->") ||
-                !file_contains(path, "rohr_graphics_animated_sprite_draw(object->") ||
+                !file_contains(path, "rohr_entity_object_draw(object->source_instance)") ||
                 !file_contains(path, "void project_objects_destroy_all")) {
             workspace_fixture_remove(fixture);
             return 1;
         }
-        snprintf(path, sizeof(path), "%s/src/generated/project_viewports.c", fixture);
-        if(!file_contains(path,
-                    "rohr_graphics_layer_entity_set(objects->starter.node_") ||
-                !file_contains(path,
-                    "rohr_graphics_layer_entity_set(objects->starter.beam_") ||
-                file_contains(path, ", 43)") ||
-                !file_contains(path, "rohr_graphics_layer_sprite_set") ||
-                !file_contains(path, "rohr_graphics_layer_animation_set")) {
+        snprintf(path, sizeof(path), "%s/src/generated/project_objects.c", fixture);
+        if(!file_contains(path, ".layer_name=\"hud\"") || file_contains(path, ".layer=43,")) {
             workspace_fixture_remove(fixture);
             return 1;
         }
@@ -1756,15 +1699,10 @@ int main(void) {
                 return 1;
             }
             snprintf(path, sizeof(path), "%s/src/generated/project_objects.c", fixture);
-            {
-                char expected[EDITOR_OBJECT_NAME_MAX + 96];
-                snprintf(expected, sizeof(expected),
-                    "rohr_physics_joint_anchor_add((JointAnchorDescription){.entity = object->%s",
-                    generated_soft->nodes[0].name);
-                if(!file_contains(path, expected)) {
-                    return 1;
-                }
-            }
+            /* Reference application is covered by the compiled joint consumer;
+             * generation must use shared creation and retain its member binding. */
+            if(!file_contains(path, "rohr_object_create_with_options(description,") ||
+                    !file_contains(path, "rohr_entity_object_anchor_get")) return 1;
         }
         result = editor_workspace_load(&reloaded_workspace, &reloaded_project, fixture);
         if(editor_result_check(result) || reloaded_project.object_count != 2 ||

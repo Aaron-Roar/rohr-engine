@@ -7,17 +7,17 @@
 #include <string.h>
 
 typedef struct CatalogEntry { const ObjectDescription *d; char *path; } CatalogEntry;
-typedef struct Catalog { CatalogEntry entries[MAX_ENTITIES]; size_t count; } Catalog;
+typedef struct Catalog { CatalogEntry entries[MAX_ENTITIES]; size_t count; const char *prefix; const EditorProject *project; } Catalog;
 static const char *path_get(const Catalog *c, const ObjectDescription *d) {
     for(size_t i = 0; i < c->count; ++i) if(c->entries[i].d == d) return c->entries[i].path;
     return NULL;
 }
 static bool reserved(const char *name) {
-    static const char *fields[] = {"_description", "id", "name", "kind", "categories", "parent", "children", "child_count",
+    static const char *fields[] = {"_description", "viewports", "viewport_count", "id", "name", "kind", "categories", "parent", "children", "child_count",
         "position", "orientation", "velocity", "acceleration", "angular_velocity", "entity_settings", "mass", "radius", "friction", "restitution",
         "kinematic_driven", "static_body", "gravity_enabled", "collision_enabled", "rotation_locked", "visible", "center_of_mass_explicit",
         "center_of_mass", "particle_origin", "particle_vertices", "collision_filter", "geometry", "geometry_count",
-        "active_geometry", "hitbox_bindings", "hitbox_binding_count", "color", "border_color", "color_overridden", "layer",
+        "active_geometry", "hitbox_bindings", "hitbox_binding_count", "color", "border_color", "color_overridden", "layer", "layer_name",
         "target", "endpoint_a", "endpoint_b", "joint_type", "rest_length", "stiffness", "damping", "rest_angle", "thickness",
         "area", "asset_path", "size", "scale", "frames", "frame_count", "ticks_per_frame", "time_per_frame", "starting_frame",
         "direction", "playing", "follow_position", "follow_orientation", "pause_with_engine", "zoom", "force", "torque", "visuals", "source_instance"};
@@ -94,27 +94,35 @@ static void string_write(FILE *f, const char *s) {
     }
     fputc('"', f);
 }
-static void type_write(FILE *f, const ObjectDescription *d) {
-    for(size_t i = 0; i < d->child_count; ++i) type_write(f, d->children[i]);
-    fprintf(f, "typedef struct ObjectDescriptionView_%llu {\n"
+static void type_write(FILE *f, const Catalog *c, const ObjectDescription *d) {
+    for(size_t i = 0; i < d->child_count; ++i) type_write(f, c, d->children[i]);
+    fprintf(f, "typedef struct %sDescriptionView_%llu {\n"
         "    union { ObjectDescription _description; struct { ROHR_OBJECT_DESCRIPTION_FIELDS; }; };\n",
-        (unsigned long long)d->id);
+        c->prefix, (unsigned long long)d->id);
     for(size_t i = 0; i < d->child_count; ++i) {
         char name[EDITOR_OBJECT_NAME_MAX];
         editor_project_property_name_format(name, sizeof(name), d->children[i]->name);
-        fprintf(f, "    ObjectDescriptionView_%llu %s;\n", (unsigned long long)d->children[i]->id, name);
+        fprintf(f, "    %sDescriptionView_%llu %s;\n", c->prefix, (unsigned long long)d->children[i]->id, name);
     }
-    fprintf(f, "} ObjectDescriptionView_%llu;\n", (unsigned long long)d->id);
+    if(c->project && !d->parent) {
+        fputs("    const ViewportCreateDescription *const *viewports;\n    size_t viewport_count;\n", f);
+        for(size_t i = 0; i < c->project->layout_viewport_count; ++i) {
+        char name[EDITOR_OBJECT_NAME_MAX];
+        editor_project_property_name_format(name, sizeof(name), c->project->layout_viewports[i].name);
+        fprintf(f, "    ViewportCreateDescription %s;\n", name);
+        }
+    }
+    fprintf(f, "} %sDescriptionView_%llu;\n", c->prefix, (unsigned long long)d->id);
 }
 static void array_write(FILE *f, const Catalog *c, const ObjectDescription *d) {
     unsigned long long id = d->id;
     if(d->child_count) {
-        fprintf(f, "static const ObjectDescription *const object_children_%llu[] = {", id);
+        fprintf(f, "static const ObjectDescription *const %s_children_%llu[] = {", c->prefix, id);
         for(size_t i = 0; i < d->child_count; ++i) fprintf(f, "%s&%s._description", i ? "," : "", path_get(c, d->children[i]));
         fputs("};\n", f);
     }
     if(d->geometry_count) {
-        fprintf(f, "static const ObjectHitbox object_geometry_%llu[] = {", id);
+        fprintf(f, "static const ObjectHitbox %s_geometry_%llu[] = {", c->prefix, id);
         for(size_t i = 0; i < d->geometry_count; ++i) {
             const ObjectHitbox *h = &d->geometry[i];
             fprintf(f, "%s{.id=%u,.shape={.amount_of_vertices=%u,.vertices={", i ? "," : "", h->id, h->shape.amount_of_vertices);
@@ -125,14 +133,14 @@ static void array_write(FILE *f, const Catalog *c, const ObjectDescription *d) {
         fputs("};\n", f);
     }
     if(d->hitbox_binding_count) {
-        fprintf(f, "static const HitboxAnimationBinding object_bindings_%llu[] = {", id);
+        fprintf(f, "static const HitboxAnimationBinding %s_bindings_%llu[] = {", c->prefix, id);
         for(size_t i = 0; i < d->hitbox_binding_count; ++i)
             fprintf(f, "%s{%u,%u,%u}", i ? "," : "", d->hitbox_bindings[i].animation_id,
                 d->hitbox_bindings[i].frame_id, d->hitbox_bindings[i].hitbox_id);
         fputs("};\n", f);
     }
     if(d->frame_count) {
-        fprintf(f, "static const ObjectFrame object_frames_%llu[] = {", id);
+        fprintf(f, "static const ObjectFrame %s_frames_%llu[] = {", c->prefix, id);
         for(size_t i = 0; i < d->frame_count; ++i) {
             const ObjectFrame *v = &d->frames[i];
             fprintf(f, "%s{.id=%u,.path=", i ? "," : "", v->id); string_write(f, v->path);
@@ -142,7 +150,7 @@ static void array_write(FILE *f, const Catalog *c, const ObjectDescription *d) {
         fputs("};\n", f);
     }
     if(d->area) {
-        fprintf(f, "static const ObjectAreaGeometry object_area_%llu = {.hole_count=%u,", id, d->area->hole_count);
+        fprintf(f, "static const ObjectAreaGeometry %s_area_%llu = {.hole_count=%u,", c->prefix, id, d->area->hole_count);
         for(uint32_t l = 0; l <= d->area->hole_count; ++l) {
             const ObjectAreaLoop *loop = l ? &d->area->holes[l-1] : &d->area->outer;
             if(!l) fputs(".outer=", f);
@@ -189,6 +197,8 @@ static void source_write(FILE *f, const ObjectDescription *d) {
     }
     fputc('}', f);
 }
+static bool viewport_arrays_write(FILE *f, const Catalog *c);
+static void viewport_values_write(FILE *f, const EditorProject *project);
 static void value_write(FILE *f, const Catalog *c, const ObjectDescription *d) {
     unsigned long long id = d->id;
     fputs("{._description={.name=", f); string_write(f, d->name);
@@ -198,7 +208,7 @@ static void value_write(FILE *f, const Catalog *c, const ObjectDescription *d) {
 #define C(field) fprintf(f, ",." #field "={%u,%u,%u,%u}", d->field.red,d->field.green,d->field.blue,d->field.alpha)
     U(id); U(kind); U(categories); U(child_count);
     if(d->parent) fprintf(f, ",.parent=&%s._description", path_get(c,d->parent));
-    if(d->child_count) fprintf(f, ",.children=object_children_%llu", id);
+    if(d->child_count) fprintf(f, ",.children=%s_children_%llu", c->prefix, id);
     V(position); F(orientation); V(velocity); V(acceleration); F(angular_velocity);
     F(mass); F(radius); F(friction); F(restitution);
     U(kinematic_driven); U(static_body); U(gravity_enabled); U(collision_enabled); U(rotation_locked); U(visible);
@@ -206,20 +216,21 @@ static void value_write(FILE *f, const Catalog *c, const ObjectDescription *d) {
     fprintf(f, ",.collision_filter={UINT64_C(%llu),UINT64_C(%llu)}",
         (unsigned long long)d->collision_filter.category, (unsigned long long)d->collision_filter.responds_to);
     U(geometry_count); U(active_geometry); U(hitbox_binding_count);
-    if(d->geometry_count) fprintf(f, ",.geometry=object_geometry_%llu", id);
-    if(d->hitbox_binding_count) fprintf(f, ",.hitbox_bindings=object_bindings_%llu", id);
+    if(d->geometry_count) fprintf(f, ",.geometry=%s_geometry_%llu", c->prefix, id);
+    if(d->hitbox_binding_count) fprintf(f, ",.hitbox_bindings=%s_bindings_%llu", c->prefix, id);
     if(d->visuals.main.specified || d->visuals.endpoint_a.specified || d->visuals.endpoint_b.specified) {
         fputs(",.visuals={",f); visual_style_write(f,"main",d->visuals.main);
         fputs(",",f); visual_style_write(f,"endpoint_a",d->visuals.endpoint_a);
         fputs(",",f); visual_style_write(f,"endpoint_b",d->visuals.endpoint_b); fputs("}",f);
     }
     C(color); C(border_color); U(color_overridden); fprintf(f, ",.layer=%d", d->layer);
+    if(d->layer_name[0]) { fputs(",.layer_name=", f); string_write(f,d->layer_name); }
     U(target); U(endpoint_a); U(endpoint_b); U(joint_type);
     F(rest_length); F(stiffness); F(damping); F(rest_angle); F(thickness);
-    if(d->area) fprintf(f, ",.area=&object_area_%llu", id);
+    if(d->area) fprintf(f, ",.area=&%s_area_%llu", c->prefix, id);
     fputs(",.asset_path=",f); string_write(f,d->asset_path);
     V(size); V(scale); U(frame_count);
-    if(d->frame_count) fprintf(f, ",.frames=object_frames_%llu", id);
+    if(d->frame_count) fprintf(f, ",.frames=%s_frames_%llu", c->prefix, id);
     U(ticks_per_frame); fprintf(f, ",.time_per_frame=%.17g", d->time_per_frame);
     U(starting_frame); fprintf(f, ",.direction=%d", (int)d->direction);
     U(playing); U(follow_position); U(follow_orientation); F(zoom);
@@ -235,23 +246,237 @@ static void value_write(FILE *f, const Catalog *c, const ObjectDescription *d) {
         char name[EDITOR_OBJECT_NAME_MAX]; editor_project_property_name_format(name,sizeof(name),d->children[i]->name);
         fprintf(f, ",.%s=",name); value_write(f,c,d->children[i]);
     }
+    if(c->project && !d->parent) viewport_values_write(f, c->project);
     fputs("}", f);
 }
-bool editor_object_catalog_write(FILE *header, FILE *source, const EditorProject *project) {
+static bool catalog_write(FILE *header, FILE *source, const EditorProject *project, bool unified) {
     if(!project) return false;
     ObjectDescriptionResult converted = object_description_project_read(project, "");
     if(error_check(converted)) return false;
     Catalog *catalog = calloc(1,sizeof(*catalog));
-    bool ok = catalog && collect(catalog,converted.result.value,"objects",0);
+    if(catalog) { catalog->prefix = unified ? "Project" : "Object"; catalog->project = unified ? project : NULL; }
+    bool ok = catalog && collect(catalog,converted.result.value,unified ? "project" : "objects",0);
     if(ok) {
-        type_write(header,converted.result.value);
-        fprintf(header,"extern const ObjectDescriptionView_%llu objects;\n\n",(unsigned long long)converted.result.value->id);
+        type_write(header,catalog,converted.result.value);
+        fprintf(header,"extern const %sDescriptionView_%llu %s;\n\n",catalog->prefix,
+            (unsigned long long)converted.result.value->id,unified ? "project" : "objects");
         for(size_t i = 0; i < catalog->count; ++i) array_write(source,catalog,catalog->entries[i].d);
-        fprintf(source,"const ObjectDescriptionView_%llu objects = ",(unsigned long long)converted.result.value->id);
+        if(unified) ok = viewport_arrays_write(source,catalog);
+        fprintf(source,"const %sDescriptionView_%llu %s = ",catalog->prefix,
+            (unsigned long long)converted.result.value->id,unified ? "project" : "objects");
         value_write(source,catalog,converted.result.value); fputs(";\n",source);
-        ok = !ferror(header) && !ferror(source);
+        ok = ok && !ferror(header) && !ferror(source);
     }
     if(catalog) for(size_t i = 0; i < catalog->count; ++i) free(catalog->entries[i].path);
     free(catalog); object_description_tree_destroy((ObjectDescription *)converted.result.value);
     return ok;
+}
+bool editor_object_catalog_write(FILE *header, FILE *source, const EditorProject *project) {
+    return catalog_write(header, source, project, false);
+}
+bool editor_project_catalog_write(FILE *header, FILE *source, const EditorProject *project) {
+    fputs("/* Generated by Rohr Engine.\n"
+        " * This generated file is not covered by Rohr Engine's LGPL-3.0-only license.\n"
+        " * The project's developer may use, modify, and distribute it without restriction.\n"
+        " */\n#ifndef ROHR_GENERATED_PROJECT_H\n#define ROHR_GENERATED_PROJECT_H\n"
+        "#include \"project_objects.h\"\n", header);
+    fputs("\n#include \"project.h\"\n", source);
+    bool ok = catalog_write(header,source,project,true);
+    fputs("#endif\n",header);
+    return ok && !ferror(header) && !ferror(source);
+}
+
+static void color_write(FILE *f, uint32_t color) {
+    fprintf(f,"{%u,%u,%u,%u}",color>>24,(color>>16)&255,(color>>8)&255,color&255);
+}
+static bool layer_write(FILE *f, const EditorProject *p, EditorGraphicsLayerId id) {
+    if(!id) return true;
+    for(size_t i=0;i<p->graphics_layer_count;++i) if(p->graphics_layers[i].id==id) {
+        fputs(",.layer_name=",f); string_write(f,p->graphics_layers[i].name); return true;
+    }
+    return false;
+}
+static void placement_write(FILE *f, ViewportItemDescription v) {
+    fprintf(f,".placement={.rectangle={%.9ef,%.9ef,%.9ef,%.9ef},.fit=%u,.orientation=%.9ef,"
+        ".content_offset={%.9ef,%.9ef},.content_scale={%.9ef,%.9ef},.content_orientation=%.9ef,"
+        ".layer=%d,.visible=%u,.drag_mode=%u,.clip_enabled=%u,.clip_rectangle={%.9ef,%.9ef,%.9ef,%.9ef}}",
+        (double)v.rectangle.x,(double)v.rectangle.y,(double)v.rectangle.width,(double)v.rectangle.height,
+        v.fit,(double)v.orientation,(double)v.content_offset.x,(double)v.content_offset.y,
+        (double)v.content_scale.x,(double)v.content_scale.y,(double)v.content_orientation,
+        v.layer,v.visible,v.drag_mode,v.clip_enabled,(double)v.clip_rectangle.x,(double)v.clip_rectangle.y,
+        (double)v.clip_rectangle.width,(double)v.clip_rectangle.height);
+}
+static void text_layout_write(FILE *f, const EditorViewportUiText *t, bool standalone) {
+    fprintf(f,"{.position={%.9ef,%.9ef},.offset={%.9ef,%.9ef},.scale={%.9ef,%.9ef},.orientation=%.9ef}",
+        standalone ? (double)t->box_width*.5 : 0, standalone ? (double)t->box_height*.5 : 0,
+        (double)t->offset.x,(double)t->offset.y,(double)t->width_scale*2,(double)t->height_scale*2,(double)t->rotation);
+}
+static bool ui_recipe_write(FILE *f, const EditorProject *p, const EditorViewportUiItem *item) {
+    const EditorViewportUiDefinition *d=editor_project_ui_definition_get((EditorProject *)p,item->definition);
+    if(!d) return false;
+    fprintf(f,"{.name="); string_write(f,item->name);
+    fprintf(f,",.kind=%s,",d->kind==EDITOR_VIEWPORT_UI_SHAPE ? "VIEWPORT_CREATE_SHAPE" :
+        d->kind==EDITOR_VIEWPORT_UI_TEXT ? "VIEWPORT_CREATE_TEXT" : "VIEWPORT_CREATE_SLIDER");
+    ViewportItemDescription placement=graphics_viewport_item_description_default_get();
+    placement.fit=SCREEN_FIT_NONE;
+    placement.rectangle=(ViewportRectangle){item->position.x,item->position.y,0,0};
+    placement.content_scale=item->scale; placement.orientation=item->rotation;
+    placement.layer=item->layer; placement.visible=!item->app_hidden; placement.drag_mode=item->drag_mode;
+    placement.clip_enabled=item->clip_enabled; placement.clip_rectangle=item->clip_rectangle;
+    placement_write(f,placement);
+    if(!layer_write(f,p,item->graphics_layer)) return false;
+    const EditorViewportUiText *t=d->kind==EDITOR_VIEWPORT_UI_SHAPE ? &d->value.shape.text :
+        d->kind==EDITOR_VIEWPORT_UI_TEXT ? &d->value.text : NULL;
+    if(t && t->text[0]) {
+        fputs(",.text_value=",f); string_write(f,t->text);
+        fputs(",.text_color=",f); color_write(f,t->color);
+        fprintf(f,",.text_wrap_width=%d",t->wrap_width);
+        if(t->font) {
+            const EditorUiFont *font=NULL;
+            for(size_t i=0;i<p->ui_font_count;++i) if(p->ui_fonts[i].id==t->font) font=&p->ui_fonts[i];
+            if(!font) return false;
+            fputs(",.font={.file=",f); string_write(f,font->path);
+            fprintf(f,",.point_size=%.9ef}",(double)font->point_size);
+        }
+    }
+    if(d->kind==EDITOR_VIEWPORT_UI_SHAPE) {
+        const EditorViewportUiShape *s=&d->value.shape;
+        fprintf(f,",.shape={.shape={.amount_of_vertices=%zu,.vertices={",s->vertex_count);
+        for(size_t i=0;i<s->vertex_count;++i)
+            fprintf(f,"%s{%.9ef,%.9ef}",i?",":"",(double)s->vertices[i].x,(double)s->vertices[i].y);
+        fprintf(f,"}},.orientation=%.9ef,.button_enabled=%u,.border_enabled=%u,.border_type=%u,"
+            ".border_thickness=%.9ef,.border_hash_spacing=%.9ef,.border_corner_radius=%.9ef",
+            (double)s->rotation,s->button_enabled,d->border_enabled,d->border_type,
+            (double)d->border_thickness,(double)d->border_hash_spacing,(double)d->border_corner_radius);
+#define COLOR(field) fputs(",." #field "=",f); color_write(f,d->field)
+        COLOR(border_color); COLOR(fill_color); COLOR(hover_border_color); COLOR(hover_fill_color);
+        COLOR(click_border_color); COLOR(click_fill_color);
+#undef COLOR
+        fputs(",.text=",f); text_layout_write(f,t,false); fputc('}',f);
+    } else if(d->kind==EDITOR_VIEWPORT_UI_TEXT) {
+        fputs(",.text=",f); text_layout_write(f,t,true);
+    } else {
+        const EditorViewportUiSlider *s=&d->value.slider;
+        fputs(",.slider={",f);
+#define FLOAT(field) fprintf(f,"." #field "=%.9ef,",(double)s->field)
+        FLOAT(minimum); FLOAT(maximum); FLOAT(value); FLOAT(step); FLOAT(length); FLOAT(track_thickness);
+        FLOAT(thumb_width); FLOAT(thumb_height); FLOAT(thumb_radius); FLOAT(thumb_offset);
+#undef FLOAT
+        fprintf(f,".thumb_shape=%u,.enabled=%u",s->thumb_shape,s->enabled);
+#define COLOR(field) fputs(",." #field "=",f); color_write(f,s->field)
+        COLOR(track_color); COLOR(filled_track_color); COLOR(thumb_color); COLOR(hover_thumb_color); COLOR(pressed_thumb_color);
+#undef COLOR
+        fputc('}',f);
+    }
+    fputs("},\n",f); return true;
+}
+static bool viewport_arrays_write(FILE *f, const Catalog *c) {
+    const EditorProject *p=c->project;
+    if(p->layout_viewport_count) {
+        fputs("static const ViewportCreateDescription *const project_viewports[] = {", f);
+        for(size_t i=0;i<p->layout_viewport_count;++i) {
+            char name[EDITOR_OBJECT_NAME_MAX];
+            editor_project_property_name_format(name, sizeof(name), p->layout_viewports[i].name);
+            fprintf(f, "%s&project.%s", i ? "," : "", name);
+        }
+        fputs("};\n", f);
+    }
+    if(p->graphics_layer_count && p->layout_viewport_count) {
+        fputs("static const LayerDescription project_layers[] = {\n",f);
+        for(size_t i=0;i<p->graphics_layer_count;++i) {
+            fputs("{.name=",f); string_write(f,p->graphics_layers[i].name);
+            fprintf(f,",.value=%d},\n",p->graphics_layers[i].value);
+        }
+        fputs("};\n",f);
+    }
+    for(size_t v=0;v<p->layout_viewport_count;++v) {
+        const EditorLayoutViewport *view=&p->layout_viewports[v];
+        if(!view->camera_item_count && !view->ui_item_count) continue;
+        fprintf(f,"static const ViewportCreateItemDescription project_viewport_%zu_items[] = {\n",v);
+        for(size_t i=0;i<view->camera_item_count;++i) {
+            const EditorViewportCameraItem *item=&view->camera_items[i];
+            const EditorObject *object=NULL; const EditorCamera *camera=NULL;
+            for(size_t o=0;o<p->object_count;++o) if(p->objects[o].id==item->object) object=&p->objects[o];
+            if(object) camera=editor_project_camera_get((EditorObject *)object,item->camera);
+            if(!object || !camera) return false;
+            char object_name[EDITOR_OBJECT_NAME_MAX], camera_name[EDITOR_OBJECT_NAME_MAX];
+            editor_project_property_name_format(object_name,sizeof(object_name),object->name);
+            editor_project_property_name_format(camera_name,sizeof(camera_name),camera->name);
+            fputs("{.name=",f); string_write(f,item->name);
+            fprintf(f,",.kind=VIEWPORT_CREATE_SCREEN,.camera_object=&project.%s._description,"
+                ".camera_member=&project.%s.%s._description,.render_width=%d,.render_height=%d,.background_color=",
+                object_name,object_name,camera_name,item->render_size_explicit ? item->render_width : (int)camera->dimensions.x,
+                item->render_size_explicit ? item->render_height : (int)camera->dimensions.y);
+            color_write(f,item->background_color); fputc(',',f);
+            ViewportItemDescription placement=item->placement;
+            placement.content_offset=item->content_offset; placement.content_scale=item->content_scale;
+            placement.content_orientation=item->content_rotation; placement.visible=!item->app_hidden;
+            placement_write(f,placement);
+            if(!layer_write(f,p,item->graphics_layer)) return false;
+            fputs("},\n",f);
+        }
+        for(size_t i=0;i<view->ui_item_count;++i) if(!ui_recipe_write(f,p,&view->ui_items[i])) return false;
+        fputs("};\n",f);
+    }
+    return !ferror(f);
+}
+static void viewport_values_write(FILE *f, const EditorProject *p) {
+    if(p->layout_viewport_count) fprintf(f, ",.viewports=project_viewports,.viewport_count=%zu", p->layout_viewport_count);
+    for(size_t v=0;v<p->layout_viewport_count;++v) {
+        const EditorLayoutViewport *view=&p->layout_viewports[v];
+        char name[EDITOR_OBJECT_NAME_MAX]; editor_project_property_name_format(name,sizeof(name),view->name);
+        fprintf(f,",.%s={.viewport={.rectangle={%.9ef,%.9ef,%.9ef,%.9ef},.fit=%u,.enabled=%u,.background_color=",
+            name,(double)view->config.rectangle.x,(double)view->config.rectangle.y,
+            (double)view->config.rectangle.width,(double)view->config.rectangle.height,view->config.fit,!view->app_hidden);
+        color_write(f,view->background_color); fputc('}',f);
+        size_t count=view->camera_item_count+view->ui_item_count;
+        if(count) fprintf(f,",.items=project_viewport_%zu_items,.item_count=%zu",v,count);
+        if(p->graphics_layer_count) fprintf(f,",.layers=project_layers,.layer_count=%zu",p->graphics_layer_count);
+        fputc('}',f);
+    }
+}
+
+EditorResult editor_project_catalog_validate(const EditorProject *p) {
+    if(!p) return editor_result_error(EDITOR_ERROR_INVALID_ARGUMENT,"Missing project catalog");
+    size_t total=p->object_count+p->layout_viewport_count;
+    for(size_t i=0;i<total;++i) {
+        const char *original=i<p->object_count ? p->objects[i].name : p->layout_viewports[i-p->object_count].name;
+        char name[EDITOR_OBJECT_NAME_MAX]; editor_project_property_name_format(name,sizeof(name),original);
+        if(reserved(name)) return editor_result_error(EDITOR_ERROR_INVALID_ARGUMENT,
+            "Project item '%s' generates reserved description field '%s'",original,name);
+        for(size_t j=0;j<i;++j) {
+            char other[EDITOR_OBJECT_NAME_MAX];
+            editor_project_property_name_format(other,sizeof(other),j<p->object_count ?
+                p->objects[j].name : p->layout_viewports[j-p->object_count].name);
+            if(!strcmp(name,other)) return editor_result_error(EDITOR_ERROR_INVALID_ARGUMENT,
+                "Project item '%s' conflicts with generated field '%s'",original,name);
+        }
+    }
+    for(size_t v=0;v<p->layout_viewport_count;++v) {
+        const EditorLayoutViewport *view=&p->layout_viewports[v];
+        size_t count=view->camera_item_count+view->ui_item_count;
+        if(count>MAX_VIEWPORT_ITEMS) return editor_result_error(EDITOR_ERROR_CAPACITY,
+            "Viewport '%s' exceeds the runtime item capacity",view->name);
+        for(size_t i=0;i<count;++i) {
+            const char *name=i<view->camera_item_count ? view->camera_items[i].name : view->ui_items[i-view->camera_item_count].name;
+            if(!*name || strlen(name)>=ENTITY_NAME_MAX) return editor_result_error(EDITOR_ERROR_INVALID_ARGUMENT,
+                "Viewport '%s' has an empty or oversized item name",view->name);
+            for(size_t j=0;j<i;++j) {
+                const char *other=j<view->camera_item_count ? view->camera_items[j].name : view->ui_items[j-view->camera_item_count].name;
+                if(!strcmp(name,other)) return editor_result_error(EDITOR_ERROR_INVALID_ARGUMENT,
+                    "Viewport '%s' repeats item name '%s'",view->name,name);
+            }
+        }
+    }
+    ObjectDescriptionResult converted = object_description_project_read(p, "");
+    if(error_check(converted)) return editor_result_error(EDITOR_ERROR_INVALID_ARGUMENT,
+        "Cannot convert project descriptions");
+    Catalog *catalog = calloc(1, sizeof(*catalog));
+    bool valid = catalog && collect(catalog, converted.result.value, "project", 0);
+    if(catalog) for(size_t i=0;i<catalog->count;++i) free(catalog->entries[i].path);
+    free(catalog);
+    object_description_tree_destroy((ObjectDescription *)converted.result.value);
+    if(!valid) return editor_result_error(EDITOR_ERROR_INVALID_ARGUMENT,
+        "Project descriptions contain invalid or conflicting generated member names");
+    return editor_result_value(true);
 }
