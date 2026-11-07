@@ -13,18 +13,28 @@ priority order.
 | 2 | Asset and resource ownership | Complete |
 | 3 | COM, inertia, and origin semantics | Complete |
 | 4 | Cross-path feature parity | Complete by user acceptance; recorded verification exceptions remain |
-| 13 | Physics rebuild from the simpler baseline | Goals 1, 2a, 2b and 4a (collision comparison) complete; goals 2 and 3 failed; goal 4 blocking remains incomplete; goals 5–8 not started |
+| 14 | Frame pacing before game development | Complete; corrected pacing verified and initial previews accepted |
+| — | [C game experiment](#c-game-experiment) | Next: agree concept and completion criteria with the user |
+| 13 | Physics rebuild from the simpler baseline | Paused by user direction for frame pacing and game development; goals 1, 2a, 2b and 4a complete; goals 2 and 3 failed; goal 4 blocking remains incomplete; goals 5–8 not started |
 | 12 | Real-time physics pipeline rework | Closed by user direction; superseded by milestone 13, not complete; goals 1–13 complete, goal 14 unfinished, goals 15–19 not started; evidence preserved |
 | 11 | Soft-body correctness and real-time performance | Superseded by milestone 12; not complete; evidence preserved |
 | 6 | Physics robustness | Goals 1–4 accepted; goal 5 failed verification |
-| — | [C game experiment](#c-game-experiment) | Pending; agree concept and completion criteria when starting |
 | 8 | Runtime isolation (global-state assumptions) | Foundations implemented; two independent worlds pending |
 | 5 | Adversarial testing and hardening | Substantial coverage implemented; follows runtime isolation |
 | 9 | Python bindings | Pending; bind the stabilized runtime API after isolation and hardening |
 | 7 | Editor implementation scalability | Deferred until after Python unless game development makes it necessary sooner |
 | 10 | End-to-end game | Pending; separate larger game directed by the user |
 
-**Current priority:** Milestone 13 Goal 4a's bounded collision comparison is
+**Current priority:** Milestone 14 Goal 1 is complete. Corrected car/pit runs
+achieve about 60.06/60.05 FPS without accumulating pacing lag; Linux/sanitizer
+checks, Windows cross-builds and VSync/window-switch checks pass. The user
+accepted the initial corrected previews. See the [report](docs/frame_pacing.md).
+Stop for review and commit; next agree the small C game's concept and criteria.
+The user explicitly paused further physics development
+to learn from a playable game. Preserve the current physics defaults, unfinished
+requirements and known failures; do not resume physics automatically.
+
+**Latest physics result:** Milestone 13 Goal 4a's bounded collision comparison is
 **complete; both prototypes are rejected for adoption**. Sweeps pass 14/18 focused
 cases versus 4/18 for control and prediction, but correction/rotation failures,
 worse car deformation and added pit/flies CPU prevent adoption. Current engine
@@ -588,6 +598,33 @@ contracts, and generated examples when a goal changes supported behavior.
     see the corrective issue mapping. Goal 5 is now complete by user acceptance
     with the recorded verification exceptions above.
 
+### 14. Frame pacing before game development
+
+Resolve the presentation-pacing defect before starting the small C game. Include
+presentation cost in the software frame budget, preserve VSync ownership, and
+recover from missed frames without accumulated catch-up bursts. Keep physics
+settings and simulation behavior unchanged; distinguish scheduler stalls and
+over-budget work from unnecessary limiter waits.
+
+1. [x] **Fix and verify frame pacing.** Reproduce the old timing defect, correct
+   the interval boundary, and test slow presentation, missed frames, mode/limit
+   changes, reporting and restart. Measure a lightweight moving scene and unchanged
+   car/pit workloads with controlled before/after runs. Verify VSync and window
+   switching, relevant Linux/sanitizer checks, Windows cross-builds and standalone
+   SDK consumers. Obtain visual feedback. Stop for review and commit; the next
+   checkpoint is agreeing the C game's concept, not more physics optimization.
+   **Result: complete.** Software limiting now includes presentation in its frame
+   budget; late frames start a fresh interval without catch-up bursts. Three
+   complete runs per workload/version improve car from 59.029–59.124 to
+   60.061–60.064 FPS and pit from 58.973–58.992 to 60.046–60.047 FPS, with unchanged
+   physics work counts. The lightweight scene, VSync, deliberate stall, focus
+   switching, and mode changes are verified; transient VSync-switch irregularity
+   is documented. Four Linux and four sanitizer checks pass, plus the sanitized
+   standalone stall workload. Windows targets and SDK consumers cross-build;
+   native Windows timing is unverified. The user accepted the initial previews.
+   The ten-second car remains a diagnostic, not full physics acceptance. See
+   [the report](docs/frame_pacing.md) and `sandbox/frame_pacing/`.
+
 ### 13. Physics rebuild from the simpler baseline
 
 Rebuild physics outward from the simpler `a8a7940a` execution model **inside the
@@ -599,7 +636,8 @@ Preserve current public APIs, editor/project integration, ownership, entity
 lifetimes, reporting and independently runnable pipeline contracts. This is a
 physics rebuild, not a reset of the repository to the historical engine.
 
-**Status: highest unfinished priority; Goal 1 complete; Goal 2's compact solver
+**Status: paused by user direction for frame pacing and game development;
+Goal 1 complete; Goal 2's compact solver
 attempt failed the tighter and rendered performance gates, with a verified
 scalar improvement promoted by user direction in completed Goal 2a. Goal 2b's
 standalone flies conversion is complete with user behavior acceptance. Goal 3 failed behavior review;
@@ -2177,8 +2215,10 @@ collision semantics.
 
 ### C game experiment
 
-Build a small, playful game in C after physics robustness to discover practical
-engine needs before runtime isolation. This intermediate checkpoint is separate
+Build a small, playful game in C after the frame-pacing fix to discover practical
+engine needs before runtime isolation. By user direction, further physics work
+is paused with its known failures preserved; robust general physics is no longer
+a prerequisite for this checkpoint. This intermediate checkpoint is separate
 from the larger end-to-end game in milestone 10. Agree its concept, scope, and
 completion criteria with the user when starting; do not choose them implicitly
 in this planning update.

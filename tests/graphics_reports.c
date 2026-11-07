@@ -19,6 +19,24 @@ static unsigned callbacks;
 static bool recursive, bad_submission;
 
 #ifdef ROHR_TEST_GRAPHICS_WRAP
+static bool pacing_clock, pacing_vsync_failure;
+static Uint64 pacing_now, pacing_present_cost, pacing_present_start;
+static Uint64 pacing_wait, pacing_oversleep;
+Uint64 __real_SDL_GetTicksNS(void);
+Uint64 __wrap_SDL_GetTicksNS(void) {
+    return pacing_clock ? pacing_now : __real_SDL_GetTicksNS();
+}
+void __real_SDL_DelayPrecise(Uint64);
+void __wrap_SDL_DelayPrecise(Uint64 duration) {
+    if(!pacing_clock) { __real_SDL_DelayPrecise(duration); return; }
+    pacing_wait += duration;
+    pacing_now += duration + pacing_oversleep;
+}
+bool __real_SDL_SetRenderVSync(SDL_Renderer *, int);
+bool __wrap_SDL_SetRenderVSync(SDL_Renderer *renderer, int interval) {
+    if(pacing_clock) return pacing_vsync_failure ? SDL_SetError("injected vsync failure") : true;
+    return __real_SDL_SetRenderVSync(renderer, interval);
+}
 static bool trace_missing;
 static unsigned missing_quads, missing_lines, missing_textures;
 bool __real_SDL_RenderGeometry(SDL_Renderer *, SDL_Texture *, const SDL_Vertex *, int, const int *, int);
@@ -117,7 +135,12 @@ bool __wrap_SDL_SetRenderTarget(SDL_Renderer *r, SDL_Texture *t) {
 bool __real_SDL_RenderPresent(SDL_Renderer *);
 bool __wrap_SDL_RenderPresent(SDL_Renderer *r) {
     presents++;
+    if(pacing_clock) {
+        pacing_present_start = pacing_now;
+        pacing_now += pacing_present_cost;
+    }
     if(fail_present) { fail_present=false; return SDL_SetError("injected present failure"); }
+    if(pacing_clock) return true;
     return __real_SDL_RenderPresent(r);
 }
 SDL_Surface *__real_SDL_RenderReadPixels(SDL_Renderer *, const SDL_Rect *);
@@ -231,6 +254,85 @@ static void render(CameraId camera,void *context) {
     if(bad_submission) rohr_graphics_screen_texture_draw((TextureAsset){.handle=123,.size={1,1}},
         (Position){0},(Scale){2,2},0);
 }
+
+#ifdef ROHR_TEST_GRAPHICS_WRAP
+static void pacing_checks(void) {
+    /* A simulated backend makes scheduling assertions independent of OS jitter.
+     * Include presentation cost, missed frames, focus-sized stalls and resets. */
+    const Uint64 period = UINT64_C(1000000000) / 60;
+    pacing_clock = true;
+    pacing_now = UINT64_C(1000000000);
+    pacing_present_cost = UINT64_C(2000000);
+    OK(rohr_graphics_vsync_set(false));
+    OK(rohr_graphics_frame_limit_set(60));
+    Uint64 origin = pacing_now;
+    for(unsigned i = 1; i <= 120; ++i) {
+        pacing_now += UINT64_C(4000000); /* Caller work. */
+        pacing_wait = 0;
+        Report r = i % 2 ? graphics_pipeline_present() : rohr_graphics_show();
+        complete(r);
+        assert(pacing_present_start == origin + i * period);
+        assert(pacing_wait == period - UINT64_C(4000000) - (i > 1 ? pacing_present_cost : 0));
+        assert(metric(&r, ROHR_GRAPHICS_PRESENTATION_REPORT_ID,
+            ROHR_REPORT_FRAME_LIMIT_WAIT_NS) == pacing_wait);
+    }
+    pacing_now += UINT64_C(500000000); /* Window switching / long work. */
+    pacing_wait = 0;
+    complete(rohr_graphics_pipeline_present());
+    assert(pacing_wait == 0);
+    Uint64 late = pacing_present_start;
+    complete(graphics_pipeline_present());
+    assert(pacing_present_start == late + period); /* No catch-up burst. */
+    pacing_present_cost = 2 * period;
+    complete(graphics_pipeline_present());
+    pacing_wait = 0;
+    late = pacing_now;
+    complete(graphics_pipeline_present());
+    assert(pacing_wait == 0 && pacing_present_start == late);
+    pacing_present_cost = UINT64_C(2000000);
+    complete(graphics_pipeline_present());
+    pacing_oversleep = UINT64_C(100000);
+    pacing_wait = 0;
+    Report r = graphics_pipeline_present();
+    complete(r);
+    assert(metric(&r, ROHR_GRAPHICS_PRESENTATION_REPORT_ID,
+        ROHR_REPORT_FRAME_LIMIT_WAIT_NS) == pacing_wait + pacing_oversleep);
+    pacing_oversleep = 0;
+    late = pacing_present_start;
+    fail_present = true;
+    r = graphics_pipeline_present();
+    assert(r.header.status == ROHR_REPORT_FAILED);
+    assert(pacing_present_start == late + period);
+    complete(graphics_pipeline_present());
+    assert(pacing_present_start == late + 2 * period);
+
+    OK(rohr_graphics_vsync_set(true));
+    pacing_wait = 0;
+    complete(graphics_pipeline_present());
+    assert(pacing_wait == 0); /* VSync owns waiting. */
+    pacing_vsync_failure = true;
+    assert(rohr_error_check(rohr_graphics_vsync_set(false)));
+    complete(graphics_pipeline_present());
+    assert(pacing_wait == 0); /* Failed setting keeps the old policy. */
+    pacing_vsync_failure = false;
+    OK(rohr_graphics_vsync_set(false));
+    origin = pacing_now;
+    complete(graphics_pipeline_present());
+    assert(pacing_present_start == origin + period);
+    OK(rohr_graphics_frame_limit_set(30));
+    origin = pacing_now;
+    assert(rohr_error_check(rohr_graphics_frame_limit_set(-1)));
+    complete(graphics_pipeline_present());
+    assert(pacing_present_start == origin + UINT64_C(1000000000) / 30);
+    OK(rohr_graphics_frame_limit_set(0));
+    origin = pacing_now;
+    complete(graphics_pipeline_present());
+    assert(pacing_present_start == origin + UINT64_C(1000000000) / 120);
+    pacing_clock = false;
+    OK(rohr_graphics_vsync_set(false));
+    OK(rohr_graphics_frame_limit_set(1000));
+}
+#endif
 
 static void reports_and_boundaries(void) {
     Report r=rohr_graphics_show();
@@ -604,6 +706,9 @@ int main(int argc, char **argv) {
     assert(r.header.status==ROHR_REPORT_FAILED && rohr_report_valid_check(&r));
     OK(rohr_engine_start()); OK(rohr_graphics_start());
     OK(rohr_graphics_vsync_set(false)); OK(rohr_graphics_frame_limit_set(1000));
+#ifdef ROHR_TEST_GRAPHICS_WRAP
+    pacing_checks();
+#endif
     if(argc == 2 && !strcmp(argv[1], "--missing-camera-demo")) {
         missing_camera_checks(true); rohr_graphics_stop(); rohr_engine_stop(); return 0;
     }
@@ -628,6 +733,9 @@ int main(int argc, char **argv) {
     image_target_lifetime();
     assert(!graphics_screen_shape_filled_draw((Shape){0},white));
     rohr_graphics_stop(); OK(rohr_graphics_start());
+#ifdef ROHR_TEST_GRAPHICS_WRAP
+    pacing_checks(); /* Restart must not retain the prior pacing clock. */
+#endif
     r=rohr_graphics_pipeline_commands_execute(); complete(r); assert(r.diagnostic_count==0);
     rohr_graphics_stop(); rohr_engine_stop();
     return 0;

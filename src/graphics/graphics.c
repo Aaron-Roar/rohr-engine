@@ -4584,9 +4584,13 @@ Report graphics_pipeline_present(void) {
             graphics_report_count(&report, ROHR_REPORT_FRAME_LIMIT_WAIT_NS, SDL_GetTicksNS() - now);
         }
     }
+    /* Include presentation in the next frame's budget. Starting the interval
+     * after RenderPresent adds its cost on top of every capped frame. Use the
+     * actual start (also after a late frame), so stalls never create catch-up
+     * bursts. VSync continues to own pacing when enabled. */
+    graphics_frame_start_ns = SDL_GetTicksNS();
     if(GRAPHICS_STATE(SDL_RenderPresent(sdl_renderer))) context.processed++;
     else context.skipped++;
-    graphics_frame_start_ns = SDL_GetTicksNS();
     graphics_pipeline_end(&context, start);
     report_publish_internal(&report);
     return report;

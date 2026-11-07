@@ -1869,11 +1869,16 @@ Report rohr_graphics_pipeline_commands_execute(void);
 Report rohr_graphics_pipeline_viewports_draw(void);
 /** Capture the composed frame; inactive recording returns NOT_RUN. */
 Report rohr_graphics_pipeline_recording_update(void);
-/** Apply frame limiting and present the composed frame. */
+/** Apply frame limiting and present the composed frame. Software limiting spaces
+ * presentation starts, including prior presentation time in the frame budget.
+ * Late frames present immediately without accumulating catch-up work.
+ */
 Report rohr_graphics_pipeline_present(void);
-/** Enables or disables synchronization with the display refresh rate. */
+/** VSync owns pacing when enabled; a failed change preserves the current mode. */
 EngineResult rohr_graphics_vsync_set(bool enabled);
-/** Sets the non-VSync frame limit; zero uses the 120 FPS fallback. */
+/** Software limit used with VSync off. Zero selects the 120 FPS fallback;
+ * negative values are rejected. Changing the limit resets the pacing interval.
+ */
 EngineResult rohr_graphics_frame_limit_set(int frames_per_second);
 
 /**

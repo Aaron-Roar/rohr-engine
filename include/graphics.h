@@ -652,9 +652,16 @@ Report graphics_pipeline_commands_execute(void);
 Report graphics_pipeline_viewports_draw(void);
 /** Capture the composed frame; inactive recording returns NOT_RUN. */
 Report graphics_pipeline_recording_update(void);
-/** Apply frame limiting and present the composed frame. */
+/** Apply frame limiting and present the composed frame. Software limiting spaces
+ * presentation starts, including prior presentation time in the frame budget.
+ * Late frames present immediately without accumulating catch-up work.
+ */
 Report graphics_pipeline_present(void);
+/** VSync owns pacing when enabled; a failed change preserves the current mode. */
 EngineResult graphics_vsync_set(bool enabled);
+/** Software limit used with VSync off. Zero selects the 120 FPS fallback;
+ * negative values are rejected. Changing the limit resets the pacing interval.
+ */
 EngineResult graphics_frame_limit_set(int frames_per_second);
 
 /** Draw one entity hitbox. */
