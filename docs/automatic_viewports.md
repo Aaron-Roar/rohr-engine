@@ -5,7 +5,7 @@ rendering. Unified `project.h` generation is described in
 [shared creation](shared_creation.md#unified-generated-project). By user direction,
 Goal 4 also removes generated legacy viewport support and migrates starters and
 simulation scenes. Customized entry points need the documented manual migration;
-bundled example migration remains Goal 5.
+Goal 5 migrates every graphical bundled example to automatic rendering.
 See the [contract](creation_and_viewport_contract.md) for the full milestone and
 [shared creation](shared_creation.md) for entity/object creation.
 
@@ -89,6 +89,18 @@ item layers screens precede UI. Later-created scene entities need no registratio
 with the viewport. The test's `--preview` mode demonstrates two screens and a
 runtime-added Toggle button controlling entity visibility.
 
+Automatic scenes also honor the global AABB/contact debug toggles. Optional
+`rohr_graphics_hit_boxes_debug_set`, `rohr_graphics_particles_debug_set`, and
+`rohr_graphics_local_origins_debug_set` enable the corresponding diagnostic
+overlays without a callback; matching `_check` functions query them. They default
+to false on graphics startup. These overlays draw above ordinary scene content
+at layer 100 and retain their diagnostic eligibility rules. They do not change
+physics or authored appearance. The fly examples use them for their timed
+debug phases.
+
+The [bundled game workflow](../examples/reusable_instances.md) shows shared
+creation, explicit instance binding, a frame loop, runtime UI and SDK setup.
+
 ## Ownership and compatibility
 
 - Creation borrows input arrays, strings and descriptions only for the call. It
@@ -149,6 +161,19 @@ Goal 3 evidence is kept in ignored `sandbox/milestone_15/goal_3/`:
   and 108,585 contacts. This is neither a complete 60-second physics run nor a
   rendered performance acceptance result. Existing joints/forces failures remain
   in the Goal 2 inventory.
+
+Goal 5 migrates all twelve graphical examples and leaves the serialization
+example headless. Eleven focused checks pass in both Release and ASan/UBSan.
+All thirteen examples build as independent installed-SDK consumers on Linux
+and for Windows; Linux Release and sanitizer launches from outside the source
+tree pass, and the user accepted the graphical previews. Regeneration reproduces
+the three authored catalogs without changing customized main/CMake files. The
+car's short diagnostic retains the counts above. Evidence and scripts are under
+`sandbox/milestone_15/goal_5/`; disposable consumer builds can be recreated.
+Disk-full build/install attempts were rerun after temporary build cleanup.
+Pong's unchanged component generator emits one unused-helper warning under the
+extra warning flags; no new warnings or sanitizer findings remain. Native
+Windows execution is still unverified.
 
 Discovery adds no allocation and scans live entities once per redrawn automatic
 screen; drawing retains existing command/resource costs. Creation allocates render

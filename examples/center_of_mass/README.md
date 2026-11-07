@@ -23,7 +23,9 @@ edits rotate around the origin; simulated rotation rotates around COM.
 
 All static geometry, mass, COM, anchors, initial motion, camera, and viewport
 data are in `objects/project.rohr.json`. The generated modules apply them.
-Developer-owned `src/main.c` runs the loop and draws markers from runtime queries.
+Developer-owned `src/main.c` creates the object and viewport through `project.h`,
+runs the loop, and positions persistent viewport UI markers from runtime queries.
+Automatic rendering draws the bodies from their retained appearance.
 
 From the repository root:
 
@@ -38,10 +40,10 @@ build/example-build/center_of_mass/center_of_mass
 
 The standalone build needs the adjacent shared example CMake helper, as do
 the other bundled examples. It has no source-relative runtime asset dependency.
-The root `examples` target and `./dev.sh build` also include this example.
+The root `examples` target and `./dev build` also include this example.
 
 CTest `center_of_mass_example` loads and round-trips this project, compares all
-four regenerated modules with the checked-in files, and checks editor inertia
+three regenerated files with the checked-in files, and checks editor inertia
 against analytic values. It compares generated and direct-runtime simulation,
 anchor motion, invalid geometry rollback, teleports, and fixed-origin orientation
 edits. Runtime JSON save/reload is also demonstrated by the `game-state` example.

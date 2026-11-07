@@ -20,20 +20,6 @@ const float camera_turn_speed = 90.0f;
     fprintf(stderr, "error %d: %s\n", (int)(engine_result).result.error, \
         rohr_error_message_get(engine_result))
 
-static void render_scene(CameraId camera, void *context) {
-    (void)camera;
-    (void)context;
-    rohr_graphics_layer_active_set(-100);
-    rohr_graphics_background_draw(background_color);
-    rohr_graphics_layer_active_set(0);
-    rohr_graphics_sprite_frames_update(rohr_engine_tick_get(), rohr_engine_time_get());
-    rohr_graphics_animated_sprites_draw();
-    rohr_graphics_layer_active_set(100);
-    rohr_graphics_aabb_tree_draw();
-    rohr_graphics_contacts_draw();
-    rohr_graphics_layer_active_set(0);
-}
-
 int main(void) {
     if(rohr_error_check(rohr_directory_working_set(
             rohr_directory_base_get()))) return 1;
@@ -140,7 +126,7 @@ int main(void) {
     }
     rohr_graphics_animated_sprite_add(water_smash, sprite_elderfly);
     (void)rohr_graphics_animation_release(&animation_elderfly);
-    if(!example_viewport_create(render_scene, NULL, &viewport)) goto fail;
+    if(!example_viewport_create(rohr_camera_active_get(), background_color, &viewport)) goto fail;
     rohr_graphics_aabb_tree_debug_set(broadphase_debug);
     rohr_graphics_contacts_debug_set(broadphase_debug);
 
@@ -155,7 +141,8 @@ int main(void) {
         Time tick_time = rohr_engine_time_per_tick_get() * (Time)ticks_advanced;
         if(((rohr_physics_update(ticks_advanced)).header.status == ROHR_REPORT_FAILED)) goto fail;
 
-        rohr_graphics_show();
+        rohr_graphics_sprite_frames_update(rohr_engine_tick_get(), rohr_engine_time_get());
+        if(rohr_graphics_viewport_show(viewport).header.status == ROHR_REPORT_FAILED) goto fail;
 
         SDL_Event sdl_event;
         bool exit_requested = false;

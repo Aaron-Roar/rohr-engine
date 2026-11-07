@@ -3,7 +3,7 @@
  * This file is not covered by Rohr Engine's LGPL-3.0-only license.
  */
 
-#include "project_viewports.h"
+#include "project.h"
 
 #include <math.h>
 
@@ -68,14 +68,25 @@ static bool player_speed_limit_apply(Entity player) {
 }
 
 int main(void) {
-    ProjectObjects objects = {0};
-    ProjectViewports viewports = {0};
+    Entity root = ENTITY_INVALID, player = ENTITY_INVALID;
+    ProjectControllers controllers = {0};
+    ViewportId viewport = VIEWPORT_INVALID;
     bool jump_queued = false;
 
     if(!ok(rohr_directory_working_set(rohr_directory_base_get()))) return 1;
     if(!ok(rohr_engine_start()) || !ok(rohr_graphics_start())) goto fail;
-    if(!ok(project_objects_create_all(&objects)) ||
-            !ok(project_viewports_create(&viewports, &objects))) goto fail;
+    if(!ok(project_settings_apply()) || !ok(project_controllers_create(&controllers))) goto fail;
+    EntityResult created = rohr_object_create(&project.player_world);
+    if(rohr_error_check(created)) goto fail;
+    root = created.result.value;
+    EntityResult member = rohr_object_member_get(root, project.player_world.player.name);
+    if(rohr_error_check(member)) goto fail;
+    player = member.result.value;
+    ViewportObjectBinding binding = {&project.player_world._description,root};
+    ViewportCreateDescription description = {.template=&project.game_viewport,.objects=&binding,.object_count=1};
+    ViewportIdResult view = rohr_viewport_create(&description);
+    if(rohr_error_check(view)) goto fail;
+    viewport = view.result.value;
 
     while(true) {
         SDL_Event event;
@@ -90,45 +101,45 @@ int main(void) {
         if(rohr_input_key_pressed_check(SDL_SCANCODE_ESCAPE)) break;
 
         if(rohr_input_action_button_pressed_check(
-                objects.controllers.action_player_jump_2) &&
-                player_grounded_check(objects.player_world.player))
+                controllers.action_player_jump_2) &&
+                player_grounded_check(player))
             jump_queued = true;
 
         if(rohr_engine_update().header.status == ROHR_REPORT_FAILED) goto fail;
         ticks_advanced = rohr_engine_tick_delta_get();
         if(ticks_advanced > 0) {
             move = rohr_input_action_axis_1d_get(
-                objects.controllers.action_player_move_1);
+                controllers.action_player_move_1);
             move_axis = rohr_error_check(move) ? 0.0f : move.result.value;
-            if(!player_velocity_get(objects.player_world.player, &velocity))
+            if(!player_velocity_get(player, &velocity))
                 goto fail;
             if(move_axis != 0.0f &&
                     ((move_axis < 0.0f &&
                         velocity.x > -player_horizontal_speed_maximum) ||
                      (move_axis > 0.0f &&
                         velocity.x < player_horizontal_speed_maximum)) &&
-                    !ok(rohr_physics_force_apply(force_vector_description(objects.player_world.player, (Force){move_axis * player_move_force, 0.0f})))) goto fail;
-            if(jump_queued && !ok(rohr_physics_force_apply(force_vector_description(objects.player_world.player, (Force){0.0f, player_jump_force})))) goto fail;
+                    !ok(rohr_physics_force_apply(force_vector_description(player, (Force){move_axis * player_move_force, 0.0f})))) goto fail;
+            if(jump_queued && !ok(rohr_physics_force_apply(force_vector_description(player, (Force){0.0f, player_jump_force})))) goto fail;
             jump_queued = false;
         }
 
         if(rohr_physics_update(ticks_advanced).header.status == ROHR_REPORT_FAILED ||
-                !player_speed_limit_apply(objects.player_world.player)) goto fail;
-        rohr_graphics_show();
-        //ReportResult report = rohr_report_get(ROHR_REPORT);
-        //rohr_report_console_write(&report.result.value);
+                !player_speed_limit_apply(player)) goto fail;
+        if(rohr_graphics_viewport_show(viewport).header.status == ROHR_REPORT_FAILED) goto fail;
     }
 
 done:
-    project_viewports_destroy(&viewports);
-    project_objects_destroy_all(&objects);
+    if(viewport) (void)rohr_viewport_destroy(viewport);
+    if(root) (void)rohr_entity_delete(root);
+    project_controllers_destroy(&controllers);
     rohr_graphics_stop();
     rohr_engine_stop();
     return 0;
 fail:
     fprintf(stderr, "Player controller example failed\n");
-    project_viewports_destroy(&viewports);
-    project_objects_destroy_all(&objects);
+    if(viewport) (void)rohr_viewport_destroy(viewport);
+    if(root) (void)rohr_entity_delete(root);
+    project_controllers_destroy(&controllers);
     rohr_graphics_stop();
     rohr_engine_stop();
     return 1;

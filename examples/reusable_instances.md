@@ -1,52 +1,110 @@
-# Reusing editor-authored instances
+# Building a game with authored descriptions
 
-Each object authored in the editor generates a public structure plus create,
-draw, and destroy functions. The generated `project_objects_create_all()`
-function creates the initial scene, but it is not required for later instances.
+Include `src/generated/project.h` and compile `project_objects.c`. The header
+exposes immutable object, member and viewport descriptions. Create mutable
+instances through the engine, update their state, and show a viewport; application
+camera callbacks and per-object draw calls are unnecessary.
 
-For an editor object named `Thing`, game code can create independent instances:
+The [player controller](player_controller/src/main.c) is a small complete game
+loop with authored content and developer-owned movement/jump logic. The
+[soft-body car](soft-body/src/main.c) combines one authored object with terrain
+and particles constructed in C. All graphical examples use automatic viewports;
+`game-state` remains a headless serialization demonstration.
 
-```c
-Thing thing_1 = {0};
-Thing thing_2 = {0};
+## Create, bind, update, show
 
-if(rohr_error_check(thing_create(&thing_1, (Position){100.0f, 100.0f})) ||
-        rohr_error_check(thing_create(&thing_2, (Position){500.0f, 100.0f}))) {
-    thing_destroy(&thing_2);
-    thing_destroy(&thing_1);
-    return 1;
-}
-
-/* This changes only thing_1's authored body. */
-(void)rohr_physics_position_set(thing_1.body, (Position){200.0f, 200.0f});
-
-thing_draw(&thing_1);
-thing_draw(&thing_2);
-
-thing_destroy(&thing_2);
-thing_destroy(&thing_1);
-```
-
-The generated structure holds the entities, joints, anchors, soft-body parts,
-sprites, animations, and cameras belonging to that instance. Internal
-references are rebuilt by each call to `thing_create()`, so the two structures
-do not share mutable component handles.
-
-UI definitions may also be mounted more than once in the editor. Generated
-runtime state stores every mount separately:
+Using the player controller project's generated names, initialization is:
 
 ```c
-ProjectViewports viewports = {0};
+EntityResult created = rohr_object_create(&project.player_world);
+if (rohr_error_check(created)) goto fail;
+Entity world = created.result.value;
 
-if(rohr_error_check(project_viewports_create(&viewports, &objects))) return 1;
+EntityResult member = rohr_object_member_get(world, project.player_world.player.name);
+if (rohr_error_check(member)) goto fail;
+Entity player = member.result.value;
 
-/* Each mount has its own mutable visual resource and placement handle. */
-(void)rohr_graphics_ui_slider_value_set(viewports.ui_elements[0], 75.0f);
-(void)rohr_viewport_item_description_set(viewports.ui_items[0],
-    (ViewportItemDescription){.rectangle = {40.0f, 40.0f, 0.0f, 0.0f},
-        .content_scale = {1.0f, 1.0f}, .visible = true});
+ViewportObjectBinding binding = { &project.player_world._description, world };
+ViewportCreateDescription description = {
+    .template = &project.game_viewport,
+    .objects = &binding,
+    .object_count = 1,
+};
+ViewportIdResult view = rohr_viewport_create(&description);
+if (rohr_error_check(view)) goto fail;
+ViewportId viewport = view.result.value;
 ```
 
-Changing `ui_elements[0]` or `ui_items[0]` does not change another generated
-mount. Fonts and immutable source assets may still be shared; mutable runtime
-UI configuration and placement are instance-owned.
+Start the engine and graphics before this sequence, apply `project_settings_apply()`
+and create any authored input controllers. Track each successful creation for
+cleanup on both failure and normal exit, as the complete example does.
+The binding chooses the camera belonging to this instance. Creating another
+`player_world` yields independent entities, cameras and mutable state. Each
+viewport can bind to the intended instance explicitly.
+
+In each frame, begin/poll input, update game state and the engine clock, advance
+physics using the selected tick settings, update sprite animations when present,
+and call `rohr_graphics_viewport_show(viewport)`. Check each update's report for
+failure. Use `rohr_graphics_viewports_show(ids, count)` to compose several
+viewports and present once per frame. Rendering does not advance physics, audio,
+or animations for you. The example's movement and jump code stays in `main.c`.
+
+The scene is discovered from live appearance, visibility, sprites and soft-body
+visuals. Newly created entities appear without draw-list registration. A raw
+physics hitbox needs explicit appearance to become visible. Named layers retain
+identity independently of their numeric draw order; equal numbers use discovery
+order. Camera layer allowlists/blocklists remain future work.
+
+For a standalone member, use `rohr_entity_create(&project.player_world.player)`.
+Members referring to other entities need their documented creation bindings;
+see [shared creation](../docs/shared_creation.md). Descriptions stay immutable.
+Destroy the viewport before its borrowed camera/object, then delete the object
+root with `rohr_entity_delete(world)`. That deletes its owned members. Destroy
+input controllers and remaining caller-owned resources before engine shutdown.
+
+## Extend an existing viewport
+
+Look up an authored mount with `rohr_viewport_item_by_name_get`. Change its
+placement/visibility through item get/set APIs, or add screens, shapes, text and
+sliders using the viewport APIs. New controls can be added entirely in C.
+Recipe-created resources and UI created by the viewport convenience functions
+are owned by the viewport. Separately created resources mounted by handle remain
+caller-owned; cameras are borrowed. Keep caller-owned text alive until its UI has
+been destroyed. See [automatic viewports](../docs/automatic_viewports.md) for
+binding, shared-screen, and teardown details.
+
+The [audio](audio/src/main.c) and [UI](user-interface/src/main.c) examples create
+persistent controls without a camera. The [extreme-mass diagnostic](extreme_mass_drop/src/main.c)
+uses persistent UI rectangles for its last finite physics observations, preserving
+halted snapshots without creating extra simulated entities.
+
+## Generate and build on Linux
+
+For a standalone game, extract the matching generic Linux SDK into a versioned
+folder outside the game's distribution output, for example
+`~/sdk/rohr/<version>/`. Your game's `dist/` can then hold its runnable output.
+Generate the starter from the editor or SDK CLI. Keep gameplay in the generated
+starter's `src/main.c`; subsequent generation preserves developer-edited entry
+points and build files. Editor-owned files under `src/generated/` are replaceable.
+
+For a bundled example, from this checkout after installing the SDK:
+
+```sh
+cmake -S examples/player_controller -B build/player_game \
+  -DCMAKE_PREFIX_PATH="$HOME/sdk/rohr/<version>"
+cmake --build build/player_game
+./build/player_game/PlayerController
+```
+
+Bundled examples use the adjacent `examples/cmake` helpers; copy the examples
+layout together if building away from this checkout. Generated standalone game
+projects have their own build files. Assets are staged beside each executable,
+and examples switch to that directory on startup, so launching from another
+working directory works.
+
+Regenerate edited authored data with `rohr-cli --project <project-dir> generate-c`
+or the editor, then rebuild against the same SDK version. Legacy generated
+`project_viewports.h/.c` support has been removed. Customized older entry points
+must adopt `project.h` and explicit viewport creation; regeneration deliberately
+does not replace developer gameplay. The [migration guide](../docs/shared_creation.md#unified-generated-project)
+explains that transition.

@@ -26,8 +26,7 @@ else()
 endif()
 
 set(ROHR_GENERATED_SOURCES
-    src/generated/project_objects.c
-    src/generated/project_viewports.c)
+    src/generated/project_objects.c)
 add_executable(player_controller src/main.c ${ROHR_GENERATED_SOURCES})
 set_target_properties(player_controller PROPERTIES OUTPUT_NAME PlayerController)
 if(DEFINED ROHR_EXAMPLE_OUTPUT_DIRECTORY AND

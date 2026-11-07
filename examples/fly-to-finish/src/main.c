@@ -30,14 +30,6 @@ typedef struct ObstacleRecord {
     bool active;
 } ObstacleRecord;
 
-typedef struct RenderContext {
-    Entity player;
-    Entity finish_line;
-    Entity wall_mid;
-    Entity *walls;
-    ObstacleRecord *obstacles;
-} RenderContext;
-
 enum {
     MAX_OBSTACLE_RECORDS = 256
 };
@@ -61,34 +53,6 @@ const Torque player_control_torque = 300000.0f;
 
 const Time spawn_interval_seconds = 0.12;
 const Time player_control_delay_seconds = 2.5f;
-
-static void render_scene(CameraId camera, void *context_value) {
-    RenderContext *context = context_value;
-    (void)camera;
-    rohr_graphics_layer_active_set(-100);
-    rohr_graphics_background_draw(background_color);
-    rohr_graphics_layer_active_set(0);
-    for(size_t i = 0; i < 4; i += 1)
-        rohr_graphics_hit_box_colored_draw(
-            context->walls[i], GRAPHICS_FILLED, wall_color);
-    rohr_graphics_hit_box_colored_draw(context->wall_mid, GRAPHICS_FILLED,
-        context->obstacles[1].color);
-    rohr_graphics_hit_box_colored_draw(context->finish_line, GRAPHICS_FILLED,
-        finish_line_color);
-    rohr_graphics_hit_box_colored_draw(context->player, GRAPHICS_OUTLINE,
-        finish_line_color);
-    for(size_t i = 0; i < MAX_OBSTACLE_RECORDS; i += 1)
-        if(context->obstacles[i].active &&
-                rohr_entity_alive_check(context->obstacles[i].entity))
-            rohr_graphics_hit_box_colored_draw(context->obstacles[i].entity,
-                GRAPHICS_FILLED, context->obstacles[i].color);
-    rohr_graphics_sprite_frames_update(rohr_engine_tick_get(), rohr_engine_time_get());
-    rohr_graphics_animated_sprites_draw();
-    rohr_graphics_layer_active_set(100);
-    rohr_graphics_aabb_tree_draw();
-    rohr_graphics_contacts_draw();
-    rohr_graphics_layer_active_set(0);
-}
 
 static Vec2D player_forward(Orientation orientation) {
     return rohr_math_vector_rotate((Vec2D){0.0f, 1.0f}, orientation);
@@ -152,6 +116,10 @@ static EngineResult spawn_obstacle(ObstacleRecord records[], size_t *next_record
     rohr_physics_friction_set(obstacle, 0.45f);
     rohr_physics_hitbox_set(obstacle, rohr_math_circle_create(size, 8));
     rohr_physics_dynamic_set(obstacle);
+    if(!example_body_appearance_set(obstacle,obstacle_color_for_size(size,speed),(Color){0},0)) {
+        (void)rohr_entity_delete(obstacle);
+        return rohr_error_result_error(ERROR_ENGINE_STATE_INVALID);
+    }
     EngineResult lifetime_result = rohr_entity_lifetime_description_set(obstacle, (EntityLifetimeDescription){
         .expiry_time = rohr_engine_time_get() + 12.0,
         .time_enabled = true
@@ -243,7 +211,6 @@ int main(void) {
     Mass player_mass;
     bool reached_finish = false;
     ViewportId viewport = VIEWPORT_INVALID;
-    RenderContext render_context = {0};
     bool broadphase_debug = true;
 
     {
@@ -348,9 +315,12 @@ int main(void) {
     player_start_position = positions[player_index];
     player_start_orientation = orientations[player_index];
     player_mass = mass[player_index];
-    render_context = (RenderContext){player, finish_line, wall_mid,
-        walls, obstacle_records};
-    if(!example_viewport_create(render_scene, &render_context, &viewport)) goto fail;
+    for(size_t i=0;i<4;++i)
+        if(!example_body_appearance_set(walls[i],wall_color,(Color){0},0)) goto fail;
+    if(!example_body_appearance_set(wall_mid,obstacle_records[1].color,(Color){0},0) ||
+            !example_body_appearance_set(finish_line,finish_line_color,(Color){0},0) ||
+            !example_body_appearance_set(player,(Color){0},finish_line_color,0)) goto fail;
+    if(!example_viewport_create(rohr_camera_active_get(), background_color, &viewport)) goto fail;
     rohr_graphics_aabb_tree_debug_set(broadphase_debug);
     rohr_graphics_contacts_debug_set(broadphase_debug);
 
@@ -475,7 +445,8 @@ int main(void) {
             }
         }
 
-        rohr_graphics_show();
+        rohr_graphics_sprite_frames_update(rohr_engine_tick_get(), rohr_engine_time_get());
+        if(rohr_graphics_viewport_show(viewport).header.status == ROHR_REPORT_FAILED) goto fail;
     }
 
     example_viewport_destroy(&viewport);

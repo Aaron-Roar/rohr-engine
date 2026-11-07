@@ -33,29 +33,6 @@ const Torque ball_control_torque = 2000000.0f;
     fprintf(stderr, "error %d: %s\n", (int)(engine_result).result.error, \
         rohr_error_message_get(engine_result))
 
-typedef struct RenderContext {
-    bool phase_1;
-    bool phase_2;
-    bool phase_3;
-} RenderContext;
-
-static void render_scene(CameraId camera, void *context_value) {
-    RenderContext *context = context_value;
-    (void)camera;
-    rohr_graphics_layer_active_set(-100);
-    rohr_graphics_background_draw(background_color);
-    rohr_graphics_layer_active_set(0);
-    rohr_graphics_sprite_frames_update(rohr_engine_tick_get(), rohr_engine_time_get());
-    rohr_graphics_animated_sprites_draw();
-    if(context->phase_1) rohr_graphics_hit_boxes_draw();
-    if(context->phase_2) rohr_graphics_particles_draw();
-    rohr_graphics_layer_active_set(100);
-    rohr_graphics_aabb_tree_draw();
-    rohr_graphics_contacts_draw();
-    if(context->phase_3) rohr_graphics_local_origins_draw();
-    rohr_graphics_layer_active_set(0);
-}
-
 int main(void) {
     if(rohr_error_check(rohr_directory_working_set(
             rohr_directory_base_get()))) return 1;
@@ -63,7 +40,6 @@ int main(void) {
     InputControllerId input_controller = INPUT_CONTROLLER_INVALID;
     InputActionId exit_action, debug_action, move_action, turn_action;
     ViewportId viewport = VIEWPORT_INVALID;
-    RenderContext render_context = {0};
     bool broadphase_debug = true;
 
     {
@@ -190,7 +166,7 @@ int main(void) {
         goto fail;
     }
     children_group = children_result.result.value;
-    if(!example_viewport_create(render_scene, &render_context, &viewport)) goto fail;
+    if(!example_viewport_create(rohr_camera_active_get(), background_color, &viewport)) goto fail;
     rohr_graphics_aabb_tree_debug_set(broadphase_debug);
     rohr_graphics_contacts_debug_set(broadphase_debug);
 
@@ -225,7 +201,9 @@ int main(void) {
         if(!phase_3 && rohr_engine_time_get() > 7) {
             phase_3 = true;
         }
-        render_context = (RenderContext){phase_1, phase_2, phase_3};
+        rohr_graphics_hit_boxes_debug_set(phase_1);
+        rohr_graphics_particles_debug_set(phase_2);
+        rohr_graphics_local_origins_debug_set(phase_3);
 
         //Game Code
         Time time = rohr_engine_time_get();
@@ -270,7 +248,8 @@ int main(void) {
         //physics
         if(((rohr_physics_update(ticks_advanced)).header.status == ROHR_REPORT_FAILED)) goto fail;
 
-        rohr_graphics_show();
+        rohr_graphics_sprite_frames_update(rohr_engine_tick_get(), rohr_engine_time_get());
+        if(rohr_graphics_viewport_show(viewport).header.status == ROHR_REPORT_FAILED) goto fail;
 
     }
     example_viewport_destroy(&viewport);

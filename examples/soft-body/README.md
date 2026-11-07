@@ -22,8 +22,11 @@ Regenerate after editing the document:
 rohr-cli --project examples/soft-body generate-c
 ```
 
-`car_create()` uses the shared object spawner and returns independent entities on
-each call. `car_destroy()` deletes the owning instance and its remaining sources.
+`rohr_object_create(&project.car)` creates independent entities on each call.
+`car_instance_bind()` provides a typed view of that root's handles for gameplay.
+Deleting the owning root deletes its members and remaining sources. Stored
+appearance supplies the car's drawing, and `rohr_graphics_viewport_show()` renders
+the scene automatically; no application camera callback is needed.
 The normal scene keeps its existing walls, ramp, particle pit, and camera behavior
 in developer-owned code. The default project template is unchanged.
 

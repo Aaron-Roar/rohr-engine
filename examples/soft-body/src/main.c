@@ -29,9 +29,6 @@ static const Color chassis_color;
 static const Color cabin_color;
 static const Color hub_color;
 static const Color disk_color;
-static const Color surface_color;
-static const Color beam_color;
-static const Color node_color;
 static const Color ramp_color;
 static const Color particle_color;
 static const RohrCollisionCategoryMask room_category;
@@ -143,9 +140,6 @@ static const Color chassis_color = {65, 145, 105, 255};
 static const Color cabin_color = {80, 175, 125, 255};
 static const Color hub_color = {75, 80, 90, 255};
 static const Color disk_color = {190, 75, 65, 255};
-static const Color surface_color = {55, 125, 175, 150};
-static const Color beam_color = {235, 240, 245, 255};
-static const Color node_color = {255, 170, 70, 255};
 static const Color ramp_color = {145, 120, 85, 255};
 static const Color particle_color = {45, 120, 230, 255};
 static const RohrCollisionCategoryMask room_category = UINT64_C(1) << 1;
@@ -193,46 +187,33 @@ static const Time camera_collision_zoom_duration = 5.0;
 static const Time camera_collision_zoom_out_duration = 3.0;
 static const float camera_collision_physics_scale = 0.2f;
 
-typedef struct RenderContext {
-    Entity *walls;
-    Entity *ramp;
-    Entity *particles;
-    Entity chassis;
-    Entity cabin;
-    Wheel *wheels;
-} RenderContext;
-
-static void render_scene(CameraId camera, void *context_value) {
-    RenderContext *context = context_value;
-    (void)camera;
-    rohr_graphics_layer_active_set(-100);
-    rohr_graphics_background_draw(background_color);
-    rohr_graphics_layer_active_set(100);
-    rohr_graphics_aabb_tree_draw();
-    rohr_graphics_contacts_draw();
-    rohr_graphics_layer_active_set(0);
-    for(uint32_t i = 0; i < LEVEL_WALL_COUNT; i += 1)
-        rohr_graphics_hit_box_colored_draw(context->walls[i], GRAPHICS_FILLED,
-            wall_color);
-    for(uint32_t i = 0; i < RAMP_TRIANGLE_COUNT; i += 1)
-        rohr_graphics_hit_box_colored_draw(context->ramp[i], GRAPHICS_FILLED,
-            ramp_color);
-    for(uint32_t i = 0; i < PIT_PARTICLE_COUNT; i += 1)
-        rohr_graphics_hit_box_colored_draw(context->particles[i], GRAPHICS_FILLED,
-            particle_color);
-    for(uint32_t i = 0; i < WHEEL_COUNT; i += 1) {
-        (void)rohr_graphics_soft_body_draw(context->wheels[i].soft_body,
-            surface_color, beam_color, node_color);
-        rohr_graphics_hit_box_colored_draw(context->wheels[i].disk,
-            GRAPHICS_FILLED, disk_color);
+/* Store visual choices once; automatic screens discover current entity state. */
+static bool car_appearance_set(const Car *car) {
+    for(uint32_t n=0;n<rohr_entity_alive_count_get();++n) {
+        Entity entity=rohr_entity_alive_at_get(n).result.value;
+        Entity owner=entity;
+        while(owner && owner!=car->source_instance) {
+            EntityResult parent=rohr_entity_owner_get(owner);
+            if(rohr_error_check(parent)) return false;
+            owner=parent.result.value;
+        }
+        if(!owner) continue;
+        ObjectAppearanceResult got=rohr_entity_appearance_get(entity);
+        if(rohr_error_check(got)) continue;
+        ObjectAppearance appearance=got.result.value;
+        if(appearance.kind==OBJECT_JOINT || appearance.kind==OBJECT_FORCE || appearance.kind==OBJECT_TORQUE)
+            appearance.enabled=false;
+        appearance.border_color=(Color){0};
+        if(!result_ok(rohr_entity_appearance_set(entity,appearance))) return false;
+        int layer=appearance.kind==OBJECT_AREA ? 1 : appearance.kind==OBJECT_BEAM ? 2 : 3;
+        if(!result_ok(rohr_graphics_layer_entity_set(entity,layer))) return false;
     }
-    rohr_graphics_hit_box_colored_draw(context->chassis, GRAPHICS_FILLED,
-        chassis_color);
-    rohr_graphics_hit_box_colored_draw(context->cabin, GRAPHICS_FILLED,
-        cabin_color);
-    for(uint32_t i = 0; i < WHEEL_COUNT; i += 1)
-        rohr_graphics_hit_box_colored_draw(context->wheels[i].hub,
-            GRAPHICS_FILLED, hub_color);
+    return example_body_appearance_set(car->rear_disk,disk_color,(Color){0},4) &&
+        example_body_appearance_set(car->front_disk,disk_color,(Color){0},4) &&
+        example_body_appearance_set(car->chassis,chassis_color,(Color){0},5) &&
+        example_body_appearance_set(car->cabin,cabin_color,(Color){0},5) &&
+        example_body_appearance_set(car->rear_hub,hub_color,(Color){0},6) &&
+        example_body_appearance_set(car->front_hub,hub_color,(Color){0},6);
 }
 
 int main(int argc, char **argv) {
@@ -247,7 +228,6 @@ int main(int argc, char **argv) {
     Entity ramp[RAMP_TRIANGLE_COUNT];
     Entity particles[PIT_PARTICLE_COUNT];
     Entity chassis;
-    Entity cabin;
     ParticleDescription particle_config;
     Wheel wheels[WHEEL_COUNT] = {0};
     InputControllerId input_controller = INPUT_CONTROLLER_INVALID;
@@ -338,8 +318,13 @@ int main(int argc, char **argv) {
                     JOINT_WELD)) goto fail;
         }
     }
-    if(!result_ok(car_create(&car, (Position){0}))) goto fail;
-    chassis = car.chassis; cabin = car.cabin;
+    EntityResult created = rohr_object_create(&project.car);
+    if(rohr_error_check(created)) goto fail;
+    if(!result_ok(car_instance_bind(&car,created.result.value))) {
+        (void)rohr_entity_delete(created.result.value);
+        goto fail;
+    }
+    chassis = car.chassis;
     wheels[0] = (Wheel){.hub=car.rear_hub,.disk=car.rear_disk,.soft_body=car.rear_tire};
     wheels[1] = (Wheel){.hub=car.front_hub,.disk=car.front_disk,.soft_body=car.front_tire};
     for(unsigned i=0;i<WHEEL_COUNT;++i)
@@ -358,8 +343,16 @@ int main(int argc, char **argv) {
                 (CameraAttachmentDescription){.entity = chassis, .follow_position = true}))) goto fail;
     if(graphics_enabled && !result_ok(rohr_camera_zoom_set(
                 rohr_camera_active_get(), camera_default_zoom, 0.0))) goto fail;
-    RenderContext render_context = {walls, ramp, particles, chassis, cabin, wheels};
-    if(graphics_enabled && !example_viewport_create(render_scene, &render_context, &viewport)) goto fail;
+    if(graphics_enabled) {
+        if(!car_appearance_set(&car)) goto fail;
+        for(size_t i=0;i<LEVEL_WALL_COUNT;++i)
+            if(!example_body_appearance_set(walls[i],wall_color,(Color){0},0)) goto fail;
+        for(size_t i=0;i<RAMP_TRIANGLE_COUNT;++i)
+            if(!example_body_appearance_set(ramp[i],ramp_color,(Color){0},0)) goto fail;
+        for(size_t i=0;i<PIT_PARTICLE_COUNT;++i)
+            if(!example_body_appearance_set(particles[i],particle_color,(Color){0},0)) goto fail;
+        if(!example_viewport_create(rohr_camera_active_get(),background_color,&viewport)) goto fail;
+    }
 
     rohr_engine_clock_reset();
     benchmark.started = SDL_GetTicksNS();
@@ -409,7 +402,7 @@ int main(int argc, char **argv) {
             double wait_ms = 0;
             if(graphics_enabled) {
                 uint64_t render_start = SDL_GetTicksNS();
-                Report graphics = rohr_graphics_show();
+                Report graphics = rohr_graphics_viewport_show(viewport);
                 if(graphics.header.status == ROHR_REPORT_FAILED) goto fail;
                 for(size_t i = 0; i < graphics.statistic_count; ++i)
                     if(graphics.statistics[i].metric_id == ROHR_REPORT_FRAME_LIMIT_WAIT_NS)
@@ -481,11 +474,11 @@ int main(int argc, char **argv) {
                 }
             }
         }
-        rohr_graphics_show();
+        if(rohr_graphics_viewport_show(viewport).header.status == ROHR_REPORT_FAILED) goto fail;
     }
     if(benchmark.enabled) benchmark_pass = car_benchmark_finish(&benchmark);
-    car_destroy(&car);
     example_viewport_destroy(&viewport);
+    if(car.source_instance) (void)rohr_entity_delete(car.source_instance);
     if(input_controller != INPUT_CONTROLLER_INVALID)
         (void)rohr_input_controller_destroy(input_controller);
     if(graphics_enabled) rohr_graphics_stop();
@@ -495,8 +488,8 @@ int main(int argc, char **argv) {
 fail:
     fprintf(stderr, "soft-body example failed\n");
     if(benchmark.enabled) { benchmark.failed = true; (void)car_benchmark_finish(&benchmark); }
-    car_destroy(&car);
     example_viewport_destroy(&viewport);
+    if(car.source_instance) (void)rohr_entity_delete(car.source_instance);
     if(input_controller != INPUT_CONTROLLER_INVALID)
         (void)rohr_input_controller_destroy(input_controller);
     if(graphics_enabled) rohr_graphics_stop();

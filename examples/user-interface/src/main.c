@@ -3,6 +3,7 @@
  */
 
 #include <stdio.h>
+#include <math.h>
 #include "rohr.h"
 #include "example_viewport.h"
 #include "example_input.h"
@@ -10,57 +11,6 @@
 #define PRINT_ENGINE_ERROR(engine_result) \
     fprintf(stderr, "error %d: %s\n", (int)(engine_result).result.error, \
         rohr_error_message_get(engine_result))
-
-typedef struct RenderContext {
-    TextAsset *title;
-    TextAsset *play_label;
-    TextAsset *settings_label;
-    TextAsset *quit_label;
-    TextAsset *description;
-    TextAsset *slider_label;
-    TextAsset *slider_value_label;
-    TextAsset *slider_minus;
-    TextAsset *slider_plus;
-    UILabelDefinition *title_definition;
-    UILabelDefinition *play_definition;
-    UILabelDefinition *description_definition;
-    UIButtonDefinition *settings_button;
-    UISliderDefinition *value_slider;
-    float slider_value;
-    UIButtonResult play;
-    UIButtonResult settings;
-    UIButtonResult quit;
-    UISliderResult slider;
-} RenderContext;
-
-static void render_scene(CameraId camera, void *context_value) {
-    RenderContext *context = context_value;
-    UIRect play_bounds = context->play_definition->bounds;
-    (void)camera;
-    rohr_graphics_layer_active_set(-100);
-    rohr_graphics_background_draw((Color){18, 22, 30, 255});
-    rohr_graphics_layer_active_set(0);
-    rohr_ui_input_set((UIInput){
-        .pointer = rohr_graphics_mouse_screen_position_get(),
-        .primary_button = example_input_mouse_button_state_get(
-            INPUT_MOUSE_BUTTON_LEFT),
-    });
-    rohr_ui_label(context->title, context->title_definition->bounds);
-    context->play = rohr_ui_button("main_menu.play", NULL, play_bounds, NULL);
-    context->settings = rohr_ui_button(context->settings_button->name,
-        context->settings_label, context->settings_button->bounds,
-        &context->settings_button->style);
-    context->quit = rohr_ui_button("main_menu.quit", context->quit_label,
-        (UIRect){220.0f, 280.0f, 200.0f, 55.0f}, NULL);
-    rohr_ui_label(context->play_label, play_bounds);
-    rohr_ui_label(context->description, context->description_definition->bounds);
-    context->slider = rohr_ui_slider_with_text(context->value_slider->name,
-        context->slider_value, &context->value_slider->config,
-        &(UISliderText){.label = context->slider_label,
-            .value = context->slider_value_label, .minus = context->slider_minus,
-            .plus = context->slider_plus});
-    rohr_ui_update();
-}
 
 int main(void) {
     if(rohr_error_check(rohr_directory_working_set(
@@ -86,7 +36,9 @@ int main(void) {
     UISliderDefinition value_slider;
     float slider_value;
     ViewportId viewport = VIEWPORT_INVALID;
-    RenderContext render_context = {0};
+    ViewportItemId play=0, settings=0, quit=0, slider=0, minus=0, plus=0;
+    bool armed[5]={0};
+    GraphicsUiId slider_ui=GRAPHICS_UI_INVALID;
 
     {
         EngineResult init_result = rohr_engine_start();
@@ -268,17 +220,42 @@ int main(void) {
         }
         slider_value_label = value_result.result.value;
     }
-    render_context = (RenderContext){
-        .title = &title, .play_label = &play_label,
-        .settings_label = &settings_label, .quit_label = &quit_label,
-        .description = &description, .slider_label = &slider_label,
-        .slider_value_label = &slider_value_label, .slider_minus = &slider_minus,
-        .slider_plus = &slider_plus, .title_definition = &title_definition,
-        .play_definition = &play_definition,
-        .description_definition = &description_definition,
-        .settings_button = &settings_button, .value_slider = &value_slider,
-        .slider_value = slider_value};
-    if(!example_viewport_create(render_scene, &render_context, &viewport)) goto fail;
+    if(!example_ui_viewport_create((Color){18,22,30,255},&viewport) ||
+            !example_label_add(viewport,title,title_definition.bounds) ||
+            !example_label_add(viewport,description,description_definition.bounds)) goto fail;
+    play=example_button_add(viewport,play_label,play_definition.bounds,NULL);
+    settings=example_button_add(viewport,settings_label,settings_button.bounds,&settings_button.style);
+    quit=example_button_add(viewport,quit_label,(UIRect){220,280,200,55},NULL);
+    if(!play || !settings || !quit) goto fail;
+    const UISliderConfig *config=&value_slider.config;
+    ViewportUiSliderDescription description_slider={
+        .minimum=fminf(config->min_value,config->max_value),.maximum=fmaxf(config->min_value,config->max_value),
+        .value=slider_value,.step=config->step,.length=config->length,
+        .track_thickness=config->style.track_thickness,.thumb_width=config->style.handle_width,
+        .thumb_height=config->style.handle_height,.track_color=config->style.track,
+        .filled_track_color=config->style.fill,.thumb_color=config->style.handle,
+        .hover_thumb_color=config->style.handle_hovered,.pressed_thumb_color=config->style.handle_pressed,
+        .enabled=!config->read_only};
+    ViewportItemDescription placement=rohr_viewport_item_description_default_get();
+    placement.fit=SCREEN_FIT_NONE; placement.layer=10;
+    placement.rectangle=(ViewportRectangle){config->center.x,config->center.y,0,0};
+    placement.orientation=config->angle;
+    ViewportItemIdResult added=rohr_viewport_ui_slider_add(viewport,description_slider,placement);
+    if(rohr_error_check(added)) goto fail;
+    slider=added.result.value;
+    slider_ui=rohr_viewport_item_description_get(slider).result.value.ui;
+    float height=fmaxf(config->style.handle_height,config->style.track_thickness);
+    if(!example_label_add(viewport,slider_label,(UIRect){config->center.x-config->length*.5f,
+            config->center.y-height*.5f-42,config->length,28}) ||
+       !example_label_add(viewport,slider_value_label,(UIRect){config->center.x-60,config->center.y+height*.5f+8,120,28})) goto fail;
+    float size=config->style.step_button_size;
+    float offset=config->length*.5f+config->style.step_button_gap+size*.5f;
+    float radians=rohr_math_degrees_to_radians(config->angle);
+    Position axis={offset*cosf(radians),offset*sinf(radians)};
+    UIButtonStyle step_style={config->style.handle,config->style.handle_hovered,config->style.handle_pressed,config->style.handle};
+    minus=example_button_add(viewport,slider_minus,(UIRect){config->center.x-axis.x-size*.5f,config->center.y-axis.y-size*.5f,size,size},&step_style);
+    plus=example_button_add(viewport,slider_plus,(UIRect){config->center.x+axis.x-size*.5f,config->center.y+axis.y-size*.5f,size,size},&step_style);
+    if(!minus || !plus) goto fail;
 
     while(running) {
         SDL_Event event;
@@ -286,34 +263,28 @@ int main(void) {
 
         rohr_input_frame_begin();
         while((event = rohr_engine_event_poll()).type != 0) {
-            rohr_ui_event_add(&event);
             if(event.type == SDL_EVENT_QUIT) exit_requested = true;
         }
         if(exit_requested ||
                 rohr_input_action_button_pressed_check(exit_action)) break;
 
-        render_context.slider_value = slider_value;
-        rohr_graphics_show();
-        slider_value = render_context.slider.value;
-        if(render_context.slider.changed) {
-            char value_text[UI_LABEL_MAX];
-            snprintf(value_text, sizeof(value_text), value_slider.value_format, slider_value);
-            rohr_graphics_text_destroy(&slider_value_label);
-            TextAssetResult value_result = rohr_graphics_text_create(
-                (TextDescription){.font = font,
-                    .value = value_text,
-                    .color = value_slider.text_color});
-            if(rohr_error_check(value_result)) {
-                PRINT_ENGINE_ERROR(value_result);
-                goto fail;
-            } else {
-                slider_value_label = value_result.result.value;
-            }
+        if(rohr_graphics_viewport_show(viewport).header.status == ROHR_REPORT_FAILED) goto fail;
+        GraphicsUiSliderValueResult value=rohr_graphics_ui_slider_value_get(slider_ui);
+        if(rohr_error_check(value)) goto fail;
+        float next=value.result.value;
+        if(example_button_clicked_check(minus,&armed[3]) && !config->read_only) next-=config->step;
+        if(example_button_clicked_check(plus,&armed[4]) && !config->read_only) next+=config->step;
+        next=fmaxf(description_slider.minimum,fminf(description_slider.maximum,next));
+        if(next!=value.result.value && rohr_error_check(rohr_graphics_ui_slider_value_set(slider_ui,next))) goto fail;
+        if(next!=slider_value) {
+            slider_value=next;
+            char text[UI_LABEL_MAX];
+            snprintf(text,sizeof(text),value_slider.value_format,slider_value);
+            if(!rohr_graphics_text_value_set(&slider_value_label,text)) goto fail;
         }
-
-        if(render_context.play.clicked) printf("Play clicked\n");
-        if(render_context.settings.clicked) printf("Settings clicked\n");
-        if(render_context.quit.clicked) running = false;
+        if(example_button_clicked_check(play,&armed[0])) printf("Play clicked\n");
+        if(example_button_clicked_check(settings,&armed[1])) printf("Settings clicked\n");
+        if(example_button_clicked_check(quit,&armed[2])) running=false;
     }
 
     example_viewport_destroy(&viewport);

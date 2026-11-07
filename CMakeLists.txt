@@ -705,9 +705,10 @@ if(ROHR_BUILD_TESTS)
         add_test(NAME physics_simple_baseline COMMAND physics_simple_baseline_test)
     endif()
 
-    add_executable(automatic_viewports_test tests/automatic_viewports.c)
+    add_executable(automatic_viewports_test tests/automatic_viewports.c
+        examples/cmake/example_viewport.c)
     target_link_libraries(automatic_viewports_test PRIVATE rohr_engine)
-    target_include_directories(automatic_viewports_test PRIVATE src)
+    target_include_directories(automatic_viewports_test PRIVATE src examples/cmake)
     set_target_properties(automatic_viewports_test PROPERTIES RUNTIME_OUTPUT_DIRECTORY ${ROHR_BUILD_OUTPUT_DIRECTORY}/tests)
     if(MSVC)
         target_compile_options(automatic_viewports_test PRIVATE /UNDEBUG)

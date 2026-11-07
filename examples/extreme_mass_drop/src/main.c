@@ -2,6 +2,7 @@
  * SPDX-License-Identifier: LGPL-3.0-only
  */
 #include "drop_fixture.h"
+#include "example_viewport.h"
 
 #include <math.h>
 #include <stdio.h>
@@ -11,11 +12,12 @@
 
 typedef struct DropDemo {
     DropFixture fixture;
-    CameraId cameras[3];
-    ScreenId screens[3];
     ViewportId viewports[3];
     TextAsset text[TEXT_COUNT];
-    unsigned render_counts[3];
+    ViewportItemId snapshots[2][DROP_BODY_COUNT];
+    ViewportItemId labels[TEXT_COUNT];
+    ViewportItemId warning;
+    bool composed;
     bool paused;
     bool quit;
     bool failed;
@@ -25,38 +27,42 @@ typedef struct DropDemo {
 static const Color colors[] = {{105, 125, 150, 255}, {255, 210, 60, 255}, {70, 175, 240, 255}};
 static const unsigned rates[] = {30, 60, 120};
 
-static void render_view(CameraId camera, void *context) {
-    DropDemo *demo = context;
-    unsigned view = camera == demo->cameras[0] ? 0 : camera == demo->cameras[1] ? 1 : 2;
-    ++demo->render_counts[view];
-    rohr_graphics_layer_active_set(0);
-    rohr_graphics_background_draw((Color){18, 24, 34, 255});
-    if(view < 2) {
-        /* Render the observed snapshot: invalid runtime state never reaches the
-         * renderer after a halt. World dimensions are deliberately to scale. */
-        const double world_width = view == 0 ? 2240.0 : 0.08;
-        const double world_height = view == 0 ? 1400.0 : 0.05;
-        for(size_t i = 0; i < DROP_BODY_COUNT; ++i) {
-            const DropBody *b = &demo->fixture.bodies[i];
-            Position center = rohr_graphics_world_to_screen_get(b->position);
-            (void)rohr_graphics_screen_quad_draw(center,
-                (float)(b->half_width * 2 * 640 / world_width),
-                (float)(b->half_height * 2 * 400 / world_height), b->angle, colors[i]);
+/* Diagnostic rectangles describe the last finite observation, not live bodies.
+ * Keeping these as viewport UI preserves a halted snapshot without adding
+ * entities or changing the physics fixture. Each view keeps its true scale. */
+static bool snapshot_update(DropDemo *demo) {
+    for(unsigned view=0; view<2; ++view) {
+        const double width=view==0 ? 2240.0 : 0.08;
+        const double height=view==0 ? 1400.0 : 0.05;
+        const double camera_y=view==0 ? 550.0 : 0.0125;
+        for(size_t i=0; i<DROP_BODY_COUNT; ++i) {
+            const DropBody *body=&demo->fixture.bodies[i];
+            ViewportItemDescriptionResult current=rohr_viewport_item_description_get(demo->snapshots[view][i]);
+            if(rohr_error_check(current)) return false;
+            ViewportItemDescription item=current.result.value;
+            item.rectangle.x=(float)(320+body->position.x*640/width);
+            item.rectangle.y=(float)(200-(body->position.y-camera_y)*400/height);
+            item.orientation=body->angle;
+            item.content_scale=(Scale){(float)(body->half_width*2*640/width),
+                (float)(body->half_height*2*400/height)};
+            if(!drop_result_check(rohr_viewport_item_description_set(demo->snapshots[view][i],item))) return false;
         }
-        rohr_graphics_layer_active_set(10);
-        (void)rohr_graphics_screen_rect_draw(0, 0, 640, 32, (Color){18, 24, 34, 235});
-        (void)rohr_graphics_text_draw(&demo->text[view], (Position){12, 10});
-    } else {
-        if(demo->fixture.maximum_depth > DROP_PENETRATION_LIMIT || demo->fixture.halted || demo->fixture.floor_moved)
-            (void)rohr_graphics_screen_rect_draw(0, 0, 1280, 30, (Color){125, 35, 40, 255});
-        for(size_t i = 2; i < TEXT_COUNT; ++i)
-            (void)rohr_graphics_text_draw(&demo->text[i], (Position){12, 9 + (float)(i - 2) * 27});
     }
-    rohr_graphics_layer_active_set(0);
+    ViewportItemDescriptionResult warning=rohr_viewport_item_description_get(demo->warning);
+    if(rohr_error_check(warning)) return false;
+    warning.result.value.visible=demo->fixture.maximum_depth>DROP_PENETRATION_LIMIT ||
+        demo->fixture.halted || demo->fixture.floor_moved;
+    return drop_result_check(rohr_viewport_item_description_set(demo->warning,warning.result.value));
 }
 
 static bool text_set(DropDemo *demo, size_t index, const char *value) {
-    if(rohr_graphics_text_value_set(&demo->text[index], value)) return true;
+    if(rohr_graphics_text_value_set(&demo->text[index], value)) {
+        ViewportItemDescriptionResult item=rohr_viewport_item_description_get(demo->labels[index]);
+        if(rohr_error_check(item)) return false;
+        ViewportUiTextDescription description={.text=demo->text[index],.scale={1,1},
+            .position={demo->text[index].size.x*.5f,demo->text[index].size.y*.5f}};
+        return drop_result_check(rohr_graphics_ui_text_description_set(item.result.value.ui,description));
+    }
     fprintf(stderr, "Unable to update demo text\n");
     return false;
 }
@@ -105,33 +111,38 @@ static bool presentation_create(DropDemo *demo) {
         if(rohr_error_check(result)) return false;
         demo->text[i] = result.result.value;
     }
-    for(unsigned i = 0; i < 3; ++i) {
-        CameraDescription camera = rohr_camera_description_default_get();
-        camera.position = i == 0 ? (Position){0, 550} : (Position){0, 0.0125f};
-        camera.dimensions = i == 0 ? (Vec2D){2240, 1400} :
-            i == 1 ? (Vec2D){0.08f, 0.05f} : (Vec2D){1280, 320};
-        camera.render_callback = render_view;
-        camera.render_context = demo; /* Borrowed until cameras are destroyed. */
-        CameraIdResult created_camera = rohr_camera_create(camera);
-        if(rohr_error_check(created_camera)) return false;
-        demo->cameras[i] = created_camera.result.value;
-        ScreenDescription screen = rohr_screen_description_default_get();
-        screen.camera = demo->cameras[i];
-        screen.width = i == 2 ? 1280 : 640;
-        screen.height = i == 2 ? 320 : 400;
-        ScreenIdResult created_screen = rohr_screen_create(screen);
-        if(rohr_error_check(created_screen)) return false;
-        demo->screens[i] = created_screen.result.value;
-        ViewportDescription viewport = rohr_viewport_description_default_get();
-        viewport.rectangle = (ViewportRectangle){i == 1 ? 640 : 0, i == 2 ? 400 : 0,
-            (float)screen.width, (float)screen.height};
-        ViewportIdResult created_viewport = rohr_viewport_create(viewport);
-        if(rohr_error_check(created_viewport)) return false;
-        demo->viewports[i] = created_viewport.result.value;
-        ViewportItemDescription item = rohr_viewport_item_description_default_get();
-        item.rectangle = (ViewportRectangle){0, 0, (float)screen.width, (float)screen.height};
-        if(rohr_error_check(rohr_viewport_screen_add(demo->viewports[i], demo->screens[i], item)) ||
-                !drop_result_check(rohr_viewport_enable_set(demo->viewports[i]))) return false;
+    for(unsigned i=0; i<3; ++i) {
+        ViewportCreateDescription description={.viewport=rohr_viewport_description_default_get()};
+        description.viewport.rectangle=(ViewportRectangle){i==1 ? 640 : 0,i==2 ? 400 : 0,
+            i==2 ? 1280 : 640,i==2 ? 320 : 400};
+        description.viewport.background_color=(Color){18,24,34,255};
+        description.viewport.enabled=true;
+        ViewportIdResult created=rohr_viewport_create(&description);
+        if(rohr_error_check(created)) return false;
+        demo->viewports[i]=created.result.value;
+        if(i<2) {
+            for(size_t b=0; b<DROP_BODY_COUNT; ++b) {
+                /* Validate a unit square, then scale its placement. The tiny
+                 * body's true overview size is below geometry tolerances. */
+                demo->snapshots[i][b]=example_rectangle_add(demo->viewports[i],
+                    (UIRect){0,0,1,1},colors[b],0);
+                if(!demo->snapshots[i][b]) return false;
+            }
+            if(!example_rectangle_add(demo->viewports[i],(UIRect){0,0,640,32},(Color){18,24,34,235},10)) return false;
+        } else {
+            demo->warning=example_rectangle_add(demo->viewports[i],(UIRect){0,0,1280,30},(Color){125,35,40,255},0);
+            if(!demo->warning) return false;
+        }
+    }
+    for(size_t i=0; i<TEXT_COUNT; ++i) {
+        ViewportItemDescription placement=rohr_viewport_item_description_default_get();
+        placement.fit=SCREEN_FIT_NONE; placement.layer=20;
+        placement.rectangle=(ViewportRectangle){12,i<2 ? 10 : 9+(float)(i-2)*27,0,0};
+        ViewportUiTextDescription text={.text=demo->text[i],.scale={1,1},
+            .position={demo->text[i].size.x*.5f,demo->text[i].size.y*.5f}};
+        ViewportItemIdResult added=rohr_viewport_ui_text_add(demo->viewports[i<2 ? i : 2],text,placement);
+        if(rohr_error_check(added)) return false;
+        demo->labels[i]=added.result.value;
     }
     return display_update(demo);
 }
@@ -139,8 +150,6 @@ static bool presentation_create(DropDemo *demo) {
 static void presentation_destroy(DropDemo *demo) {
     for(size_t i = 0; i < 3; ++i) {
         if(demo->viewports[i]) (void)drop_result_check(rohr_viewport_destroy(demo->viewports[i]));
-        if(demo->screens[i]) (void)drop_result_check(rohr_screen_destroy(demo->screens[i]));
-        if(demo->cameras[i]) (void)drop_result_check(rohr_camera_destroy(demo->cameras[i]));
     }
     for(size_t i = 0; i < TEXT_COUNT; ++i)
         (void)drop_result_check(rohr_graphics_text_destroy(&demo->text[i]));
@@ -185,12 +194,18 @@ static bool frame_run(DropDemo *demo, double elapsed) {
             demo->pending -= dt;
         }
     }
-    if(!display_update(demo)) return false;
-    Report frame = rohr_graphics_show();
+    if(!display_update(demo) || !snapshot_update(demo)) return false;
+    Report frame = rohr_graphics_viewports_show(demo->viewports,3);
     if(frame.header.status == ROHR_REPORT_FAILED) {
         fprintf(stderr, "Presentation failed: %s\n", frame.has_fatal ? frame.first_fatal.detail : "see graphics diagnostics");
         return false;
     }
+    for(size_t i=0; i<frame.statistic_count; ++i)
+        if(frame.statistics[i].report_id==ROHR_GRAPHICS_VIEWPORTS_REPORT_ID &&
+                frame.statistics[i].metric_id==ROHR_REPORT_PROCESSED_COUNT &&
+                /* Thirteen labels, six snapshots and two title bars across
+                 * the three viewports; the warning banner is optional. */
+                frame.statistics[i].value>=TEXT_COUNT+2*DROP_BODY_COUNT+2) demo->composed=true;
     return true;
 }
 
@@ -235,8 +250,7 @@ static bool controls_verify(DropDemo *demo) {
                     !frame_run(demo, 0)) return false;
         }
     }
-    for(size_t i = 0; i < 3; ++i)
-        if(demo->render_counts[i] == 0) return false;
+    if(!demo->composed) return false;
     /* Background/return events must not discard a delayed running interval. */
     if(!key_send(demo, SDL_SCANCODE_F2) || !key_send(demo, SDL_SCANCODE_SPACE)) return false;
     SDL_Event focus;

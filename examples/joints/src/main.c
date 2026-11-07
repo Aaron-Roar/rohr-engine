@@ -90,33 +90,6 @@ static bool room_create(Entity walls[4]) {
         walls[2] != ENTITY_INVALID && walls[3] != ENTITY_INVALID;
 }
 
-typedef struct RenderContext {
-    Entity *walls;
-    Entity *bodies;
-} RenderContext;
-
-static void render_scene(CameraId camera, void *context_value) {
-    RenderContext *context = context_value;
-    (void)camera;
-    rohr_graphics_layer_active_set(-100);
-    rohr_graphics_background_draw(background_color);
-    rohr_graphics_layer_active_set(0);
-    for(uint32_t i = 0; i < 4; i += 1)
-        rohr_graphics_hit_box_colored_draw(context->walls[i], GRAPHICS_FILLED,
-            wall_color);
-    rohr_graphics_hit_box_colored_draw(context->bodies[0], GRAPHICS_FILLED, pin_color);
-    rohr_graphics_hit_box_colored_draw(context->bodies[1], GRAPHICS_FILLED, pin_color);
-    rohr_graphics_hit_box_colored_draw(context->bodies[2], GRAPHICS_FILLED, weld_color);
-    rohr_graphics_hit_box_colored_draw(context->bodies[3], GRAPHICS_FILLED, weld_secondary_color);
-    rohr_graphics_hit_box_colored_draw(context->bodies[4], GRAPHICS_FILLED, spring_color);
-    rohr_graphics_hit_box_colored_draw(context->bodies[5], GRAPHICS_FILLED, spring_color);
-    rohr_graphics_joints_draw(joint_color);
-    rohr_graphics_layer_active_set(100);
-    rohr_graphics_aabb_tree_draw();
-    rohr_graphics_contacts_draw();
-    rohr_graphics_layer_active_set(0);
-}
-
 int main(void) {
     Entity walls[4];
     Entity bodies[BODY_COUNT];
@@ -200,8 +173,20 @@ int main(void) {
             .stiffness = 14.0f,
             .damping = 2.5f}))) goto fail;
 
-    RenderContext render_context = {walls, bodies};
-    if(!example_viewport_create(render_scene, &render_context, &viewport)) goto fail;
+    const Color body_colors[] = {pin_color,pin_color,weld_color,weld_secondary_color,spring_color,spring_color};
+    for(size_t i=0;i<4;++i)
+        if(!example_body_appearance_set(walls[i],wall_color,(Color){0},0)) goto fail;
+    for(size_t i=0;i<6;++i)
+        if(!example_body_appearance_set(bodies[i],body_colors[i],(Color){0},0)) goto fail;
+    const Entity joint_entities[] = {pin_joint,weld_joint,spring_joint};
+    for(size_t i=0;i<3;++i) {
+        ObjectVisualStyle style={.specified=true,.scale={1,1},
+            .fill_color=((uint32_t)joint_color.red<<24)|((uint32_t)joint_color.green<<16)|
+                ((uint32_t)joint_color.blue<<8)|joint_color.alpha};
+        if(!result_ok(rohr_entity_appearance_set(joint_entities[i],(ObjectAppearance){
+            .kind=OBJECT_JOINT,.visuals={style,style,style},.enabled=true,.visible=true}))) goto fail;
+    }
+    if(!example_viewport_create(rohr_camera_active_get(), background_color, &viewport)) goto fail;
     rohr_graphics_aabb_tree_debug_set(broadphase_debug);
     rohr_graphics_contacts_debug_set(broadphase_debug);
 
@@ -235,7 +220,8 @@ int main(void) {
         }
 
         if(((rohr_physics_update(ticks_advanced)).header.status == ROHR_REPORT_FAILED)) goto fail;
-        rohr_graphics_show();
+        rohr_graphics_sprite_frames_update(rohr_engine_tick_get(), rohr_engine_time_get());
+        if(rohr_graphics_viewport_show(viewport).header.status == ROHR_REPORT_FAILED) goto fail;
     }
 
     example_viewport_destroy(&viewport);

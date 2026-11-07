@@ -1138,6 +1138,13 @@ Position graphics_mouse_screen_position_get(void);
 
 /** Enable or disable AABB-tree debug drawing. */
 void graphics_aabb_tree_debug_set(bool enabled);
+/** Global diagnostic overlays for automatic screens; disabled at graphics startup. */
+void graphics_hit_boxes_debug_set(bool enabled);
+bool graphics_hit_boxes_debug_check(void);
+void graphics_particles_debug_set(bool enabled);
+bool graphics_particles_debug_check(void);
+void graphics_local_origins_debug_set(bool enabled);
+bool graphics_local_origins_debug_check(void);
 /** Return whether AABB-tree debug drawing is enabled. */
 bool graphics_aabb_tree_debug_check(void);
 /** Draw the current physics AABB-tree bounds when enabled. */

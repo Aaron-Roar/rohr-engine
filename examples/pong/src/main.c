@@ -43,56 +43,9 @@ typedef enum PongCameraState {
     PONG_CAMERA_RETURNING_HOME,
 } PongCameraState;
 
-typedef struct PongRenderContext {
-    Entity wall_bottom;
-    Entity wall_top;
-    Entity center_line;
-    Entity paddle_left;
-    Entity paddle_right;
-    Entity ball;
-    bool ball_on_fire;
-} PongRenderContext;
-
-static void pong_draw_field(
-    Entity wall_bottom,
-    Entity wall_top,
-    Entity center_line,
-    Entity paddle_left,
-    Entity paddle_right,
-    Entity ball,
-    bool ball_on_fire
-) {
-    rohr_graphics_hit_box_colored_draw(center_line, GRAPHICS_FILLED, foreground_color);
-    rohr_graphics_hit_box_colored_draw(wall_bottom, GRAPHICS_FILLED, foreground_color);
-    rohr_graphics_hit_box_colored_draw(wall_top, GRAPHICS_FILLED, foreground_color);
-    rohr_graphics_hit_box_colored_draw(paddle_left, GRAPHICS_FILLED, left_color);
-    rohr_graphics_hit_box_colored_draw(paddle_right, GRAPHICS_FILLED, right_color);
-    rohr_graphics_hit_box_colored_draw(
-        ball,
-        GRAPHICS_FILLED,
-        ball_on_fire ? fire_color : foreground_color
-    );
-}
-
-static void pong_render_camera(CameraId camera, void *context_value) {
-    PongRenderContext *context = context_value;
-    (void)camera;
-    rohr_graphics_layer_active_set(-100);
-    rohr_graphics_background_draw(background_color);
-    rohr_graphics_layer_active_set(0);
-    pong_draw_field(
-        context->wall_bottom,
-        context->wall_top,
-        context->center_line,
-        context->paddle_left,
-        context->paddle_right,
-        context->ball,
-        context->ball_on_fire
-    );
-    rohr_graphics_layer_active_set(100);
-    rohr_graphics_aabb_tree_draw();
-    rohr_graphics_contacts_draw();
-    rohr_graphics_layer_active_set(0);
+static bool appearance_set(Entity entity, Color color) {
+    return !rohr_error_check(rohr_entity_appearance_set(entity,(ObjectAppearance){
+        .kind=OBJECT_BODY,.color=color,.enabled=true,.visible=true}));
 }
 
 static EngineResult pong_update_camera(
@@ -219,7 +172,6 @@ int main(void) {
     ScreenId right_screen = SCREEN_INVALID;
     ViewportId left_viewport = VIEWPORT_INVALID;
     ViewportId right_viewport = VIEWPORT_INVALID;
-    PongRenderContext render_context = {0};
     bool broadphase_debug = true;
     bool ball_behind_left = false;
     bool ball_behind_right = false;
@@ -356,14 +308,9 @@ int main(void) {
             ))) {
         goto fail;
     }
-    render_context = (PongRenderContext){
-        .wall_bottom = wall_bottom,
-        .wall_top = wall_top,
-        .center_line = center_line,
-        .paddle_left = paddle_left,
-        .paddle_right = paddle_right,
-        .ball = ball,
-    };
+    if(!appearance_set(wall_bottom,foreground_color) || !appearance_set(wall_top,foreground_color) ||
+            !appearance_set(center_line,foreground_color) || !appearance_set(paddle_left,left_color) ||
+            !appearance_set(paddle_right,right_color) || !appearance_set(ball,foreground_color)) goto fail;
 
     left_camera = rohr_camera_active_get();
     {
@@ -411,6 +358,8 @@ int main(void) {
         result = rohr_viewport_create(config);
         if(rohr_error_check(result)) goto fail;
         right_viewport = result.result.value;
+        screen_config.content_mode = SCREEN_CONTENT_AUTOMATIC;
+        screen_config.background_color = background_color;
         screen_config.camera = left_camera;
         screen_config.width = (int)field_camera_width;
         screen_config.height = (int)field_camera_height;
@@ -436,15 +385,6 @@ int main(void) {
                 || rohr_error_check(rohr_viewport_enable_set(left_viewport))
                 || rohr_error_check(rohr_viewport_enable_set(right_viewport))) goto fail;
     }
-    if(rohr_error_check(rohr_camera_render_callback_set(
-            left_camera,
-            pong_render_camera,
-            &render_context
-        )) || rohr_error_check(rohr_camera_render_callback_set(
-            right_camera,
-            pong_render_camera,
-            &render_context
-        ))) goto fail;
 
     rohr_engine_clock_reset();
     while(true) {
@@ -595,13 +535,11 @@ int main(void) {
 
         {
             GameBallOnFireResult fire_result = game_ball_on_fire_get(ball);
-            render_context.ball_on_fire = rohr_error_check(fire_result)
-                ? false
-                : fire_result.result.value;
+            bool fire = !rohr_error_check(fire_result) && fire_result.result.value;
+            if(!appearance_set(ball,fire ? fire_color : foreground_color)) goto fail;
         }
-        rohr_graphics_layer_active_set(200);
-        rohr_graphics_layer_active_set(0);
-        rohr_graphics_show();
+        ViewportId views[] = {left_viewport,right_viewport};
+        if(rohr_graphics_viewports_show(views,2).header.status == ROHR_REPORT_FAILED) goto fail;
     }
 
     (void)rohr_viewport_destroy(right_viewport);

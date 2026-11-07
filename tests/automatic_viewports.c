@@ -3,6 +3,7 @@
  */
 #include "rohr.h"
 #include "test_png.h"
+#include "example_viewport.h"
 #include <math.h>
 #include <assert.h>
 #include <stdio.h>
@@ -354,6 +355,67 @@ static void graphics_restart(void) {
     OK(rohr_viewport_destroy(viewport)); OK(rohr_screen_destroy(screen.result.value));
     OK(rohr_camera_destroy(camera.result.value));
 }
+static void example_controls(void) {
+    ViewportId viewport=0;
+    assert(example_ui_viewport_create((Color){18,22,30,255},&viewport));
+    TextAssetResult text=rohr_graphics_text_create((TextDescription){.value="Click",.color={255,255,255,255}}); OK(text);
+    assert(example_label_add(viewport,text.result.value,(UIRect){20,10,100,30}));
+    ViewportItemId button=example_button_add(viewport,text.result.value,(UIRect){20,60,100,40},NULL);
+    assert(button);
+    (void)show(viewport);
+#ifdef ROHR_TEST_VIEWPORT_WRAP
+    bool armed=false;
+    const struct { float x,y; bool down,clicked; } frames[]={
+        {50,80,false,false},{50,80,true,false},{50,80,false,true},
+        {50,80,true,false},{200,80,true,false},{200,80,false,false},
+        {200,80,true,false},{50,80,true,false},{50,80,false,false}};
+    for(size_t i=0;i<sizeof(frames)/sizeof(frames[0]);++i) {
+        rohr_input_frame_begin();
+        if(pointer_down!=frames[i].down) {
+            SDL_Event event={0};
+            event.type=frames[i].down ? SDL_EVENT_MOUSE_BUTTON_DOWN : SDL_EVENT_MOUSE_BUTTON_UP;
+            event.button.button=SDL_BUTTON_LEFT; event.button.down=frames[i].down;
+            event.button.x=frames[i].x; event.button.y=frames[i].y;
+            assert(SDL_PushEvent(&event));
+        }
+        pointer_x=frames[i].x; pointer_y=frames[i].y; pointer_down=frames[i].down;
+        /* Drain the polling sentinel as well as the injected events. */
+        for(int batch=0;batch<2;++batch) while(rohr_engine_event_poll().type!=0) {}
+        (void)show(viewport);
+        assert(example_button_clicked_check(button,&armed)==frames[i].clicked);
+    }
+#endif
+    assert(rohr_graphics_text_value_set(&text.result.value,"Updated"));
+    (void)show(viewport);
+    GraphicsUiId ui=rohr_viewport_item_description_get(button).result.value.ui;
+    example_viewport_destroy(&viewport); assert(viewport==VIEWPORT_INVALID);
+    BAD(rohr_graphics_ui_shape_description_get(ui));
+    OK(rohr_graphics_text_destroy(&text.result.value));
+}
+static void debug_overlays(Entity root) {
+    ViewportCreateItemDescription item=screen_item("debug");
+    ViewportCreateDescription description=recipe(&item,1);
+    ViewportObjectBinding binding={&catalog,root};
+    description.objects=&binding; description.object_count=1;
+    ViewportId viewport=viewport_value(rohr_viewport_create(&description));
+    uint64_t baseline=metric(show(viewport),ROHR_GRAPHICS_COMMANDS_REPORT_ID,ROHR_REPORT_PROCESSED_COUNT);
+    assert(!graphics_hit_boxes_debug_check() && !graphics_particles_debug_check() &&
+        !graphics_local_origins_debug_check());
+    rohr_graphics_hit_boxes_debug_set(true);
+    assert(graphics_hit_boxes_debug_check());
+    assert(metric(show(viewport),ROHR_GRAPHICS_COMMANDS_REPORT_ID,ROHR_REPORT_PROCESSED_COUNT)>baseline);
+    graphics_hit_boxes_debug_set(false);
+    rohr_graphics_particles_debug_set(true);
+    assert(graphics_particles_debug_check());
+    assert(metric(show(viewport),ROHR_GRAPHICS_COMMANDS_REPORT_ID,ROHR_REPORT_PROCESSED_COUNT)>baseline);
+    graphics_particles_debug_set(false);
+    rohr_graphics_local_origins_debug_set(true);
+    assert(graphics_local_origins_debug_check());
+    assert(metric(show(viewport),ROHR_GRAPHICS_COMMANDS_REPORT_ID,ROHR_REPORT_PROCESSED_COUNT)>baseline);
+    graphics_local_origins_debug_set(false);
+    assert(metric(show(viewport),ROHR_GRAPHICS_COMMANDS_REPORT_ID,ROHR_REPORT_PROCESSED_COUNT)==baseline);
+    OK(rohr_viewport_destroy(viewport));
+}
 static void preview(void) {
     Entity root=entity_value(rohr_object_create(&catalog));
     ViewportCreateItemDescription items[2]={screen_item("world"),screen_item("inset")};
@@ -408,11 +470,17 @@ int main(int argc,char **argv) {
     /* Keep one instance's visual hidden so command counts are exact. */
     ObjectAppearance appearance=rohr_entity_appearance_get(member(b,"particle")).result.value;
     appearance.visible=false; OK(rohr_entity_appearance_set(member(b,"particle"),appearance));
+    example_controls(); debug_overlays(a);
     selection_and_rendering(a); visual_components(a); creation_and_lifetime(a,b); first_frame_paused(a); stale_camera(a);
     OK(rohr_entity_delete(a)); OK(rohr_entity_delete(b));
     restored_bindings();
     assert(rohr_entity_alive_count_get()==0);
+    rohr_graphics_hit_boxes_debug_set(true);
+    rohr_graphics_particles_debug_set(true);
+    rohr_graphics_local_origins_debug_set(true);
     graphics_restart();
+    assert(!rohr_graphics_hit_boxes_debug_check() && !rohr_graphics_particles_debug_check() &&
+        !rohr_graphics_local_origins_debug_check());
     rohr_graphics_stop(); rohr_engine_stop();
     return 0;
 }

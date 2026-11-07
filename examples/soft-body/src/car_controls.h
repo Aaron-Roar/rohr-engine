@@ -3,7 +3,7 @@
  */
 #ifndef CAR_CONTROLS_H
 #define CAR_CONTROLS_H
-#include "project_objects.h"
+#include "project.h"
 
 /* A press accepted on the ground may wait for the next physics tick only. */
 typedef struct CarControls {

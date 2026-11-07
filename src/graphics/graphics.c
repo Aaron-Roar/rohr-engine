@@ -58,6 +58,9 @@ static TTF_TextEngine *ttf_text_engine = NULL;
 static bool ttf_initialized = false;
 static bool graphics_aabb_tree_debug_enabled = false;
 static bool graphics_contacts_debug_enabled = false;
+static bool graphics_hit_boxes_debug_enabled = false;
+static bool graphics_particles_debug_enabled = false;
+static bool graphics_local_origins_debug_enabled = false;
 static Camera camera = {0};
 static bool graphics_vsync_enabled = true;
 static int graphics_frame_limit = 0;
@@ -852,6 +855,9 @@ EngineResult graphics_tables_init(void) {
     camera_before_screen = CAMERA_INVALID;
     graphics_aabb_tree_debug_enabled = false;
     graphics_contacts_debug_enabled = false;
+    graphics_hit_boxes_debug_enabled = false;
+    graphics_particles_debug_enabled = false;
+    graphics_local_origins_debug_enabled = false;
     if(graphics_texture_assets_init().kind == ERROR_RESULT_ERROR) {
         return error_result_error(ERROR_ENGINE_GRAPHICS_TABLES_INIT_FAILED);
     }
@@ -1173,6 +1179,13 @@ void graphics_recording_stop(void) {
 void graphics_aabb_tree_debug_set(bool enabled) {
     graphics_aabb_tree_debug_enabled = enabled;
 }
+
+void graphics_hit_boxes_debug_set(bool enabled) { graphics_hit_boxes_debug_enabled = enabled; }
+bool graphics_hit_boxes_debug_check(void) { return graphics_hit_boxes_debug_enabled; }
+void graphics_particles_debug_set(bool enabled) { graphics_particles_debug_enabled = enabled; }
+bool graphics_particles_debug_check(void) { return graphics_particles_debug_enabled; }
+void graphics_local_origins_debug_set(bool enabled) { graphics_local_origins_debug_enabled = enabled; }
+bool graphics_local_origins_debug_check(void) { return graphics_local_origins_debug_enabled; }
 
 bool graphics_aabb_tree_debug_check(void) {
     return graphics_aabb_tree_debug_enabled;
@@ -3569,6 +3582,12 @@ static void graphics_scene_draw(void) {
         if(entity_components_check(entity, ROHR_SPRITE)) (void)graphics_sprite_draw(entity);
         if(entity_components_check(entity, ROHR_ANIMATED_SPRITE)) (void)graphics_animated_sprite_draw(entity);
     }
+    graphics_layer_active_set(100);
+    if(graphics_hit_boxes_debug_enabled) graphics_hit_boxes_draw();
+    if(graphics_particles_debug_enabled) graphics_particles_draw();
+    graphics_aabb_tree_draw();
+    graphics_contacts_draw();
+    if(graphics_local_origins_debug_enabled) graphics_local_origins_draw();
     graphics_layer_active_set(saved_layer);
 }
 

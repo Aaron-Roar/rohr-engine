@@ -23,18 +23,6 @@ static const char *audio_music_names[AUDIO_MUSIC_COUNT] = {
     "Tug Of War",
 };
 
-typedef struct AudioRenderContext {
-    TextAsset *title;
-    TextAsset *description;
-    TextAsset *sound_label;
-    TextAsset *music_labels;
-    TextAsset *quit_label;
-    Music *music;
-    bool sound_clicked;
-    bool music_clicked[AUDIO_MUSIC_COUNT];
-    bool quit_clicked;
-} AudioRenderContext;
-
 static void error_print(EngineError error) {
     fprintf(stderr, "audio example error %d: %s\n", (int)error,
         rohr_error_code_message_get(error));
@@ -69,40 +57,6 @@ static bool music_labels_update(TextAsset labels[AUDIO_MUSIC_COUNT],
     return true;
 }
 
-static void render_scene(CameraId camera, void *context_value) {
-    AudioRenderContext *context = context_value;
-    const float button_x = 390.0f;
-    const float button_width = 500.0f;
-    const float button_height = 58.0f;
-    (void)camera;
-
-    rohr_graphics_layer_active_set(-100);
-    rohr_graphics_background_draw((Color){20, 25, 34, 255});
-    rohr_graphics_layer_active_set(0);
-    rohr_ui_input_set((UIInput){
-        .pointer = rohr_graphics_mouse_screen_position_get(),
-        .primary_button = example_input_mouse_button_state_get(
-            INPUT_MOUSE_BUTTON_LEFT),
-    });
-    rohr_ui_label(context->title, (UIRect){340.0f, 55.0f, 600.0f, 55.0f});
-    rohr_ui_label(context->description,
-        (UIRect){250.0f, 115.0f, 780.0f, 40.0f});
-    context->sound_clicked = rohr_ui_button("audio.sound.water_splash",
-        context->sound_label,
-        (UIRect){button_x, 185.0f, button_width, button_height}, NULL).clicked;
-    for(size_t index = 0; index < AUDIO_MUSIC_COUNT; index += 1) {
-        char id[48];
-        (void)snprintf(id, sizeof(id), "audio.music.%zu", index);
-        context->music_clicked[index] = rohr_ui_button(id,
-            &context->music_labels[index],
-            (UIRect){button_x, 275.0f + (float)index * 75.0f,
-                button_width, button_height}, NULL).clicked;
-    }
-    context->quit_clicked = rohr_ui_button("audio.quit", context->quit_label,
-        (UIRect){490.0f, 535.0f, 300.0f, 55.0f}, NULL).clicked;
-    rohr_ui_update();
-}
-
 int main(void) {
     bool engine_started = false;
     bool graphics_started = false;
@@ -119,7 +73,8 @@ int main(void) {
     unsigned char music_label_states[AUDIO_MUSIC_COUNT] = {0};
     TextAsset quit_label = {0};
     ViewportId viewport = VIEWPORT_INVALID;
-    AudioRenderContext render_context = {0};
+    ViewportItemId sound_button=0, quit_button=0, music_buttons[AUDIO_MUSIC_COUNT]={0};
+    bool sound_armed=false, quit_armed=false, music_armed[AUDIO_MUSIC_COUNT]={0};
     EngineResult result;
 
     result = rohr_directory_working_set(rohr_directory_base_get());
@@ -183,22 +138,21 @@ int main(void) {
         if(!text_create(&font, "", &music_labels[index])) goto cleanup;
     if(!music_labels_update(music_labels, music, music_label_states)) goto cleanup;
 
-    render_context = (AudioRenderContext){
-        .title = &title,
-        .description = &description,
-        .sound_label = &sound_label,
-        .music_labels = music_labels,
-        .quit_label = &quit_label,
-        .music = music,
-    };
-    if(!example_viewport_create(render_scene, &render_context, &viewport))
-        goto cleanup;
+    if(!example_ui_viewport_create((Color){20,25,34,255},&viewport) ||
+            !example_label_add(viewport,title,(UIRect){340,55,600,55}) ||
+            !example_label_add(viewport,description,(UIRect){250,115,780,40})) goto cleanup;
+    sound_button=example_button_add(viewport,sound_label,(UIRect){390,185,500,58},NULL);
+    quit_button=example_button_add(viewport,quit_label,(UIRect){490,535,300,55},NULL);
+    if(!sound_button || !quit_button) goto cleanup;
+    for(size_t i=0;i<AUDIO_MUSIC_COUNT;++i) {
+        music_buttons[i]=example_button_add(viewport,music_labels[i],(UIRect){390,275+i*75,500,58},NULL);
+        if(!music_buttons[i]) goto cleanup;
+    }
 
     while(running) {
         SDL_Event event;
         rohr_input_frame_begin();
         while((event = rohr_engine_event_poll()).type != 0) {
-            rohr_ui_event_add(&event);
             if(event.type == SDL_EVENT_QUIT ||
                     (event.type == SDL_EVENT_KEY_DOWN &&
                         event.key.scancode == SDL_SCANCODE_ESCAPE)) {
@@ -213,9 +167,9 @@ int main(void) {
             if(rohr_error_check(printed)) error_print(printed.result.error);
         }
         if(!music_labels_update(music_labels, music, music_label_states)) goto cleanup;
-        rohr_graphics_show();
-        if(render_context.quit_clicked) break;
-        if(render_context.sound_clicked) {
+        if(rohr_graphics_viewport_show(viewport).header.status == ROHR_REPORT_FAILED) goto cleanup;
+        if(example_button_clicked_check(quit_button,&quit_armed)) break;
+        if(example_button_clicked_check(sound_button,&sound_armed)) {
             result = rohr_audio_sound_play(sound);
             if(rohr_error_check(result)) {
                 error_print(result.result.error);
@@ -223,7 +177,7 @@ int main(void) {
             }
         }
         for(size_t index = 0; index < AUDIO_MUSIC_COUNT; index += 1) {
-            if(!render_context.music_clicked[index]) continue;
+            if(!example_button_clicked_check(music_buttons[index],&music_armed[index])) continue;
             if(rohr_audio_music_paused_check(music[index]))
                 result = rohr_audio_music_resume(music[index]);
             else if(rohr_audio_music_playing_check(music[index]))

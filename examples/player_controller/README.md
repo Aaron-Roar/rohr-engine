@@ -16,10 +16,16 @@ The player has gravity and locked rotation. Developer-owned gameplay code in
 and implements contact-gated jumping. Static scene data and input declarations
 remain editor-owned in `objects/project.rohr.json`.
 
+`project.h` supplies immutable descriptions. The main creates `project.player_world`
+with `rohr_object_create`, binds its camera instance to `project.game_viewport`,
+and calls `rohr_graphics_viewport_show` after updating physics. No generated
+viewport module or camera callback is required. See the
+[game workflow](../reusable_instances.md) for ownership and SDK setup.
+
 From the repository root, build it with the other examples:
 
 ```sh
-./dev.sh build
+./dev build
 ./build/examples/PlayerController
 ```
 
