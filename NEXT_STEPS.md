@@ -15,7 +15,7 @@ priority order.
 | 4 | Cross-path feature parity | Complete by user acceptance; recorded verification exceptions remain |
 | 14 | Frame pacing before game development | Complete; corrected pacing verified and initial previews accepted |
 | 15 | [Descriptor-based creation and automatic viewport rendering](#15-descriptor-based-creation-and-automatic-viewport-rendering) | Complete; all six goals verified, final generated workflow accepted |
-| 16 | [Scoped creation and a teaching starter](#16-scoped-creation-and-a-teaching-starter) | Goals 1–3 complete; Goals 4–5 await user instruction |
+| 16 | [Scoped creation and a teaching example](#16-scoped-creation-and-a-teaching-example) | Goals 1–4 complete; Goal 5 awaits user instruction |
 | — | [C game experiment](#c-game-experiment) | Follows milestone 16 by user direction; agree concept and completion criteria with the user |
 | 13 | Physics rebuild from the simpler baseline | Paused by user direction for frame pacing and game development; goals 1, 2a, 2b and 4a complete; goals 2 and 3 failed; goal 4 blocking remains incomplete; goals 5–8 not started |
 | 12 | Real-time physics pipeline rework | Closed by user direction; superseded by milestone 13, not complete; goals 1–13 complete, goal 14 unfinished, goals 15–19 not started; evidence preserved |
@@ -28,19 +28,17 @@ priority order.
 | 10 | End-to-end game | Pending; separate larger game directed by the user |
 
 **Current priority:** By user direction, milestone 16 simplifies creation before
-the C game checkpoint. Goals 1–2 are complete: scope-based creation and optional
-viewport bindings are implemented and verified. The
-[scoped creation contract](docs/scoped_creation_contract.md) defines optional
-external references, automatic wiring within the selected creation scope, project
-instance ownership/access, and the three starter alternatives. Whole-project
-creation owns its scene, viewports, controllers, and all authored sound/music
-resources; global engine/window settings remain an explicit startup step, and
-audio playback remains explicit. Only the project path is active in the planned
-starter; object and individual-entity alternatives will be commented out and
-verified separately. Goal 3 is complete: project creation, instance lookup, and
-ownership are implemented and verified. The generated project description and
-teaching starter remain Goal 4. Stop at Goal 3 for review and commit; Goal 4 awaits
-explicit user instruction. Physics remains paused.
+the C game checkpoint. Goals 1–3 are complete: scope-based creation, optional
+viewport bindings, and project instance ownership are implemented and verified.
+The [scoped creation contract](docs/scoped_creation_contract.md) defines automatic
+wiring within the selected scope and explicit global settings/audio playback.
+Goal 4 is complete: generated project recipes and the example main support all
+three pathways, with only project creation active. All alternatives compile and
+run; generated input/audio ownership and strict migration are verified.
+Use **example** naming for new teaching content; preserve existing authored names
+and developer-edited entry points. Functional checks do not make performance
+claims while another example is running. Stop for Goal 4 review and commit; Goal 5
+awaits explicit user instruction. Physics remains paused.
 
 Milestone 15 is complete. Its Goal 1 defines the
 [creation and viewport contract](docs/creation_and_viewport_contract.md).
@@ -837,7 +835,7 @@ lifecycle criterion and controlled rendering comparisons. No implementation goal
 starts automatically. The user subsequently selected milestone 16 before the C
 game experiment; physics work remains paused with its failures preserved.
 
-### 16. Scoped creation and a teaching starter
+### 16. Scoped creation and a teaching example
 
 Support individual entities, whole objects, standalone viewports, and complete
 project instances through shared creators. Resolve authored references within the
@@ -847,10 +845,10 @@ its scene and viewports and owns its input and audio resources. Teach all three
 scene-creation pathways in the generated main, with only project creation active
 by default. Preserve existing physics, presentation, and developer-owned code.
 
-1. [x] **Define creation scope, APIs, ownership, and the teaching starter.**
+1. [x] **Define creation scope, APIs, ownership, and the teaching example.**
    Specify optional versus required references, standalone viewport camera
    binding, project creation/access/destruction, failure rollback, shared-service
-   boundaries, and three complete alternative starter mains. **Result: complete
+   boundaries, and three complete alternative example mains. **Result: complete
    for review.** The [contract](docs/scoped_creation_contract.md) records the
    user's decisions to apply global settings separately and load all authored
    sound/music resources without autoplay. It defines project-local input/audio
@@ -902,13 +900,28 @@ by default. Preserve existing physics, presentation, and developer-owned code.
    [verification record](docs/scoped_creation_contract.md#goal-3-verification)
    and `sandbox/milestone_16/goal_3/`. Generated whole-project descriptions and
    teaching mains remain Goal 4. Stop for review and commit.
-4. [ ] **Generate the new project description and teaching starter.** Expose the
+4. [x] **Generate the new project description and example main.** Expose the
    project recipe through `project.h`. Make whole-project creation the only active
    main; include complete commented object/entity alternatives with clear dividers,
    explicit camera binding, and cleanup. Preserve authored camera assignments,
    scene-selection behavior, deterministic generation, and developer-edited mains
    and build files. Compile and run every alternative in disposable generated
-   projects and keep affected examples compatible.
+   projects and keep affected examples compatible. **Result: complete for review.**
+   The immutable project recipe reuses named object/viewport descriptions and
+   includes input/audio recipes. New projects use `Example` and `example_assets`;
+   existing authored names and developer-owned main/build files remain intact.
+   The active main uses whole-project creation, and both commented alternatives
+   compile and run against the installed SDK. Canonical viewport lookup names
+   remain stable across reload. Fourteen focused Release checks and six sanitizer
+   checks pass, including generated two-instance resource isolation; four
+   independent SDK examples build and launch in both Linux configurations.
+   All three main paths, two generated consumers, engine/editor, affected tests,
+   and four examples cross-build for Windows. Native Windows execution remains
+   unverified. The user accepts the generated example preview. No new compiler
+   warnings or sanitizer findings remain. See the
+   [verification record](docs/scoped_creation_contract.md#goal-4-verification)
+   and `sandbox/milestone_16/goal_4/`. Physics and frame pacing are unchanged;
+   timings are not performance evidence. Stop for review and commit.
 5. [ ] **Verify all pathways, SDK parity, and the game workflow.** Integrate
    standalone/object/project coverage, two-instance mutation and teardown,
    1,000-cycle sanitizer checks, failure injection, and input/audio ownership.

@@ -1,10 +1,11 @@
-# Scoped creation and the teaching starter
+# Scoped creation and the teaching example
 
 Milestone 16 Goal 1 design contract, 2026-11-07. This document defines the target
 behavior approved for the new milestone. Goal 2 implements optional external-link
 omission and background-only unbound viewport screens. Goal 3 implements the
-project instance API below. **Generated project descriptions and the teaching
-starter remain planned for Goal 4.** Goal 5 integrates verification. The current API is documented in [shared creation](shared_creation.md)
+project instance API below. Goal 4 implements generated project descriptions and
+the three-path example main. Goal 5 integrates the wider SDK/game workflow
+verification. The current API is documented in [shared creation](shared_creation.md)
 and [automatic viewports](automatic_viewports.md).
 
 This contract supersedes the milestone 15 rules that require bindings for every
@@ -23,8 +24,8 @@ or a matching description found elsewhere in the engine.
 
 | Operation | Created contents | Automatic connections |
 | --- | --- | --- |
-| `rohr_entity_create(&project.starter.body)` | One member and its configured components; no separately authored children or siblings. | Only references to entities created in this attempt; optional references outside it remain unbound. |
-| `rohr_object_create(&project.starter)` | The selected hierarchy, including its nested objects and aggregates. | References anywhere within that hierarchy, including across nested children. |
+| `rohr_entity_create(&project.example.body)` | One member and its configured components; no separately authored children or siblings. | Only references to entities created in this attempt; optional references outside it remain unbound. |
+| `rohr_object_create(&project.example)` | The selected hierarchy, including its nested objects and aggregates. | References anywhere within that hierarchy, including across nested children. |
 | `rohr_viewport_create(&project.initial_viewport)` | Its authored screens, UI, layout, and owned display resources. | No scene objects or cameras are created or discovered; screens without explicit runtime cameras remain empty. |
 | `rohr_project_create(&project)` | One project entity hierarchy, its authored viewports, input controllers/actions, and sound/music resources. | References across all created project objects and authored screen-to-camera connections within this new instance. |
 
@@ -119,7 +120,7 @@ Introduce an engine-owned immutable `ProjectDescription` containing the common
 object-root description, ordered viewport recipes, input controller/action recipes,
 and named sound/music recipes. Use pointer/count pairs for variable authored
 collections. Generated `project.h` continues to expose named fields such as
-`project.starter.body` and
+`project.example.body` and
 `project.initial_viewport`; their data and the traversable project description
 refer to the same immutable records. Do not duplicate mutable state or add
 project-specific runtime constructors or callback tables for the new pathway.
@@ -177,7 +178,7 @@ After shutdown, old project handles cannot access new-generation resources.
 
 By user decision, apply authored engine/window settings explicitly once during
 application startup. Keep `project_settings_apply()` available to the generated
-starter. `rohr_project_create()` and destruction neither apply nor restore global
+example. `rohr_project_create()` and destruction neither apply nor restore global
 gravity, timestep, solver, window, pacing, or audio-mixer settings. A second
 project creation cannot reset the running game's global settings.
 
@@ -191,7 +192,7 @@ Projects containing audio require the caller to start the audio service before
 creation. Empty audio catalogs do not require that service. Loading all resources
 can decode WAV files, open Ogg streams, allocate, and fail on missing files or
 existing sound/music capacity limits; these costs occur during creation only.
-Any audio failure rolls back the entire project attempt. The starter starts audio
+Any audio failure rolls back the entire project attempt. The example starts audio
 when required, calls the existing audio update path when used, and destroys the
 project before stopping the service. Standalone entity/object/viewport creation
 does not load the project's unrelated audio. Generated audio recipes remain
@@ -237,7 +238,7 @@ instances and shared resources. No partial project escapes to the caller, and no
 failed attempt leaves force effects or input actions active. Reuse existing
 creator rollback rather than bypassing it with a separate construction path.
 
-## Generated teaching starter
+## Generated teaching example
 
 The initial `main.c` shows three complete alternatives separated by conspicuous
 comment dividers. Each section contains a complete alternative `main()` so setup,
@@ -274,7 +275,7 @@ must not be silently added alongside it. Avoid a long low-level topology tutoria
 in the initial main. Detailed physics examples remain available separately.
 
 Regeneration replaces editor-owned generated modules. Preserve developer-edited
-`main.c` and build files; migrate only strictly recognized untouched starter/scene
+`main.c` and build files; migrate only strictly recognized untouched example/scene
 templates. Keep scene simulation's selection and host lifecycle intact; it may
 compose a selected project description rather than spawning excluded objects.
 Keep persisted authored camera choices for previews and project creation. No
@@ -287,8 +288,8 @@ resolution in [object_spawn.c](../src/entity/object_spawn.c), binding validation
 [viewport_creation.c](../src/graphics/viewport_creation.c), typed catalog generation
 in [editor_object_catalog.c](../tools/editor_core/src/editor_object_catalog.c),
 controller/settings generation in
-[editor_workspace.c](../tools/editor/src/editor_workspace.c), and starter setup in
-[editor_starter_main.h](../tools/editor/src/editor_starter_main.h).
+[editor_workspace.c](../tools/editor/src/editor_workspace.c), and example setup in
+[editor_example_main.h](../tools/editor/src/editor_example_main.h).
 
 Each implementation goal verifies its own changes before stopping. Goal 5
 integrates the completed paths; it does not defer focused checks until the end.
@@ -313,7 +314,7 @@ integrates the completed paths; it does not defer focused checks until the end.
   asset reference cleanup, and unaffected previously live instances.
 - Run 1,000 create/use/extend/destroy cycles under ASan/UBSan with live-resource
   accounting. Exercise stale IDs, slot reuse, member expiry, and service shutdown.
-- Generate a fresh starter and mechanically activate each of its three sections
+- Generate a fresh example and mechanically activate each of its three sections
   in disposable copies. Compile and run each against installed SDKs; a commented
   alternative that is never compiled is not verified. Check deterministic
   generation, persisted camera assignments, and preservation of custom main/build
@@ -326,7 +327,7 @@ integrates the completed paths; it does not defer focused checks until the end.
   for regressions, rather than reopening the paused physics performance goals.
 
 The ordered goals and status are authoritative in
-[Milestone 16](../NEXT_STEPS.md#16-scoped-creation-and-a-teaching-starter).
+[Milestone 16](../NEXT_STEPS.md#16-scoped-creation-and-a-teaching-example).
 
 
 ## Project instance implementation
@@ -348,9 +349,13 @@ The root must be a parentless container and is the same initial member used by
 object-only creation. Authored children refer to `&description.root` (or their
 actual nested parent). The typed-view adapter requires a real initial
 `ProjectDescription` member; it is not valid to cast an older generated object
-catalog to a project description. Goal 4 will generate the new layout. Until
-then, applications can compose a `ProjectDescription` directly through this SDK
-API, while existing generated object/entity/viewport paths remain compatible.
+catalog to a project description. Goal 4 generates this layout in the root view's initial union, with `_project`
+as the active `ProjectDescription` member. The common initial `ObjectDescription`
+is also available as `_description`. Child parent pointers refer to the actual
+`_project.root`; child views and named viewport recipes are reused by its lists.
+The existing `project.viewports` recipe iteration remains available for custom
+object-only applications. Root metadata is read through `project._description`
+or `project._project.root`; child shorthand fields are unchanged.
 
 Creation allocates a bounded ownership record and invokes the existing creators.
 It resolves camera-object paths only in the new root hierarchy and publishes the
@@ -384,7 +389,7 @@ optional references outside the selected creation scope to remain unbound.
 Standalone viewport recipes retain authored camera metadata and create empty
 screens; runtime camera binding and clearing invalidate cached screen contents.
 Previously bound cameras that become stale still produce diagnostics. No physics
-solver, timing setting, project instance API, or generated starter path changes
+solver, timing setting, project instance API, or generated example path changes
 in this goal.
 
 - Linux Release: all 23 focused engine/editor tests, five selected installed-SDK
@@ -440,7 +445,7 @@ are not reopened or claimed fixed.
 - The engine, editor/CLI, affected tests, five SDK consumers, and four independent
   examples cross-build for Windows. Native Windows execution remains unverified.
   SDK installs are isolated from the user's `dist/`; generic Linux packaging and
-  the generated whole-project starter remain later milestone work.
+  the generated whole-project example remain later milestone work.
 - All four independent examples launch from `/tmp` in Release and sanitizer
   builds. Both car runs reach their full 3,600-frame / 60-second simulation
   endpoint with 14,400 substeps, 7,222,164 candidates, and 1,195,541 contacts,
@@ -460,4 +465,72 @@ The initial test build's incorrect default-description function name is correcte
 final builds have no compiler warnings. Existing HarfBuzz pkg-config fallback
 messages remain as documented for Goal 2. Physics settings, rendered performance
 requirements, and known physics failures are unchanged. Goal 4 still owns the
-new generated project layout and teaching starter; those are not implemented here.
+new generated project layout and teaching example; those are not implemented here.
+
+
+## Goal 4 verification
+
+Goal 4 is complete for review, 2026-11-07. New projects expose `project.example`,
+use `example_frame_*.png` from the SDK's `example_assets` directory, and generate
+an example main with three complete creation alternatives. Whole-project creation
+is active; object and entity alternatives are line-commented. Startup applies
+authored settings separately, starts audio when the project needs it, and checks
+system reports in the shared loop. Each path destroys its owned resources before
+stopping shared services. No extra direct-API tutorial bodies are added to the
+active authored scene.
+
+The generated root view starts with a union containing the actual immutable
+`ProjectDescription`. Its root, named children, and viewport entries reference the
+same records. The `_description` common-initial-member alias preserves object-root
+access, and the existing viewport recipe iteration remains available. Use
+`project._description` or `project._project.root` for root metadata; shorthand
+metadata on named children remains unchanged. Per-project input/action arrays and
+sound/music descriptions contain no mutable runtime handles. Viewport lookup names
+use the same canonical spelling as editor persistence, avoiding differences
+between generation before and after reload.
+
+Only byte-exact previous main templates migrate to the generic project path.
+Edited mains/build files and existing authored names remain unchanged. The exact
+old template text is retained solely for migration recognition. The center-of-mass,
+player-controller, and soft-body examples were regenerated with their custom
+entry points intact. Simulation still composes the selected hierarchy and
+viewport through its existing host lifecycle.
+
+Verification evidence is in `sandbox/milestone_16/goal_4/logs/`:
+
+- Fourteen focused Release checks pass across `release_tests.log`,
+  `release_tests_final.log`, and `fixture_tests.log`. Coverage includes all three
+  mechanically selected example mains, deterministic generation across reload,
+  strict migration and near-match preservation, scene selection, partial spawning,
+  build relocation/scaffolding, custom paths, and default particle/soft-body/beam
+  fixtures updated for the Example name. Initial setup/fixture failures are
+  superseded by the final passing logs.
+- Six focused ASan/UBSan checks pass with leak detection enabled in
+  `sanitizer_tests_final.log`. These compile and run all three main alternatives
+  and both generated parity consumers against the installed sanitizer SDK.
+  The project consumer verifies two independent projects, camera assignments,
+  UI/layers, input defaults and disabled controllers, audio loading without
+  playback, mutation isolation, and destruction with a surviving instance.
+  Existing object coverage retains 1,000 create/destroy cycles.
+- Four independent SDK examples build and launch from `/tmp` in both Release and
+  sanitizer configurations: center of mass, player controller, soft-body car,
+  and viewports. Both car runs reach all 3,600 frames and 60 simulated seconds,
+  with 14,400 substeps, 7,222,164 candidates, and 1,195,541 contacts. No physics
+  settings or performance gates change; concurrent user activity and sanitizer
+  overhead mean elapsed timings are not performance evidence.
+- Engine/editor, affected tests, four independent examples, all three main paths,
+  and both generated configuration/project consumers cross-build for Windows.
+  See `windows_*.log` and `platform_sequence.log`. Native Windows execution is
+  unverified; generic Linux archive and wider workflow acceptance remain Goal 5.
+- The unmodified generated example main was compiled against the installed SDK
+  and shown for 60 seconds. The user accepted the authored scene, animation,
+  and viewport UI. See `preview_build.log` and `preview_run.log`.
+
+No new compiler warnings or sanitizer findings remain. The sanitizer setup needed
+its SDK integration tests enabled and the CLI mock helper built; LeakSanitizer
+also required execution outside the tracing sandbox. These were verification
+setup corrections, not runtime changes. To recover disk space, disposable Goal 2
+Release/Windows builds and Goal 3 consumer builds were removed; their logs and
+installed SDKs remain. SDK/example builds were reused in place for this goal,
+with current verification logs kept separately. Stop here for review and commit;
+Goal 5 requires a new user instruction.

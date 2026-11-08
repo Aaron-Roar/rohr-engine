@@ -69,7 +69,7 @@ static void verify(Entity instance, ViewportId view) {
 int main(void) {
     OK(rohr_directory_working_set(rohr_directory_base_get()));
     OK(rohr_engine_start()); OK(rohr_graphics_start());
-    assert(project.children[0] == &project.parity._description);
+    assert(project._project.root.children[0] == &project.parity._description);
     assert(project.parity.body.parent == &project.parity._description);
     assert(project.play.items[0].camera_member == &project.parity.camera._description);
     assert(!strcmp(project.parity.body.layer_name,"world"));
@@ -120,6 +120,53 @@ int main(void) {
     assert(rohr_entity_alive_check(visual.result.value));
     OK(rohr_entity_delete(visual.result.value));
     assert(rohr_entity_alive_count_get() == 0);
+    /* The same named views now expose a full project recipe, without duplicating
+     * object/camera descriptions or retaining generated mutable runtime state. */
+    assert(&project._project.root == &project._description);
+    assert(project._project.viewports[0].description == &project.play);
+    assert(project._project.controller_count == 2);
+    assert(project._project.sound_count == 1 && project._project.music_count == 1);
+    OK(rohr_audio_start());
+    ProjectIdResult p1 = rohr_project_create(&project); OK(p1);
+    ProjectIdResult p2 = rohr_project_create(&project); OK(p2);
+    ProjectId ids[] = {p1.result.value, p2.result.value};
+    Entity instances[2];
+    InputControllerId inputs[2];
+    for(size_t i = 0; i < 2; ++i) {
+        EntityResult root = rohr_project_root_get(ids[i]); OK(root);
+        instances[i] = member(root.result.value, "Parity");
+        ViewportIdResult view = rohr_project_viewport_by_name_get(ids[i], "Play"); OK(view);
+        verify(instances[i], view.result.value);
+        ViewportListResult views = rohr_project_viewports_get(ids[i]); OK(views);
+        assert(views.result.value.count == 3);
+        InputControllerIdResult controller = rohr_project_controller_by_name_get(ids[i], "player"); OK(controller);
+        inputs[i] = controller.result.value;
+        InputActionIdResult action = rohr_input_action_by_name_get(inputs[i], "toggle"); OK(action);
+        InputActionDescriptionResult description = rohr_input_action_description_get(action.result.value); OK(description);
+        assert(description.result.value.button_mode == INPUT_BUTTON_PERSISTENT);
+        assert(description.result.value.button_initial_state);
+        assert(description.result.value.bindings_default.count == 1);
+        assert(description.result.value.bindings_default.values[0].input.key == SDL_SCANCODE_SPACE);
+        controller = rohr_project_controller_by_name_get(ids[i], "disabled"); OK(controller);
+        InputControllerDescriptionResult disabled = rohr_input_controller_description_get(controller.result.value); OK(disabled);
+        assert(!disabled.result.value.enabled);
+        SoundResult sound = rohr_project_sound_by_name_get(ids[i], "impact"); OK(sound);
+        SoundDescriptionResult audio = rohr_audio_sound_description_get(sound.result.value); OK(audio);
+        assert(audio.result.value.volume == .75f && audio.result.value.pan == -.5f);
+        assert(audio.result.value.loop && audio.result.value.playback_rate == 1.5f);
+        assert(!rohr_audio_sound_playing_check(sound.result.value));
+        MusicResult music = rohr_project_music_by_name_get(ids[i], "theme"); OK(music);
+        assert(!rohr_audio_music_playing_check(music.result.value));
+    }
+    assert(instances[0] != instances[1] && inputs[0] != inputs[1]);
+    OK(rohr_physics_position_set(member(instances[0], "body"), (Position){333, 444}));
+    assert(rohr_physics_position_get(member(instances[1], "body")).result.value.x == 12);
+    OK(rohr_project_destroy(ids[0]));
+    assert(rohr_entity_alive_check(instances[1]));
+    OK(rohr_input_controller_description_get(inputs[1]));
+    OK(rohr_project_destroy(ids[1]));
+    assert(rohr_entity_alive_count_get() == 0);
+    assert(rohr_audio_stop().header.status != ROHR_REPORT_FAILED);
     rohr_graphics_stop(); rohr_engine_stop();
     return 0;
 }

@@ -22,9 +22,9 @@ int main(void) {
     assert(!rohr_error_check(rohr_engine_start()));
     assert(!rohr_error_check(rohr_graphics_start()));
     assert(!rohr_error_check(rohr_directory_working_set(rohr_directory_base_get())));
-    Starter starter = {0};
-    assert(!rohr_error_check(starter_create(&starter, (Position){0})));
-    starter_destroy(&starter);
+    Example example = {0};
+    assert(!rohr_error_check(example_create(&example, (Position){0})));
+    example_destroy(&example);
     rohr_engine_stop();
     return 0;
 }
@@ -47,7 +47,7 @@ foreach(executable "${app}" "${scene}")
     endif()
 endforeach()
 foreach(directory "output app" "output scene")
-    if(NOT EXISTS "${FIXTURE}/${directory}/assets/tutorial_frame_1.png")
+    if(NOT EXISTS "${FIXTURE}/${directory}/assets/example_frame_1.png")
         message(FATAL_ERROR "Runtime assets not staged for ${directory}")
     endif()
 endforeach()

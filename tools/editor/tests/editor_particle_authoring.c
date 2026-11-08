@@ -74,8 +74,8 @@ static void fixture_remove(const char *root) {
     const char *files[] = {"project.rohr.json", "objects/project.rohr.json", "src/main.c",
         "src/generated/project.h", "src/generated/project_objects.c", "src/generated/project_objects.h",
         "src/generated/project_viewports.c", "src/generated/project_viewports.h",
-        "CMakeLists.txt", ".gitignore", "editor.lua", "assets/tutorial_frame_1.png",
-        "assets/tutorial_frame_2.png", "src/generated", "src", "assets", "objects", ""};
+        "CMakeLists.txt", ".gitignore", "editor.lua", "assets/example_frame_1.png",
+        "assets/example_frame_2.png", "src/generated", "src", "assets", "objects", ""};
     for(size_t i = 0; i < sizeof(files) / sizeof(files[0]); i += 1) {
         char path[2048]; snprintf(path, sizeof(path), "%s/%s", root, files[i]);
         (void)SDL_RemovePath(path);
@@ -211,7 +211,7 @@ int main(int argc, char **argv) {
     assert(editor_workspace_c_generate(&loaded_workspace, &loaded));
     char source_path[2048]; snprintf(source_path, sizeof(source_path), "%s/src/generated/project_objects.c", fixture);
     char *source = SDL_LoadFile(source_path, NULL); assert(source != NULL);
-    const char *config = strstr(source, "const ParticleDescription starter_particle_final_config");
+    const char *config = strstr(source, "const ParticleDescription example_particle_final_config");
     assert(config != NULL);
     const char *end = strstr(config, "};"); assert(end != NULL);
     const char *expected[] = {".mass_value = 17.0000000f", ".friction = 0.250000000f",

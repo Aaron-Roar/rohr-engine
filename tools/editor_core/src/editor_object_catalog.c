@@ -13,7 +13,7 @@ static const char *path_get(const Catalog *c, const ObjectDescription *d) {
     return NULL;
 }
 static bool reserved(const char *name) {
-    static const char *fields[] = {"_description", "viewports", "viewport_count", "id", "name", "kind", "categories", "parent", "children", "child_count",
+    static const char *fields[] = {"_project", "_description", "viewports", "viewport_count", "id", "name", "kind", "categories", "parent", "children", "child_count",
         "position", "orientation", "velocity", "acceleration", "angular_velocity", "entity_settings", "mass", "radius", "friction", "restitution",
         "kinematic_driven", "static_body", "gravity_enabled", "collision_enabled", "rotation_locked", "visible", "center_of_mass_explicit",
         "center_of_mass", "particle_origin", "particle_vertices", "collision_filter", "geometry", "geometry_count",
@@ -94,11 +94,48 @@ static void string_write(FILE *f, const char *s) {
     }
     fputc('"', f);
 }
+void editor_catalog_input_binding_write(FILE *source,
+        const InputBinding *binding) {
+    fprintf(source, "        {.name = ");
+    string_write(source, binding->name);
+    fprintf(source, ", .source = %s, .input.",
+        binding->source == INPUT_BINDING_KEY ? "INPUT_BINDING_KEY" :
+        binding->source == INPUT_BINDING_MOUSE_BUTTON ?
+            "INPUT_BINDING_MOUSE_BUTTON" :
+        binding->source == INPUT_BINDING_MOUSE_MOTION ?
+            "INPUT_BINDING_MOUSE_MOTION" : "INPUT_BINDING_MOUSE_WHEEL");
+    if(binding->source == INPUT_BINDING_KEY)
+        fprintf(source, "key = (SDL_Scancode)%u", (unsigned)binding->input.key);
+    else if(binding->source == INPUT_BINDING_MOUSE_BUTTON)
+        fprintf(source, "mouse_button = (InputMouseButton)%u",
+            (unsigned)binding->input.mouse_button);
+    else fprintf(source, "axis_component = %s",
+        binding->input.axis_component == INPUT_AXIS_COMPONENT_X ?
+            "INPUT_AXIS_COMPONENT_X" :
+        binding->input.axis_component == INPUT_AXIS_COMPONENT_Y ?
+            "INPUT_AXIS_COMPONENT_Y" : "INPUT_AXIS_COMPONENT_XY");
+    fprintf(source,
+        ", .modifiers = (SDL_Keymod)%u, .affects_x = %s, .affects_y = %s, "
+        ".scale = {%#.9gf, %#.9gf}, "
+        ".inverted_x = %s, .inverted_y = %s, "
+        ".direction = {%#.9gf, %#.9gf}}",
+        (unsigned)binding->modifiers,
+        binding->affects_x ? "true" : "false",
+        binding->affects_y ? "true" : "false",
+        binding->scale.x, binding->scale.y,
+        binding->inverted_x ? "true" : "false",
+        binding->inverted_y ? "true" : "false",
+        binding->direction.x, binding->direction.y);
+}
+
 static void type_write(FILE *f, const Catalog *c, const ObjectDescription *d) {
     for(size_t i = 0; i < d->child_count; ++i) type_write(f, c, d->children[i]);
-    fprintf(f, "typedef struct %sDescriptionView_%llu {\n"
-        "    union { ObjectDescription _description; struct { ROHR_OBJECT_DESCRIPTION_FIELDS; }; };\n",
-        c->prefix, (unsigned long long)d->id);
+    fprintf(f, "typedef struct %sDescriptionView_%llu {\n", c->prefix, (unsigned long long)d->id);
+    if(c->project && !d->parent)
+        fputs("    /* Initial project recipe; _description aliases its root for object-only access. */\n"
+            "    union { ProjectDescription _project; struct { ObjectDescription _description; }; };\n", f);
+    else
+        fputs("    union { ObjectDescription _description; struct { ROHR_OBJECT_DESCRIPTION_FIELDS; }; };\n", f);
     for(size_t i = 0; i < d->child_count; ++i) {
         char name[EDITOR_OBJECT_NAME_MAX];
         editor_project_property_name_format(name, sizeof(name), d->children[i]->name);
@@ -201,13 +238,16 @@ static bool viewport_arrays_write(FILE *f, const Catalog *c);
 static void viewport_values_write(FILE *f, const EditorProject *project);
 static void value_write(FILE *f, const Catalog *c, const ObjectDescription *d) {
     unsigned long long id = d->id;
-    fputs("{._description={.name=", f); string_write(f, d->name);
+    bool root = c->project && !d->parent;
+    fputs(root ? "{._project={.root={.name=" : "{._description={.name=", f);
+    string_write(f, d->name);
 #define U(field) fprintf(f, ",." #field "=UINT64_C(%llu)", (unsigned long long)d->field)
 #define F(field) fprintf(f, ",." #field "=%#.9gf", (double)d->field)
 #define V(field) fprintf(f, ",." #field "={%#.9gf,%#.9gf}", (double)d->field.x, (double)d->field.y)
 #define C(field) fprintf(f, ",." #field "={%u,%u,%u,%u}", d->field.red,d->field.green,d->field.blue,d->field.alpha)
     U(id); U(kind); U(categories); U(child_count);
-    if(d->parent) fprintf(f, ",.parent=&%s._description", path_get(c,d->parent));
+    if(d->parent) fprintf(f, ",.parent=&%s.%s", path_get(c,d->parent),
+        c->project && !d->parent->parent ? "_project.root" : "_description");
     if(d->child_count) fprintf(f, ",.children=%s_children_%llu", c->prefix, id);
     V(position); F(orientation); V(velocity); V(acceleration); F(angular_velocity);
     F(mass); F(radius); F(friction); F(restitution);
@@ -242,12 +282,71 @@ static void value_write(FILE *f, const Catalog *c, const ObjectDescription *d) {
 #undef V
 #undef C
     fputs("}", f);
+    if(root) {
+        const EditorProject *p = c->project;
+        if(p->layout_viewport_count) fprintf(f, ",.viewports=project_viewport_recipes,.viewport_count=%zu", p->layout_viewport_count);
+        if(p->input_controller_count) fprintf(f, ",.controllers=project_controller_recipes,.controller_count=%zu", p->input_controller_count);
+        size_t sounds = 0, music = 0;
+        for(size_t i = 0; i < p->audio_definition_count; ++i)
+            if(p->audio_definitions[i].music) ++music; else ++sounds;
+        if(sounds) fprintf(f, ",.sounds=project_sound_recipes,.sound_count=%zu", sounds);
+        if(music) fprintf(f, ",.music=project_music_recipes,.music_count=%zu", music);
+        fputs("}", f);
+    }
     for(size_t i = 0; i < d->child_count; ++i) {
         char name[EDITOR_OBJECT_NAME_MAX]; editor_project_property_name_format(name,sizeof(name),d->children[i]->name);
         fprintf(f, ",.%s=",name); value_write(f,c,d->children[i]);
     }
     if(c->project && !d->parent) viewport_values_write(f, c->project);
     fputs("}", f);
+}
+static void project_resources_write(FILE *f, const EditorProject *p) {
+    for(size_t i = 0; i < p->input_controller_count; ++i) {
+        const EditorInputController *controller = &p->input_controllers[i];
+        if(!controller->action_count) continue;
+        fprintf(f, "static const ProjectActionDescription project_actions_%zu[] = {\n", i);
+        for(size_t j = 0; j < controller->action_count; ++j) {
+            const EditorInputAction *a = &controller->actions[j];
+            fputs("{.name=", f); string_write(f, a->name);
+            fprintf(f, ",.type=%u,.button_mode=%u,.button_initial_state=%u,.bindings_default={.count=%zu",
+                a->type, a->button_mode, a->button_initial_state, a->binding_count);
+            if(a->binding_count) {
+                fputs(",.values={", f);
+                for(size_t b = 0; b < a->binding_count; ++b) {
+                    editor_catalog_input_binding_write(f, &a->bindings[b]); fputc(',', f);
+                }
+                fputc('}', f);
+            }
+            fputs("}},\n", f);
+        }
+        fputs("};\n", f);
+    }
+    if(p->input_controller_count) {
+        fputs("static const ProjectControllerDescription project_controller_recipes[] = {\n", f);
+        for(size_t i = 0; i < p->input_controller_count; ++i) {
+            const EditorInputController *c = &p->input_controllers[i];
+            fputs("{.controller={.name=", f); string_write(f, c->name);
+            fprintf(f, ",.enabled=%u}", c->enabled);
+            if(c->action_count) fprintf(f, ",.actions=project_actions_%zu,.action_count=%zu", i, c->action_count);
+            fputs("},\n", f);
+        }
+        fputs("};\n", f);
+    }
+    for(int music = 0; music < 2; ++music) {
+        size_t count = 0;
+        for(size_t i = 0; i < p->audio_definition_count; ++i) {
+            const EditorAudioDefinition *a = &p->audio_definitions[i];
+            if(a->music != (bool)music) continue;
+            if(!count++) fprintf(f, "static const Project%sDescription project_%s_recipes[] = {\n",
+                music ? "Music" : "Sound", music ? "music" : "sound");
+            fputs("{.name=", f); string_write(f, a->name);
+            fputs(",.description={.path=", f); string_write(f, a->path);
+            fprintf(f, ",.volume=%.9ef,.loop=%u,.playback_rate=%.9ef", a->volume, a->loop, a->playback_rate);
+            if(!music) fprintf(f, ",.pan=%.9ef", a->pan);
+            fputs("}},\n", f);
+        }
+        if(count) fputs("};\n", f);
+    }
 }
 static bool catalog_write(FILE *header, FILE *source, const EditorProject *project, bool unified) {
     if(!project) return false;
@@ -261,7 +360,7 @@ static bool catalog_write(FILE *header, FILE *source, const EditorProject *proje
         fprintf(header,"extern const %sDescriptionView_%llu %s;\n\n",catalog->prefix,
             (unsigned long long)converted.result.value->id,unified ? "project" : "objects");
         for(size_t i = 0; i < catalog->count; ++i) array_write(source,catalog,catalog->entries[i].d);
-        if(unified) ok = viewport_arrays_write(source,catalog);
+        if(unified) { project_resources_write(source, project); ok = viewport_arrays_write(source,catalog); }
         fprintf(source,"const %sDescriptionView_%llu %s = ",catalog->prefix,
             (unsigned long long)converted.result.value->id,unified ? "project" : "objects");
         value_write(source,catalog,converted.result.value); fputs(";\n",source);
@@ -378,6 +477,15 @@ static bool viewport_arrays_write(FILE *f, const Catalog *c) {
             char name[EDITOR_OBJECT_NAME_MAX];
             editor_project_property_name_format(name, sizeof(name), p->layout_viewports[i].name);
             fprintf(f, "%s&project.%s", i ? "," : "", name);
+        }
+        fputs("};\nstatic const ProjectViewportDescription project_viewport_recipes[] = {\n", f);
+        for(size_t i = 0; i < p->layout_viewport_count; ++i) {
+            char name[EDITOR_OBJECT_NAME_MAX], authored[EDITOR_OBJECT_NAME_MAX];
+            editor_project_property_name_format(name, sizeof(name), p->layout_viewports[i].name);
+            /* Match the editor's persisted viewport naming before and after reload. */
+            editor_project_object_name_format(authored, sizeof(authored), p->layout_viewports[i].name);
+            fputs("{.name=", f); string_write(f, authored);
+            fprintf(f, ",.description=&project.%s},\n", name);
         }
         fputs("};\n", f);
     }

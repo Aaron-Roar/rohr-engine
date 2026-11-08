@@ -2117,7 +2117,8 @@ typedef struct ProjectDescriptionView_2 {
     ProjectDescriptionView_529 rear_drive;
 } ProjectDescriptionView_2;
 typedef struct ProjectDescriptionView_1 {
-    union { ObjectDescription _description; struct { ROHR_OBJECT_DESCRIPTION_FIELDS; }; };
+    /* Initial project recipe; _description aliases its root for object-only access. */
+    union { ProjectDescription _project; struct { ObjectDescription _description; }; };
     ProjectDescriptionView_2 car;
     const ViewportCreateDescription *const *viewports;
     size_t viewport_count;

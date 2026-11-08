@@ -48,8 +48,8 @@ static void fixture_remove(const char *root) {
     const char *files[] = {"project.rohr.json", "objects/project.rohr.json", "src/main.c",
         "src/generated/project.h", "src/generated/project_objects.c", "src/generated/project_objects.h",
         "src/generated/project_viewports.c", "src/generated/project_viewports.h",
-        "CMakeLists.txt", ".gitignore", "editor.lua", "assets/tutorial_frame_1.png",
-        "assets/tutorial_frame_2.png", "src/generated", "src", "assets", "objects", ""};
+        "CMakeLists.txt", ".gitignore", "editor.lua", "assets/example_frame_1.png",
+        "assets/example_frame_2.png", "src/generated", "src", "assets", "objects", ""};
     for(size_t i = 0; i < sizeof(files)/sizeof(files[0]); i++) {
         char path[2048]; snprintf(path,sizeof(path),"%s/%s",root,files[i]);
         (void)SDL_RemovePath(path);

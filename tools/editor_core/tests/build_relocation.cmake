@@ -42,9 +42,9 @@ int main(void) {
     assert(!rohr_error_check(rohr_engine_start()));
     assert(!rohr_error_check(rohr_graphics_start()));
     assert(!rohr_error_check(rohr_directory_working_set(rohr_directory_base_get())));
-    Starter starter = {0};
-    assert(!rohr_error_check(starter_create(&starter, (Position){0})));
-    starter_destroy(&starter);
+    Example example = {0};
+    assert(!rohr_error_check(example_create(&example, (Position){0})));
+    example_destroy(&example);
     rohr_engine_stop();
     return 0;
 }

@@ -3,7 +3,8 @@
  */
 
 #include "editor_workspace.h"
-#include "editor_starter_main.h"
+#include "editor_example_main.h"
+#include "editor_main_previous.h"
 #include "editor_starter_main_legacy.h"
 #include "editor_scene_source.h"
 #include "editor_log.h"
@@ -255,8 +256,8 @@ static bool editor_workspace_tug_init(EditorProject *project) {
     return true;
 }
 
-static bool editor_workspace_starter_project_init(EditorProject *project) {
-    EditorObject *starter;
+static bool editor_workspace_example_project_init(EditorProject *project) {
+    EditorObject *example;
     EditorRigidBody *floor_body;
     EditorRigidBody *box_body;
     EditorRigidBody *chassis_body;
@@ -294,10 +295,10 @@ static bool editor_workspace_starter_project_init(EditorProject *project) {
 
     if(project == NULL) return false;
     editor_project_init(project);
-    starter = editor_project_object_add(project, (Position){0});
-    if(starter == NULL) return false;
-    snprintf(starter->name, sizeof(starter->name), "Starter");
-    camera = editor_project_camera_add(project, starter);
+    example = editor_project_object_add(project, (Position){0});
+    if(example == NULL) return false;
+    snprintf(example->name, sizeof(example->name), "Example");
+    camera = editor_project_camera_add(project, example);
     if(camera == NULL) return false;
     snprintf(camera->name, sizeof(camera->name), "main_camera");
     camera->position = (Position){0.0f, 0.0f};
@@ -310,7 +311,7 @@ static bool editor_workspace_starter_project_init(EditorProject *project) {
     snprintf(layout_viewport->name, sizeof(layout_viewport->name),
         "initial_viewport");
     screen_item = editor_viewport_camera_add(project, layout_viewport,
-        starter->id, camera->id);
+        example->id, camera->id);
     if(screen_item == NULL) return false;
     screen_item->placement.drag_mode = VIEWPORT_ITEM_DRAG_Y;
     ui_shape = editor_viewport_ui_add(project, layout_viewport,
@@ -319,7 +320,7 @@ static bool editor_workspace_starter_project_init(EditorProject *project) {
     snprintf(ui_shape->name, sizeof(ui_shape->name), "sample_ui");
     ui_shape->position = (Position){24.0f, 24.0f};
     ui_shape->drag_mode = VIEWPORT_ITEM_DRAG_X;
-    floor_body = editor_project_rigid_body_add(project, starter);
+    floor_body = editor_project_rigid_body_add(project, example);
     if(floor_body == NULL) return false;
     snprintf(floor_body->name, sizeof(floor_body->name), "floor");
     floor_body->position = (Position){0.0f, -200.0f};
@@ -329,7 +330,7 @@ static bool editor_workspace_starter_project_init(EditorProject *project) {
     editor_workspace_hitbox_rectangle_set(project, &floor_body->hitboxes[0],
         600.0f, 40.0f);
 
-    box_body = editor_project_rigid_body_add(project, starter);
+    box_body = editor_project_rigid_body_add(project, example);
     if(box_body == NULL) return false;
     snprintf(box_body->name, sizeof(box_body->name), "box");
     box_body->position = (Position){0.0f, 120.0f};
@@ -341,26 +342,26 @@ static bool editor_workspace_starter_project_init(EditorProject *project) {
         50.0f, 50.0f);
     box_id = box_body->id;
 
-    chassis_body = editor_project_rigid_body_add(project, starter);
+    chassis_body = editor_project_rigid_body_add(project, example);
     if(chassis_body == NULL) return false;
     chassis_id = chassis_body->id;
-    wheel_body = editor_project_rigid_body_add(project, starter);
+    wheel_body = editor_project_rigid_body_add(project, example);
     if(wheel_body == NULL) return false;
     wheel_id = wheel_body->id;
-    welded_body = editor_project_rigid_body_add(project, starter);
+    welded_body = editor_project_rigid_body_add(project, example);
     if(welded_body == NULL) return false;
     welded_id = welded_body->id;
-    spring_body = editor_project_rigid_body_add(project, starter);
+    spring_body = editor_project_rigid_body_add(project, example);
     if(spring_body == NULL) return false;
     spring_id = spring_body->id;
-    particle_body = editor_project_rigid_body_add(project, starter);
+    particle_body = editor_project_rigid_body_add(project, example);
     if(particle_body == NULL) return false;
     particle_id = particle_body->id;
-    chassis_body = editor_project_rigid_body_get(starter, chassis_id);
-    wheel_body = editor_project_rigid_body_get(starter, wheel_id);
-    welded_body = editor_project_rigid_body_get(starter, welded_id);
-    spring_body = editor_project_rigid_body_get(starter, spring_id);
-    particle_body = editor_project_rigid_body_get(starter, particle_id);
+    chassis_body = editor_project_rigid_body_get(example, chassis_id);
+    wheel_body = editor_project_rigid_body_get(example, wheel_id);
+    welded_body = editor_project_rigid_body_get(example, welded_id);
+    spring_body = editor_project_rigid_body_get(example, spring_id);
+    particle_body = editor_project_rigid_body_get(example, particle_id);
     snprintf(chassis_body->name, sizeof(chassis_body->name), "joint_chassis");
     chassis_body->position = (Position){-220.0f, 20.0f};
     editor_workspace_hitbox_rectangle_set(project, &chassis_body->hitboxes[0],
@@ -386,65 +387,65 @@ static bool editor_workspace_starter_project_init(EditorProject *project) {
     particle_body->rotation_locked = true;
     if(!editor_project_particle_hitbox_sync(project, particle_body)) return false;
 
-    chassis_pin = editor_project_anchor_add(project, starter,
+    chassis_pin = editor_project_anchor_add(project, example,
         (Position){60.0f, 0.0f}, chassis_body->id);
     if(chassis_pin == NULL) return false;
     chassis_pin_id = chassis_pin->id;
-    wheel_pin = editor_project_anchor_add(project, starter,
+    wheel_pin = editor_project_anchor_add(project, example,
         (Position){0.0f, 0.0f}, wheel_body->id);
     if(wheel_pin == NULL) return false;
     wheel_pin_id = wheel_pin->id;
-    chassis_weld = editor_project_anchor_add(project, starter,
+    chassis_weld = editor_project_anchor_add(project, example,
         (Position){-60.0f, 0.0f}, chassis_body->id);
     if(chassis_weld == NULL) return false;
     chassis_weld_id = chassis_weld->id;
-    welded_anchor = editor_project_anchor_add(project, starter,
+    welded_anchor = editor_project_anchor_add(project, example,
         (Position){0.0f, 0.0f}, welded_body->id);
     if(welded_anchor == NULL) return false;
     welded_anchor_id = welded_anchor->id;
-    chassis_spring = editor_project_anchor_add(project, starter,
+    chassis_spring = editor_project_anchor_add(project, example,
         (Position){0.0f, 0.0f}, chassis_body->id);
     if(chassis_spring == NULL) return false;
     chassis_spring_id = chassis_spring->id;
-    spring_anchor = editor_project_anchor_add(project, starter,
+    spring_anchor = editor_project_anchor_add(project, example,
         (Position){0.0f, 0.0f}, spring_body->id);
     if(spring_anchor == NULL) return false;
     spring_anchor_id = spring_anchor->id;
-    if(editor_project_anchor_add(project, starter,
+    if(editor_project_anchor_add(project, example,
             (Position){300.0f, 190.0f}, 0) == NULL) return false;
-    chassis_pin = editor_project_anchor_get(starter, chassis_pin_id);
-    wheel_pin = editor_project_anchor_get(starter, wheel_pin_id);
-    chassis_weld = editor_project_anchor_get(starter, chassis_weld_id);
-    welded_anchor = editor_project_anchor_get(starter, welded_anchor_id);
-    chassis_spring = editor_project_anchor_get(starter, chassis_spring_id);
-    spring_anchor = editor_project_anchor_get(starter, spring_anchor_id);
+    chassis_pin = editor_project_anchor_get(example, chassis_pin_id);
+    wheel_pin = editor_project_anchor_get(example, wheel_pin_id);
+    chassis_weld = editor_project_anchor_get(example, chassis_weld_id);
+    welded_anchor = editor_project_anchor_get(example, welded_anchor_id);
+    chassis_spring = editor_project_anchor_get(example, chassis_spring_id);
+    spring_anchor = editor_project_anchor_get(example, spring_anchor_id);
     snprintf(chassis_pin->name, sizeof(chassis_pin->name), "chassis_pin");
     snprintf(wheel_pin->name, sizeof(wheel_pin->name), "wheel_pin");
     snprintf(chassis_weld->name, sizeof(chassis_weld->name), "chassis_weld");
     snprintf(welded_anchor->name, sizeof(welded_anchor->name), "welded_anchor");
     snprintf(chassis_spring->name, sizeof(chassis_spring->name), "chassis_spring");
     snprintf(spring_anchor->name, sizeof(spring_anchor->name), "spring_anchor");
-    snprintf(starter->anchors[starter->anchor_count - 1].name,
-        sizeof(starter->anchors[starter->anchor_count - 1].name), "world_anchor");
+    snprintf(example->anchors[example->anchor_count - 1].name,
+        sizeof(example->anchors[example->anchor_count - 1].name), "world_anchor");
 
-    joint = editor_project_joint_add(project, starter, EDITOR_JOINT_REVOLUTE);
+    joint = editor_project_joint_add(project, example, EDITOR_JOINT_REVOLUTE);
     if(joint == NULL) return false;
     snprintf(joint->name, sizeof(joint->name), "revolute_joint");
     joint->anchor_a = chassis_pin_id;
     joint->anchor_b = wheel_pin_id;
-    joint = editor_project_joint_add(project, starter, EDITOR_JOINT_WELD);
+    joint = editor_project_joint_add(project, example, EDITOR_JOINT_WELD);
     if(joint == NULL) return false;
     snprintf(joint->name, sizeof(joint->name), "weld_joint");
     joint->anchor_a = chassis_weld_id;
     joint->anchor_b = welded_anchor_id;
-    joint = editor_project_joint_add(project, starter, EDITOR_JOINT_SPRING);
+    joint = editor_project_joint_add(project, example, EDITOR_JOINT_SPRING);
     if(joint == NULL) return false;
     snprintf(joint->name, sizeof(joint->name), "spring_joint");
     joint->anchor_a = chassis_spring_id;
     joint->anchor_b = spring_anchor_id;
     joint->rest_length = 105.0f;
 
-    soft_body = editor_project_soft_body_add(project, starter);
+    soft_body = editor_project_soft_body_add(project, example);
     if(soft_body == NULL) return false;
     snprintf(soft_body->name, sizeof(soft_body->name), "soft_body");
     soft_body->position = (Position){220.0f, 80.0f};
@@ -470,32 +471,32 @@ static bool editor_workspace_starter_project_init(EditorProject *project) {
     default_area->outer.node_count = 4;
     for(size_t i = 0; i < 4; i += 1) default_area->outer.nodes[i] = soft_nodes[i]->id;
 
-    sprite = editor_project_sprite_add(project, starter, "standalone_sprite",
-        "assets/tutorial_frame_1.png");
+    sprite = editor_project_sprite_add(project, example, "standalone_sprite",
+        "assets/example_frame_1.png");
     if(sprite == NULL) return false;
     sprite->position = (Position){220.0f, -100.0f};
     sprite->size = (Scale){64.0f, 64.0f};
 
-    animation = editor_project_animated_sprite_add(project, starter);
+    animation = editor_project_animated_sprite_add(project, example);
     if(animation == NULL) return false;
     snprintf(animation->name, sizeof(animation->name), "attached_animation");
     animation->rigid_body = box_id;
     animation->time_per_frame = 0.2;
     animation->playing = true;
     if(!editor_project_animation_frame_add(project, animation, "frame_1",
-            "assets/tutorial_frame_1.png", (Scale){0.16f, 0.16f}) ||
+            "assets/example_frame_1.png", (Scale){0.16f, 0.16f}) ||
             !editor_project_animation_frame_add(project, animation, "frame_2",
-                "assets/tutorial_frame_2.png", (Scale){0.16f, 0.16f})) return false;
-    animation = editor_project_animated_sprite_add(project, starter);
+                "assets/example_frame_2.png", (Scale){0.16f, 0.16f})) return false;
+    animation = editor_project_animated_sprite_add(project, example);
     if(animation == NULL) return false;
     snprintf(animation->name, sizeof(animation->name), "free_animation");
     animation->editor_position = (Position){340.0f, 80.0f};
     animation->time_per_frame = 0.2;
     animation->playing = true;
     if(!editor_project_animation_frame_add(project, animation, "frame_1",
-            "assets/tutorial_frame_1.png", (Scale){0.16f, 0.16f}) ||
+            "assets/example_frame_1.png", (Scale){0.16f, 0.16f}) ||
             !editor_project_animation_frame_add(project, animation, "frame_2",
-                "assets/tutorial_frame_2.png", (Scale){0.16f, 0.16f})) return false;
+                "assets/example_frame_2.png", (Scale){0.16f, 0.16f})) return false;
     if(!editor_workspace_tug_init(project)) return false;
     editor_project_selection_clear(project);
     return true;
@@ -665,40 +666,6 @@ static void editor_workspace_input_action_variable(char *output, size_t capacity
         action->name);
     snprintf(output, capacity, "action_%s_%s_%u", controller_name, action_name,
         action->id);
-}
-
-static void editor_workspace_input_binding_write(FILE *source,
-        const InputBinding *binding) {
-    fprintf(source, "        {.name = ");
-    editor_workspace_c_string_write(source, binding->name);
-    fprintf(source, ", .source = %s, .input.",
-        binding->source == INPUT_BINDING_KEY ? "INPUT_BINDING_KEY" :
-        binding->source == INPUT_BINDING_MOUSE_BUTTON ?
-            "INPUT_BINDING_MOUSE_BUTTON" :
-        binding->source == INPUT_BINDING_MOUSE_MOTION ?
-            "INPUT_BINDING_MOUSE_MOTION" : "INPUT_BINDING_MOUSE_WHEEL");
-    if(binding->source == INPUT_BINDING_KEY)
-        fprintf(source, "key = (SDL_Scancode)%u", (unsigned)binding->input.key);
-    else if(binding->source == INPUT_BINDING_MOUSE_BUTTON)
-        fprintf(source, "mouse_button = (InputMouseButton)%u",
-            (unsigned)binding->input.mouse_button);
-    else fprintf(source, "axis_component = %s",
-        binding->input.axis_component == INPUT_AXIS_COMPONENT_X ?
-            "INPUT_AXIS_COMPONENT_X" :
-        binding->input.axis_component == INPUT_AXIS_COMPONENT_Y ?
-            "INPUT_AXIS_COMPONENT_Y" : "INPUT_AXIS_COMPONENT_XY");
-    fprintf(source,
-        ", .modifiers = (SDL_Keymod)%u, .affects_x = %s, .affects_y = %s, "
-        ".scale = {%#.9gf, %#.9gf}, "
-        ".inverted_x = %s, .inverted_y = %s, "
-        ".direction = {%#.9gf, %#.9gf}}",
-        (unsigned)binding->modifiers,
-        binding->affects_x ? "true" : "false",
-        binding->affects_y ? "true" : "false",
-        binding->scale.x, binding->scale.y,
-        binding->inverted_x ? "true" : "false",
-        binding->inverted_y ? "true" : "false",
-        binding->direction.x, binding->direction.y);
 }
 
 static void editor_workspace_particle_config_name(char *output, size_t capacity,
@@ -1068,7 +1035,7 @@ static bool editor_workspace_generated_objects_write(const EditorWorkspace *work
                 for(size_t binding_index = 0;
                         binding_index < action->binding_count;
                         binding_index += 1) {
-                    editor_workspace_input_binding_write(source,
+                    editor_catalog_input_binding_write(source,
                         &action->bindings[binding_index]);
                     fprintf(source, "%s\n",
                         binding_index + 1 == action->binding_count ? "" : ",");
@@ -1234,95 +1201,8 @@ static bool editor_workspace_viewport_modules_remove(const EditorWorkspace *work
     return true;
 }
 
-static const char editor_workspace_main_source[] =
-    "/*\n"
-    " * Generated by Rohr Engine.\n"
-    " * This generated file is not covered by Rohr Engine's LGPL-3.0-only license.\n"
-    " * The project's developer may use, modify, and distribute it without restriction.\n"
-    " */\n"
-    "\n"
-    "#include \"project.h\"\n"
-    "\n"
-    "#include <stdio.h>\n"
-    "\n"
-    "static bool ok(EngineResult result) {\n"
-    "    if(!rohr_error_check(result)) return true;\n"
-    "    fprintf(stderr, \"error %d: %s\\n\", (int)result.result.error,\n"
-    "        rohr_error_message_get(result));\n"
-    "    return false;\n"
-    "}\n"
-    "\n"
-    "/* Bind each authored camera object to this scene's chosen runtime instance. */\n"
-    "static EngineResult viewport_create(const ViewportCreateDescription *recipe,\n"
-    "        Entity root, ViewportId *output) {\n"
-    "    ViewportObjectBinding bindings[MAX_VIEWPORT_ITEMS];\n"
-    "    size_t count = 0;\n"
-    "    for(size_t i = 0; i < recipe->item_count; ++i) {\n"
-    "        const ObjectDescription *object = recipe->items[i].camera_object;\n"
-    "        if(!object) continue;\n"
-    "        bool found = false;\n"
-    "        for(size_t j = 0; j < count; ++j) if(bindings[j].description == object) found = true;\n"
-    "        if(found) continue;\n"
-    "        if(count == MAX_VIEWPORT_ITEMS) return rohr_error_result_error(ERROR_MEMORY_POOL_FULL);\n"
-    "        EntityResult instance = rohr_object_member_get(root, object->name);\n"
-    "        if(rohr_error_check(instance)) return rohr_error_result_error(instance.result.error);\n"
-    "        bindings[count++] = (ViewportObjectBinding){object, instance.result.value};\n"
-    "    }\n"
-    "    ViewportCreateDescription description = {.template = recipe,\n"
-    "        .objects = bindings, .object_count = count};\n"
-    "    ViewportIdResult created = rohr_viewport_create(&description);\n"
-    "    if(rohr_error_check(created)) return rohr_error_result_error(created.result.error);\n"
-    "    *output = created.result.value;\n"
-    "    return rohr_error_result_value(true);\n"
-    "}\n"
-    "\n"
-    "int main(void) {\n"
-    "    if(!ok(rohr_directory_working_set(rohr_directory_base_get()))) return 1;\n"
-    "    Entity objects = ENTITY_INVALID;\n"
-    "    ProjectControllers controllers = {0};\n"
-    "    ViewportId viewports[MAX_VIEWPORTS] = {0};\n"
-    "    if(!ok(rohr_engine_start()) || !ok(rohr_graphics_start())) goto fail;\n"
-    "    if(!ok(project_settings_apply()) || !ok(project_controllers_create(&controllers))) goto fail;\n"
-    "    EntityResult created = rohr_object_create(&project);\n"
-    "    if(rohr_error_check(created)) goto fail;\n"
-    "    objects = created.result.value;\n"
-    "    if(project.viewport_count > MAX_VIEWPORTS) goto fail;\n"
-    "    for(size_t i = 0; i < project.viewport_count; ++i)\n"
-    "        if(!ok(viewport_create(project.viewports[i], objects, &viewports[i]))) goto fail;\n"
-    "    while(true) {\n"
-    "        SDL_Event event;\n"
-    "        rohr_input_frame_begin();\n"
-    "        while((event = rohr_engine_event_poll()).type != 0) {\n"
-    "            if(event.type == SDL_EVENT_QUIT) goto done;\n"
-    "        }\n"
-    "        if(rohr_input_key_pressed_check(SDL_SCANCODE_ESCAPE)) break;\n"
-    "        if(rohr_engine_update().header.status == ROHR_REPORT_FAILED) goto fail;\n"
-    "        if(rohr_physics_update(rohr_engine_tick_delta_get()).header.status == ROHR_REPORT_FAILED) goto fail;\n"
-    "        rohr_graphics_sprite_frames_update(rohr_engine_tick_get(), rohr_engine_time_get());\n"
-    "        if(rohr_graphics_viewports_show(viewports, project.viewport_count).header.status == ROHR_REPORT_FAILED) goto fail;\n"
-    "    }\n"
-    "done:\n"
-    "    for(size_t i = 0; i < MAX_VIEWPORTS; ++i)\n"
-    "        if(viewports[i]) (void)rohr_viewport_destroy(viewports[i]);\n"
-    "    if(rohr_entity_alive_check(objects)) (void)rohr_entity_delete(objects);\n"
-    "    project_controllers_destroy(&controllers);\n"
-    "    rohr_graphics_stop();\n"
-    "    rohr_engine_stop();\n"
-    "    return 0;\n"
-    "fail:\n"
-    "    fprintf(stderr, \"Game initialization failed\\n\");\n"
-    "    for(size_t i = 0; i < MAX_VIEWPORTS; ++i)\n"
-    "        if(viewports[i]) (void)rohr_viewport_destroy(viewports[i]);\n"
-    "    if(rohr_entity_alive_check(objects)) (void)rohr_entity_delete(objects);\n"
-    "    project_controllers_destroy(&controllers);\n"
-    "    rohr_graphics_stop();\n"
-    "    rohr_engine_stop();\n"
-    "    return 1;\n"
-    "}\n"
-    ;
-
 static bool editor_workspace_main_write(const EditorWorkspace *workspace,
-    const EditorProject *project, bool tutorial) {
+    const EditorProject *project, bool example) {
     char path[EDITOR_WORKSPACE_PATH_MAX * 2];
     FILE *file;
 
@@ -1330,7 +1210,7 @@ static bool editor_workspace_main_write(const EditorWorkspace *workspace,
             !editor_workspace_file_path(workspace, path, sizeof(path), "src/main.c")) return false;
     file = fopen(path, "wb");
     if(file == NULL) return false;
-    bool written = fputs(tutorial ? editor_starter_main_source : editor_workspace_main_source, file) != EOF;
+    bool written = fputs(example ? editor_example_main_source : editor_project_main_source, file) != EOF;
     bool closed = fclose(file) == 0;
     return written && closed;
 }
@@ -1752,7 +1632,7 @@ static bool editor_workspace_scene_write(const EditorWorkspace *workspace,
         if(info.type != SDL_PATHTYPE_FILE) return false;
         char *existing_scene = SDL_LoadFile(path, NULL);
         if(!existing_scene) return false;
-        bool known = strcmp(existing_scene, editor_workspace_main_source) == 0 ||
+        bool known = strcmp(existing_scene, editor_main_previous_source) == 0 ||
             strcmp(existing_scene, editor_workspace_main_legacy_viewport_source) == 0 ||
             strcmp(existing_scene, editor_scene_source_legacy) == 0;
         SDL_free(existing_scene);
@@ -1817,8 +1697,8 @@ static bool editor_workspace_config_template_copy(const EditorWorkspace *workspa
     return written && closed;
 }
 
-static bool editor_workspace_starter_assets_copy(const EditorWorkspace *workspace) {
-    static const char *names[] = {"tutorial_frame_1.png", "tutorial_frame_2.png"};
+static bool editor_workspace_example_assets_copy(const EditorWorkspace *workspace) {
+    static const char *names[] = {"example_frame_1.png", "example_frame_2.png"};
     static const char *development_names[] = {
         "examples/flies-around-ball/assets/elder-fly/flying/f1.png",
         "examples/flies-around-ball/assets/elder-fly/flying/f2.png"
@@ -1828,7 +1708,7 @@ static bool editor_workspace_starter_assets_copy(const EditorWorkspace *workspac
     char destination[EDITOR_WORKSPACE_PATH_MAX * 2];
     for(size_t i = 0; i < sizeof(names) / sizeof(names[0]); i += 1) {
         EditorResult result;
-        if(snprintf(relative, sizeof(relative), "starter-assets/%s", names[i]) >=
+        if(snprintf(relative, sizeof(relative), "example_assets/%s", names[i]) >=
                 (int)sizeof(relative)) return false;
         result = editor_config_sdk_path_get(source, sizeof(source), relative, false);
         if(editor_result_check(result) || source[0] == '\0') {
@@ -1862,13 +1742,14 @@ static bool editor_workspace_legacy_main_upgrade(const EditorWorkspace *workspac
     if(contents == NULL) return false;
     bool legacy_joints = strcmp(contents, editor_starter_main_legacy_joint_source) == 0;
     bool legacy_viewport = !strcmp(contents, editor_starter_main_legacy_viewport_source);
-    legacy = legacy_joints || legacy_viewport || !strcmp(contents, editor_workspace_main_legacy_viewport_source) ||
+    legacy = !strcmp(contents, editor_main_previous_example_source) ||
+        !strcmp(contents, editor_main_previous_source) || legacy_joints || legacy_viewport || !strcmp(contents, editor_workspace_main_legacy_viewport_source) ||
         editor_workspace_tick_main_check(contents);
     if(!legacy && (strstr(contents, "project_viewports.h") || strstr(contents, "project_viewports_create(")))
         console_write(LOG_ENGINE, "Preserved developer-owned %s. Generated viewport helpers were removed; "
             "migrate to project.h, rohr_viewport_create and rohr_graphics_viewports_show.\n", path);
     SDL_free(contents);
-    return !legacy || editor_workspace_main_write(workspace, project, legacy_joints || legacy_viewport);
+    return !legacy || editor_workspace_main_write(workspace, project, false);
 }
 
 static bool editor_workspace_c_generate_selected(const EditorWorkspace *workspace,
@@ -1983,10 +1864,10 @@ EditorResult editor_workspace_create(EditorWorkspace *workspace, EditorProject *
         return editor_result_error(EDITOR_ERROR_FILE_IO,
             "Could not create the project directory structure under: %s", directory);
     }
-    if(!editor_workspace_starter_project_init(project)) return editor_result_error(
-        EDITOR_ERROR_SCHEMA_INVALID, "Could not initialize the starter project");
-    if(!editor_workspace_starter_assets_copy(&created)) return editor_result_error(
-        EDITOR_ERROR_FILE_IO, "Could not copy starter assets under: %s", directory);
+    if(!editor_workspace_example_project_init(project)) return editor_result_error(
+        EDITOR_ERROR_SCHEMA_INVALID, "Could not initialize the example project");
+    if(!editor_workspace_example_assets_copy(&created)) return editor_result_error(
+        EDITOR_ERROR_FILE_IO, "Could not copy example assets under: %s", directory);
     if(!editor_workspace_save(&created, project)) return editor_result_error(
         EDITOR_ERROR_FILE_IO, "Could not save the initial project state under: %s", directory);
     if(editor_result_check(editor_workspace_build_paths_write(&created)) || !editor_workspace_scaffold_write(&created)) return editor_result_error(

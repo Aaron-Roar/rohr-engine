@@ -11,6 +11,10 @@ execute_process(COMMAND "${CMAKE_COMMAND}" -E env SDL_VIDEODRIVER=dummy SDL_AUDI
 if(NOT result EQUAL 0)
     message(FATAL_ERROR "Configuration fixture generation failed: ${result}")
 endif()
+configure_file("${CMAKE_CURRENT_LIST_DIR}/../../../examples/audio/assets/wav/water-splash-3.wav"
+    "${FIXTURE}/assets/impact.wav" COPYONLY)
+configure_file("${CMAKE_CURRENT_LIST_DIR}/../../../examples/audio/assets/ogg/tug_of_war.ogg"
+    "${FIXTURE}/assets/theme.ogg" COPYONLY)
 configure_file("${CONSUMER_SOURCE}" "${FIXTURE}/src/main.c" COPYONLY)
 configure_file("${CMAKE_CURRENT_LIST_DIR}/project_generated_consumer.c" "${FIXTURE}/src/project_consumer.c" COPYONLY)
 configure_file("${CMAKE_CURRENT_LIST_DIR}/configuration_direct_checks.h" "${FIXTURE}/src/configuration_direct_checks.h" COPYONLY)

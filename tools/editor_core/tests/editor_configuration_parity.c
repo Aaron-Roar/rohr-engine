@@ -626,6 +626,12 @@ static void generation_fixture(const char *directory, const char *font_path) {
     EditorAudioDefinition *sound = editor_project_audio_add(&p, false, "impact", "assets/impact.wav"); assert(sound);
     sound->volume = .75f; sound->pan = -.5f; sound->loop = true; sound->playback_rate = 1.5f;
     assert(editor_project_audio_add(&p, true, "theme", "assets/theme.ogg"));
+    EditorInputController *input = editor_project_input_controller_add(&p, "player"); assert(input);
+    EditorInputAction *action = editor_project_input_action_add(&p, input->id, "toggle", INPUT_ACTION_BUTTON);
+    assert(action); action->button_mode = INPUT_BUTTON_PERSISTENT; action->button_initial_state = true;
+    assert(editor_project_input_binding_add(&p, input->id, action->id,
+        input_binding_scancode_create(SDL_SCANCODE_SPACE)));
+    input = editor_project_input_controller_add(&p, "disabled"); assert(input); input->enabled = false;
     assert(editor_workspace_save(&workspace, &p));
     static EditorProject loaded; editor_project_init(&loaded);
     EditorWorkspace loaded_workspace = {0};

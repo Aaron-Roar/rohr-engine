@@ -32,29 +32,29 @@ static void run_check(bool tutorial) {
     if(tutorial) {
         OK(project_settings_apply());
         EntityResult created = rohr_object_create(&project); OK(created); root = created.result.value;
-        EntityResult starter = rohr_object_member_get(root,project.starter.name); OK(starter);
+        EntityResult example = rohr_object_member_get(root,project.example.name); OK(example);
         EntityResult tug = rohr_object_member_get(root,project.tug.name); OK(tug);
-        OK(starter_instance_bind(&scene.starter,starter.result.value));
+        OK(example_instance_bind(&scene.example,example.result.value));
         OK(tug_instance_bind(&scene.tug,tug.result.value));
         scene.created = true;
     }
     else OK(project_objects_create_all(&scene));
     assert(scene.created);
-    assert(scene.starter.source_instance && scene.tug.source_instance);
-    joint_check(scene.starter.joint_revolute_joint,
-        scene.starter.joint_chassis, scene.starter.revolute_wheel);
-    joint_check(scene.starter.joint_weld_joint,
-        scene.starter.joint_chassis, scene.starter.welded_body);
-    joint_check(scene.starter.joint_spring_joint,
-        scene.starter.joint_chassis, scene.starter.spring_body);
+    assert(scene.example.source_instance && scene.tug.source_instance);
+    joint_check(scene.example.joint_revolute_joint,
+        scene.example.joint_chassis, scene.example.revolute_wheel);
+    joint_check(scene.example.joint_weld_joint,
+        scene.example.joint_chassis, scene.example.welded_body);
+    joint_check(scene.example.joint_spring_joint,
+        scene.example.joint_chassis, scene.example.spring_body);
     tug_check(&scene.tug);
-    EntityInfoResult soft = rohr_entity_info_get(scene.starter.soft_body,
+    EntityInfoResult soft = rohr_entity_info_get(scene.example.soft_body,
         ROHR_ENTITY_INFO_PHYSICS_SOFT_BODY);
     OK(soft);
     OK(rohr_entity_info_release(&soft.result.value));
     assert(project.viewport_count == 1 && project.initial_viewport.item_count >= 1);
     ViewportCameraBinding binding = {.item_name=project.initial_viewport.items[0].name,
-        .camera=scene.starter.camera_main_camera};
+        .camera=scene.example.camera_main_camera};
     ViewportCreateDescription description = {.template=&project.initial_viewport,.cameras=&binding,.camera_count=1};
     ViewportIdResult viewport = rohr_viewport_create(&description); OK(viewport);
 
@@ -92,19 +92,19 @@ static void run_check(bool tutorial) {
 static void failure_check(void) {
     OK(rohr_engine_start()); OK(rohr_graphics_start());
     EntityResult added = rohr_entity_add(); OK(added);
-    Starter output = {.source_instance = added.result.value};
-    Starter original = output;
-    assert(rohr_error_check(starter_instance_bind(&output, added.result.value)));
+    Example output = {.source_instance = added.result.value};
+    Example original = output;
+    assert(rohr_error_check(example_instance_bind(&output, added.result.value)));
     assert(memcmp(&output, &original, sizeof(output)) == 0);
     assert(rohr_entity_alive_check(added.result.value));
     OK(rohr_entity_delete(added.result.value));
     EntityCreateOptions options = {.owner=added.result.value};
-    assert(rohr_error_check(rohr_entity_create_with_options(&project.starter.box, options)));
+    assert(rohr_error_check(rohr_entity_create_with_options(&project.example.box, options)));
     assert(rohr_entity_alive_count_get() == 0);
     /* Fail after several successful spawns and verify tutorial rollback. */
-    assert(SDL_RenamePath("assets/tutorial_frame_1.png", "assets/tutorial_frame_1.saved"));
+    assert(SDL_RenamePath("assets/example_frame_1.png", "assets/example_frame_1.saved"));
     EntityResult created = rohr_object_create(&project);
-    assert(SDL_RenamePath("assets/tutorial_frame_1.saved", "assets/tutorial_frame_1.png"));
+    assert(SDL_RenamePath("assets/example_frame_1.saved", "assets/example_frame_1.png"));
     assert(rohr_error_check(created));
     assert(rohr_entity_alive_count_get() == 0);
     rohr_graphics_stop(); rohr_engine_stop();

@@ -87,6 +87,12 @@ if(ROHR_BUILD_TESTS)
         ENVIRONMENT "SDL_VIDEODRIVER=dummy;SDL_AUDIODRIVER=dummy")
     if(ROHR_BUILD_SDK_CONSUMER_TESTS AND NOT CMAKE_CROSSCOMPILING)
         if(ROHR_BUILD_CLI)
+            add_test(NAME editor_example_pathways COMMAND ${CMAKE_COMMAND}
+                -DCLI=$<TARGET_FILE:rohr_editor_cli>
+                "-DFIXTURE=${CMAKE_CURRENT_BINARY_DIR}/example pathways"
+                "-DSDK_PREFIX=${ROHR_SDK_INSTALL_PREFIX}"
+                -P "${CMAKE_CURRENT_SOURCE_DIR}/tests/example_pathways.cmake")
+            set_tests_properties(editor_example_pathways PROPERTIES LABELS "sdk;linux" TIMEOUT 180)
             add_test(NAME editor_collision_migration_generated COMMAND ${CMAKE_COMMAND}
                 -DCLI=$<TARGET_FILE:rohr_editor_cli>
                 -DTEST_EXECUTABLE=$<TARGET_FILE:editor_collision_migration_test>

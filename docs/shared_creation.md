@@ -6,41 +6,55 @@ Milestone 15 Goal 2 implements the entity/object portion of the
 generated `project.h`. Existing generated catalogs remain compatible.
 
 Milestone 16 Goal 2 implements the [scoped creation rules](scoped_creation_contract.md)
-for optional external links and unbound viewport screens. `rohr_project_create()`
-and the new teaching starter remain planned for Goals 3–4.
+for optional external links and unbound viewport screens. Goal 3 adds
+`rohr_project_create()` and project ownership. Goal 4 adds generated project
+recipes and the three-path example main.
 
 ## Unified generated project
 
 Regeneration now writes `src/generated/project.h` for applications and
 `src/generated/scene/project.h` for scene builds. It includes `rohr.h` and exposes
 one immutable `project` catalog containing named objects, nested members, and
-viewport creation templates. For the generated starter:
+viewport creation templates. New teaching content uses **Example**, exposed as
+`project.example`; regeneration does not rename existing authored objects.
+
+The initial main uses the whole-project path:
 
 ```c
 #include "project.h"
 
-EntityResult instance = rohr_object_create(&project.starter);
-/* Check instance before using its value. */
-ViewportObjectBinding binding = {
-    .description = &project.starter._description,
-    .instance = instance.result.value
-};
-ViewportCreateDescription description = {
-    .template = &project.initial_viewport,
-    .objects = &binding,
-    .object_count = 1
-};
-ViewportIdResult viewport = rohr_viewport_create(&description);
-/* Check viewport before passing its value to rohr_graphics_viewport_show(). */
+/* After starting engine/graphics and applying project_settings_apply() once.
+ * Start audio as well if the project contains sound/music recipes. */
+ProjectIdResult created = rohr_project_create(&project);
+/* Check created, then use its project-local resources. */
+ViewportListResult views = rohr_project_viewports_get(created.result.value);
+/* Check views before presenting its values/count in the ordinary game loop. */
+/* Destroy the project before stopping graphics/audio/engine. */
 ```
 
-The authored screen selects its camera description; the binding selects the
-object instance containing that camera. Creating a viewport does not create the
-object. Named members and hierarchy traversal reference the same description
-records. Optional links outside the selected creation scope remain unbound unless
-supplied; required physics dependencies still need the bindings described below.
+`project._project` is the immutable `ProjectDescription` passed through the typed
+adapter. Its root hierarchy, named viewport recipes, controllers/actions, and all
+audio recipes are created together. Audio loads stopped. Global settings remain
+a separate startup operation, and each system update remains explicit in the loop.
+`rohr_project_root_get()` and project-local resource lookups return borrowed handles.
+`rohr_project_destroy()` releases the owned resources without changing other instances.
+
+The generated main contains complete, line-commented alternatives for
+`rohr_object_create(&project.example)` and individual `rohr_entity_create()` calls.
+Comment out the active main and uncomment exactly one alternative; the shared
+loop stays in place. The object path creates a blank viewport then binds its screen
+camera. The entity path supplies a camera in a local viewport creation descriptor.
+Both explicitly clean up their resources. The independent entity path intentionally
+shows a subset of the scene; it does not spawn a joint without its topology.
+
+Authored screen camera choices remain in the immutable recipe. Whole-project
+creation resolves them within the new instance. Standalone viewport creation
+leaves screens unbound unless runtime cameras or object bindings are supplied.
+Named members and hierarchy traversal reference the same description records.
+Optional links outside the selected creation scope remain unbound unless supplied;
+required physics dependencies still need the bindings described below.
 Generated C field names are normalized identifiers; runtime member lookup uses
-the authored name, available as `project.starter.name`. Conflicting or reserved
+the authored name, available as `project.example.name`. Conflicting or reserved
 generated names are rejected before writing output.
 
 Definitions live in the existing `project_objects.c` translation unit.
@@ -55,11 +69,11 @@ be mixed in one set of description bindings.
 
 By user direction, generated viewport compatibility support is removed in Goal 4.
 Regeneration removes editor-owned `project_viewports.h/.c` from both application
-and scene output. New starters and simulation scenes create the project hierarchy,
-bind each viewport's camera objects to its chosen instances, and create automatic
-viewports. Starters present the selected viewport batch once per frame; the
-simulation runner retains its existing frame/host pipeline. Additional direct
-entities carry explicit runtime appearance instead of an application draw callback.
+and scene output. New examples use whole-project creation and present its viewport
+batch once per frame. Simulation retains its selected hierarchy, camera binding,
+and existing frame/host pipeline. It never spawns objects excluded by selection.
+The active example contains only the authored scene, with no additional direct
+physics tutorial bodies.
 
 Exact recognized old starter/main and scene-build templates migrate automatically.
 Developer-edited `main.c` and CMake files remain untouched. Customized callers must
@@ -71,7 +85,7 @@ entry points. Archived template strings are only migration signatures; they are
 not generated compatibility code. The engine's low-level screen/UI/viewport and
 camera callback APIs remain available.
 
-Bundled example migration and the wider game workflow remain Goal 5.
+Milestone 16 Goal 5 integrates the wider SDK and game workflow verification.
 Regenerate and rebuild consumers against the matching SDK:
 `ObjectDescription` now includes named-layer identity, changing its binary layout.
 

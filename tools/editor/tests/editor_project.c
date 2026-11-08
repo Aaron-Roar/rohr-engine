@@ -8,6 +8,8 @@
 #include "legacy_scene_fixture.h"
 #include "editor_scene_source.h"
 #include "editor_starter_main_legacy.h"
+#include "editor_main_previous.h"
+#include "editor_example_main.h"
 
 #include <math.h>
 #include <stdio.h>
@@ -27,7 +29,7 @@ static void workspace_fixture_remove(const char *root) {
         "src/generated/project.h", "src/generated/project_objects.c", "src/generated/project_objects.h",
         "src/generated/project_viewports.c", "src/generated/project_viewports.h",
         "CMakeLists.txt", ".gitignore", "editor.lua", ".rohr/project_paths.cmake",
-        "assets/tutorial_frame_1.png", "assets/tutorial_frame_2.png"
+        "assets/example_frame_1.png", "assets/example_frame_2.png"
     };
     static const char *directories[] = {
         "src/generated/scene", "src/generated", "src", "assets", "objects", ".rohr"
@@ -225,7 +227,7 @@ static bool scene_scaffold_check(const EditorWorkspace *workspace,
     bool valid = false;
     if(!main_source || !scene_source || !cmake_source || SDL_GetPathInfo(legacy_path, NULL)) goto done;
     if(!strstr(scene_source, "scene/project.h") ||
-            !strstr(main_source, "rohr_object_create(&project)")) goto done;
+            !strstr(main_source, "rohr_project_create(&project)")) goto done;
     const char *include = strstr(cmake_source, "\ninclude(\"${ROHR_GENERATED_DIRECTORY}/project_scene.cmake\")\n");
     if(!include) goto done;
     edited = SDL_malloc(strlen(cmake_source) + 64);
@@ -255,19 +257,33 @@ static bool scene_scaffold_check(const EditorWorkspace *workspace,
     for(size_t i = 0; i < sizeof(old) / sizeof(old[0]); ++i)
         if(!file_replace(legacy_path, old[i]) || !editor_workspace_c_generate(workspace, project) ||
                 SDL_GetPathInfo(legacy_path, NULL)) goto done;
-    /* The preceding untouched starter upgrades and obsolete editor-owned files disappear. */
+    /* The preceding untouched example upgrades and obsolete editor-owned files disappear. */
     char obsolete[2048];
     snprintf(obsolete,sizeof(obsolete),"%s/src/generated/project_viewports.c",workspace->directory);
     if(!file_replace(obsolete,"/* obsolete generated module */\n") ||
             !file_replace(main_path,editor_starter_main_legacy_viewport_source) ||
             !editor_workspace_c_generate(workspace,project) || SDL_GetPathInfo(obsolete,NULL)) goto done;
     SDL_free(loaded); loaded=SDL_LoadFile(main_path,NULL);
-    if(!loaded || strcmp(loaded,main_source)) goto done;
+    if(!loaded || strcmp(loaded,editor_project_main_source)) goto done;
     /* Exact old joint setters upgrade, but even a comment makes main developer-owned. */
     if(!file_replace(main_path, editor_starter_main_legacy_joint_source) ||
             !editor_workspace_c_generate(workspace, project)) goto done;
     SDL_free(loaded); loaded = SDL_LoadFile(main_path, NULL);
-    if(!loaded || strcmp(loaded, main_source)) goto done;
+    if(!loaded || strcmp(loaded, editor_project_main_source)) goto done;
+    const char *previous[] = {editor_main_previous_source, editor_main_previous_example_source};
+    for(size_t i = 0; i < sizeof(previous) / sizeof(previous[0]); ++i) {
+        if(!file_replace(main_path, previous[i]) || !editor_workspace_c_generate(workspace, project)) goto done;
+        SDL_free(loaded); loaded = SDL_LoadFile(main_path, NULL);
+        if(!loaded || strcmp(loaded, editor_project_main_source)) goto done;
+        if(!file_replace(main_path, previous[i])) goto done;
+        FILE *changed = fopen(main_path, "ab");
+        if(!changed) goto done;
+        bool appended = fputs("\n/* developer customization */\n", changed) >= 0;
+        if(fclose(changed) || !appended || !editor_workspace_c_generate(workspace, project)) goto done;
+        SDL_free(loaded); loaded = SDL_LoadFile(main_path, NULL);
+        if(!loaded || strncmp(loaded, previous[i], strlen(previous[i])) ||
+                !strstr(loaded, "developer customization")) goto done;
+    }
     if(!file_replace(main_path, editor_starter_main_legacy_joint_source)) goto done;
     FILE *custom = fopen(main_path, "ab");
     if(!custom) goto done;
@@ -590,7 +606,7 @@ int main(void) {
                     bindings[0].name, "primary_click") != 0 ||
                 loaded_project.input_controllers[0].actions[1].bindings[0].input.
                     mouse_button != INPUT_MOUSE_BUTTON_LEFT ||
-                strcmp(loaded_project.objects[0].name, "Starter") != 0 ||
+                strcmp(loaded_project.objects[0].name, "Example") != 0 ||
                 !position_equal(loaded_project.objects[0].position,
                     (Position){0.0f, 0.0f}) ||
                 loaded_project.objects[0].rigid_body_count != 7 ||
@@ -656,19 +672,17 @@ int main(void) {
                 !file_contains(path, "rohr_directory_base_get()") ||
                 file_contains(path, "project_chdir") ||
                 file_contains(path, "SDL_GetBasePath()") ||
-                !file_contains(path, "rohr_object_create(&project)") ||
+                !file_contains(path, "rohr_project_create(&project)") ||
+                !file_contains(path, "//     EntityResult created = rohr_object_create(&project.example);") ||
+                !file_contains(path, "//         EntityResult created = rohr_entity_create(descriptions[i]);") ||
                 file_contains(path, "create_tutorial") ||
-                file_contains(path, "entity_object_add(objects.starter.") ||
+                file_contains(path, "entity_object_add(objects.example.") ||
                 file_contains(path, "rohr_physics_joint_description_set") ||
-                !file_contains(path, "rohr_physics_hitbox_set(scene.box") ||
-                !file_contains(path, "rohr_physics_particle_add((ParticleDescription)") ||
-                !file_contains(path, "rohr_physics_soft_body_node_local_add((SoftBodyNodeDescription)") ||
-                !file_contains(path, "rohr_physics_soft_body_beam_add((SoftBodyBeamDescription)") ||
-                !file_contains(path, "rohr_physics_soft_body_area_add((SoftBodyAreaDescription)") ||
+                file_contains(path, "rohr_physics_hitbox_set(scene.box") ||
                 file_contains(path, "rohr_camera_render_callback_set(") ||
                 !file_contains(path, "rohr_viewport_create(&description)") ||
-                !file_contains(path, "rohr_viewport_destroy(viewports[i])") ||
-                !file_contains(path, "rohr_entity_delete(scene.authored)") ||
+                !file_contains(path, "rohr_project_destroy(instance)") ||
+                !file_contains(path, "rohr_screen_camera_set(screen.result.value.screen") ||
                 !file_contains(path, "rohr_input_frame_begin()") ||
                 !file_contains(path,
                     "rohr_input_key_pressed_check(SDL_SCANCODE_ESCAPE)")) {
@@ -760,9 +774,9 @@ int main(void) {
         }
         snprintf(path, sizeof(path), "%s/src/generated/project_objects.c", fixture);
         if(!SDL_GetPathInfo(path, &info) || info.type != SDL_PATHTYPE_FILE ||
-                !file_contains(path, "EngineResult starter_create") ||
+                !file_contains(path, "EngineResult example_create") ||
                 !file_contains(path, "rohr_object_create_with_options(description,") ||
-                !file_contains(path, "const ParticleDescription starter_particle_body_config") ||
+                !file_contains(path, "const ParticleDescription example_particle_body_config") ||
                 !file_contains(path, ".rigid_vertices = UINT32_C(16)") ||
                 !file_contains(path, ".radius = 28.0000000f") ||
                 file_contains(path, "generated_body_create(")) {
@@ -980,7 +994,7 @@ int main(void) {
                 !file_contains(path, ".size={32.0000000f,24.0000000f}") ||
                 !file_contains(path, ".orientation=810.000000f") ||
                 !file_contains(path, ".scale={2.00000000f,3.00000000f}") ||
-                !file_contains(path, "void starter_draw") ||
+                !file_contains(path, "void example_draw") ||
                 !file_contains(path, "EngineResult project_objects_create_all") ||
                 !file_contains(path, "void project_objects_draw_all") ||
                 !file_contains(path, "rohr_entity_object_draw(object->source_instance)") ||
@@ -998,7 +1012,7 @@ int main(void) {
                     "This generated file is not covered by Rohr Engine's "
                     "LGPL-3.0-only license.") ||
                 !file_contains(path,
-                    "extern const ParticleDescription starter_particle_body_config;") ||
+                    "extern const ParticleDescription example_particle_body_config;") ||
                 !file_contains(path, "Entity soft_body;") ||
                 file_contains(path, "Entity soft_body_soft_body_1;") ||
                 !file_contains(path, "typedef struct ProjectObjects") ||
@@ -1675,7 +1689,7 @@ int main(void) {
             workspace_fixture_remove(fixture);
             return 1;
         }
-        snprintf(path, sizeof(path), "%s/assets/tutorial_frame_1.png", fixture);
+        snprintf(path, sizeof(path), "%s/assets/example_frame_1.png", fixture);
         if(!SDL_GetPathInfo(path, &info) || info.type != SDL_PATHTYPE_FILE) {
             workspace_fixture_remove(fixture);
             return 1;
