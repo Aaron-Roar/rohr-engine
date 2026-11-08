@@ -9,29 +9,54 @@
 
 #define OK(call) do { if(rohr_error_check(call)) { fprintf(stderr,"Failed: %s\n",#call); return false; } } while(0)
 typedef struct Workflow {
+    ProjectId projects[2];
     Entity roots[2], bodies[2], late;
     CameraId cameras[2];
     ViewportId views[2];
     ScreenId owned_screen, borrowed_screen;
-    ViewportItemId button;
+    ViewportItemId button, shared_mount;
     TextAsset caption;
     bool armed;
 } Workflow;
 
-static bool create(Workflow *w) {
+static bool create(Workflow *w, bool whole_project) {
     for(unsigned i=0;i<2;++i) {
-        ObjectCreateOptions options=rohr_object_create_options_default_get();
-        options.offset=(Position){i*1800.0f,0};
-        EntityResult root=rohr_object_create_with_options(&project.mass_demo,options); OK(root);
-        w->roots[i]=root.result.value;
+        if(whole_project) {
+            ProjectIdResult instance=rohr_project_create(&project); OK(instance);
+            w->projects[i]=instance.result.value;
+            EntityResult root=rohr_project_root_get(w->projects[i]); OK(root);
+            EntityResult object=rohr_object_member_get(root.result.value,project.mass_demo.name); OK(object);
+            w->roots[i]=object.result.value;
+            /* Move runtime instances without modifying their immutable recipes. */
+            const char *names[]={project.mass_demo.automatic_body.name,project.mass_demo.explicit_body.name};
+            for(unsigned j=0;j<2;++j) {
+                EntityResult member=rohr_object_member_get(w->roots[i],names[j]); OK(member);
+                PositionResult position=rohr_physics_position_get(member.result.value); OK(position);
+                position.result.value.x+=i*1800.0f;
+                OK(rohr_physics_position_set(member.result.value,position.result.value));
+            }
+        } else {
+            ObjectCreateOptions options=rohr_object_create_options_default_get();
+            options.offset=(Position){i*1800.0f,0};
+            EntityResult root=rohr_object_create_with_options(&project.mass_demo,options); OK(root);
+            w->roots[i]=root.result.value;
+        }
         EntityResult body=rohr_object_member_get(w->roots[i],project.mass_demo.automatic_body.name); OK(body);
         w->bodies[i]=body.result.value;
         EntityResult camera=rohr_object_member_get(w->roots[i],project.mass_demo.main_camera.name); OK(camera);
         CameraIdResult camera_id=rohr_entity_object_camera_get(camera.result.value); OK(camera_id);
         w->cameras[i]=camera_id.result.value;
-        ViewportObjectBinding binding={&project.mass_demo._description,w->roots[i]};
-        ViewportCreateDescription description={.template=&project.mass_viewport,.objects=&binding,.object_count=1};
-        ViewportIdResult view=rohr_viewport_create(&description); OK(view); w->views[i]=view.result.value;
+        if(whole_project) {
+            CameraDescriptionResult camera_description=rohr_camera_description_get(w->cameras[i]); OK(camera_description);
+            camera_description.result.value.position.x+=i*1800.0f;
+            OK(rohr_camera_position_set(w->cameras[i],camera_description.result.value.position,0));
+            ViewportIdResult view=rohr_project_viewport_by_name_get(w->projects[i],project._project.viewports[0].name); OK(view);
+            w->views[i]=view.result.value;
+        } else {
+            ViewportObjectBinding binding={&project.mass_demo._description,w->roots[i]};
+            ViewportCreateDescription description={.template=&project.mass_viewport,.objects=&binding,.object_count=1};
+            ViewportIdResult view=rohr_viewport_create(&description); OK(view); w->views[i]=view.result.value;
+        }
         ViewportDescriptionResult viewport=rohr_viewport_description_get(w->views[i]); OK(viewport);
         viewport.result.value.rectangle=(ViewportRectangle){10+i*640.0f,10,620,700};
         OK(rohr_viewport_description_set(w->views[i],viewport.result.value));
@@ -61,7 +86,8 @@ static bool create(Workflow *w) {
     ScreenDescriptionResult owned=rohr_screen_description_get(w->owned_screen); OK(owned);
     assert(owned.result.value.content_mode==SCREEN_CONTENT_AUTOMATIC);
     placement.orientation=-8; placement.rectangle=(ViewportRectangle){20,350,260,170};
-    OK(rohr_viewport_screen_add(w->views[1],w->owned_screen,placement));
+    ViewportItemIdResult shared=rohr_viewport_screen_add(w->views[1],w->owned_screen,placement); OK(shared);
+    w->shared_mount=shared.result.value;
 
     /* A separately created screen stays caller-owned when its mount is removed. */
     ScreenDescription screen=rohr_screen_description_default_get();
@@ -103,16 +129,25 @@ static bool draw(Workflow *w) {
 }
 static bool destroy(Workflow *w) {
     GraphicsUiId ui=rohr_viewport_item_description_get(w->button).result.value.ui;
-    OK(rohr_viewport_destroy(w->views[0]));
+    /* Remove the borrowed mount before its owning viewport is destroyed. */
+    OK(rohr_viewport_item_remove(w->shared_mount));
+    if(w->projects[0]) { OK(rohr_project_destroy(w->projects[0])); }
+    else { OK(rohr_viewport_destroy(w->views[0])); }
     assert(rohr_error_check(rohr_screen_description_get(w->owned_screen)));
     assert(rohr_error_check(rohr_graphics_ui_shape_description_get(ui)));
-    OK(rohr_viewport_destroy(w->views[1]));
+    assert(rohr_entity_alive_check(w->bodies[1]));
+    Report survivor=rohr_graphics_viewport_show(w->views[1]);
+    assert(survivor.header.status!=ROHR_REPORT_FAILED && !survivor.diagnostic_count);
+    if(w->projects[1]) { OK(rohr_project_destroy(w->projects[1])); }
+    else { OK(rohr_viewport_destroy(w->views[1])); }
     OK(rohr_graphics_text_destroy(&w->caption));
     OK(rohr_screen_description_get(w->borrowed_screen));
     OK(rohr_screen_destroy(w->borrowed_screen));
     for(unsigned i=0;i<2;++i) {
-        OK(rohr_camera_get(w->cameras[i]));
-        OK(rohr_entity_delete(w->roots[i]));
+        if(!w->projects[i]) {
+            OK(rohr_camera_get(w->cameras[i]));
+            OK(rohr_entity_delete(w->roots[i]));
+        } else { assert(rohr_error_check(rohr_project_root_get(w->projects[i]))); }
         assert(!rohr_entity_alive_check(w->bodies[i]));
         assert(rohr_error_check(rohr_camera_get(w->cameras[i])));
     }
@@ -124,10 +159,10 @@ static bool destroy(Workflow *w) {
 static bool run(bool preview) {
     OK(rohr_engine_start()); OK(rohr_graphics_start()); OK(project_settings_apply());
     OK(rohr_graphics_vsync_set(false)); OK(rohr_graphics_frame_limit_set(preview?60:100000));
-    unsigned count=preview?1:1000;
+    unsigned count=preview?1:2000;
     for(unsigned i=0;i<count;++i) {
         Workflow workflow={0};
-        if(!create(&workflow) || !draw(&workflow) || !toggle(&workflow) || !draw(&workflow) || !toggle(&workflow)) return false;
+        if(!create(&workflow,preview || i>=1000) || !draw(&workflow) || !toggle(&workflow) || !draw(&workflow) || !toggle(&workflow)) return false;
         if(preview) {
             Uint64 start=SDL_GetTicks(); bool quit=false;
             rohr_engine_clock_reset();
@@ -143,7 +178,7 @@ static bool run(bool preview) {
         if(!destroy(&workflow)) return false;
     }
     rohr_graphics_stop(); rohr_engine_stop();
-    puts(preview?"PASS generated workflow preview":"PASS 1000 generated create/extend/use/destroy cycles");
+    puts(preview?"PASS generated project workflow preview":"PASS 1000 object and 1000 project create/extend/use/destroy cycles, each with standalone entities");
     return true;
 }
 int main(int argc,char **argv) {

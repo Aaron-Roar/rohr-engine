@@ -77,6 +77,7 @@
               -DCMAKE_BUILD_TYPE=Release \
               -DCMAKE_PREFIX_PATH="$out"
             cmake --build "$TMPDIR/rohr-sdk-consumer" --parallel
+            ctest --test-dir "$TMPDIR/rohr-sdk-consumer" --output-on-failure --no-tests=error
             runHook postInstallCheck
           '';
 

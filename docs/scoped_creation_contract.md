@@ -5,7 +5,7 @@ behavior approved for the new milestone. Goal 2 implements optional external-lin
 omission and background-only unbound viewport screens. Goal 3 implements the
 project instance API below. Goal 4 implements generated project descriptions and
 the three-path example main. Goal 5 integrates the wider SDK/game workflow
-verification. The current API is documented in [shared creation](shared_creation.md)
+verification recorded below. The current API is documented in [shared creation](shared_creation.md)
 and [automatic viewports](automatic_viewports.md).
 
 This contract supersedes the milestone 15 rules that require bindings for every
@@ -534,3 +534,66 @@ Release/Windows builds and Goal 3 consumer builds were removed; their logs and
 installed SDKs remain. SDK/example builds were reused in place for this goal,
 with current verification logs kept separately. Stop here for review and commit;
 Goal 5 requires a new user instruction.
+
+## Goal 5 verification
+
+Goal 5 and milestone 16 are complete for review, 2026-11-07.
+
+The installed-SDK workflow now exercises 1,000 object and 1,000 whole-project
+create/extend/use/destroy cycles, with standalone entities in every cycle. Each
+path creates two instances, mutates one, adds runtime screens and UI, and checks
+that the surviving viewport still renders after the first owner is destroyed.
+Caller-owned screens and standalone entities survive project destruction; borrowed
+mounts are removed before their owning screen is destroyed. Project handles are
+destroyed through their project owner rather than separately deleting resources
+borrowed from it.
+
+Installed Linux project-creation tests now exercise allocation failure injection.
+The engine's 1,000-cycle project test also checks entity, texture, text, and font
+counts after every teardown, alongside existing audio counts and stale-handle
+checks. Nix SDK packaging now executes its installed consumers instead of only
+compiling them. The [SDK workflow](building.md#make-a-game-with-the-sdk) explains
+the three complete example mains, explicit settings, borrowed ownership, and
+shared-world limits. No engine runtime, physics, or frame-pacing code changes.
+
+Evidence is retained in `sandbox/milestone_16/goal_5/logs/`:
+
+- Five focused engine checks pass in Release and ASan/UBSan: input actions,
+  viewport descriptions, automatic viewports, project creation, and descriptor
+  creation. Installed consumers cover the audio/input ownership and prerequisite
+  failures as well as scope, resources, rendering, and rollback.
+- All 15 installed consumers also pass with both engine and consumer code
+  instrumented by ASan/UBSan, leak detection enabled, and undefined behavior set
+  to halt. The project test rejects 24 injected allocation failures without
+  damaging the surviving instance. The final run supersedes the initial run
+  that instrumented only the engine. No compiler warnings or sanitizer findings
+  remain. LeakSanitizer checks run outside the tracing sandbox.
+- Fresh Nix and generic Linux packages pass all 15 installed-SDK consumers. The
+  Nix derivation runs these during `installCheckPhase`; the generic archive is
+  built and tested in Rocky Linux 8. All 148 regular archive files match the
+  verified installed prefix; its SHA-256 is in `archive_parity.json`.
+- Both packaged CLIs generate a fresh example whose project, object, and entity
+  alternatives compile and execute 120-frame functional runs outside the source
+  directory. Regeneration preserves the main and custom CMake file. The generic
+  packaged CLI runs in the Linux container because NixOS does not directly run
+  its generic ELF interpreter; host-compiled generic SDK consumers also pass.
+- Four independent examples compile against each fresh SDK and launch from
+  `/tmp`: center of mass, player controller, soft-body car, and viewports. Both
+  car runs reach 3,600 frames and 60 simulated seconds, retaining 14,400 substeps,
+  7,222,164 candidates, and 1,195,541 contacts. These functional runs make no
+  performance claims and do not replace existing physics gates or failure records.
+- All 15 updated consumer targets and the internal project-creation test
+  cross-build for Windows. Goal 4's engine/editor, generated-main, and independent
+  example cross-build evidence remains applicable; native Windows execution is
+  still unverified. ARM Linux is not exercised by this x86-64 verification.
+- The user accepts the real Linux whole-project SDK preview: two views, rotated
+  insets, runtime UI, and visibility mutation confined to the selected instance.
+  The preview launches from `/tmp` and exits successfully after teardown.
+
+Disposable older build directories were removed to recover disk space after
+preserving their logs. Existing `dist/` outputs and normal example builds were
+left intact. New SDK artifacts are verification outputs under this goal's sandbox;
+use the documented SDK build commands to refresh the normal distribution.
+Stop here for review and commit. Agree the C game concept and completion criteria
+with the user next; game implementation and deferred physics work do not start
+automatically.

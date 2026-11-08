@@ -136,6 +136,11 @@ endif()
 
 add_executable(rohr_project_creation ../project_creation.c)
 target_link_libraries(rohr_project_creation PRIVATE Rohr::Engine)
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_C_COMPILER_ID MATCHES "GNU|Clang")
+    target_compile_definitions(rohr_project_creation PRIVATE ROHR_TEST_ALLOCATION_WRAP)
+    target_link_options(rohr_project_creation PRIVATE
+        -Wl,--wrap=malloc -Wl,--wrap=calloc -Wl,--wrap=realloc)
+endif()
 if(MSVC)
     target_compile_options(rohr_project_creation PRIVATE /UNDEBUG)
 else()

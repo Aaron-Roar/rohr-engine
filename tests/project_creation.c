@@ -312,6 +312,12 @@ static void expired_root(void) {
 static void lifecycle(void) {
     Fixture f; fixture_init(&f);
     ProjectId survivor=create(&f);
+    uint32_t alive=rohr_entity_alive_count_get();
+#ifdef ROHR_TEST_PROJECT_INTERNAL
+    GraphicsTextAssetStats text_before=graphics_text_assets_stats_get();
+    GraphicsFontAssetStats font_before=graphics_font_assets_stats_get();
+    GraphicsTextureAssetStats texture_before=graphics_texture_assets_stats_get();
+#endif
     for(unsigned i=0;i<1000;++i) {
         ProjectId p=create(&f);
         ViewportUiShapeDescription button=rohr_graphics_ui_shape_description_default_get();
@@ -326,6 +332,20 @@ static void lifecycle(void) {
         BAD(rohr_input_controller_description_get(old_controller));
         audio_counts(2,1,1);
         assert(rohr_entity_alive_check(body(survivor)));
+        assert(rohr_entity_alive_count_get()==alive);
+#ifdef ROHR_TEST_PROJECT_INTERNAL
+        GraphicsTextAssetStats text_after=graphics_text_assets_stats_get();
+        GraphicsFontAssetStats font_after=graphics_font_assets_stats_get();
+        GraphicsTextureAssetStats texture_after=graphics_texture_assets_stats_get();
+        assert(text_before.live_resources==text_after.live_resources &&
+            text_before.public_owners==text_after.public_owners &&
+            text_before.dependency_references==text_after.dependency_references &&
+            text_before.live_payloads==text_after.live_payloads);
+        assert(font_before.live_resources==font_after.live_resources && font_before.owner_references==font_after.owner_references);
+        assert(texture_before.live_resources==texture_after.live_resources &&
+            texture_before.owner_references==texture_after.owner_references &&
+            texture_before.command_references==texture_after.command_references);
+#endif
     }
     OK(rohr_project_destroy(survivor)); audio_counts(0,0,0);
     assert(rohr_entity_alive_count_get()==0);

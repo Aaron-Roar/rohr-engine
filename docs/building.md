@@ -162,6 +162,30 @@ cd /path/to/game
 and invokes the configured compiler command. `build` generates C and then
 compiles.
 
+New projects include an **Example** scene and three complete alternatives in
+`src/main.c`, separated by numbered comment dividers:
+
+1. **Project creation** is active by default. `rohr_project_create(&project)`
+   creates the authored hierarchy, binds its viewports, creates its input
+   controllers, and loads its audio without playing it. Destroy the project
+   instance once; handles retrieved from it are borrowed.
+2. **Object creation** creates the chosen hierarchy. The example explicitly
+   binds its camera to a separately owned viewport and cleans up both.
+3. **Entity creation** creates selected members individually. Optional links to
+   members outside the creation scope stay unbound; required physics dependencies
+   must still be supplied. The example binds its camera and cleans up each owner.
+
+To try an alternative, comment out the active main and uncomment one complete
+alternative. Apply authored engine/window settings once at startup, as the shared
+example setup does. Project creation does not reset global settings. Runtime
+screens and buttons can still be added to any created viewport.
+
+Edit `src/main.c` for your game; keep editor-authored recipes in `src/generated/`.
+Regeneration preserves developer-edited main and build files. Multiple project
+instances have independent owned resources but share the engine's physics world
+and presentation services; they are not isolated worlds. See
+[creation scope and ownership](scoped_creation_contract.md).
+
 ### Hand-written CMake game
 
 The SDK exports `Rohr::Engine`:

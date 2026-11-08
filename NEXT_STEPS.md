@@ -15,7 +15,7 @@ priority order.
 | 4 | Cross-path feature parity | Complete by user acceptance; recorded verification exceptions remain |
 | 14 | Frame pacing before game development | Complete; corrected pacing verified and initial previews accepted |
 | 15 | [Descriptor-based creation and automatic viewport rendering](#15-descriptor-based-creation-and-automatic-viewport-rendering) | Complete; all six goals verified, final generated workflow accepted |
-| 16 | [Scoped creation and a teaching example](#16-scoped-creation-and-a-teaching-example) | Goals 1–4 complete; Goal 5 awaits user instruction |
+| 16 | [Scoped creation and a teaching example](#16-scoped-creation-and-a-teaching-example) | Complete; all three creation paths and SDK workflows verified, final preview accepted |
 | — | [C game experiment](#c-game-experiment) | Follows milestone 16 by user direction; agree concept and completion criteria with the user |
 | 13 | Physics rebuild from the simpler baseline | Paused by user direction for frame pacing and game development; goals 1, 2a, 2b and 4a complete; goals 2 and 3 failed; goal 4 blocking remains incomplete; goals 5–8 not started |
 | 12 | Real-time physics pipeline rework | Closed by user direction; superseded by milestone 13, not complete; goals 1–13 complete, goal 14 unfinished, goals 15–19 not started; evidence preserved |
@@ -27,18 +27,17 @@ priority order.
 | 7 | Editor implementation scalability | Deferred until after Python unless game development makes it necessary sooner |
 | 10 | End-to-end game | Pending; separate larger game directed by the user |
 
-**Current priority:** By user direction, milestone 16 simplifies creation before
-the C game checkpoint. Goals 1–3 are complete: scope-based creation, optional
-viewport bindings, and project instance ownership are implemented and verified.
-The [scoped creation contract](docs/scoped_creation_contract.md) defines automatic
-wiring within the selected scope and explicit global settings/audio playback.
-Goal 4 is complete: generated project recipes and the example main support all
-three pathways, with only project creation active. All alternatives compile and
-run; generated input/audio ownership and strict migration are verified.
-Use **example** naming for new teaching content; preserve existing authored names
-and developer-edited entry points. Functional checks do not make performance
-claims while another example is running. Stop for Goal 4 review and commit; Goal 5
-awaits explicit user instruction. Physics remains paused.
+**Current priority:** Milestone 16 is complete. Scope-based creation, optional
+viewport bindings, project ownership, and the three-path generated example are
+verified against fresh Nix and generic Linux SDKs. The user accepts the final
+whole-project workflow preview. See the
+[verification record](docs/scoped_creation_contract.md#goal-5-verification).
+Stop for Goal 5 review and commit. The next checkpoint is to agree the C game
+concept and completion criteria with the user; no game implementation starts
+automatically. Use **example** naming for new teaching content and preserve
+developer-owned entry points. Physics remains paused with its existing settings,
+gates, and known failure inventory intact. Functional checks make no new
+performance claims.
 
 Milestone 15 is complete. Its Goal 1 defines the
 [creation and viewport contract](docs/creation_and_viewport_contract.md).
@@ -922,12 +921,26 @@ by default. Preserve existing physics, presentation, and developer-owned code.
    [verification record](docs/scoped_creation_contract.md#goal-4-verification)
    and `sandbox/milestone_16/goal_4/`. Physics and frame pacing are unchanged;
    timings are not performance evidence. Stop for review and commit.
-5. [ ] **Verify all pathways, SDK parity, and the game workflow.** Integrate
+5. [x] **Verify all pathways, SDK parity, and the game workflow.** Integrate
    standalone/object/project coverage, two-instance mutation and teardown,
    1,000-cycle sanitizer checks, failure injection, and input/audio ownership.
    Verify installed Nix and generic Linux SDK consumers, external-directory
    launches, Windows cross-builds, and real Linux visual behavior with the user.
    Retain existing physics/frame-pacing settings and known failure inventories.
+   **Result: complete for review.** Fresh Nix and generic Linux packages pass all
+   15 installed consumers; Nix packaging now executes its tests. All 15 consumers
+   also pass with ASan/UBSan and leak detection, including 1,000 cycles per object
+   and project workflow and 24 injected project allocation failures. Five focused
+   engine tests pass in Release and sanitizer builds, with per-cycle resource
+   counts checked. Both packaged CLIs generate, compile, and run all three example
+   mains outside their source directory. Four independent examples build and
+   launch against both SDKs; full car runs retain the previous work counts.
+   All 15 updated consumers and the internal project test cross-build for Windows;
+   native Windows execution remains unverified. The user accepts the extended
+   whole-project preview. No new compiler warnings or sanitizer findings remain.
+   See the [verification record](docs/scoped_creation_contract.md#goal-5-verification)
+   and `sandbox/milestone_16/goal_5/`. Physics and frame pacing are unchanged; no
+   performance claim is made. Stop for review and commit.
 
 Each implementation goal includes focused verification before its boundary.
 Only the user may start the next goal. After milestone 16, return to agreeing the
