@@ -110,7 +110,7 @@ GraphicsFontAssetStats graphics_font_assets_stats_get(void) {
     return stats;
 }
 
-FontAssetResult graphics_font_load(FontDescription descriptor) {
+FontAssetResult (graphics_font_load)(FontDescription descriptor) {
     GraphicsFontResource *resource;
     char detail[256];
     char *path;

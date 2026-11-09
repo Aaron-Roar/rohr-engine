@@ -47,7 +47,7 @@ int main(void) {
     }
     ViewportObjectBinding binding={&project.mass_demo._description,demo.source_instance};
     ViewportCreateDescription description={.template=&project.mass_viewport._description,.objects=&binding,.object_count=1};
-    ViewportIdResult view=rohr_viewport_create(&description);
+    ViewportIdResult view=rohr_viewport_create(description);
     if(rohr_error_check(view)) goto done;
     viewport=view.result.value;
     if(!result_ok(rohr_camera_active_set(demo.camera_main_camera))) goto done;

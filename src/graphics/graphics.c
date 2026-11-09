@@ -357,6 +357,8 @@ typedef struct GraphicsUiElement {
     size_t mount_count;
     bool automatic_cleanup;
     bool used;
+    /* Sole owner of text loaded by an authored UI recipe; font belongs to text. */
+    TextAsset recipe_text;
 } GraphicsUiElement;
 
 typedef struct GraphicsViewport {
@@ -1418,7 +1420,7 @@ static EngineResult graphics_camera_offsets_update(ActiveCameraAttachment *attac
     return graphics_camera_attachment_resolve_value(*description, &resolved);
 }
 
-CameraIdResult graphics_camera_create(CameraDescription description) {
+CameraIdResult (graphics_camera_create)(CameraDescription description) {
     EngineResult result = graphics_camera_description_validate(description);
     if(error_check(result)) return ERROR_RESULT_MAKE_ERROR(CameraIdResult, result.result.error);
     for(size_t slot = 0; slot < MAX_CAMERAS; slot += 1) {
@@ -1624,7 +1626,7 @@ ScreenDescription graphics_screen_description_default_get(void) {
     };
 }
 
-ScreenIdResult graphics_screen_create(ScreenDescription config) {
+ScreenIdResult (graphics_screen_create)(ScreenDescription config) {
     size_t slot;
     if(sdl_renderer == NULL) {
         return ERROR_RESULT_MAKE_ERROR(ScreenIdResult, ERROR_ENGINE_GRAPHICS_INIT_FAILED);
@@ -2120,7 +2122,13 @@ static void graphics_ui_element_text_dependency_remove(
 static void graphics_ui_element_clear(GraphicsUiElement *element) {
     if(element == NULL) return;
     graphics_ui_element_text_dependency_remove(element);
+    (void)graphics_text_destroy(&element->recipe_text);
     *element = (GraphicsUiElement){0};
+}
+
+void graphics_ui_recipe_text_own(GraphicsUiId ui, TextAsset text) {
+    size_t slot;
+    if(graphics_ui_slot(ui, &slot)) graphics_ui_elements[slot].recipe_text = text;
 }
 
 static void graphics_ui_elements_clear(void) {
@@ -2254,7 +2262,7 @@ static void graphics_ui_interactions_cancel(GraphicsUiId id, bool shape_button_o
                 graphics_viewport_item_interaction_clear(&viewports[viewport], item);
 }
 
-GraphicsUiIdResult graphics_ui_shape_create(ViewportUiShapeDescription shape) {
+GraphicsUiIdResult (graphics_ui_shape_create)(ViewportUiShapeDescription shape) {
     EngineResult dependency;
     if(!graphics_ui_shape_description_prepare(&shape))
         return ERROR_RESULT_MAKE_ERROR(GraphicsUiIdResult,
@@ -2280,7 +2288,7 @@ GraphicsUiIdResult graphics_ui_shape_create(ViewportUiShapeDescription shape) {
     return ERROR_RESULT_MAKE_ERROR(GraphicsUiIdResult, ERROR_MEMORY_POOL_FULL);
 }
 
-GraphicsUiIdResult graphics_ui_text_create(ViewportUiTextDescription text) {
+GraphicsUiIdResult (graphics_ui_text_create)(ViewportUiTextDescription text) {
     EngineResult dependency;
     if(!graphics_ui_text_description_prepare(&text))
         return ERROR_RESULT_MAKE_ERROR(GraphicsUiIdResult, ERROR_ENGINE_STATE_INVALID);
@@ -2334,7 +2342,7 @@ static bool graphics_ui_slider_prepare(ViewportUiSliderDescription *slider) {
     return true;
 }
 
-GraphicsUiIdResult graphics_ui_slider_create(ViewportUiSliderDescription slider) {
+GraphicsUiIdResult (graphics_ui_slider_create)(ViewportUiSliderDescription slider) {
     if(!graphics_ui_slider_prepare(&slider))
         return ERROR_RESULT_MAKE_ERROR(GraphicsUiIdResult,
             ERROR_ENGINE_COMPONENT_MISSING);

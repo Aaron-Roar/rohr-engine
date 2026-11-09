@@ -533,7 +533,7 @@ static EngineResult body_apply(Entity entity, const ObjectDescription *d, bool n
 }
 static EngineResult visuals_apply(Entity entity, const ObjectDescription *d, bool attached) {
     if(d->kind == OBJECT_SPRITE) {
-        TextureAssetResult loaded = graphics_texture_load((TextureDescription){d->asset_path, d->size});
+        TextureAssetResult loaded = graphics_texture_load(*d);
         if(error_check(loaded)) return error_result_error(loaded.result.error);
         SpriteDescription sprite = (SpriteDescription){.texture = loaded.result.value, .scale = d->scale, .direction = DIRECTION_RIGHT, .follow_entity_rotation = true, .visible = true};
         sprite.body_offset = attached ? d->position : (Position){0};
@@ -547,14 +547,7 @@ static EngineResult visuals_apply(Entity entity, const ObjectDescription *d, boo
     if(d->kind == OBJECT_ANIMATION) {
         if((d->frame_count && !d->frames) || d->frame_count > MAX_ANIMATIONS_FRAMES)
             return error_result_error(ERROR_ENGINE_STATE_INVALID);
-        AnimationDescription descriptor = {.id = (AnimationId)d->id,
-            .frame_count = d->frame_count, .ticks_per_frame = d->playing ? d->ticks_per_frame : 0,
-            .time_per_frame = d->playing ? d->time_per_frame : 0};
-        for(size_t i = 0; i < d->frame_count; ++i) {
-            descriptor.frame_ids[i] = d->frames[i].id;
-            descriptor.frame_files[i] = d->frames[i].path;
-        }
-        AnimationAssetResult loaded = d->frame_count ? graphics_animation_load(descriptor) :
+        AnimationAssetResult loaded = d->frame_count ? graphics_animation_load(*d) :
             ERROR_RESULT_MAKE_VALUE(AnimationAssetResult, ((AnimationAsset){0}));
         if(error_check(loaded)) return error_result_error(loaded.result.error);
         AnimatedSpriteDescriptionResult prepared = graphics_animated_sprite_description_from_animation_get(loaded.result.value);
@@ -564,8 +557,8 @@ static EngineResult visuals_apply(Entity entity, const ObjectDescription *d, boo
         }
         AnimatedSpriteDescription sprite = prepared.result.value;
         sprite.scale = d->scale;
-        sprite.player.ticks_per_frame = descriptor.ticks_per_frame;
-        sprite.player.time_per_frame = descriptor.time_per_frame;
+        sprite.player.ticks_per_frame = d->playing ? d->ticks_per_frame : 0;
+        sprite.player.time_per_frame = d->playing ? d->time_per_frame : 0;
         sprite.body_offset = attached ? d->position : (Position){0};
         sprite.orientation_offset = attached ? d->orientation : 0;
         sprite.follow_entity_rotation = attached ? d->follow_orientation : true; sprite.visible = object_description_visible_check(d);

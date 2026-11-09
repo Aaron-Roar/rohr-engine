@@ -304,7 +304,7 @@ GraphicsTextAssetStats graphics_text_assets_stats_get(void) {
     return stats;
 }
 
-TextAssetResult graphics_text_create(TextDescription description) {
+TextAssetResult (graphics_text_create)(TextDescription description) {
     FontAsset font = description.font.handle == FONT_HANDLE_INVALID ?
         graphics_font_default_get() : description.font;
     const char *value = description.value;

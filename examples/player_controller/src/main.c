@@ -84,7 +84,7 @@ int main(void) {
     player = member.result.value;
     ViewportObjectBinding binding = {&project.player_world._description,root};
     ViewportCreateDescription description = {.template=&project.game_viewport._description,.objects=&binding,.object_count=1};
-    ViewportIdResult view = rohr_viewport_create(&description);
+    ViewportIdResult view = rohr_viewport_create(description);
     if(rohr_error_check(view)) goto fail;
     viewport = view.result.value;
 

@@ -19,6 +19,11 @@ superseding the corresponding strict binding requirements below. The project API
 and teaching starter remain planned; this milestone 15 document retains the
 historical contract for its original implementation and verification.
 
+Milestone 17 Goal 4 supersedes the pointer-based viewport dispatch below with
+[value-style shared resource creation](shared_creation.md#shared-graphics-resource-creation).
+The call examples use the current value spelling. Native scalar viewport
+functions remain callable; the old public recipe-pointer creator is removed.
+
 ## User decisions
 
 - Objects are immutable descriptions in the application. Creation produces
@@ -106,8 +111,8 @@ proposed separate options argument. Result values must be checked before handles
 | `rohr_object_create(project.water)` | `EntityResult`; instantiate the full hierarchy and return its owning root. |
 | `rohr_object_create_with_options(description, options)` | `EntityResult`; explicit creation options for the hierarchy. |
 | `rohr_object_member_get(instance, "particle")` | `EntityResult`; find a direct named member of this instance. |
-| `rohr_viewport_create(&project.main_viewport)` | `ViewportIdResult`; instantiate a self-contained viewport description without external bindings. |
-| `rohr_viewport_create(&creation)` | `ViewportIdResult`; a local creation descriptor references the immutable authored template and supplies explicit runtime camera bindings. |
+| `rohr_viewport_create(project.main_viewport)` | `ViewportIdResult`; instantiate a self-contained viewport description without external bindings. |
+| `rohr_viewport_create(creation)` | `ViewportIdResult`; a local creation descriptor references the immutable authored template and supplies explicit runtime camera bindings. |
 | `rohr_viewport_item_by_name_get(viewport, "world")` | `ViewportItemIdResult`; find the named created item for later modification. |
 | `rohr_entity_delete(entity)` | Existing operation; destroy an entity and its owned members/resources. |
 | `rohr_viewport_destroy(viewport)` | Destroy the viewport and resources it created and owns. |
@@ -414,12 +419,13 @@ Retain current metadata APIs and low-level component/resource APIs. During Goal 
 the user explicitly chose to remove generated legacy viewport files and helpers,
 folding required starter and scene migration into that goal. Preserve customized
 entry points and document their required manual migration. Existing object
-helpers remain available. For the existing by-value
-`rohr_viewport_create(ViewportDescription)` source form, use a narrow C11 adapter
-dispatching by value versus a complete-description pointer; keep the original
-by-value callable symbol for existing function-pointer users. Add a separately
-named descriptor-taking implementation for the pointer branch. Apply the same
-behavior to the direct API. Recompilation against the SDK is required; binary
+helpers remain available. The original Milestone 15 design for the by-value
+`rohr_viewport_create(ViewportDescription)` source form used a narrow C11 adapter
+dispatching by value versus a complete-description pointer; it kept the original
+by-value callable symbol for existing function-pointer users and a separately
+named descriptor-taking implementation for the pointer branch. Milestone 17
+Goal 4 replaces that pointer branch with exact typed value dispatch in both
+public and direct APIs. Recompilation against the SDK is required; binary
 layout compatibility is not claimed for extended descriptions.
 
 Do not silently overwrite a developer-edited `main.c`. Migrate only a recognized

@@ -11,13 +11,13 @@ typedef struct ProjectViewportView_0 {
     union { ViewportCreateDescription _description; struct { ROHR_VIEWPORT_CREATE_DESCRIPTION_FIELDS; }; };
     ViewportCreateItemDescription main_screen;
 } ProjectViewportView_0;
-static inline ViewportIdResult project_viewport_view_0_create(
+static inline const ViewportCreateDescription *project_viewport_view_0_ref_get(
         const ProjectViewportView_0 *value) {
-    return graphics_viewport_create_description(value ? &value->_description : NULL);
+    return &value->_description;
 }
-#undef ROHR_INTERNAL_VIEWPORT_POINTER_TYPES
-#define ROHR_INTERNAL_VIEWPORT_POINTER_TYPES(apply) \
-    apply(ProjectViewportView_0, project_viewport_view_0_create)
+#undef ROHR_INTERNAL_VIEWPORT_VIEW_TYPES
+#define ROHR_INTERNAL_VIEWPORT_VIEW_TYPES(apply) \
+    apply(ProjectViewportView_0, project_viewport_view_0_ref_get)
 typedef struct ProjectDescriptionView_5 {
     union { ObjectDescription _description; struct { ROHR_OBJECT_DESCRIPTION_FIELDS; }; };
 } ProjectDescriptionView_5;

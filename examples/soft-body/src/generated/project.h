@@ -7,8 +7,8 @@
 #include "project_objects.h"
 #undef ROHR_INTERNAL_CONTROLLER_VIEW_TYPES
 #define ROHR_INTERNAL_CONTROLLER_VIEW_TYPES(apply)
-#undef ROHR_INTERNAL_VIEWPORT_POINTER_TYPES
-#define ROHR_INTERNAL_VIEWPORT_POINTER_TYPES(apply)
+#undef ROHR_INTERNAL_VIEWPORT_VIEW_TYPES
+#define ROHR_INTERNAL_VIEWPORT_VIEW_TYPES(apply)
 typedef struct ProjectDescriptionView_454 {
     union { ObjectDescription _description; struct { ROHR_OBJECT_DESCRIPTION_FIELDS; }; };
 } ProjectDescriptionView_454;

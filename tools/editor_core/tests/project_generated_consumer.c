@@ -20,7 +20,7 @@ static ViewportItemDescription item(ViewportId viewport, const char *name) {
 static ViewportId view_create(Entity instance) {
     ViewportObjectBinding binding = {&project.parity._description, instance};
     ViewportCreateDescription description = {.template=&project.play._description, .objects=&binding, .object_count=1};
-    ViewportIdResult result = rohr_viewport_create(&description); OK(result);
+    ViewportIdResult result = rohr_viewport_create(description); OK(result);
     return result.result.value;
 }
 static void verify(Entity instance, ViewportId view) {
@@ -66,9 +66,80 @@ static void verify(Entity instance, ViewportId view) {
     assert(rohr_graphics_layer_animation_get(animation).result.value == 5);
     OK(rohr_graphics_layer_set(world, 5));
 }
+/* Authored creators return resources only, with the same ownership as native
+ * inputs. This runs against generated headers and an installed SDK as well. */
+static void resource_creation(void) {
+    unsigned entities=rohr_entity_alive_count_get();
+    CameraIdResult camera=rohr_camera_create(project.parity.camera); OK(camera);
+    CameraAttachmentDescriptionResult attachment=rohr_camera_attachment_description_get(camera.result.value);
+    assert(rohr_error_check(attachment) && attachment.result.error==ERROR_ENGINE_COMPONENT_MISSING);
+    CameraDescriptionResult camera_description=rohr_camera_description_get(camera.result.value); OK(camera_description);
+    CameraIdResult native_camera=graphics_camera_create(camera_description.result.value); OK(native_camera);
+    assert(rohr_camera_get(native_camera.result.value).result.value.zoom==project.parity.camera.zoom);
+    ScreenIdResult screen=rohr_screen_create(project.play.front); OK(screen);
+    ScreenDescriptionResult screen_description=rohr_screen_description_get(screen.result.value); OK(screen_description);
+    assert(!screen_description.result.value.camera && !screen_description.result.value.camera_entity);
+    assert(screen_description.result.value.width==320 && screen_description.result.value.height==200);
+    OK(rohr_screen_camera_set(screen.result.value,camera.result.value));
+    assert(rohr_screen_description_get(screen.result.value).result.value.camera==camera.result.value);
+    TextureAssetResult texture=rohr_graphics_texture_load(project.parity.flipped); OK(texture);
+    AnimationAssetResult animation=rohr_graphics_animation_load(project.parity.moving); OK(animation);
+    FontAssetResult font=rohr_graphics_font_load(project.play.label); OK(font);
+    TextAssetResult text=rohr_graphics_text_create(project.play.label); OK(text);
+    assert(!strcmp(rohr_graphics_text_description_get(text.result.value).result.value.value,"Wrapped text"));
+    assert(rohr_graphics_font_description_get(font.result.value).result.value.point_size==24);
+    for(unsigned cycle=0;cycle<1000;++cycle) {
+        unsigned evaluations=0;
+        CameraIdResult c=graphics_camera_create((&project.parity.camera)[evaluations++]); OK(c);
+        assert(evaluations==1);
+        evaluations=0;
+        TextureAssetResult t=graphics_texture_load((&project.parity.flipped)[evaluations++]); OK(t);
+        assert(evaluations==1 && t.result.value.handle==texture.result.value.handle);
+        evaluations=0;
+        AnimationAssetResult a=graphics_animation_load((&project.parity.moving)[evaluations++]); OK(a);
+        assert(evaluations==1 && a.result.value.handle==animation.result.value.handle);
+        evaluations=0;
+        GraphicsUiIdResult label=rohr_graphics_ui_text_create((&project.play.label)[evaluations++]); OK(label);
+        assert(evaluations==1);
+        GraphicsUiIdResult button=rohr_graphics_ui_shape_create(project.overlay.button); OK(button);
+        GraphicsUiIdResult slider=graphics_ui_slider_create(project.play.slider); OK(slider);
+        TextAsset borrowed=rohr_graphics_ui_text_description_get(label.result.value).result.value.text;
+        TextDescriptionResult content=rohr_graphics_text_description_get(borrowed); OK(content);
+        assert(!strcmp(content.result.value.value,"Wrapped text") && content.result.value.wrap_width==70);
+        assert(rohr_graphics_ui_shape_description_get(button.result.value).result.value.button_enabled);
+        assert(rohr_graphics_ui_slider_value_get(slider.result.value).result.value==3);
+        assert(rohr_entity_alive_count_get()==entities);
+        OK(rohr_graphics_ui_destroy(label.result.value));
+        assert(!rohr_graphics_text_valid_check(borrowed));
+        OK(rohr_graphics_ui_destroy(button.result.value)); OK(rohr_graphics_ui_destroy(slider.result.value));
+        OK(rohr_camera_destroy(c.result.value));
+        OK(rohr_graphics_texture_release(&t.result.value)); OK(rohr_graphics_animation_release(&a.result.value));
+        assert(rohr_graphics_texture_valid_check(texture.result.value));
+        assert(rohr_graphics_animation_valid_check(animation.result.value));
+        OK(rohr_graphics_text_description_get(text.result.value));
+    }
+    /* Wrong resource kinds fail rather than creating owners or interpreting an
+     * unrelated union payload. Pointer/unrelated C types have compile probes. */
+    assert(rohr_error_check(rohr_camera_create(project.parity.body)));
+    assert(rohr_error_check(rohr_graphics_texture_load(project.parity.camera)));
+    assert(rohr_error_check(rohr_graphics_animation_load(project.parity.flipped)));
+    assert(rohr_error_check(rohr_screen_create(project.play.label)));
+    assert(rohr_error_check(rohr_graphics_ui_text_create(project.play.front)));
+    assert(rohr_error_check(rohr_graphics_ui_shape_create(project.play.slider)));
+    assert(rohr_error_check(rohr_graphics_ui_slider_create(project.overlay.button)));
+    assert(rohr_error_check(rohr_graphics_font_load(project.play.front)));
+    assert(rohr_error_check(rohr_graphics_text_create(project.play.front)));
+    OK(rohr_screen_destroy(screen.result.value)); OK(rohr_camera_destroy(camera.result.value));
+    OK(rohr_camera_destroy(native_camera.result.value));
+    OK(rohr_graphics_texture_release(&texture.result.value)); OK(rohr_graphics_animation_release(&animation.result.value));
+    OK(rohr_graphics_text_destroy(&text.result.value)); OK(rohr_graphics_font_release(&font.result.value));
+    assert(rohr_entity_alive_count_get()==entities);
+}
+
 int main(void) {
     OK(rohr_directory_working_set(rohr_directory_base_get()));
     OK(rohr_engine_start()); OK(rohr_graphics_start());
+    resource_creation();
     assert(project._project.root.children[0] == &project.parity._description);
     assert(project.parity.body.parent == &project.parity._description);
     assert(project.play.items[0].camera_member == &project.parity.camera._description);
@@ -82,20 +153,20 @@ int main(void) {
     assert(project.ui_only.value == 8 && project.quoted_layer.value == 8);
     assert(!strcmp(project.parity.body.layer_name,"world"));
     assert(!strcmp(project.parity.flipped.layer_name,"effects"));
-    ViewportIdResult unbound = rohr_viewport_create(&project.play); OK(unbound);
+    ViewportIdResult unbound = rohr_viewport_create(project.play); OK(unbound);
     assert(rohr_screen_description_get(item(unbound.result.value,"front").screen).result.value.camera==CAMERA_INVALID);
     assert(rohr_screen_description_get(item(unbound.result.value,"rear").screen).result.value.camera==CAMERA_INVALID);
     Report empty_frame = rohr_graphics_viewport_show(unbound.result.value);
     assert(empty_frame.header.status==ROHR_REPORT_COMPLETE && empty_frame.diagnostic_count==0);
     OK(rohr_viewport_destroy(unbound.result.value));
-    ViewportIdResult overlay = rohr_viewport_create(&project.overlay); OK(overlay);
+    ViewportIdResult overlay = rohr_viewport_create(project.overlay); OK(overlay);
     OK(rohr_graphics_layer_name_id_get("quoted \"layer\"\\"));
     ViewportItemDescription button = item(overlay.result.value,"button");
     ViewportUiShapeDescription shape = rohr_graphics_ui_shape_description_get(button.ui).result.value;
     assert(shape.orientation == 21 && shape.button_enabled && shape.shape.amount_of_vertices == 4);
     assert(!strcmp(rohr_graphics_text_description_get(shape.text.text).result.value.value,"Action"));
     assert(button.layer_id == rohr_graphics_layer_name_id_get("ui_only").result.value);
-    ViewportIdResult empty = rohr_viewport_create(&project.empty_view); OK(empty);
+    ViewportIdResult empty = rohr_viewport_create(project.empty_view); OK(empty);
     assert(!rohr_viewport_description_get(empty.result.value).result.value.enabled);
     OK(rohr_viewport_destroy(empty.result.value)); OK(rohr_viewport_destroy(overlay.result.value));
     EntityResult created = rohr_object_create(project.parity); OK(created);

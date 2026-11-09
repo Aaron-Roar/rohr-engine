@@ -160,15 +160,14 @@ static void resource_types_write(FILE *f, const EditorProject *p) {
             fprintf(f, "    ViewportCreateItemDescription %s;\n", name);
         }
         fprintf(f, "} ProjectViewportView_%zu;\n"
-            "static inline ViewportIdResult project_viewport_view_%zu_create(\n"
+            "static inline const ViewportCreateDescription *project_viewport_view_%zu_ref_get(\n"
             "        const ProjectViewportView_%zu *value) {\n"
-            "    return graphics_viewport_create_description(value ? &value->_description : NULL);\n}\n", v, v, v);
+            "    return &value->_description;\n}\n", v, v, v);
     }
-    /* Preserve current pointer-based viewport callers until that creator family
-     * migrates to value dispatch. Template fields use the explicit _description. */
-    fputs("#undef ROHR_INTERNAL_VIEWPORT_POINTER_TYPES\n#define ROHR_INTERNAL_VIEWPORT_POINTER_TYPES(apply)", f);
+    /* Register exact generated view types; creation borrows the recipe header. */
+    fputs("#undef ROHR_INTERNAL_VIEWPORT_VIEW_TYPES\n#define ROHR_INTERNAL_VIEWPORT_VIEW_TYPES(apply)", f);
     for(size_t v = 0; v < p->layout_viewport_count; ++v)
-        fprintf(f, " \\\n    apply(ProjectViewportView_%zu, project_viewport_view_%zu_create)", v, v);
+        fprintf(f, " \\\n    apply(ProjectViewportView_%zu, project_viewport_view_%zu_ref_get)", v, v);
     fputc('\n', f);
 }
 static void type_write(FILE *f, const Catalog *c, const ObjectDescription *d) {

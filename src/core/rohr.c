@@ -699,7 +699,7 @@ void rohr_graphics_joints_draw(Color color) { graphics_joints_draw(color); }
 bool rohr_graphics_soft_body_draw(Entity soft_body, Color surface, Color beam, Color node) { return graphics_soft_body_draw(soft_body, surface, beam, node); }
 EngineResult rohr_graphics_soft_body_node_color_set(Entity soft_body, Entity node, Color color) { return graphics_soft_body_node_color_set(soft_body, node, color); }
 EngineResult rohr_graphics_soft_body_beam_color_set(Entity soft_body, Entity node_a, Entity node_b, Color color) { return graphics_soft_body_beam_color_set(soft_body, node_a, node_b, color); }
-TextureAssetResult rohr_graphics_texture_load(TextureDescription text_desc) { return graphics_texture_load(text_desc); }
+TextureAssetResult (rohr_graphics_texture_load)(TextureDescription text_desc) { return graphics_texture_load(text_desc); }
 EngineResult rohr_graphics_texture_retain(TextureAsset asset) { return graphics_texture_retain(asset); }
 EngineResult rohr_graphics_texture_release(TextureAsset *asset) { return graphics_texture_release(asset); }
 bool rohr_graphics_texture_valid_check(TextureAsset asset) { return graphics_texture_valid_check(asset); }
@@ -709,12 +709,12 @@ void rohr_graphics_screen_texture_draw(TextureAsset texture, Position center,
     Scale size, Orientation orientation) {
     graphics_screen_texture_draw(texture, center, size, orientation);
 }
-FontAssetResult rohr_graphics_font_load(FontDescription descriptor) { return graphics_font_load(descriptor); }
+FontAssetResult (rohr_graphics_font_load)(FontDescription descriptor) { return graphics_font_load(descriptor); }
 FontAsset rohr_graphics_font_default_get(void) { return graphics_font_default_get(); }
 EngineResult rohr_graphics_font_retain(FontAsset font) { return graphics_font_retain(font); }
 EngineResult rohr_graphics_font_release(FontAsset *font) { return graphics_font_release(font); }
 bool rohr_graphics_font_valid_check(FontAsset font) { return graphics_font_valid_check(font); }
-TextAssetResult rohr_graphics_text_create(TextDescription description) { return graphics_text_create(description); }
+TextAssetResult (rohr_graphics_text_create)(TextDescription description) { return graphics_text_create(description); }
 bool rohr_graphics_text_value_set(TextAsset *text, const char *value) { return graphics_text_value_set(text, value); }
 bool rohr_graphics_text_wrap_width_set(TextAsset *text, int wrap_width) { return graphics_text_wrap_width_set(text, wrap_width); }
 EngineResult rohr_graphics_text_destroy(TextAsset *text) { return graphics_text_destroy(text); }
@@ -725,7 +725,7 @@ bool rohr_graphics_screen_text_scaled_rotated_draw(const TextAsset *text,
     Position center, Scale scale, Orientation orientation) {
     return graphics_screen_text_scaled_rotated_draw(text, center, scale, orientation);
 }
-AnimationAssetResult rohr_graphics_animation_load(AnimationDescription anim_desc) { return graphics_animation_load(anim_desc); }
+AnimationAssetResult (rohr_graphics_animation_load)(AnimationDescription anim_desc) { return graphics_animation_load(anim_desc); }
 EngineResult rohr_graphics_animation_retain(AnimationAsset asset) { return graphics_animation_retain(asset); }
 EngineResult rohr_graphics_animation_release(AnimationAsset *asset) { return graphics_animation_release(asset); }
 bool rohr_graphics_animation_valid_check(AnimationAsset asset) { return graphics_animation_valid_check(asset); }
@@ -775,7 +775,7 @@ EngineResult rohr_graphics_camera_attach(CameraAttachmentDescription description
 void rohr_graphics_camera_detach(void) { graphics_camera_detach(); }
 bool rohr_graphics_camera_attached_get(void) { return graphics_camera_attached_get(); }
 CameraDescription rohr_camera_description_default_get(void) { return graphics_camera_description_default_get(); }
-CameraIdResult rohr_camera_create(CameraDescription description) { return graphics_camera_create(description); }
+CameraIdResult (rohr_camera_create)(CameraDescription description) { return graphics_camera_create(description); }
 EngineResult rohr_camera_destroy(CameraId id) { return graphics_camera_destroy(id); }
 EngineResult rohr_camera_active_set(CameraId id) { return graphics_camera_active_set(id); }
 CameraId rohr_camera_active_get(void) { return graphics_camera_active_get(); }
@@ -801,16 +801,16 @@ CameraZoomResult rohr_camera_zoom_get(CameraId camera) { return graphics_camera_
 ViewportDescription rohr_viewport_description_default_get(void) { return graphics_viewport_description_default_get(); }
 ViewportItemDescription rohr_viewport_item_description_default_get(void) { return graphics_viewport_item_description_default_get(); }
 ScreenDescription rohr_screen_description_default_get(void) { return graphics_screen_description_default_get(); }
-ScreenIdResult rohr_screen_create(ScreenDescription config) { return graphics_screen_create(config); }
+ScreenIdResult (rohr_screen_create)(ScreenDescription config) { return graphics_screen_create(config); }
 EngineResult rohr_screen_destroy(ScreenId screen) { return graphics_screen_destroy(screen); }
 EngineResult rohr_screen_camera_set(ScreenId screen, CameraId camera) { return graphics_screen_camera_set(screen, camera); }
 ViewportIdResult (rohr_viewport_create)(ViewportDescription config) { return graphics_viewport_create(config); }
 EngineResult rohr_viewport_destroy(ViewportId viewport) { return graphics_viewport_destroy(viewport); }
 ViewportItemIdResult rohr_viewport_camera_add(ViewportId viewport, CameraId camera, ViewportItemDescription config) { return graphics_viewport_camera_add(viewport, camera, config); }
 ViewportItemIdResult rohr_viewport_screen_add(ViewportId viewport, ScreenId screen, ViewportItemDescription config) { return graphics_viewport_screen_add(viewport, screen, config); }
-GraphicsUiIdResult rohr_graphics_ui_shape_create(ViewportUiShapeDescription shape) { return graphics_ui_shape_create(shape); }
-GraphicsUiIdResult rohr_graphics_ui_text_create(ViewportUiTextDescription text) { return graphics_ui_text_create(text); }
-GraphicsUiIdResult rohr_graphics_ui_slider_create(ViewportUiSliderDescription slider) { return graphics_ui_slider_create(slider); }
+GraphicsUiIdResult (rohr_graphics_ui_shape_create)(ViewportUiShapeDescription shape) { return graphics_ui_shape_create(shape); }
+GraphicsUiIdResult (rohr_graphics_ui_text_create)(ViewportUiTextDescription text) { return graphics_ui_text_create(text); }
+GraphicsUiIdResult (rohr_graphics_ui_slider_create)(ViewportUiSliderDescription slider) { return graphics_ui_slider_create(slider); }
 EngineResult rohr_graphics_ui_shape_description_set(GraphicsUiId ui, ViewportUiShapeDescription shape) { return graphics_ui_shape_description_set(ui, shape); }
 ViewportUiShapeDescriptionResult rohr_graphics_ui_shape_description_get(GraphicsUiId ui) { return graphics_ui_shape_description_get(ui); }
 EngineResult rohr_graphics_ui_text_description_set(GraphicsUiId ui, ViewportUiTextDescription text) { return graphics_ui_text_description_set(ui, text); }

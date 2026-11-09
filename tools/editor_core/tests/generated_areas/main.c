@@ -36,7 +36,7 @@ int main(void) {
     ViewportCreateDescription description = {.viewport = rohr_viewport_description_default_get()};
     description.items=&screen; description.item_count=1;
     description.cameras=&binding; description.camera_count=1;
-    ViewportIdResult viewport = rohr_viewport_create(&description);
+    ViewportIdResult viewport = rohr_viewport_create(description);
     OK(viewport);
     CHECK(rohr_graphics_viewport_show(viewport.result.value).header.status != ROHR_REPORT_FAILED);
     OK(rohr_physics_position_set(first->node_1, (Position){70,-70}));

@@ -117,7 +117,7 @@ static bool presentation_create(DropDemo *demo) {
             i==2 ? 1280 : 640,i==2 ? 320 : 400};
         description.viewport.background_color=(Color){18,24,34,255};
         description.viewport.enabled=true;
-        ViewportIdResult created=rohr_viewport_create(&description);
+        ViewportIdResult created=rohr_viewport_create(description);
         if(rohr_error_check(created)) return false;
         demo->viewports[i]=created.result.value;
         if(i<2) {

@@ -16,7 +16,7 @@ bool example_viewport_create(CameraId camera, Color background, ViewportId *view
         .items=&screen,.item_count=1,.cameras=&binding,.camera_count=1};
     config.viewport.rectangle=screen.placement.rectangle;
     config.viewport.enabled=true;
-    ViewportIdResult created = rohr_viewport_create(&config);
+    ViewportIdResult created = rohr_viewport_create(config);
     if(rohr_error_check(created)) return false;
     *viewport = created.result.value;
     return true;
@@ -35,7 +35,7 @@ bool example_ui_viewport_create(Color background, ViewportId *viewport) {
     description.viewport.rectangle=(ViewportRectangle){0,0,WINDOW_WIDTH,WINDOW_HEIGHT};
     description.viewport.background_color=background;
     description.viewport.enabled=true;
-    ViewportIdResult result=rohr_viewport_create(&description);
+    ViewportIdResult result=rohr_viewport_create(description);
     if(rohr_error_check(result)) return false;
     *viewport=result.result.value;
     return true;

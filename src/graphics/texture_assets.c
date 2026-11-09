@@ -98,7 +98,7 @@ GraphicsTextureAssetStats graphics_texture_assets_stats_get(void) {
     return stats;
 }
 
-TextureAssetResult graphics_texture_load(TextureDescription descriptor) {
+TextureAssetResult (graphics_texture_load)(TextureDescription descriptor) {
     TextureAsset asset = {.size = descriptor.size};
     GraphicsTextureResource *resource;
     SDL_Surface *surface;

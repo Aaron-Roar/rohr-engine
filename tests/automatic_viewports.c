@@ -100,8 +100,8 @@ static void selection_and_rendering(Entity root) {
     ViewportCreateDescription authored=recipe(items,2);
     ViewportObjectBinding binding={&catalog,root};
     ViewportCreateDescription d={.template=&authored,.objects=&binding,.object_count=1};
-    ViewportId a=viewport_value(rohr_viewport_create(&d));
-    ViewportId b=viewport_value(graphics_viewport_create(&d));
+    ViewportId a=viewport_value(rohr_viewport_create(d));
+    ViewportId b=viewport_value(graphics_viewport_create(d));
     ScreenId first=screen_get(a,"world"),second=screen_get(a,"detail");
     CameraId camera=rohr_entity_object_camera_get(member(root,"camera")).result.value;
     OK(rohr_camera_render_callback_set(camera,callback,NULL));
@@ -197,13 +197,13 @@ static void creation_and_lifetime(Entity root,Entity other) {
     ViewportCreateDescription authored=recipe(items,2);
     ViewportObjectBinding binding={&catalog,root};
     ViewportCreateDescription d={.template=&authored,.objects=&binding,.object_count=1};
-    ViewportId empty=viewport_value(rohr_viewport_create(&authored));
+    ViewportId empty=viewport_value(rohr_viewport_create(authored));
     assert(rohr_screen_description_get(screen_get(empty,"world")).result.value.camera==CAMERA_INVALID);
     assert(show(empty).diagnostic_count==0);
     OK(rohr_viewport_destroy(empty));
     ViewportCameraBinding override={.item_name="world",.entity=member(other,"camera")};
     d.cameras=&override; d.camera_count=1;
-    ViewportId v=viewport_value(rohr_viewport_create(&d));
+    ViewportId v=viewport_value(rohr_viewport_create(d));
     ScreenDescription screen=rohr_screen_description_get(screen_get(v,"world")).result.value;
     assert(screen.camera_entity==override.entity);
     ViewportItemId button=rohr_viewport_item_by_name_get(v,"button").result.value;
@@ -234,35 +234,35 @@ static void creation_and_lifetime(Entity root,Entity other) {
     OK(rohr_viewport_destroy(v)); BAD(rohr_screen_description_get(added_screen));
     BAD(rohr_graphics_ui_shape_description_get(ui)); BAD(rohr_graphics_text_description_get(text));
     OK(rohr_camera_get(camera));
-    override.item_name="missing"; BAD(rohr_viewport_create(&d)); override.item_name="world";
-    override.camera=camera; BAD(rohr_viewport_create(&d)); override.camera=0;
-    override.entity=member(root,"particle"); BAD(rohr_viewport_create(&d));
+    override.item_name="missing"; BAD(rohr_viewport_create(d)); override.item_name="world";
+    override.camera=camera; BAD(rohr_viewport_create(d)); override.camera=0;
+    override.entity=member(root,"particle"); BAD(rohr_viewport_create(d));
     override.entity=member(other,"camera");
-    ViewportCameraBinding duplicate[2]={override,override}; d.cameras=duplicate; d.camera_count=2; BAD(rohr_viewport_create(&d));
+    ViewportCameraBinding duplicate[2]={override,override}; d.cameras=duplicate; d.camera_count=2; BAD(rohr_viewport_create(d));
     d.cameras=NULL; d.camera_count=0;
-    binding.instance=member(root,"particle"); BAD(rohr_viewport_create(&d)); binding.instance=root;
+    binding.instance=member(root,"particle"); BAD(rohr_viewport_create(d)); binding.instance=root;
     LayerDescription layer={"recipe_rollback",17}; authored.layers=&layer; authored.layer_count=1;
     items[1].shape.shape.amount_of_vertices=2;
-    BAD(rohr_viewport_create(&d)); BAD(rohr_graphics_layer_name_id_get(layer.name));
+    BAD(rohr_viewport_create(d)); BAD(rohr_graphics_layer_name_id_get(layer.name));
     OK(rohr_camera_get(camera)); items[1].shape.shape.amount_of_vertices=4;
     layer.name="recipe_shared";
     items[0].layer_name=layer.name;
 #ifdef ROHR_TEST_VIEWPORT_WRAP
     for(int fail=0;fail<2;++fail) {
         fail_texture_after=fail;
-        ViewportIdResult attempt=rohr_viewport_create(&d);
+        ViewportIdResult attempt=rohr_viewport_create(d);
         if(!rohr_error_check(attempt)) OK(rohr_viewport_destroy(attempt.result.value));
         fail_texture_after=-1;
     }
 #endif
     for(unsigned i=0;i<1000;++i) {
-        v=viewport_value(rohr_viewport_create(&d));
+        v=viewport_value(rohr_viewport_create(d));
         OK(rohr_viewport_camera_add(v,camera,items[0].placement));
         if(i%100==0) (void)show(v);
         OK(rohr_viewport_destroy(v));
     }
     GraphicsLayerIdResult named=rohr_graphics_layer_name_id_get(layer.name); OK(named);
-    layer.value=19; BAD(rohr_viewport_create(&d));
+    layer.value=19; BAD(rohr_viewport_create(d));
     assert(rohr_graphics_layer_get(named.result.value).result.value==17);
     OK(rohr_graphics_layer_destroy(named.result.value));
     /* Borrowed low-level screens survive viewport deletion. */
@@ -300,7 +300,7 @@ static void unbound_screens(Entity root) {
     items[2].shape.fill_color=(Color){90,120,150,255};
     items[2].shape.hover_fill_color=items[2].shape.click_fill_color=items[2].shape.fill_color;
     ViewportCreateDescription description=recipe(items,3);
-    ViewportId viewport=viewport_value(rohr_viewport_create(&description));
+    ViewportId viewport=viewport_value(rohr_viewport_create(description));
     ScreenId screen=screen_get(viewport,"world");
     assert(rohr_screen_description_get(screen).result.value.camera==CAMERA_INVALID);
 #ifdef ROHR_TEST_VIEWPORT_WRAP
@@ -348,19 +348,19 @@ static void unbound_screens(Entity root) {
     OK(rohr_viewport_destroy(viewport)); OK(rohr_camera_get(camera));
 
     /* Authoring errors remain errors even without runtime bindings. */
-    items[0].camera_object=&particle_template; BAD(rohr_viewport_create(&description));
+    items[0].camera_object=&particle_template; BAD(rohr_viewport_create(description));
     items[0].camera_object=&catalog;
     ObjectDescription impostor=camera_template;
-    items[0].camera_member=&impostor; BAD(rohr_viewport_create(&description));
+    items[0].camera_member=&impostor; BAD(rohr_viewport_create(description));
     items[0].camera_member=&camera_template;
     ViewportCameraBinding invalid={.item_name="world",.camera=UINT32_MAX};
-    description.cameras=&invalid; description.camera_count=1; BAD(rohr_viewport_create(&description));
+    description.cameras=&invalid; description.camera_count=1; BAD(rohr_viewport_create(description));
     description.cameras=NULL; description.camera_count=0;
 #ifdef ROHR_TEST_VIEWPORT_WRAP
-    fail_texture_after=1; BAD(rohr_viewport_create(&description)); fail_texture_after=-1;
+    fail_texture_after=1; BAD(rohr_viewport_create(description)); fail_texture_after=-1;
 #endif
     for(unsigned i=0;i<1000;++i) {
-        viewport=viewport_value(rohr_viewport_create(&description));
+        viewport=viewport_value(rohr_viewport_create(description));
         if(i==0 || i==999) assert(show(viewport).diagnostic_count==0);
         OK(rohr_viewport_destroy(viewport));
     }
@@ -370,7 +370,7 @@ static void stale_camera(Entity root) {
     ViewportCreateItemDescription item=screen_item("world");
     ViewportCreateDescription d=recipe(&item,1);
     ViewportObjectBinding binding={&catalog,root}; d.objects=&binding; d.object_count=1;
-    ViewportId v=viewport_value(rohr_viewport_create(&d));
+    ViewportId v=viewport_value(rohr_viewport_create(d));
     ScreenId screen=screen_get(v,"world");
     Entity camera_entity=member(root,"camera");
     OK(rohr_entity_delete(camera_entity));
@@ -386,7 +386,7 @@ static void visual_components(Entity root) {
     ViewportCreateItemDescription item=screen_item("world");
     ViewportCreateDescription d=recipe(&item,1);
     ViewportObjectBinding binding={&catalog,root}; d.objects=&binding; d.object_count=1;
-    ViewportId v=viewport_value(rohr_viewport_create(&d));
+    ViewportId v=viewport_value(rohr_viewport_create(d));
     Entity plain=entity_value(rohr_physics_particle_add((ParticleDescription){.mass_value=1,.radius=5}));
     Report r=show(v); assert(metric(r,ROHR_GRAPHICS_COMMANDS_REPORT_ID,ROHR_REPORT_PROCESSED_COUNT)==2);
     assert(SDL_SaveFile("automatic_pixel.png",test_png,sizeof(test_png)));
@@ -410,7 +410,7 @@ static void restored_bindings(void) {
     root=entity_value(rohr_entity_by_name_get(name.value));
     ViewportCreateItemDescription item=screen_item("world"); ViewportCreateDescription d=recipe(&item,1);
     ViewportObjectBinding binding={&catalog,root}; d.objects=&binding; d.object_count=1;
-    ViewportId viewport=viewport_value(rohr_viewport_create(&d)); (void)show(viewport);
+    ViewportId viewport=viewport_value(rohr_viewport_create(d)); (void)show(viewport);
     OK(rohr_viewport_destroy(viewport)); OK(rohr_entity_delete(root));
     assert(remove("automatic_state.json")==0);
 }
@@ -421,7 +421,7 @@ static void first_frame_paused(Entity root) {
     ViewportCreateItemDescription item=screen_item("paused");
     ViewportCreateDescription d=recipe(&item,1);
     ViewportObjectBinding binding={&catalog,root}; d.objects=&binding; d.object_count=1;
-    ViewportId viewport=viewport_value(rohr_viewport_create(&d));
+    ViewportId viewport=viewport_value(rohr_viewport_create(d));
     rohr_engine_pause();
     Report r=show(viewport);
     /* A new paused target clears once; it does not discover scene content. */
@@ -497,7 +497,7 @@ static void debug_overlays(Entity root) {
     ViewportCreateDescription description=recipe(&item,1);
     ViewportObjectBinding binding={&catalog,root};
     description.objects=&binding; description.object_count=1;
-    ViewportId viewport=viewport_value(rohr_viewport_create(&description));
+    ViewportId viewport=viewport_value(rohr_viewport_create(description));
     uint64_t baseline=metric(show(viewport),ROHR_GRAPHICS_COMMANDS_REPORT_ID,ROHR_REPORT_PROCESSED_COUNT);
     assert(!graphics_hit_boxes_debug_check() && !graphics_particles_debug_check() &&
         !graphics_local_origins_debug_check());
@@ -527,7 +527,7 @@ static void preview(bool bindings_preview) {
     ViewportCreateDescription d=recipe(items,2); d.viewport.rectangle=(ViewportRectangle){20,20,1200,660};
     ViewportObjectBinding binding={&catalog,root};
     if(!bindings_preview) { d.objects=&binding; d.object_count=1; }
-    ViewportId viewport=viewport_value(rohr_viewport_create(&d));
+    ViewportId viewport=viewport_value(rohr_viewport_create(d));
     TextAssetResult title=rohr_graphics_text_create((TextDescription){.value=bindings_preview ?
         "Unbound screens: backgrounds only; cameras bind/clear every 6 seconds" :
         "Automatic viewports - click Toggle to hide/show particles",.color={240,240,240,255}}); OK(title);
@@ -579,6 +579,47 @@ static void preview(bool bindings_preview) {
     for(unsigned i=0;i<24;++i) OK(rohr_entity_delete(swarm[i]));
     OK(rohr_entity_delete(root));
 }
+static unsigned native_evaluations;
+static CameraDescription counted_camera(void) {
+    ++native_evaluations;
+    return rohr_camera_description_default_get();
+}
+static void standalone_resources(void) {
+    native_evaluations=0;
+    CameraIdResult camera=rohr_camera_create(counted_camera()); OK(camera);
+    assert(native_evaluations==1);
+    OK(rohr_camera_destroy(camera.result.value));
+    ViewportCreateItemDescription label={.kind=VIEWPORT_CREATE_TEXT, .text_value="Owned text",
+        .text=rohr_graphics_ui_text_description_default_get(),
+        .font=rohr_graphics_font_description_default_get(), .text_color={255,255,255,255}};
+    GraphicsUiIdResult survivor=rohr_graphics_ui_text_create(label); OK(survivor);
+    TextAsset survivor_text=rohr_graphics_ui_text_description_get(survivor.result.value).result.value.text;
+    /* Exhaust the UI pool after text has loaded: every rejected attempt must
+     * release its text/font. Repeated failure must not poison the survivor. */
+    GraphicsUiId all[MAX_GRAPHICS_UI_ELEMENTS]; size_t count=0;
+    for(;;) {
+        GraphicsUiIdResult next=rohr_graphics_ui_text_create(label);
+        if(rohr_error_check(next)) { assert(next.result.error==ERROR_MEMORY_POOL_FULL); break; }
+        assert(count<MAX_GRAPHICS_UI_ELEMENTS); all[count++]=next.result.value;
+    }
+    for(unsigned i=0;i<1000;++i) BAD(rohr_graphics_ui_text_create(label));
+    assert(rohr_graphics_text_valid_check(survivor_text));
+    for(size_t i=0;i<count;++i) OK(rohr_graphics_ui_destroy(all[i]));
+    for(unsigned i=0;i<1000;++i) {
+        unsigned evaluated=0;
+        GraphicsUiIdResult next=graphics_ui_text_create((&label)[evaluated++]); OK(next); assert(evaluated==1);
+        TextAsset borrowed=rohr_graphics_ui_text_description_get(next.result.value).result.value.text;
+        OK(rohr_graphics_ui_destroy(next.result.value)); assert(!rohr_graphics_text_valid_check(borrowed));
+    }
+    ViewportCreateItemDescription invalid=label; invalid.font.file="missing_resource_font.ttf";
+    BAD(rohr_graphics_ui_text_create(invalid));
+    assert(rohr_graphics_text_valid_check(survivor_text));
+    OK(rohr_graphics_ui_destroy(survivor.result.value)); assert(!rohr_graphics_text_valid_check(survivor_text));
+    /* Graphics shutdown also clears standalone recipe-owned text before fonts. */
+    survivor=rohr_graphics_ui_text_create(label); OK(survivor);
+    survivor_text=rohr_graphics_ui_text_description_get(survivor.result.value).result.value.text;
+    rohr_graphics_stop(); OK(rohr_graphics_start()); assert(!rohr_graphics_text_valid_check(survivor_text));
+}
 int main(int argc,char **argv) {
 
     OK(rohr_engine_start()); OK(rohr_graphics_start());
@@ -586,6 +627,7 @@ int main(int argc,char **argv) {
     if(argc>1 && (!strcmp(argv[1],"--preview") || !strcmp(argv[1],"--preview-unbound"))) {
         preview(!strcmp(argv[1],"--preview-unbound")); rohr_graphics_stop(); rohr_engine_stop(); return 0;
     }
+    standalone_resources();
     Entity a=entity_value(rohr_object_create(catalog));
     Entity b=entity_value(rohr_object_create(catalog));
     /* Keep one instance's visual hidden so command counts are exact. */

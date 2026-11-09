@@ -2794,8 +2794,14 @@ UISliderResult rohr_ui_slider(const char *id, float value, const UISliderConfig 
 UISliderResult rohr_ui_slider_with_text(const char *id, float value,
     const UISliderConfig *config, const UISliderText *text);
 
-#define rohr_viewport_create(...) _Generic((__VA_ARGS__), \
-    ROHR_INTERNAL_VIEWPORT_POINTER_TYPES(ROHR_INTERNAL_VIEWPORT_POINTER_TYPE) \
-    ViewportDescription: (rohr_viewport_create), \
-    default: graphics_viewport_create_description)(__VA_ARGS__)
+#define rohr_viewport_create(...) graphics_viewport_create(__VA_ARGS__)
+#define rohr_screen_create(...) graphics_screen_create(__VA_ARGS__)
+#define rohr_graphics_ui_shape_create(...) graphics_ui_shape_create(__VA_ARGS__)
+#define rohr_graphics_ui_text_create(...) graphics_ui_text_create(__VA_ARGS__)
+#define rohr_graphics_ui_slider_create(...) graphics_ui_slider_create(__VA_ARGS__)
+#define rohr_camera_create(...) graphics_camera_create(__VA_ARGS__)
+#define rohr_graphics_texture_load(...) graphics_texture_load(__VA_ARGS__)
+#define rohr_graphics_animation_load(...) graphics_animation_load(__VA_ARGS__)
+#define rohr_graphics_font_load(...) graphics_font_load(__VA_ARGS__)
+#define rohr_graphics_text_create(...) graphics_text_create(__VA_ARGS__)
 #endif

@@ -30,7 +30,7 @@ ViewportCreateDescription description = {
     .objects = &binding,
     .object_count = 1,
 };
-ViewportIdResult view = rohr_viewport_create(&description);
+ViewportIdResult view = rohr_viewport_create(description);
 if (rohr_error_check(view)) goto fail;
 ViewportId viewport = view.result.value;
 ```

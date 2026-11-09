@@ -104,7 +104,7 @@ GraphicsAnimationAssetStats graphics_animation_assets_stats_get(void) {
     return stats;
 }
 
-AnimationAssetResult graphics_animation_load(AnimationDescription descriptor) {
+AnimationAssetResult (graphics_animation_load)(AnimationDescription descriptor) {
     AnimationFrameDescription frames[MAX_ANIMATIONS_FRAMES] = {0};
     AnimationId id;
     size_t frame_count = descriptor.frame_count;

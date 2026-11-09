@@ -15,8 +15,6 @@ typedef struct ViewportResources {
         ViewportItemId item;
         ScreenId screen;
         GraphicsUiId ui;
-        TextAsset text;
-        FontAsset font;
     } items[MAX_VIEWPORT_ITEMS];
     size_t count;
     ScreenId added_screens[MAX_SCREENS];
@@ -39,8 +37,6 @@ void graphics_viewport_resources_release(ViewportId viewport) {
     }
     for(size_t i = 0; i < owned->added_count; ++i)
         (void)graphics_screen_destroy(owned->added_screens[i]);
-    for(size_t i = 0; i < owned->count; ++i) (void)graphics_text_destroy(&owned->items[i].text);
-    for(size_t i = 0; i < owned->count; ++i) (void)graphics_font_release(&owned->items[i].font);
     *owned = (ViewportResources){0};
 }
 ViewportItemIdResult graphics_viewport_item_by_name_get(ViewportId viewport, const char *name) {
@@ -125,7 +121,76 @@ invalid:
     return ERROR_RESULT_MAKE_ERROR(EntityResult, ERROR_ENGINE_STATE_REFERENCE_NOT_FOUND);
 }
 
-ViewportIdResult graphics_viewport_create_description(const ViewportCreateDescription *input) {
+/* Standalone resource recipes never resolve or create entity owners. Placement
+ * is applied by mounting; immutable recipes cannot contain live resource handles. */
+static bool item_recipe_check(const ViewportCreateItemDescription *d) {
+    return d && d->kind >= VIEWPORT_CREATE_SCREEN && d->kind <= VIEWPORT_CREATE_SLIDER &&
+        !d->placement.screen && !d->placement.ui && !d->placement.layer_id &&
+        !d->text.text.handle && !d->shape.text.text.handle &&
+        (d->kind == VIEWPORT_CREATE_SCREEN || (!d->camera_object && !d->camera_member));
+}
+ScreenIdResult rohr_internal_screen_create_recipe(const ViewportCreateItemDescription *d) {
+    if(!item_recipe_check(d) || d->kind != VIEWPORT_CREATE_SCREEN || d->render_width < 0 || d->render_height < 0 ||
+            (!!d->camera_object != !!d->camera_member) ||
+            (d->camera_member && !camera_member_check(d->camera_object, d->camera_member)))
+        return ERROR_RESULT_MAKE_ERROR(ScreenIdResult, ERROR_ENGINE_STATE_INVALID);
+    return graphics_screen_create((ScreenDescription){.width=d->render_width, .height=d->render_height,
+        .content_mode=SCREEN_CONTENT_AUTOMATIC, .background_color=d->background_color});
+}
+
+static bool text_recipe_check(const ViewportCreateItemDescription *d) {
+    return item_recipe_check(d) && (d->kind == VIEWPORT_CREATE_TEXT || d->kind == VIEWPORT_CREATE_SHAPE);
+}
+FontAssetResult rohr_internal_font_load_recipe(const ViewportCreateItemDescription *d) {
+    if(!text_recipe_check(d))
+        return ERROR_RESULT_MAKE_ERROR(FontAssetResult, ERROR_ENGINE_STATE_INVALID);
+    return graphics_font_load(d->font);
+}
+TextAssetResult rohr_internal_text_create_recipe(const ViewportCreateItemDescription *d) {
+    if(!text_recipe_check(d) || !d->text_value)
+        return ERROR_RESULT_MAKE_ERROR(TextAssetResult, ERROR_ENGINE_STATE_INVALID);
+    FontAssetResult font = graphics_font_load(*d);
+    if(error_check(font)) return ERROR_RESULT_MAKE_ERROR(TextAssetResult, font.result.error);
+    TextAssetResult text = graphics_text_create((TextDescription){.font=font.result.value,
+        .value=d->text_value, .color=d->text_color, .wrap_width=d->text_wrap_width});
+    /* A successful text owns its font dependency; failure also releases this load. */
+    (void)graphics_font_release(&font.result.value);
+    return text;
+}
+static GraphicsUiIdResult ui_recipe_create(const ViewportCreateItemDescription *d,
+        ViewportCreateItemKind kind) {
+    if(!item_recipe_check(d) || d->kind != kind ||
+            (kind == VIEWPORT_CREATE_SLIDER && d->text_value))
+        return ERROR_RESULT_MAKE_ERROR(GraphicsUiIdResult, ERROR_ENGINE_STATE_INVALID);
+    TextAsset text = {0};
+    if(d->text_value) {
+        TextAssetResult made = graphics_text_create(*d);
+        if(error_check(made)) return ERROR_RESULT_MAKE_ERROR(GraphicsUiIdResult, made.result.error);
+        text = made.result.value;
+    }
+    GraphicsUiIdResult ui;
+    if(kind == VIEWPORT_CREATE_SHAPE) {
+        ViewportUiShapeDescription shape = d->shape; shape.text.text = text;
+        ui = graphics_ui_shape_create(shape);
+    } else if(kind == VIEWPORT_CREATE_TEXT) {
+        ViewportUiTextDescription label = d->text; label.text = text;
+        ui = graphics_ui_text_create(label);
+    } else ui = graphics_ui_slider_create(d->slider);
+    if(error_check(ui)) (void)graphics_text_destroy(&text);
+    else graphics_ui_recipe_text_own(ui.result.value, text);
+    return ui;
+}
+GraphicsUiIdResult rohr_internal_ui_shape_create_recipe(const ViewportCreateItemDescription *d) {
+    return ui_recipe_create(d, VIEWPORT_CREATE_SHAPE);
+}
+GraphicsUiIdResult rohr_internal_ui_text_create_recipe(const ViewportCreateItemDescription *d) {
+    return ui_recipe_create(d, VIEWPORT_CREATE_TEXT);
+}
+GraphicsUiIdResult rohr_internal_ui_slider_create_recipe(const ViewportCreateItemDescription *d) {
+    return ui_recipe_create(d, VIEWPORT_CREATE_SLIDER);
+}
+
+ViewportIdResult rohr_internal_viewport_recipe_create(const ViewportCreateDescription *input) {
     if(!input) return ERROR_RESULT_MAKE_ERROR(ViewportIdResult, ERROR_ENGINE_STATE_INVALID);
     const ViewportCreateDescription *d = input->template ? input->template : input;
     if(d->template || (input->template && (d->object_count || d->camera_count)) ||
@@ -153,9 +218,7 @@ ViewportIdResult graphics_viewport_create_description(const ViewportCreateDescri
     for(size_t i = 0; i < d->item_count; ++i) {
         const ViewportCreateItemDescription *item = &d->items[i];
         failure_item = item->name;
-        if(!name_check(item->name) || item->kind < VIEWPORT_CREATE_SCREEN || item->kind > VIEWPORT_CREATE_SLIDER ||
-                item->placement.screen || item->placement.ui || item->placement.layer_id ||
-                item->shape.text.text.handle || item->text.text.handle) goto invalid;
+        if(!name_check(item->name) || !item_recipe_check(item)) goto invalid;
         for(size_t prior = 0; prior < i; ++prior)
             if(!strcmp(d->items[prior].name, item->name)) goto invalid;
         if(item->kind != VIEWPORT_CREATE_SCREEN) {
@@ -232,23 +295,10 @@ ViewportIdResult graphics_viewport_create_description(const ViewportCreateDescri
             owned->items[i].screen = screen.result.value;
             placement.screen = screen.result.value;
         } else {
-            if(item->text_value) {
-                FontAssetResult font = graphics_font_load(item->font);
-                if(error_check(font)) { failure = font.result.error; goto rollback; }
-                owned->items[i].font = font.result.value;
-                TextAssetResult text = graphics_text_create((TextDescription){.font = font.result.value,
-                    .value = item->text_value, .color = item->text_color, .wrap_width = item->text_wrap_width});
-                if(error_check(text)) { failure = text.result.error; goto rollback; }
-                owned->items[i].text = text.result.value;
-            }
             GraphicsUiIdResult ui;
-            if(item->kind == VIEWPORT_CREATE_SHAPE) {
-                ViewportUiShapeDescription shape = item->shape; shape.text.text = owned->items[i].text;
-                ui = graphics_ui_shape_create(shape);
-            } else if(item->kind == VIEWPORT_CREATE_TEXT) {
-                ViewportUiTextDescription text = item->text; text.text = owned->items[i].text;
-                ui = graphics_ui_text_create(text);
-            } else ui = graphics_ui_slider_create(item->slider);
+            if(item->kind == VIEWPORT_CREATE_SHAPE) ui = graphics_ui_shape_create(*item);
+            else if(item->kind == VIEWPORT_CREATE_TEXT) ui = graphics_ui_text_create(*item);
+            else ui = graphics_ui_slider_create(*item);
             if(error_check(ui)) { failure = ui.result.error; goto rollback; }
             owned->items[i].ui = ui.result.value;
             placement.ui = ui.result.value;

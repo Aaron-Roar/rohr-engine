@@ -682,7 +682,7 @@ int main(void) {
                 file_contains(path, "rohr_physics_joint_description_set") ||
                 file_contains(path, "rohr_physics_hitbox_set(scene.box") ||
                 file_contains(path, "rohr_camera_render_callback_set(") ||
-                !file_contains(path, "rohr_viewport_create(&description)") ||
+                !file_contains(path, "rohr_viewport_create(description)") ||
                 !file_contains(path, "rohr_project_destroy(instance)") ||
                 !file_contains(path, "rohr_screen_camera_set(screen.result.value.screen") ||
                 !file_contains(path, "rohr_input_frame_begin()") ||

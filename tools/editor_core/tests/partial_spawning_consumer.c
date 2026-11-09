@@ -20,12 +20,12 @@ int main(int argc, char **argv) {
     ViewportObjectBinding binding = {&project.example._description, example};
     ViewportCreateDescription description = {.template=&project.initial_viewport._description,
         .objects=&binding,.object_count=1};
-    ViewportIdResult view = rohr_viewport_create(&description);
+    ViewportIdResult view = rohr_viewport_create(description);
     if(missing) {
         assert(rohr_error_check(view)); /* An explicitly supplied invalid owner still fails. */
         example = take(rohr_object_create(project.example));
         binding.instance = example;
-        view = rohr_viewport_create(&description);
+        view = rohr_viewport_create(description);
     }
     OK(view);
     for(unsigned frame=0;frame<3;++frame) {
@@ -36,7 +36,7 @@ int main(int argc, char **argv) {
     OK(rohr_viewport_destroy(view.result.value));
     if(root) OK(rohr_entity_delete(root));
     else OK(rohr_entity_delete(example));
-    assert(rohr_error_check(rohr_viewport_create(&description))); /* Stale camera owner. */
+    assert(rohr_error_check(rohr_viewport_create(description))); /* Stale camera owner. */
     if(tug) OK(rohr_entity_delete(tug));
     rohr_graphics_stop(); rohr_engine_stop();
     return 0;

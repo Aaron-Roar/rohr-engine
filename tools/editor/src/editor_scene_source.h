@@ -86,7 +86,7 @@ static const char editor_scene_source[] =
     "    }\n"
     "    ViewportCreateDescription description = {.template = recipe,\n"
     "        .objects = bindings, .object_count = count};\n"
-    "    ViewportIdResult created = rohr_viewport_create(&description);\n"
+    "    ViewportIdResult created = rohr_viewport_create(description);\n"
     "    if(rohr_error_check(created)) return rohr_error_result_error(created.result.error);\n"
     "    *output = created.result.value;\n"
     "    return rohr_error_result_value(true);\n"

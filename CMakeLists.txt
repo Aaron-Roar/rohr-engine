@@ -230,6 +230,7 @@ set(ROHR_ENGINE_SOURCES
     src/graphics/animation_assets.c
     src/graphics/font_assets.c
     src/graphics/graphics.c
+    src/graphics/resource_creation.c
     src/graphics/viewport_creation.c
     src/graphics/text_assets.c
     src/graphics/texture_assets.c

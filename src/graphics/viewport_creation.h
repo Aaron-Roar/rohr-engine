@@ -6,6 +6,7 @@
 #include "graphics.h"
 bool graphics_started_check(void);
 void graphics_viewport_resources_release(ViewportId viewport);
+void graphics_ui_recipe_text_own(GraphicsUiId ui, TextAsset text);
 void graphics_ui_owned_destroy(GraphicsUiId ui);
 bool graphics_viewport_recipe_check(ViewportId viewport);
 ViewportItemIdResult graphics_viewport_owned_camera_add(ViewportId viewport,

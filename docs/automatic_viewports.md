@@ -2,7 +2,7 @@
 
 Milestone 16 Goal 2 implements background-only standalone screens without required
 runtime camera bindings, as defined by the [scoped creation contract](scoped_creation_contract.md).
-Whole-project creation and its automatic camera wiring remain Goal 3.
+Milestone 16 Goal 3 adds whole-project creation and its automatic camera wiring.
 
 Milestone 15 Goal 3 implements complete viewport creation and automatic scene
 rendering. Unified `project.h` generation is described in
@@ -12,6 +12,11 @@ simulation scenes. Customized entry points need the documented manual migration;
 Goal 5 migrates every graphical bundled example to automatic rendering.
 See the [contract](creation_and_viewport_contract.md) for the full milestone and
 [shared creation](shared_creation.md) for entity/object creation.
+
+Milestone 17 Goal 4 uses value-style viewport creation for both native descriptors
+and named generated views. Rebuild the SDK and regenerate catalogs together;
+replace old `create(&description)` calls with `create(description)`. Named
+screen/UI resources can also use the [shared resource creators](shared_creation.md#shared-graphics-resource-creation).
 
 ## Create and show
 
@@ -29,7 +34,7 @@ ViewportCreateDescription creation = {
     .objects = &binding,
     .object_count = 1,
 };
-ViewportIdResult created = rohr_viewport_create(&creation);
+ViewportIdResult created = rohr_viewport_create(creation);
 if (rohr_error_check(created)) {
     /* Handle the creation error before using the result. */
     return;
@@ -57,7 +62,7 @@ authored camera. It displays only its background, without scene content, fallbac
 cameras, warning stripes, or missing-camera diagnostics. Authored camera references
 are still validated; a malformed reference is not treated as an empty screen.
 
-For example, `rohr_viewport_create(&project.initial_viewport)` creates the authored
+For example, `rohr_viewport_create(project.initial_viewport)` creates the authored
 layout without scene bindings. Use item lookup to retrieve a screen, then call
 `rohr_screen_camera_set(screen, camera)` to connect it later. Passing
 `CAMERA_INVALID` clears the binding. Invalid nonzero camera IDs are rejected by
@@ -126,7 +131,8 @@ creation, explicit instance binding, a frame loop, runtime UI and SDK setup.
 - Creation borrows input arrays, strings and descriptions only for the call. It
   copies runtime values and names, acquires assets and rolls back failed creation.
 - The returned viewport owns its recipe-created screens/UI/text/fonts and screens
-  created by its camera-add convenience helper. Removing their items unmounts
+  created by its camera-add convenience helper. Recipe-created UI owns its text,
+  which holds its font dependency. Removing their items unmounts
   them; resource lifetime lasts until viewport destruction. Destruction unmounts
   borrowed uses of those owned resources elsewhere before releasing them.
 - Cameras and object instances are borrowed. Deleting one leaves a safe missing

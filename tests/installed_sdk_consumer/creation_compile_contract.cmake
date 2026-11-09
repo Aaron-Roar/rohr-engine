@@ -58,8 +58,8 @@ creation_compile_case(controller_supported TRUE "
     rohr_controller_create(project.player); controller_create(project.player._description);
     rohr_controller_create((InputControllerDescription){.name=\"literal\", .enabled=true});
     rohr_controller_create(*(ProjectControllerView_0 *)0);
-    rohr_viewport_create(&project.game_viewport);
-    graphics_viewport_create(&project.game_viewport);
+    rohr_viewport_create(project.game_viewport);
+    graphics_viewport_create(project.game_viewport);
     ViewportCreateItemDescription screen=project.game_viewport.main_screen;
     ControllerActionDescription jump=project.player.jump; (void)screen; (void)jump")
 creation_compile_case(controller_pointer FALSE "InputControllerDescription c={0}; rohr_controller_create(&c)")
@@ -69,6 +69,70 @@ creation_compile_case(controller_wrong_recipe FALSE "rohr_controller_create(proj
 creation_compile_case(entity_controller FALSE "rohr_entity_create(project.player)")
 creation_compile_case(controller_unrelated FALSE "rohr_controller_create(unrelated)")
 creation_compile_case(controller_null FALSE "rohr_controller_create(NULL)")
+# Native temporary values and canonical authored lvalues use one creator.
+creation_compile_case(graphics_supported TRUE "
+    CameraDescription camera=rohr_camera_description_default_get();
+    rohr_camera_create(camera); graphics_camera_create(project.player_world);
+    rohr_camera_create(rohr_camera_description_default_get());
+    rohr_camera_create((CameraDescription){.zoom=1});
+    rohr_graphics_texture_load(project.player_world);
+    graphics_animation_load(objects.player_world);
+    rohr_graphics_texture_load(rohr_graphics_texture_description_default_get());
+    rohr_graphics_animation_load(rohr_graphics_animation_description_default_get());
+    rohr_viewport_create(rohr_viewport_description_default_get());
+    rohr_viewport_create((ViewportCreateDescription){0});
+    rohr_screen_create(project.game_viewport.main_screen);
+    graphics_screen_create(graphics_screen_description_default_get());
+    rohr_graphics_ui_shape_create(project.game_viewport.main_screen);
+    rohr_graphics_ui_text_create(project.game_viewport.main_screen);
+    rohr_graphics_ui_slider_create(project.game_viewport.main_screen);
+    graphics_ui_shape_create(graphics_ui_shape_description_default_get());
+    graphics_ui_text_create(graphics_ui_text_description_default_get());
+    graphics_ui_slider_create(graphics_ui_slider_description_default_get());
+    rohr_graphics_font_load(project.game_viewport.main_screen);
+    rohr_graphics_text_create(project.game_viewport.main_screen);
+    graphics_font_load(graphics_font_description_default_get());
+    graphics_text_create(graphics_text_description_default_get())")
+creation_compile_case(viewport_create_pointer FALSE "ViewportDescription d={0}; rohr_viewport_create(&d)")
+creation_compile_case(viewport_create_recipe_pointer FALSE "rohr_viewport_create(&project.game_viewport)")
+creation_compile_case(viewport_create_unrelated FALSE "rohr_viewport_create(unrelated)")
+creation_compile_case(viewport_create_wrong_family FALSE "rohr_viewport_create(project.player)")
+creation_compile_case(camera_create_pointer FALSE "CameraDescription d={0}; rohr_camera_create(&d)")
+creation_compile_case(camera_create_recipe_pointer FALSE "rohr_camera_create(&project.player_world)")
+creation_compile_case(camera_create_unrelated FALSE "rohr_camera_create(unrelated)")
+creation_compile_case(camera_create_wrong_family FALSE "rohr_camera_create(project.player)")
+creation_compile_case(screen_create_pointer FALSE "ScreenDescription d={0}; rohr_screen_create(&d)")
+creation_compile_case(screen_create_recipe_pointer FALSE "rohr_screen_create(&project.game_viewport.main_screen)")
+creation_compile_case(screen_create_unrelated FALSE "rohr_screen_create(unrelated)")
+creation_compile_case(screen_create_wrong_family FALSE "rohr_screen_create(project.player)")
+creation_compile_case(graphics_texture_load_pointer FALSE "TextureDescription d={0}; rohr_graphics_texture_load(&d)")
+creation_compile_case(graphics_texture_load_recipe_pointer FALSE "rohr_graphics_texture_load(&project.player_world)")
+creation_compile_case(graphics_texture_load_unrelated FALSE "rohr_graphics_texture_load(unrelated)")
+creation_compile_case(graphics_texture_load_wrong_family FALSE "rohr_graphics_texture_load(project.player)")
+creation_compile_case(graphics_animation_load_pointer FALSE "AnimationDescription d={0}; rohr_graphics_animation_load(&d)")
+creation_compile_case(graphics_animation_load_recipe_pointer FALSE "rohr_graphics_animation_load(&project.player_world)")
+creation_compile_case(graphics_animation_load_unrelated FALSE "rohr_graphics_animation_load(unrelated)")
+creation_compile_case(graphics_animation_load_wrong_family FALSE "rohr_graphics_animation_load(project.player)")
+creation_compile_case(graphics_font_load_pointer FALSE "FontDescription d={0}; rohr_graphics_font_load(&d)")
+creation_compile_case(graphics_font_load_recipe_pointer FALSE "rohr_graphics_font_load(&project.game_viewport.main_screen)")
+creation_compile_case(graphics_font_load_unrelated FALSE "rohr_graphics_font_load(unrelated)")
+creation_compile_case(graphics_font_load_wrong_family FALSE "rohr_graphics_font_load(project.player)")
+creation_compile_case(graphics_text_create_pointer FALSE "TextDescription d={0}; rohr_graphics_text_create(&d)")
+creation_compile_case(graphics_text_create_recipe_pointer FALSE "rohr_graphics_text_create(&project.game_viewport.main_screen)")
+creation_compile_case(graphics_text_create_unrelated FALSE "rohr_graphics_text_create(unrelated)")
+creation_compile_case(graphics_text_create_wrong_family FALSE "rohr_graphics_text_create(project.player)")
+creation_compile_case(graphics_ui_shape_create_pointer FALSE "ViewportUiShapeDescription d={0}; rohr_graphics_ui_shape_create(&d)")
+creation_compile_case(graphics_ui_shape_create_recipe_pointer FALSE "rohr_graphics_ui_shape_create(&project.game_viewport.main_screen)")
+creation_compile_case(graphics_ui_shape_create_unrelated FALSE "rohr_graphics_ui_shape_create(unrelated)")
+creation_compile_case(graphics_ui_shape_create_wrong_family FALSE "rohr_graphics_ui_shape_create(project.player)")
+creation_compile_case(graphics_ui_text_create_pointer FALSE "ViewportUiTextDescription d={0}; rohr_graphics_ui_text_create(&d)")
+creation_compile_case(graphics_ui_text_create_recipe_pointer FALSE "rohr_graphics_ui_text_create(&project.game_viewport.main_screen)")
+creation_compile_case(graphics_ui_text_create_unrelated FALSE "rohr_graphics_ui_text_create(unrelated)")
+creation_compile_case(graphics_ui_text_create_wrong_family FALSE "rohr_graphics_ui_text_create(project.player)")
+creation_compile_case(graphics_ui_slider_create_pointer FALSE "ViewportUiSliderDescription d={0}; rohr_graphics_ui_slider_create(&d)")
+creation_compile_case(graphics_ui_slider_create_recipe_pointer FALSE "rohr_graphics_ui_slider_create(&project.game_viewport.main_screen)")
+creation_compile_case(graphics_ui_slider_create_unrelated FALSE "rohr_graphics_ui_slider_create(unrelated)")
+creation_compile_case(graphics_ui_slider_create_wrong_family FALSE "rohr_graphics_ui_slider_create(project.player)")
 unset(CMAKE_REQUIRED_LIBRARIES)
 unset(CMAKE_REQUIRED_INCLUDES)
 unset(CMAKE_TRY_COMPILE_TARGET_TYPE)

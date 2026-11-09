@@ -160,7 +160,7 @@ static ViewportIdResult viewport_create(const ProjectDescription *d, Entity root
         bindings[count++] = (ViewportObjectBinding){object, entity.result.value};
     }
     ViewportCreateDescription input = {.template = v, .objects = bindings, .object_count = count};
-    return graphics_viewport_create_description(&input);
+    return graphics_viewport_create(input);
 }
 static InputControllerIdResult project_controller_create(ProjectId project, size_t index,
         ControllerDescription description) {

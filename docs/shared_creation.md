@@ -1,4 +1,4 @@
-# Shared entity and object creation
+# Shared creation APIs
 
 Milestone 15 Goal 2 implements the entity/object portion of the
 [creation contract](creation_and_viewport_contract.md). Goal 3 adds
@@ -13,9 +13,9 @@ recipes and the three-path example main.
 Milestone 17 Goal 2 changes entity, object, and project creation to typed value
 syntax. Rebuild the SDK and regenerate catalogs together; older generated headers
 do not contain the required adapters. Existing developer-edited mains are preserved
-and need the source migration below. Other resource creators keep their current
-signatures until their milestone goals are implemented. Goal 3 adds named resource
-recipes and the shared controller creator described below.
+and need the source migration below. Goal 3 adds named resource recipes and the
+shared controller creator. Goal 4 extends the normal graphics resource creators
+to authored recipes and migrates viewport creation to value syntax.
 
 ## Creation values and source migration
 
@@ -90,12 +90,12 @@ creator after supplying its existing private instance name; project-local lookup
 still uses the authored name, so independent project instances remain isolated.
 Deleting one project does not destroy independently created controllers.
 
-Viewport fields now include named screen/UI recipes while retaining ordered
-`items` and `item_count` access. Current `rohr_viewport_create(&project.viewport)`
-calls remain supported through typed adapters. When setting a native descriptor's
+Viewport fields include named screen/UI recipes while retaining ordered
+`items` and `item_count` access. Milestone 17 Goal 4 makes viewport creation use
+value syntax: `rohr_viewport_create(project.viewport)` or
+`rohr_viewport_create(description)`. When setting a native creation descriptor's
 `template` pointer, use `&project.viewport._description`. Rebuild the SDK and
-regenerate together. The full viewport/resource creator migration remains Goal 4;
-removal of local helper functions from generated mains remains Goal 5.
+regenerate together. Removing local helpers from generated mains remains Goal 5.
 
 Generation rejects conflicting C identifiers across objects, viewports,
 controllers, audio, and layers, and within each controller/viewport. For example,
@@ -103,6 +103,63 @@ controllers, audio, and layers, and within each controller/viewport. For example
 descriptor fields such as controller `actions` and viewport `item_count` are
 also rejected. Diagnostics identify the conflicting names and resulting field;
 failed validation preserves existing generated output and developer-edited mains.
+
+## Shared graphics resource creation
+
+Milestone 17 Goal 4 adds typed authored inputs to the normal resource creators.
+These examples use illustrative authored names; check each result before use:
+
+```c
+ViewportIdResult view = rohr_viewport_create(project.game_viewport);
+ScreenIdResult screen = rohr_screen_create(project.game_viewport.world);
+GraphicsUiIdResult button = rohr_graphics_ui_shape_create(project.game_viewport.play_button);
+GraphicsUiIdResult label = rohr_graphics_ui_text_create(project.game_viewport.title);
+GraphicsUiIdResult slider = rohr_graphics_ui_slider_create(project.game_viewport.volume);
+CameraIdResult camera = rohr_camera_create(project.player.camera);
+TextureAssetResult image = rohr_graphics_texture_load(project.player.sprite);
+AnimationAssetResult animation = rohr_graphics_animation_load(project.player.animation);
+FontAssetResult font = rohr_graphics_font_load(project.game_viewport.title);
+TextAssetResult text = rohr_graphics_text_create(project.game_viewport.title);
+```
+
+Each also accepts its existing native descriptor, including const values,
+compound literals, and descriptor-returning function calls. Direct engine APIs
+behave identically. Arguments are evaluated once. Authored viewport and object
+views remain named lvalues borrowed at their original addresses. Unsupported C
+types, pointers, and unrelated generated views are compile errors; a recipe with
+the wrong resource kind returns an error. Replace old viewport `create(&value)`
+with `create(value)` and dereference checked descriptor pointers explicitly.
+The old public `graphics_viewport_create_description()` entry point is removed.
+
+Camera creation returns only a camera, initially at its authored world pose. It
+does not create an entity or bind to an existing target. A standalone authored
+screen is automatic and initially unbound; connect an explicit live camera with
+`rohr_screen_camera_set()`, or use a native `ScreenDescription` with runtime
+bindings. Viewport object/camera bindings retain the existing scope rules.
+Screen/UI creation does not mount the returned resource or apply its viewport
+placement and layer. Mount it explicitly using the normal viewport item APIs.
+
+Destroy cameras, screens, and UI with their existing destroy APIs. UI loaded from
+a recipe owns its generated text, and that text owns its font dependency. UI
+getters return borrowed text handles: do not destroy those as independent owners.
+Replacing UI content preserves the recipe-owned text until UI destruction, so
+previously obtained borrowed text stays valid for that lifetime. Native UI
+creation still borrows the caller's text and acquires its existing private
+render dependency; it does not take over the caller's public owner. Unmount UI
+before destroying it. Viewport-owned UI uses the same resource creator and
+releases these dependencies on rollback, viewport destruction, or shutdown.
+
+Texture, animation, and font loads return one caller-owned reference; release
+it with the matching release function. Text creation returns one unique owner;
+destroy it explicitly. Resources survive independently of other object/project
+instances. Sprite and animation-player value builders remain non-owning and
+require loaded handles. Use `rohr_entity_create(project.player.sprite)` to create
+the complete visible entity. No resource creator implicitly creates an entity.
+
+Named layer, sound, and music recipes already use the native descriptor types
+and need no extra dispatch. Their existing value creators and ownership remain
+unchanged. Whole-project, object, and viewport creation reuse these shared
+resource paths; global settings and simulation behavior are unchanged.
 
 ## Unified generated project
 
@@ -449,3 +506,41 @@ simulated seconds with the unchanged 14,400 substeps, 7,222,164 candidates, and
 the benchmark's `realtime_pass=0` is not claimed resolved. Physics and rendering
 behavior are unchanged. Evidence and disposable SDK/consumer builds are under
 `sandbox/milestone_17/goal_3/`.
+
+
+## Milestone 17 Goal 4 verification
+
+Evidence and isolated SDK installations are in `sandbox/milestone_17/goal_4/`.
+The user accepted the real installed-SDK workflow preview: independent views,
+rotated insets, text/buttons, and the first instance's visibility toggle.
+
+- Eighteen focused Release and ASan/UBSan checks pass with leak detection:
+  controllers/input, viewport descriptions, cameras, automatic viewports,
+  texture/animation/text assets, object/project/descriptor creation, generated
+  example pathways, partial spawning, construction/configuration parity,
+  scene generation/selection, and editor-project generation/preservation.
+- Seven installed-SDK consumers pass in both configurations: controller creation,
+  input descriptions, creation dispatch, object descriptions, automatic viewports,
+  generated workflow, and project creation. Generated resource fixtures exercise
+  direct named resource creation, no hidden entities, unbound cameras/screens,
+  explicit binding, wrong-kind rejection, and independent assets/UI over 1,000
+  cycles. UI-capacity failures release newly loaded text and preserve survivors;
+  shutdown and ordinary destruction invalidate the correct owned text handles.
+- Supported native and generated forms compile, including native function-return
+  and compound-literal expressions. All 67 negative compile cases reject pointer,
+  unrelated, or wrong-family inputs on Linux, sanitizer builds, and Windows.
+- Engine/editor, affected tests, consumers, all three generated example pathways,
+  and the full named-resource fixture cross-build for Windows. All 13 bundled
+  examples independently build against both installed SDKs; all 13 run on Linux
+  outside their source directories. Native Windows execution remains unverified.
+- The car completes 3,600 frames / 60 simulated seconds with the same 14,400
+  substeps, 7,222,164 candidates, and 1,195,541 contacts. This is functional
+  verification during other work, not a controlled performance measurement;
+  its existing `realtime_pass=0` gate is not reclassified or resolved here.
+- No compiler warnings, ASan/UBSan findings, or leak findings remain. No new
+  dependencies, physics settings, or presentation algorithms are introduced.
+  Generic Linux packaging and the wider final SDK review remain Goal 6.
+
+Rebuild the SDK and regenerate catalogs together before migrating external
+callers. Developer-edited mains remain preserved. Goal 5 will remove local
+teaching helpers and show each complete creation pathway directly in main.

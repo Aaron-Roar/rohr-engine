@@ -963,7 +963,9 @@ inputs have the same return types and ownership; resource creators do not
 implicitly create entity owners. Controller recipes include actions and roll
 back together. Expose direct named fields such as project.controller_1, with
 nested actions/items and explicit generation errors for identifier collisions.
-Bindings stay explicit; required missing dependencies remain errors. Mathematical
+Bindings stay explicit; required missing dependencies remain errors. Authored
+sprites/animations use normal asset loaders or entity creation; non-owning sprite
+and player value builders still require explicit loaded handles. Mathematical
 factories and new physics, pacing, or world-isolation behavior are out of scope.
 
 1. [x] **Add report success predicates.** Implement rohr_report_check and
@@ -1022,9 +1024,29 @@ factories and new physics, pacing, or world-isolation behavior are out of scope.
    remain. See [verification](docs/shared_creation.md#milestone-17-goal-3-verification)
    and `sandbox/milestone_17/goal_3/`. Stop for review and commit; Goals 4–6 remain
    pending, including the explicit helper-free teaching mains in Goal 5.
-4. [ ] **Unify remaining authored-resource creators.** Apply the shared pattern
+4. [x] **Unify remaining authored-resource creators.** Apply the shared pattern
    to viewports, screens, UI, cameras, graphics assets, layers, and audio. Keep
    resource ownership explicit and reuse the creators in larger compositions.
+   **Result: complete for review.** Viewport, screen, shape/text/slider UI, camera,
+   texture, animation, font, and text creation accept native values or typed
+   authored recipes. Native descriptor-returning expressions remain supported;
+   catalog adapters borrow canonical lvalues and evaluate inputs once. Named
+   layers/audio already use native value descriptors. Resource creators introduce
+   no entity owners or implicit live camera bindings. Recipe-created UI owns its
+   text/font dependencies; viewport and object construction reuse the shared
+   paths with rollback. Old viewport pointer calls/adapters are removed, affected
+   callers and generated catalogs migrated, and manual migration documented.
+   Eighteen focused tests and seven installed-SDK consumers pass in Release and
+   ASan/UBSan with leak detection, including 1,000-cycle ownership and failed-UI
+   rollback checks. Supported inputs compile and all 67 invalid inputs are
+   rejected on Linux and Windows. Engine/editor, generated paths/resource
+   fixtures, consumers, and all 13 independent examples cross-build for Windows;
+   all 13 examples build and run against the installed Linux SDK. Native Windows
+   execution and generic Linux packaging remain unverified. The user accepted
+   the real SDK workflow preview. No compiler warnings or sanitizer findings
+   remain. See [verification](docs/shared_creation.md#milestone-17-goal-4-verification)
+   and `sandbox/milestone_17/goal_4/`. Stop for review and commit; Goal 5's
+   helper-free teaching mains and Goal 6's integrated parity review remain next.
 5. [ ] **Migrate examples and generated teaching code.** Update all three
    creation pathways and repository callers. Remove obsolete creation adapters
    and pointer spellings. Generated mains must show engine calls, error/report

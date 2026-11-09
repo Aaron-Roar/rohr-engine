@@ -56,7 +56,7 @@ static void run_check(bool tutorial) {
     ViewportCameraBinding binding = {.item_name=project.initial_viewport.items[0].name,
         .camera=scene.example.camera_main_camera};
     ViewportCreateDescription description = {.template=&project.initial_viewport._description,.cameras=&binding,.camera_count=1};
-    ViewportIdResult viewport = rohr_viewport_create(&description); OK(viewport);
+    ViewportIdResult viewport = rohr_viewport_create(description); OK(viewport);
 
     /* Another whole object must have entirely independent bindings. */
     Tug second = {0};

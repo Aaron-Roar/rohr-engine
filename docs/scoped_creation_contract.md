@@ -26,7 +26,7 @@ or a matching description found elsewhere in the engine.
 | --- | --- | --- |
 | `rohr_entity_create(project.example.body)` | One member and its configured components; no separately authored children or siblings. | Only references to entities created in this attempt; optional references outside it remain unbound. |
 | `rohr_object_create(project.example)` | The selected hierarchy, including its nested objects and aggregates. | References anywhere within that hierarchy, including across nested children. |
-| `rohr_viewport_create(&project.initial_viewport)` | Its authored screens, UI, layout, and owned display resources. | No scene objects or cameras are created or discovered; screens without explicit runtime cameras remain empty. |
+| `rohr_viewport_create(project.initial_viewport)` | Its authored screens, UI, layout, and owned display resources. | No scene objects or cameras are created or discovered; screens without explicit runtime cameras remain empty. |
 | `rohr_project_create(project)` | One project entity hierarchy, its authored viewports, input controllers/actions, and sound/music resources. | References across all created project objects and authored screen-to-camera connections within this new instance. |
 
 Object creation of the project root remains an entity-hierarchy-only operation;

@@ -464,7 +464,7 @@ typedef struct ViewportCreateDescription {
     ROHR_VIEWPORT_CREATE_DESCRIPTION_FIELDS;
 } ViewportCreateDescription;
 
-ViewportIdResult graphics_viewport_create_description(const ViewportCreateDescription *description);
+ViewportIdResult rohr_internal_viewport_recipe_create(const ViewportCreateDescription *description);
 ViewportItemIdResult graphics_viewport_item_by_name_get(ViewportId viewport, const char *name);
 
 /** Generation-checked handle for an engine-owned animation resource. */
@@ -1188,12 +1188,6 @@ EngineResult graphics_soft_body_area_visibility_set(Entity area, bool visible);
 EngineResult graphics_soft_body_node_color_set(Entity soft_body, Entity node, Color color);
 EngineResult graphics_soft_body_beam_color_set(
     Entity soft_body, Entity node_a, Entity node_b, Color color);
-/* Preserve the by-value symbol, including function-pointer callers. */
-#define ROHR_INTERNAL_VIEWPORT_POINTER_TYPES(apply)
-#define ROHR_INTERNAL_VIEWPORT_POINTER_TYPE(type, adapter) \
-    type *: adapter, const type *: adapter,
-#define graphics_viewport_create(...) _Generic((__VA_ARGS__), \
-    ROHR_INTERNAL_VIEWPORT_POINTER_TYPES(ROHR_INTERNAL_VIEWPORT_POINTER_TYPE) \
-    ViewportDescription: (graphics_viewport_create), \
-    default: graphics_viewport_create_description)(__VA_ARGS__)
+/* Typed value dispatch for authored and native resource descriptions. */
+#include "graphics_creation.h"
 #endif
