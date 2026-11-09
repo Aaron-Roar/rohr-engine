@@ -16,7 +16,7 @@ and particles constructed in C. All graphical examples use automatic viewports;
 Using the player controller project's generated names, initialization is:
 
 ```c
-EntityResult created = rohr_object_create(&project.player_world);
+EntityResult created = rohr_object_create(project.player_world);
 if (rohr_error_check(created)) goto fail;
 Entity world = created.result.value;
 
@@ -55,7 +55,7 @@ physics hitbox needs explicit appearance to become visible. Named layers retain
 identity independently of their numeric draw order; equal numbers use discovery
 order. Camera layer allowlists/blocklists remain future work.
 
-For a standalone member, use `rohr_entity_create(&project.player_world.player)`.
+For a standalone member, use `rohr_entity_create(project.player_world.player)`.
 Members referring to other entities need their documented creation bindings;
 see [shared creation](../docs/shared_creation.md). Descriptions stay immutable.
 Destroy the viewport before its borrowed camera/object, then delete the object

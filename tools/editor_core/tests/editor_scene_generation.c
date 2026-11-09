@@ -15,7 +15,7 @@ static size_t occurrences(const char *text, const char *needle) {
 }
 static void check_generated(const EditorWorkspace *workspace, size_t objects, size_t screens, size_t viewports) {
     char *text = read_file(workspace, "src/generated/scene/project_objects.c");
-    assert(occurrences(text, "rohr_object_create(&objects.") == objects); SDL_free(text);
+    assert(occurrences(text, "rohr_object_create(objects.") == objects); SDL_free(text);
     text = read_file(workspace, "src/generated/scene/project_objects.c");
     assert(occurrences(text, ".kind=VIEWPORT_CREATE_SCREEN") == screens);
     assert(occurrences(text, ".viewport={.rectangle=") == viewports); SDL_free(text);

@@ -98,7 +98,7 @@ static const char editor_scene_source[] =
     "    if(rohr_error_check(result)) return result;\n"
     "    result = project_controllers_create(&scene->controllers);\n"
     "    if(rohr_error_check(result)) return result;\n"
-    "    EntityResult created = rohr_object_create(&project);\n"
+    "    EntityResult created = rohr_object_create(project);\n"
     "    if(rohr_error_check(created)) return rohr_error_result_error(created.result.error);\n"
     "    scene->objects = created.result.value;\n"
     "    if(project.viewport_count > MAX_VIEWPORTS) return rohr_error_result_error(ERROR_MEMORY_POOL_FULL);\n"

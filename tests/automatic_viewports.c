@@ -131,7 +131,7 @@ static void selection_and_rendering(Entity root) {
     r=show(a); assert(metric(r,ROHR_GRAPHICS_CAMERAS_REPORT_ID,ROHR_REPORT_PROCESSED_COUNT)==0);
     assert(rohr_entity_appearance_get(member(root,"particle")).result.value.visible);
     appearance.visible=true; OK(rohr_entity_appearance_set(root,appearance));
-    Entity later=entity_value(rohr_entity_create(&particle_template));
+    Entity later=entity_value(rohr_entity_create(particle_template));
     OK(rohr_graphics_layer_entity_set(later,-20));
     ObjectAppearance style=rohr_entity_appearance_get(later).result.value; style.color.red=101;
     OK(rohr_entity_appearance_set(later,style));
@@ -375,7 +375,7 @@ static void stale_camera(Entity root) {
     Entity camera_entity=member(root,"camera");
     OK(rohr_entity_delete(camera_entity));
     Report r=show(v); assert(r.header.status==ROHR_REPORT_COMPLETE && r.diagnostic_count>0);
-    Entity next=entity_value(rohr_entity_create(&camera_template));
+    Entity next=entity_value(rohr_entity_create(camera_template));
     r=show(v); assert(r.header.status==ROHR_REPORT_COMPLETE && r.diagnostic_count>0);
     OK(rohr_screen_camera_set(screen,rohr_entity_object_camera_get(next).result.value));
     assert(rohr_screen_description_get(screen).result.value.camera_entity==0);
@@ -403,7 +403,7 @@ static void visual_components(Entity root) {
     OK(rohr_viewport_destroy(v)); assert(remove("automatic_pixel.png")==0);
 }
 static void restored_bindings(void) {
-    Entity root=entity_value(rohr_object_create(&catalog));
+    Entity root=entity_value(rohr_object_create(catalog));
     EntityName name=rohr_entity_name_get(root).result.value;
     OK(rohr_game_state_file_save("automatic_state.json")); OK(rohr_entity_delete(root));
     OK(rohr_game_state_file_load("automatic_state.json"));
@@ -517,7 +517,7 @@ static void debug_overlays(Entity root) {
     OK(rohr_viewport_destroy(viewport));
 }
 static void preview(bool bindings_preview) {
-    Entity root=entity_value(rohr_object_create(&catalog));
+    Entity root=entity_value(rohr_object_create(catalog));
     ViewportCreateItemDescription items[2]={screen_item("world"),screen_item("inset")};
     items[0].render_width=800; items[0].render_height=600;
     items[0].placement.rectangle=(ViewportRectangle){0,0,800,600};
@@ -542,7 +542,7 @@ static void preview(bool bindings_preview) {
     placement.rectangle=(ViewportRectangle){950,500,0,0};
     ViewportItemIdResult control=rohr_viewport_ui_shape_add(viewport,button,placement); OK(control);
     Entity swarm[24];
-    for(unsigned i=0;i<24;++i) swarm[i]=entity_value(rohr_entity_create(&particle_template));
+    for(unsigned i=0;i<24;++i) swarm[i]=entity_value(rohr_entity_create(particle_template));
     OK(rohr_graphics_frame_limit_set(60));
     CameraId camera=rohr_entity_object_camera_get(member(root,"camera")).result.value;
     ScreenId left=screen_get(viewport,"world"),right=screen_get(viewport,"inset");
@@ -586,8 +586,8 @@ int main(int argc,char **argv) {
     if(argc>1 && (!strcmp(argv[1],"--preview") || !strcmp(argv[1],"--preview-unbound"))) {
         preview(!strcmp(argv[1],"--preview-unbound")); rohr_graphics_stop(); rohr_engine_stop(); return 0;
     }
-    Entity a=entity_value(rohr_object_create(&catalog));
-    Entity b=entity_value(rohr_object_create(&catalog));
+    Entity a=entity_value(rohr_object_create(catalog));
+    Entity b=entity_value(rohr_object_create(catalog));
     /* Keep one instance's visual hidden so command counts are exact. */
     ObjectAppearance appearance=rohr_entity_appearance_get(member(b,"particle")).result.value;
     appearance.visible=false; OK(rohr_entity_appearance_set(member(b,"particle"),appearance));

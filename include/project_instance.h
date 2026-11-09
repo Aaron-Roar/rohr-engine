@@ -41,7 +41,7 @@ typedef struct ProjectMusicDescription {
 } ProjectMusicDescription;
 
 /** Immutable input borrowed only during creation. The initial root member keeps
- * object_create(&description) available for entity-hierarchy-only creation.
+ * object_create(description) available for entity-hierarchy-only creation.
  * The root must be a parentless container. Names are unique within each list.
  * All lists are bounded by their corresponding engine resource limits. */
 typedef struct ProjectDescription {
@@ -65,7 +65,7 @@ ERROR_DECLARE_RESULT_TYPE(ViewportListResult, ViewportList);
  * input state, and load all audio stopped. Services must already be started.
  * Never applies global settings, advances systems, presents, or starts playback.
  * Failure rolls back this attempt. Project instances share the engine world. */
-ProjectIdResult project_create(const ProjectDescription *description);
+ProjectIdResult rohr_internal_project_create(const ProjectDescription *description);
 /** Destroy owned viewports before entities and release input/audio. Zero is a
  * no-op; stale nonzero IDs fail. Engine shutdown also destroys remaining owners.
  * Lookup results are borrowed: do not independently destroy these owners.
@@ -78,9 +78,19 @@ InputControllerIdResult project_controller_by_name_get(ProjectId project, const 
 SoundResult project_sound_by_name_get(ProjectId project, const char *name);
 MusicResult project_music_by_name_get(ProjectId project, const char *name);
 
-/* Typed generated views must start with a ProjectDescription member. Conversion
- * to the initial member is defined by C and evaluates the argument once. */
-#define project_create(description) \
-    (project_create)((const ProjectDescription *)(description))
+/* Same typed, address-preserving convention as entity/object creation. */
+static inline const ObjectDescription *rohr_internal_project_root_ref(
+        const ProjectDescription *description) { return &description->root; }
+static inline const ProjectDescription *rohr_internal_project_description_ref(
+        const ProjectDescription *description) { return description; }
+#undef ROHR_INTERNAL_PROJECT_ROOT_TYPES
+#define ROHR_INTERNAL_PROJECT_ROOT_TYPES(apply) \
+    apply(ProjectDescription, rohr_internal_project_root_ref)
+#define ROHR_INTERNAL_PROJECT_CREATE_TYPES(apply)
+#define project_create(...) \
+    rohr_internal_project_create(_Generic(&(__VA_ARGS__), \
+        ProjectDescription *: rohr_internal_project_description_ref, \
+        const ProjectDescription *: rohr_internal_project_description_ref \
+        ROHR_INTERNAL_PROJECT_CREATE_TYPES(ROHR_INTERNAL_CREATION_TYPE))(&(__VA_ARGS__)))
 
 #endif

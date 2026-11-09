@@ -227,7 +227,7 @@ static bool scene_scaffold_check(const EditorWorkspace *workspace,
     bool valid = false;
     if(!main_source || !scene_source || !cmake_source || SDL_GetPathInfo(legacy_path, NULL)) goto done;
     if(!strstr(scene_source, "scene/project.h") ||
-            !strstr(main_source, "rohr_project_create(&project)") ||
+            !strstr(main_source, "rohr_project_create(project)") ||
             !strstr(main_source, "rohr_report_check(report)") ||
             !strstr(main_source, "rohr_engine_tick_delta_get() == 0")) goto done;
     const char *include = strstr(cmake_source, "\ninclude(\"${ROHR_GENERATED_DIRECTORY}/project_scene.cmake\")\n");
@@ -674,9 +674,9 @@ int main(void) {
                 !file_contains(path, "rohr_directory_base_get()") ||
                 file_contains(path, "project_chdir") ||
                 file_contains(path, "SDL_GetBasePath()") ||
-                !file_contains(path, "rohr_project_create(&project)") ||
-                !file_contains(path, "//     EntityResult created = rohr_object_create(&project.example);") ||
-                !file_contains(path, "//         EntityResult created = rohr_entity_create(descriptions[i]);") ||
+                !file_contains(path, "rohr_project_create(project)") ||
+                !file_contains(path, "//     EntityResult created = rohr_object_create(project.example);") ||
+                !file_contains(path, "//         EntityResult created = rohr_entity_create(*descriptions[i]);") ||
                 file_contains(path, "create_tutorial") ||
                 file_contains(path, "entity_object_add(objects.example.") ||
                 file_contains(path, "rohr_physics_joint_description_set") ||
@@ -777,7 +777,7 @@ int main(void) {
         snprintf(path, sizeof(path), "%s/src/generated/project_objects.c", fixture);
         if(!SDL_GetPathInfo(path, &info) || info.type != SDL_PATHTYPE_FILE ||
                 !file_contains(path, "EngineResult example_create") ||
-                !file_contains(path, "rohr_object_create_with_options(description,") ||
+                !file_contains(path, "rohr_object_create_with_options(*description,") ||
                 !file_contains(path, "const ParticleDescription example_particle_body_config") ||
                 !file_contains(path, ".rigid_vertices = UINT32_C(16)") ||
                 !file_contains(path, ".radius = 28.0000000f") ||
@@ -1717,7 +1717,7 @@ int main(void) {
             snprintf(path, sizeof(path), "%s/src/generated/project_objects.c", fixture);
             /* Reference application is covered by the compiled joint consumer;
              * generation must use shared creation and retain its member binding. */
-            if(!file_contains(path, "rohr_object_create_with_options(description,") ||
+            if(!file_contains(path, "rohr_object_create_with_options(*description,") ||
                     !file_contains(path, "rohr_entity_object_anchor_get")) return 1;
         }
         result = editor_workspace_load(&reloaded_workspace, &reloaded_project, fixture);

@@ -174,7 +174,7 @@ static InputControllerIdResult controller_create(ProjectId project, size_t index
     }
     return ERROR_RESULT_MAKE_ERROR(InputControllerIdResult, ERROR_ENGINE_INPUT_CAPACITY_EXCEEDED);
 }
-ProjectIdResult (project_create)(const ProjectDescription *d) {
+ProjectIdResult rohr_internal_project_create(const ProjectDescription *d) {
     EngineResult check = description_check(d);
     if(error_check(check)) return ERROR_RESULT_MAKE_ERROR(ProjectIdResult, check.result.error);
     size_t slot = 0;
@@ -189,7 +189,7 @@ ProjectIdResult (project_create)(const ProjectDescription *d) {
     EngineError failure;
 #define ACQUIRE(type, variable, call) type variable = (call); \
     if(error_check(variable)) { failure = variable.result.error; goto rollback; }
-    ACQUIRE(EntityResult, root, object_create(&d->root));
+    ACQUIRE(EntityResult, root, object_create(d->root));
     p->root = root.result.value;
     for(size_t i = 0; i < d->viewport_count; ++i) {
         ACQUIRE(ViewportIdResult, viewport, viewport_create(d, p->root, i));

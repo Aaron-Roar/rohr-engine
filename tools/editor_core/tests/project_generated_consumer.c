@@ -90,12 +90,12 @@ int main(void) {
     ViewportIdResult empty = rohr_viewport_create(&project.empty_view); OK(empty);
     assert(!rohr_viewport_description_get(empty.result.value).result.value.enabled);
     OK(rohr_viewport_destroy(empty.result.value)); OK(rohr_viewport_destroy(overlay.result.value));
-    EntityResult created = rohr_object_create(&project.parity); OK(created);
+    EntityResult created = rohr_object_create(project.parity); OK(created);
     Entity first = created.result.value; ViewportId first_view = view_create(first);
     verify(first, first_view);
     uint32_t alive = rohr_entity_alive_count_get();
     for(unsigned i=0;i<1000;++i) {
-        created = rohr_object_create(&project.parity); OK(created);
+        created = rohr_object_create(project.parity); OK(created);
         Entity second = created.result.value; ViewportId second_view = view_create(second);
         verify(second, second_view);
         assert(member(first,"body") != member(second,"body"));
@@ -115,7 +115,7 @@ int main(void) {
         assert(rohr_entity_alive_count_get() == alive);
     }
     /* An independent visual needs no object instance. */
-    EntityResult visual = rohr_entity_create(&project.parity.flipped); OK(visual);
+    EntityResult visual = rohr_entity_create(project.parity.flipped); OK(visual);
     OK(rohr_viewport_destroy(first_view)); OK(rohr_entity_delete(first));
     assert(rohr_entity_alive_check(visual.result.value));
     OK(rohr_entity_delete(visual.result.value));
@@ -127,8 +127,8 @@ int main(void) {
     assert(project._project.controller_count == 2);
     assert(project._project.sound_count == 1 && project._project.music_count == 1);
     OK(rohr_audio_start());
-    ProjectIdResult p1 = rohr_project_create(&project); OK(p1);
-    ProjectIdResult p2 = rohr_project_create(&project); OK(p2);
+    ProjectIdResult p1 = rohr_project_create(project); OK(p1);
+    ProjectIdResult p2 = rohr_project_create(project); OK(p2);
     ProjectId ids[] = {p1.result.value, p2.result.value};
     Entity instances[2];
     InputControllerId inputs[2];

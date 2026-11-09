@@ -318,7 +318,7 @@ int main(int argc, char **argv) {
                     JOINT_WELD)) goto fail;
         }
     }
-    EntityResult created = rohr_object_create(&project.car);
+    EntityResult created = rohr_object_create(project.car);
     if(rohr_error_check(created)) goto fail;
     if(!result_ok(car_instance_bind(&car,created.result.value))) {
         (void)rohr_entity_delete(created.result.value);

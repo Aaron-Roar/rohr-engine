@@ -36,6 +36,34 @@ typedef struct ProjectDescriptionView_1 {
     size_t viewport_count;
     ViewportCreateDescription mass_viewport;
 } ProjectDescriptionView_1;
+static inline const ObjectDescription *project_description_view_1_ref_get(
+        const ProjectDescriptionView_1 *value) { return &value->_project.root; }
+static inline const ObjectDescription *project_description_view_2_ref_get(
+        const ProjectDescriptionView_2 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_3_ref_get(
+        const ProjectDescriptionView_3 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_5_ref_get(
+        const ProjectDescriptionView_5 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_4_ref_get(
+        const ProjectDescriptionView_4 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_6_ref_get(
+        const ProjectDescriptionView_6 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_7_ref_get(
+        const ProjectDescriptionView_7 *value) { return &value->_description; }
+#undef ROHR_INTERNAL_PROJECT_VIEW_TYPES
+#define ROHR_INTERNAL_PROJECT_VIEW_TYPES(apply) \
+    apply(ProjectDescriptionView_1, project_description_view_1_ref_get) \
+    apply(ProjectDescriptionView_2, project_description_view_2_ref_get) \
+    apply(ProjectDescriptionView_3, project_description_view_3_ref_get) \
+    apply(ProjectDescriptionView_5, project_description_view_5_ref_get) \
+    apply(ProjectDescriptionView_4, project_description_view_4_ref_get) \
+    apply(ProjectDescriptionView_6, project_description_view_6_ref_get) \
+    apply(ProjectDescriptionView_7, project_description_view_7_ref_get)
+static inline const ProjectDescription *project_description_view_1_project_ref_get(
+        const ProjectDescriptionView_1 *value) { return &value->_project; }
+#undef ROHR_INTERNAL_PROJECT_CREATE_TYPES
+#define ROHR_INTERNAL_PROJECT_CREATE_TYPES(apply) \
+    apply(ProjectDescriptionView_1, project_description_view_1_project_ref_get)
 extern const ProjectDescriptionView_1 project;
 
 #endif

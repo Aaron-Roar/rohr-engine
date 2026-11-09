@@ -29,7 +29,7 @@ void *__wrap_calloc(size_t n, size_t s) { return reject() ? NULL : __real_calloc
 void *__wrap_realloc(void *p, size_t n) { return reject() ? NULL : __real_realloc(p, n); }
 #endif
 
-/* The same initial-member layout used by generated named catalog views.
+/* A hand-written immutable catalog with explicit canonical descriptors.
  * All actual fixture data is const, including the nested member template. */
 typedef struct WaterView {
     union { ObjectDescription description; struct { ROHR_OBJECT_DESCRIPTION_FIELDS; }; };
@@ -51,10 +51,42 @@ static Entity value(EntityResult result) { OK(result); return result.result.valu
 static Entity member(Entity root, const char *name) { return value(rohr_object_member_get(root, name)); }
 static void clean(Entity entity) { OK(rohr_entity_delete(entity)); }
 
+static EntityCreateOptions counted_entity_options(unsigned *calls) {
+    ++*calls;
+    return rohr_entity_create_options_default_get();
+}
+static ObjectCreateOptions counted_object_options(unsigned *calls) {
+    ++*calls;
+    return rohr_object_create_options_default_get();
+}
+static void value_dispatch(void) {
+    const ObjectDescription *recipes[] = {&project.water.description, &project.water.particle};
+    unsigned index = 0, options = 0;
+    Entity root = value(rohr_object_create_with_options(*recipes[index++], counted_object_options(&options)));
+    assert(index == 1 && options == 1);
+    Entity particle = value(entity_create_with_options(*recipes[index++], counted_entity_options(&options)));
+    assert(index == 2 && options == 2);
+    clean(root); clean(particle);
+    index = 0;
+    root = value(object_create(*recipes[index++]));
+    particle = value(rohr_entity_create(*recipes[index++]));
+    assert(index == 2);
+    clean(root); clean(particle);
+    /* Parentless plain descriptors may be compound literals, including commas. */
+    particle = value(rohr_entity_create((EntityCreateDescription){.id=1, .name="temporary",
+        .kind=OBJECT_PARTICLE, .categories=ROHR_ENTITY_OBJECT_ALL,
+        .mass=2, .radius=1, .particle_vertices=8}));
+    assert(rohr_physics_mass_get(particle).result.value == 2);
+    clean(particle);
+    root = value(rohr_object_create((ObjectDescription){.id=1, .name="empty",
+        .kind=OBJECT_CONTAINER, .categories=ROHR_ENTITY_OBJECT_ALL}));
+    clean(root);
+}
+
 static void instances(void) {
     uint32_t initial = rohr_entity_alive_count_get();
-    Entity a = value(rohr_object_create(&project.water));
-    Entity b = value(object_create(&project.water));
+    Entity a = value(rohr_object_create(project.water.description));
+    Entity b = value(object_create(project.water.description));
     Entity pa = member(a, "particle"), pb = member(b, "particle");
     assert(a != b && pa != pb);
     assert(rohr_entity_alive_count_get() == initial + 4);
@@ -63,33 +95,30 @@ static void instances(void) {
     assert(project.water.particle.mass == 2);
     ObjectAppearance appearance;
     assert(object_instance_appearance_get(pa, &appearance) && appearance.visible);
-    Entity p = value(rohr_entity_create(&project.water.particle));
+    Entity p = value(rohr_entity_create(project.water.particle));
     assert(object_instance_appearance_get(p, &appearance) && !appearance.visible);
     assert(rohr_entity_owner_get(p).result.value == ENTITY_INVALID);
     Position position = rohr_physics_position_get(p).result.value;
     assert(position.x == 12 && position.y == 23);
-    assert(rohr_error_check(rohr_entity_create(&project.water)));
-    assert(rohr_error_check(rohr_object_create(&project.water.particle)));
-    assert(rohr_error_check(rohr_entity_create(NULL)));
-    assert(rohr_error_check(rohr_object_create(NULL)));
+    assert(rohr_error_check(rohr_entity_create(project.water.description)));
+    assert(rohr_error_check(rohr_object_create(project.water.particle)));
+    assert(rohr_error_check(rohr_internal_entity_create(NULL, entity_create_options_default_get())));
+    assert(rohr_error_check(rohr_internal_object_create(NULL, object_create_options_default_get())));
     assert(rohr_error_check(rohr_object_member_get(a, "missing")));
     assert(rohr_error_check(rohr_object_member_get(a, NULL)));
-    EntityResult (*create)(const EntityCreateDescription *) = rohr_entity_create;
-    Entity via_pointer = value(create(&project.water.particle));
-    clean(via_pointer);
     EntityCreateDescription parent = project.water.particle;
     parent.parent = NULL;
     ObjectDescription child = {.id=3,.name="anchor",.kind=OBJECT_ANCHOR,
         .categories=ROHR_ENTITY_OBJECT_ALL,.parent=&parent,.target=parent.id};
     const ObjectDescription *children[] = {&child};
     parent.children = children; parent.child_count = 1;
-    Entity parent_only = value(rohr_entity_create(&parent));
+    Entity parent_only = value(rohr_entity_create(parent));
     assert(!rohr_entity_components_check(parent_only, ROHR_OBJECT));
     JointAnchorListResult anchors = rohr_physics_joint_anchors_get(parent_only); OK(anchors);
     assert(anchors.result.value.count == 0);
     clean(parent_only);
     ObjectDescriptionResult copy = rohr_object_copy(project.water); OK(copy);
-    Entity copied = value(rohr_object_create(copy.result.value));
+    Entity copied = value(rohr_object_create(*copy.result.value));
     OK(rohr_object_destroy(copy.result.value));
     assert(rohr_physics_mass_get(member(copied, "particle")).result.value == 2);
     clean(copied); clean(a);
@@ -103,22 +132,22 @@ static void owners_and_names(void) {
     Entity owner = value(rohr_entity_add());
     EntityCreateOptions options = rohr_entity_create_options_default_get();
     options.owner = owner; options.offset = (Position){3, -4};
-    Entity p = value(rohr_entity_create_with_options(&project.water.particle, options));
+    Entity p = value(rohr_entity_create_with_options(project.water.particle, options));
     assert(rohr_entity_owner_get(p).result.value == owner);
     assert(member(owner, "particle") == p);
     Position position = rohr_physics_position_get(p).result.value;
     assert(position.x == 15 && position.y == 19);
-    assert(rohr_error_check(rohr_entity_create_with_options(&project.water.particle, options)));
+    assert(rohr_error_check(rohr_entity_create_with_options(project.water.particle, options)));
     OK(rohr_entity_name_set(p, "renamed_particle"));
     Entity ambiguous = value(rohr_entity_description_add((EntityDescription){.name="particle",.owner=owner}));
     assert(rohr_error_check(rohr_object_member_get(owner, "particle")));
     uint32_t before = rohr_entity_alive_count_get();
-    assert(rohr_error_check(rohr_entity_create_with_options(&project.water.particle, options)));
+    assert(rohr_error_check(rohr_entity_create_with_options(project.water.particle, options)));
     assert(rohr_entity_alive_count_get() == before);
     clean(ambiguous);
     ObjectCreateOptions object_options = rohr_object_create_options_default_get();
     object_options.owner = owner;
-    Entity nested = value(rohr_object_create_with_options(&project.water, object_options));
+    Entity nested = value(rohr_object_create_with_options(project.water.description, object_options));
     assert(member(owner, "particle") == p);
     assert(member(owner, "water") == nested);
     assert(rohr_error_check(rohr_entity_object_member_by_name_get(owner, "particle")));
@@ -127,7 +156,7 @@ static void owners_and_names(void) {
     assert(!rohr_error_check(rohr_entity_object_member_by_name_get(owner, "particle")));
     clean(owner);
     assert(!rohr_entity_alive_check(nested));
-    assert(rohr_error_check(rohr_entity_create_with_options(&project.water.particle, options)));
+    assert(rohr_error_check(rohr_entity_create_with_options(project.water.particle, options)));
 }
 
 typedef struct Fixture {
@@ -163,7 +192,7 @@ static void fixture_init(Fixture *f) {
 
 static void dependencies(void) {
     Fixture f; fixture_init(&f);
-    Entity root = value(rohr_object_create(&f.root));
+    Entity root = value(rohr_object_create(f.root));
     Entity body = member(root, "body"), anchor = member(root, "anchor");
     assert(member(root, "sprite") == body);
     JointDescription joint = rohr_physics_joint_description_get(member(root,"joint")).result.value;
@@ -173,28 +202,28 @@ static void dependencies(void) {
     assert(rohr_physics_force_description_get(member(root,"push")).result.value.target == body);
     clean(root);
 
-    body = value(rohr_entity_create(&f.body));
+    body = value(rohr_entity_create(f.body));
     Entity owner = value(rohr_entity_add());
     ObjectCreateBinding binding = {.description=&f.body,.entity=body};
     EntityCreateOptions options = {.bindings=&binding,.binding_count=1};
     uint32_t before = rohr_entity_alive_count_get();
-    assert(rohr_error_check(rohr_entity_create(&f.anchor)));
+    assert(rohr_error_check(rohr_entity_create(f.anchor)));
     assert(rohr_entity_alive_count_get() == before);
-    anchor = value(rohr_entity_create_with_options(&f.anchor, options));
-    Entity visual = value(rohr_entity_create_with_options(&f.sprite, options));
+    anchor = value(rohr_entity_create_with_options(f.anchor, options));
+    Entity visual = value(rohr_entity_create_with_options(f.sprite, options));
     assert(visual != body && !rohr_entity_components_check(body, ROHR_SPRITE));
     assert(rohr_physics_transform_lock_description_get(visual).result.value.driver == body);
-    Entity camera_entity = value(rohr_entity_create_with_options(&f.camera, options));
+    Entity camera_entity = value(rohr_entity_create_with_options(f.camera, options));
     camera = rohr_entity_object_camera_get(camera_entity).result.value;
     assert(rohr_camera_attachment_description_get(camera).result.value.entity == body);
     ObjectCreateBinding anchor_binding = {.description=&f.anchor,.entity=anchor};
     EntityCreateOptions joint_options = {.bindings=&anchor_binding,.binding_count=1};
-    Entity linked = value(rohr_entity_create_with_options(&f.joint, joint_options));
+    Entity linked = value(rohr_entity_create_with_options(f.joint, joint_options));
     assert(rohr_physics_joint_description_get(linked).result.value.anchor_a ==
         rohr_entity_object_anchor_get(anchor).result.value);
     options.owner = owner;
     Velocity velocity = rohr_physics_particle_description_get(body).result.value.velocity;
-    Entity force = value(rohr_entity_create_with_options(&f.force, options));
+    Entity force = value(rohr_entity_create_with_options(f.force, options));
     assert(rohr_physics_force_description_get(force).result.value.target == body);
     assert(rohr_entity_lifetime_description_get(force).result.value.tick_enabled);
     assert(rohr_physics_particle_description_get(body).result.value.velocity.x == velocity.x);
@@ -202,7 +231,7 @@ static void dependencies(void) {
     f.force.kind = OBJECT_TORQUE;
     f.force.torque = (ObjectTorqueDescription){.mode=OBJECT_SOURCE_INITIAL,
         .target={OBJECT_SOURCE_PARTICLE,11,0},.magnitude=4};
-    Entity torque = value(rohr_entity_create_with_options(&f.force, options));
+    Entity torque = value(rohr_entity_create_with_options(f.force, options));
     assert(rohr_physics_torque_description_get(torque).result.value.owner == owner);
     assert(rohr_physics_torque_description_get(torque).result.value.target == body);
     assert(rohr_entity_lifetime_description_get(torque).result.value.tick_enabled);
@@ -213,18 +242,18 @@ static void dependencies(void) {
     ObjectCreateBinding wrong = {.description=&f.anchor,.entity=body};
     options.bindings = &wrong;
     before = rohr_entity_alive_count_get();
-    assert(rohr_error_check(rohr_entity_create_with_options(&f.joint, options)));
+    assert(rohr_error_check(rohr_entity_create_with_options(f.joint, options)));
     ObjectCreateBinding duplicates[] = {binding, binding};
     options.bindings = duplicates; options.binding_count = 2;
-    assert(rohr_error_check(rohr_entity_create_with_options(&f.anchor, options)));
+    assert(rohr_error_check(rohr_entity_create_with_options(f.anchor, options)));
     Fixture foreign; fixture_init(&foreign);
     wrong = (ObjectCreateBinding){.description=&foreign.body,.entity=body};
     options.bindings=&wrong; options.binding_count=1;
-    assert(rohr_error_check(rohr_entity_create_with_options(&f.anchor, options)));
+    assert(rohr_error_check(rohr_entity_create_with_options(f.anchor, options)));
     assert(rohr_entity_alive_count_get() == before);
     clean(body);
     options.bindings = &binding;
-    assert(rohr_error_check(rohr_entity_create_with_options(&f.anchor, options)));
+    assert(rohr_error_check(rohr_entity_create_with_options(f.anchor, options)));
 }
 
 static void optional_relationships(void) {
@@ -261,10 +290,10 @@ static void optional_relationships(void) {
     const ObjectDescription saved_follower=follower, saved_camera=camera, saved_sprite=sprite;
 
     /* A live matching instance must not be discovered by independent creation. */
-    Entity decoy=value(rohr_entity_create(&target));
+    Entity decoy=value(rohr_entity_create(target));
     OK(rohr_physics_position_set(decoy,(Position){999,999}));
     for(size_t i=0;i<4;++i) {
-        Entity independent=value(entity_create(members[i]));
+        Entity independent=value(entity_create(*members[i]));
         assert(rohr_entity_owner_get(independent).result.value==ENTITY_INVALID);
         assert(!rohr_entity_components_check(independent,ROHR_TARGETABLE));
         assert(rohr_error_check(rohr_physics_transform_lock_description_get(independent)));
@@ -284,7 +313,7 @@ static void optional_relationships(void) {
         }
         clean(independent);
     }
-    Entity isolated=value(rohr_object_create(&group));
+    Entity isolated=value(rohr_object_create(group));
     assert(!rohr_entity_components_check(member(isolated,"follower"),ROHR_TARGETABLE));
     assert(rohr_error_check(rohr_physics_transform_lock_description_get(member(isolated,"sprite"))));
     clean(isolated);
@@ -292,12 +321,12 @@ static void optional_relationships(void) {
     ObjectCreateBinding binding={&target,decoy};
     ObjectCreateOptions options=rohr_object_create_options_default_get();
     options.bindings=&binding; options.binding_count=1;
-    Entity bound=value(rohr_object_create_with_options(&group,options));
+    Entity bound=value(rohr_object_create_with_options(group,options));
     assert(rohr_physics_transform_lock_description_get(member(bound,"follower")).result.value.driver==decoy);
     assert(rohr_physics_transform_lock_description_get(member(bound,"animation")).result.value.driver==decoy);
     clean(bound);
 
-    Entity first=value(rohr_object_create(&root)), second=value(rohr_object_create(&root));
+    Entity first=value(rohr_object_create(root)), second=value(rohr_object_create(root));
     Entity a=member(first,"group"), b=member(second,"group");
     Entity ta=member(first,"target"), tb=member(second,"target");
     assert(ta!=tb && ta!=decoy && tb!=decoy);
@@ -314,20 +343,20 @@ static void optional_relationships(void) {
 
     uint32_t before=rohr_entity_alive_count_get();
     follower.entity_settings.gameplay_target.kind=OBJECT_BODY;
-    assert(rohr_error_check(rohr_entity_create(&follower)));
+    assert(rohr_error_check(rohr_entity_create(follower)));
     follower=saved_follower; follower.entity_settings.transform_driver.id=999;
-    assert(rohr_error_check(rohr_entity_create(&follower))); follower=saved_follower;
-    camera.target=999; assert(rohr_error_check(rohr_entity_create(&camera))); camera=saved_camera;
+    assert(rohr_error_check(rohr_entity_create(follower))); follower=saved_follower;
+    camera.target=999; assert(rohr_error_check(rohr_entity_create(camera))); camera=saved_camera;
     target.id=group.id; camera.target=group.id;
-    assert(rohr_error_check(rohr_entity_create(&camera))); target.id=102; camera=saved_camera;
+    assert(rohr_error_check(rohr_entity_create(camera))); target.id=102; camera=saved_camera;
     EntityCreateOptions explicit_options={.bindings=&binding,.binding_count=1};
-    binding.entity=member(value(rohr_object_create(&root)),"group");
+    binding.entity=member(value(rohr_object_create(root)),"group");
     Entity temporary_root=rohr_entity_owner_get(binding.entity).result.value;
-    assert(rohr_error_check(rohr_entity_create_with_options(&camera,explicit_options)));
+    assert(rohr_error_check(rohr_entity_create_with_options(camera,explicit_options)));
     clean(temporary_root); binding.entity=decoy;
     assert(rohr_entity_alive_count_get()==before);
     clean(decoy);
-    assert(rohr_error_check(rohr_entity_create_with_options(&camera,explicit_options)));
+    assert(rohr_error_check(rohr_entity_create_with_options(camera,explicit_options)));
 }
 
 static void topology(void) {
@@ -341,18 +370,18 @@ static void topology(void) {
         .rest_length=5,.stiffness=10,.thickness=1,.visible=true};
     const ObjectDescription *children[] = {&beam,&a,&b};
     soft.children=children; soft.child_count=3;
-    Entity instance = value(rohr_object_create(&soft));
+    Entity instance = value(rohr_object_create(soft));
     Entity na = member(instance,"a"), nb = member(instance,"b");
     assert(rohr_physics_soft_body_beam_get(member(instance,"beam")).result.value.node_a == na);
     clean(member(instance,"beam"));
     ObjectCreateBinding bindings[] = {{&a,na},{&b,nb}};
     EntityCreateOptions options = {.owner=instance,.bindings=bindings,.binding_count=2};
-    Entity edge = value(rohr_entity_create_with_options(&beam, options));
+    Entity edge = value(rohr_entity_create_with_options(beam, options));
     assert(rohr_physics_soft_body_beam_get(edge).result.value.soft_body == instance);
-    assert(rohr_error_check(rohr_entity_create(&a)));
+    assert(rohr_error_check(rohr_entity_create(a)));
     Entity other = value(rohr_physics_soft_body_add((SoftBodyDescription){0}));
     options.owner = other;
-    assert(rohr_error_check(rohr_entity_create_with_options(&beam, options)));
+    assert(rohr_error_check(rohr_entity_create_with_options(beam, options)));
     assert(rohr_physics_soft_body_get(other).result.value.beam_count == 0);
     clean(other); clean(instance);
 }
@@ -361,28 +390,28 @@ static void invalid_and_rollback(void) {
     Fixture f; fixture_init(&f);
     uint32_t before = rohr_entity_alive_count_get();
     f.anchor.target = 999;
-    assert(rohr_error_check(rohr_object_create(&f.root)));
+    assert(rohr_error_check(rohr_object_create(f.root)));
     f.anchor.target = f.camera.id; f.camera.target = f.anchor.id;
-    assert(rohr_error_check(rohr_object_create(&f.root)));
+    assert(rohr_error_check(rohr_object_create(f.root)));
     fixture_init(&f);
     f.body.id = f.camera.id;
-    assert(rohr_error_check(rohr_object_create(&f.root)));
+    assert(rohr_error_check(rohr_object_create(f.root)));
     fixture_init(&f); f.camera.name = f.body.name;
-    assert(rohr_error_check(rohr_object_create(&f.root)));
+    assert(rohr_error_check(rohr_object_create(f.root)));
     fixture_init(&f); f.root.parent = &f.root;
-    assert(rohr_error_check(rohr_object_create(&f.root)));
+    assert(rohr_error_check(rohr_object_create(f.root)));
     fixture_init(&f); f.body.categories = ROHR_ENTITY_OBJECT_PHYSICS;
     ObjectCreateOptions only_visuals = rohr_object_create_options_default_get();
     only_visuals.flags = ROHR_ENTITY_OBJECT_VISUALS;
-    assert(rohr_error_check(rohr_object_create_with_options(&f.root, only_visuals)));
+    assert(rohr_error_check(rohr_object_create_with_options(f.root, only_visuals)));
     fixture_init(&f); f.force.visuals.main.specified = true;
     f.force.visuals.main.scale.x = NAN;
-    assert(rohr_error_check(rohr_object_create(&f.root)));
+    assert(rohr_error_check(rohr_object_create(f.root)));
     assert(rohr_entity_alive_count_get() == before);
 
 #ifdef ROHR_TEST_ALLOCATION_WRAP
     fixture_init(&f);
-    Entity body = value(rohr_entity_create(&f.body));
+    Entity body = value(rohr_entity_create(f.body));
     Entity owner = value(rohr_entity_add());
     ObjectCreateBinding binding = {&f.body,body};
     EntityCreateOptions options = {.owner=owner,.bindings=&binding,.binding_count=1};
@@ -390,7 +419,7 @@ static void invalid_and_rollback(void) {
     bool completed = false; unsigned failures = 0;
     for(long fail = 0; fail < 512; ++fail) {
         allocation_countdown = fail;
-        EntityResult result = rohr_entity_create_with_options(&f.force, options);
+        EntityResult result = rohr_entity_create_with_options(f.force, options);
         allocation_countdown = -1;
         if(!rohr_error_check(result)) { clean(result.result.value); completed=true; break; }
         ++failures;
@@ -402,7 +431,7 @@ static void invalid_and_rollback(void) {
     completed=false; failures=0;
     for(long fail = 0; fail < 512; ++fail) {
         allocation_countdown = fail;
-        EntityResult result = rohr_entity_create_with_options(&f.anchor, options);
+        EntityResult result = rohr_entity_create_with_options(f.anchor, options);
         allocation_countdown = -1;
         if(!rohr_error_check(result)) { clean(result.result.value); completed=true; break; }
         ++failures;
@@ -417,7 +446,7 @@ static void invalid_and_rollback(void) {
     GraphicsTextureAssetStats texture_before = graphics_texture_assets_stats_get();
     for(long fail = 0; fail < 1024; ++fail) {
         allocation_countdown = fail;
-        EntityResult result = rohr_object_create(&f.root);
+        EntityResult result = rohr_object_create(f.root);
         allocation_countdown = -1;
         if(!rohr_error_check(result)) { clean(result.result.value); completed=true; break; }
         ++failures;
@@ -432,7 +461,7 @@ static void invalid_and_rollback(void) {
         completed=false; failures=0;
         for(long fail=0;fail<512;++fail) {
             allocation_countdown=fail;
-            EntityResult result=rohr_entity_create(optional[i]);
+            EntityResult result=rohr_entity_create(*optional[i]);
             allocation_countdown=-1;
             if(!rohr_error_check(result)) { clean(result.result.value); completed=true; break; }
             ++failures;
@@ -454,10 +483,10 @@ static void named_layers(void) {
     snprintf(b.layer_name, sizeof(b.layer_name), "effects");
     ObjectDescription unnamed = a; unnamed.layer_name[0] = 0;
     ObjectDescriptionResult copy = rohr_object_copy(a); OK(copy);
-    Entity first = value(rohr_entity_create(copy.result.value));
+    Entity first = value(rohr_entity_create(*copy.result.value));
     OK(rohr_object_destroy(copy.result.value));
-    Entity second = value(rohr_entity_create(&b));
-    Entity third = value(rohr_entity_create(&unnamed));
+    Entity second = value(rohr_entity_create(b));
+    Entity third = value(rohr_entity_create(unnamed));
     GraphicsLayerId world = rohr_graphics_layer_name_id_get("world").result.value;
     GraphicsLayerId effects = rohr_graphics_layer_name_id_get("effects").result.value;
     assert(world && effects && world != effects);
@@ -468,33 +497,33 @@ static void named_layers(void) {
     assert(rohr_graphics_layer_entity_get(first).result.value == 9);
     assert(rohr_graphics_layer_entity_get(second).result.value == 5);
     assert(rohr_graphics_layer_entity_get(third).result.value == 5);
-    assert(rohr_error_check(rohr_entity_create(&a))); /* Conflicting definition. */
+    assert(rohr_error_check(rohr_entity_create(a))); /* Conflicting definition. */
     clean(first); clean(second); clean(third);
     OK(rohr_graphics_layer_destroy(world)); OK(rohr_graphics_layer_destroy(effects));
 
     Fixture f; fixture_init(&f);
     snprintf(f.body.layer_name, sizeof(f.body.layer_name), "rolled_back");
     f.anchor.target = 999;
-    assert(rohr_error_check(rohr_object_create(&f.root)));
+    assert(rohr_error_check(rohr_object_create(f.root)));
     assert(rohr_error_check(rohr_graphics_layer_name_id_get("rolled_back")));
     memset(a.layer_name, 'x', sizeof(a.layer_name));
-    assert(rohr_error_check(rohr_entity_create(&a)));
+    assert(rohr_error_check(rohr_entity_create(a)));
 }
 
 int main(void) {
     OK(rohr_engine_start());
     assert(SDL_SaveFile("creation_pixel.png", test_png, sizeof(test_png)));
     OK(rohr_graphics_start());
-    instances(); owners_and_names(); dependencies(); optional_relationships(); topology(); invalid_and_rollback(); named_layers();
+    value_dispatch(); instances(); owners_and_names(); dependencies(); optional_relationships(); topology(); invalid_and_rollback(); named_layers();
     uint32_t before = rohr_entity_alive_count_get();
     GraphicsTextureAssetStats texture_before = graphics_texture_assets_stats_get();
     Fixture fixture; fixture_init(&fixture);
     for(unsigned i = 0; i < 1000; ++i) {
-        Entity root = value(rohr_object_create(&project.water));
-        Entity independent = value(rohr_entity_create(&project.water.particle));
-        Entity complex = value(rohr_object_create(&fixture.root));
-        Entity standalone_camera = value(rohr_entity_create(&fixture.camera));
-        Entity standalone_sprite = value(rohr_entity_create(&fixture.sprite));
+        Entity root = value(rohr_object_create(project.water.description));
+        Entity independent = value(rohr_entity_create(project.water.particle));
+        Entity complex = value(rohr_object_create(fixture.root));
+        Entity standalone_camera = value(rohr_entity_create(fixture.camera));
+        Entity standalone_sprite = value(rohr_entity_create(fixture.sprite));
         CameraId camera = rohr_entity_object_camera_get(member(complex, "camera")).result.value;
         clean(complex);
         assert(rohr_error_check(rohr_camera_get(camera)));

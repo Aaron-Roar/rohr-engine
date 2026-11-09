@@ -77,6 +77,23 @@ typedef struct ObjectDescriptionView_1 {
     union { ObjectDescription _description; struct { ROHR_OBJECT_DESCRIPTION_FIELDS; }; };
     ObjectDescriptionView_2 player_world;
 } ObjectDescriptionView_1;
+static inline const ObjectDescription *object_description_view_1_ref_get(
+        const ObjectDescriptionView_1 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_2_ref_get(
+        const ObjectDescriptionView_2 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_3_ref_get(
+        const ObjectDescriptionView_3 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_4_ref_get(
+        const ObjectDescriptionView_4 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_5_ref_get(
+        const ObjectDescriptionView_5 *value) { return &value->_description; }
+#undef ROHR_INTERNAL_OBJECT_VIEW_TYPES
+#define ROHR_INTERNAL_OBJECT_VIEW_TYPES(apply) \
+    apply(ObjectDescriptionView_1, object_description_view_1_ref_get) \
+    apply(ObjectDescriptionView_2, object_description_view_2_ref_get) \
+    apply(ObjectDescriptionView_3, object_description_view_3_ref_get) \
+    apply(ObjectDescriptionView_4, object_description_view_4_ref_get) \
+    apply(ObjectDescriptionView_5, object_description_view_5_ref_get)
 extern const ObjectDescriptionView_1 objects;
 
 #endif

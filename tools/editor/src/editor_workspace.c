@@ -787,7 +787,7 @@ static void catalog_constructor_write(FILE *f, const EditorObject *o, const char
         "    if(!object) return rohr_error_result_error(ERROR_MEMORY_POOL_NULL_POINTER);\n"
         "    *object = (%s){0};\n"
         "    const ObjectDescription *description = rohr_object_get(objects.%s);\n"
-        "    EntityResult added = rohr_object_create_with_options(description,\n"
+        "    EntityResult added = rohr_object_create_with_options(*description,\n"
         "        ((ObjectCreateOptions){.flags=ROHR_ENTITY_OBJECT_ALL,\n"
         "            .offset={position.x - description->position.x, position.y - description->position.y}}));\n"
         "    if(rohr_error_check(added)) return rohr_error_result_error(added.result.error);\n"
@@ -1137,7 +1137,7 @@ static bool editor_workspace_generated_objects_write(const EditorWorkspace *work
         char variable[EDITOR_OBJECT_NAME_MAX];
         editor_project_property_name_format(variable, sizeof(variable), object->name);
         fprintf(source,
-            "    { EntityResult added = rohr_object_create(&objects.%s);\n"
+            "    { EntityResult added = rohr_object_create(objects.%s);\n"
             "      if(rohr_error_check(added)) { result = rohr_error_result_error(added.result.error); goto fail; }\n"
             "      instances->%s.source_instance = added.result.value;\n"
             "      result = %s_instance_bind(&instances->%s, added.result.value);\n"

@@ -31,7 +31,7 @@ static void run_check(bool tutorial) {
     OK(rohr_engine_start()); OK(rohr_graphics_start());
     if(tutorial) {
         OK(project_settings_apply());
-        EntityResult created = rohr_object_create(&project); OK(created); root = created.result.value;
+        EntityResult created = rohr_object_create(project); OK(created); root = created.result.value;
         EntityResult example = rohr_object_member_get(root,project.example.name); OK(example);
         EntityResult tug = rohr_object_member_get(root,project.tug.name); OK(tug);
         OK(example_instance_bind(&scene.example,example.result.value));
@@ -99,11 +99,11 @@ static void failure_check(void) {
     assert(rohr_entity_alive_check(added.result.value));
     OK(rohr_entity_delete(added.result.value));
     EntityCreateOptions options = {.owner=added.result.value};
-    assert(rohr_error_check(rohr_entity_create_with_options(&project.example.box, options)));
+    assert(rohr_error_check(rohr_entity_create_with_options(project.example.box, options)));
     assert(rohr_entity_alive_count_get() == 0);
     /* Fail after several successful spawns and verify tutorial rollback. */
     assert(SDL_RenamePath("assets/example_frame_1.png", "assets/example_frame_1.saved"));
-    EntityResult created = rohr_object_create(&project);
+    EntityResult created = rohr_object_create(project);
     assert(SDL_RenamePath("assets/example_frame_1.saved", "assets/example_frame_1.png"));
     assert(rohr_error_check(created));
     assert(rohr_entity_alive_count_get() == 0);

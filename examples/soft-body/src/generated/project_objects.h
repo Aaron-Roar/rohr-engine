@@ -2693,6 +2693,1595 @@ typedef struct ObjectDescriptionView_1 {
     union { ObjectDescription _description; struct { ROHR_OBJECT_DESCRIPTION_FIELDS; }; };
     ObjectDescriptionView_2 car;
 } ObjectDescriptionView_1;
+static inline const ObjectDescription *object_description_view_1_ref_get(
+        const ObjectDescriptionView_1 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_2_ref_get(
+        const ObjectDescriptionView_2 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_3_ref_get(
+        const ObjectDescriptionView_3 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_454_ref_get(
+        const ObjectDescriptionView_454 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_456_ref_get(
+        const ObjectDescriptionView_456 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_480_ref_get(
+        const ObjectDescriptionView_480 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_4_ref_get(
+        const ObjectDescriptionView_4 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_453_ref_get(
+        const ObjectDescriptionView_453 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_5_ref_get(
+        const ObjectDescriptionView_5 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_455_ref_get(
+        const ObjectDescriptionView_455 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_458_ref_get(
+        const ObjectDescriptionView_458 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_6_ref_get(
+        const ObjectDescriptionView_6 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_457_ref_get(
+        const ObjectDescriptionView_457 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_459_ref_get(
+        const ObjectDescriptionView_459 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_461_ref_get(
+        const ObjectDescriptionView_461 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_463_ref_get(
+        const ObjectDescriptionView_463 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_465_ref_get(
+        const ObjectDescriptionView_465 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_467_ref_get(
+        const ObjectDescriptionView_467 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_469_ref_get(
+        const ObjectDescriptionView_469 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_471_ref_get(
+        const ObjectDescriptionView_471 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_473_ref_get(
+        const ObjectDescriptionView_473 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_475_ref_get(
+        const ObjectDescriptionView_475 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_477_ref_get(
+        const ObjectDescriptionView_477 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_7_ref_get(
+        const ObjectDescriptionView_7 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_479_ref_get(
+        const ObjectDescriptionView_479 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_482_ref_get(
+        const ObjectDescriptionView_482 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_8_ref_get(
+        const ObjectDescriptionView_8 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_481_ref_get(
+        const ObjectDescriptionView_481 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_483_ref_get(
+        const ObjectDescriptionView_483 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_485_ref_get(
+        const ObjectDescriptionView_485 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_487_ref_get(
+        const ObjectDescriptionView_487 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_489_ref_get(
+        const ObjectDescriptionView_489 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_491_ref_get(
+        const ObjectDescriptionView_491 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_493_ref_get(
+        const ObjectDescriptionView_493 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_495_ref_get(
+        const ObjectDescriptionView_495 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_497_ref_get(
+        const ObjectDescriptionView_497 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_499_ref_get(
+        const ObjectDescriptionView_499 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_501_ref_get(
+        const ObjectDescriptionView_501 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_9_ref_get(
+        const ObjectDescriptionView_9 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_10_ref_get(
+        const ObjectDescriptionView_10 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_460_ref_get(
+        const ObjectDescriptionView_460 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_11_ref_get(
+        const ObjectDescriptionView_11 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_462_ref_get(
+        const ObjectDescriptionView_462 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_12_ref_get(
+        const ObjectDescriptionView_12 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_464_ref_get(
+        const ObjectDescriptionView_464 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_13_ref_get(
+        const ObjectDescriptionView_13 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_466_ref_get(
+        const ObjectDescriptionView_466 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_14_ref_get(
+        const ObjectDescriptionView_14 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_468_ref_get(
+        const ObjectDescriptionView_468 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_15_ref_get(
+        const ObjectDescriptionView_15 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_470_ref_get(
+        const ObjectDescriptionView_470 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_16_ref_get(
+        const ObjectDescriptionView_16 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_472_ref_get(
+        const ObjectDescriptionView_472 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_17_ref_get(
+        const ObjectDescriptionView_17 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_474_ref_get(
+        const ObjectDescriptionView_474 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_18_ref_get(
+        const ObjectDescriptionView_18 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_476_ref_get(
+        const ObjectDescriptionView_476 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_19_ref_get(
+        const ObjectDescriptionView_19 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_478_ref_get(
+        const ObjectDescriptionView_478 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_20_ref_get(
+        const ObjectDescriptionView_20 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_21_ref_get(
+        const ObjectDescriptionView_21 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_22_ref_get(
+        const ObjectDescriptionView_22 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_23_ref_get(
+        const ObjectDescriptionView_23 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_24_ref_get(
+        const ObjectDescriptionView_24 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_25_ref_get(
+        const ObjectDescriptionView_25 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_26_ref_get(
+        const ObjectDescriptionView_26 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_27_ref_get(
+        const ObjectDescriptionView_27 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_28_ref_get(
+        const ObjectDescriptionView_28 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_29_ref_get(
+        const ObjectDescriptionView_29 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_30_ref_get(
+        const ObjectDescriptionView_30 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_31_ref_get(
+        const ObjectDescriptionView_31 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_32_ref_get(
+        const ObjectDescriptionView_32 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_33_ref_get(
+        const ObjectDescriptionView_33 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_34_ref_get(
+        const ObjectDescriptionView_34 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_35_ref_get(
+        const ObjectDescriptionView_35 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_36_ref_get(
+        const ObjectDescriptionView_36 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_37_ref_get(
+        const ObjectDescriptionView_37 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_38_ref_get(
+        const ObjectDescriptionView_38 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_39_ref_get(
+        const ObjectDescriptionView_39 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_40_ref_get(
+        const ObjectDescriptionView_40 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_41_ref_get(
+        const ObjectDescriptionView_41 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_42_ref_get(
+        const ObjectDescriptionView_42 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_43_ref_get(
+        const ObjectDescriptionView_43 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_44_ref_get(
+        const ObjectDescriptionView_44 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_45_ref_get(
+        const ObjectDescriptionView_45 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_46_ref_get(
+        const ObjectDescriptionView_46 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_47_ref_get(
+        const ObjectDescriptionView_47 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_48_ref_get(
+        const ObjectDescriptionView_48 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_49_ref_get(
+        const ObjectDescriptionView_49 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_50_ref_get(
+        const ObjectDescriptionView_50 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_51_ref_get(
+        const ObjectDescriptionView_51 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_52_ref_get(
+        const ObjectDescriptionView_52 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_53_ref_get(
+        const ObjectDescriptionView_53 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_54_ref_get(
+        const ObjectDescriptionView_54 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_55_ref_get(
+        const ObjectDescriptionView_55 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_56_ref_get(
+        const ObjectDescriptionView_56 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_57_ref_get(
+        const ObjectDescriptionView_57 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_58_ref_get(
+        const ObjectDescriptionView_58 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_59_ref_get(
+        const ObjectDescriptionView_59 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_60_ref_get(
+        const ObjectDescriptionView_60 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_61_ref_get(
+        const ObjectDescriptionView_61 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_62_ref_get(
+        const ObjectDescriptionView_62 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_63_ref_get(
+        const ObjectDescriptionView_63 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_64_ref_get(
+        const ObjectDescriptionView_64 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_65_ref_get(
+        const ObjectDescriptionView_65 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_66_ref_get(
+        const ObjectDescriptionView_66 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_67_ref_get(
+        const ObjectDescriptionView_67 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_68_ref_get(
+        const ObjectDescriptionView_68 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_69_ref_get(
+        const ObjectDescriptionView_69 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_70_ref_get(
+        const ObjectDescriptionView_70 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_71_ref_get(
+        const ObjectDescriptionView_71 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_72_ref_get(
+        const ObjectDescriptionView_72 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_73_ref_get(
+        const ObjectDescriptionView_73 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_74_ref_get(
+        const ObjectDescriptionView_74 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_75_ref_get(
+        const ObjectDescriptionView_75 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_76_ref_get(
+        const ObjectDescriptionView_76 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_77_ref_get(
+        const ObjectDescriptionView_77 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_78_ref_get(
+        const ObjectDescriptionView_78 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_79_ref_get(
+        const ObjectDescriptionView_79 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_80_ref_get(
+        const ObjectDescriptionView_80 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_81_ref_get(
+        const ObjectDescriptionView_81 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_82_ref_get(
+        const ObjectDescriptionView_82 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_83_ref_get(
+        const ObjectDescriptionView_83 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_84_ref_get(
+        const ObjectDescriptionView_84 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_85_ref_get(
+        const ObjectDescriptionView_85 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_86_ref_get(
+        const ObjectDescriptionView_86 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_87_ref_get(
+        const ObjectDescriptionView_87 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_88_ref_get(
+        const ObjectDescriptionView_88 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_89_ref_get(
+        const ObjectDescriptionView_89 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_90_ref_get(
+        const ObjectDescriptionView_90 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_91_ref_get(
+        const ObjectDescriptionView_91 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_92_ref_get(
+        const ObjectDescriptionView_92 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_93_ref_get(
+        const ObjectDescriptionView_93 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_94_ref_get(
+        const ObjectDescriptionView_94 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_95_ref_get(
+        const ObjectDescriptionView_95 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_96_ref_get(
+        const ObjectDescriptionView_96 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_97_ref_get(
+        const ObjectDescriptionView_97 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_98_ref_get(
+        const ObjectDescriptionView_98 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_99_ref_get(
+        const ObjectDescriptionView_99 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_100_ref_get(
+        const ObjectDescriptionView_100 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_101_ref_get(
+        const ObjectDescriptionView_101 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_102_ref_get(
+        const ObjectDescriptionView_102 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_103_ref_get(
+        const ObjectDescriptionView_103 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_104_ref_get(
+        const ObjectDescriptionView_104 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_105_ref_get(
+        const ObjectDescriptionView_105 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_106_ref_get(
+        const ObjectDescriptionView_106 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_107_ref_get(
+        const ObjectDescriptionView_107 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_108_ref_get(
+        const ObjectDescriptionView_108 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_109_ref_get(
+        const ObjectDescriptionView_109 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_110_ref_get(
+        const ObjectDescriptionView_110 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_111_ref_get(
+        const ObjectDescriptionView_111 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_112_ref_get(
+        const ObjectDescriptionView_112 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_113_ref_get(
+        const ObjectDescriptionView_113 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_114_ref_get(
+        const ObjectDescriptionView_114 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_115_ref_get(
+        const ObjectDescriptionView_115 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_116_ref_get(
+        const ObjectDescriptionView_116 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_117_ref_get(
+        const ObjectDescriptionView_117 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_118_ref_get(
+        const ObjectDescriptionView_118 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_119_ref_get(
+        const ObjectDescriptionView_119 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_120_ref_get(
+        const ObjectDescriptionView_120 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_121_ref_get(
+        const ObjectDescriptionView_121 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_122_ref_get(
+        const ObjectDescriptionView_122 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_123_ref_get(
+        const ObjectDescriptionView_123 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_124_ref_get(
+        const ObjectDescriptionView_124 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_125_ref_get(
+        const ObjectDescriptionView_125 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_126_ref_get(
+        const ObjectDescriptionView_126 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_127_ref_get(
+        const ObjectDescriptionView_127 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_128_ref_get(
+        const ObjectDescriptionView_128 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_129_ref_get(
+        const ObjectDescriptionView_129 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_130_ref_get(
+        const ObjectDescriptionView_130 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_131_ref_get(
+        const ObjectDescriptionView_131 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_132_ref_get(
+        const ObjectDescriptionView_132 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_133_ref_get(
+        const ObjectDescriptionView_133 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_134_ref_get(
+        const ObjectDescriptionView_134 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_135_ref_get(
+        const ObjectDescriptionView_135 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_136_ref_get(
+        const ObjectDescriptionView_136 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_137_ref_get(
+        const ObjectDescriptionView_137 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_138_ref_get(
+        const ObjectDescriptionView_138 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_139_ref_get(
+        const ObjectDescriptionView_139 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_140_ref_get(
+        const ObjectDescriptionView_140 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_141_ref_get(
+        const ObjectDescriptionView_141 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_142_ref_get(
+        const ObjectDescriptionView_142 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_143_ref_get(
+        const ObjectDescriptionView_143 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_144_ref_get(
+        const ObjectDescriptionView_144 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_145_ref_get(
+        const ObjectDescriptionView_145 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_146_ref_get(
+        const ObjectDescriptionView_146 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_147_ref_get(
+        const ObjectDescriptionView_147 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_148_ref_get(
+        const ObjectDescriptionView_148 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_149_ref_get(
+        const ObjectDescriptionView_149 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_150_ref_get(
+        const ObjectDescriptionView_150 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_151_ref_get(
+        const ObjectDescriptionView_151 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_152_ref_get(
+        const ObjectDescriptionView_152 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_153_ref_get(
+        const ObjectDescriptionView_153 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_154_ref_get(
+        const ObjectDescriptionView_154 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_155_ref_get(
+        const ObjectDescriptionView_155 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_156_ref_get(
+        const ObjectDescriptionView_156 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_157_ref_get(
+        const ObjectDescriptionView_157 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_158_ref_get(
+        const ObjectDescriptionView_158 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_159_ref_get(
+        const ObjectDescriptionView_159 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_160_ref_get(
+        const ObjectDescriptionView_160 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_161_ref_get(
+        const ObjectDescriptionView_161 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_162_ref_get(
+        const ObjectDescriptionView_162 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_163_ref_get(
+        const ObjectDescriptionView_163 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_164_ref_get(
+        const ObjectDescriptionView_164 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_165_ref_get(
+        const ObjectDescriptionView_165 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_166_ref_get(
+        const ObjectDescriptionView_166 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_167_ref_get(
+        const ObjectDescriptionView_167 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_168_ref_get(
+        const ObjectDescriptionView_168 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_169_ref_get(
+        const ObjectDescriptionView_169 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_170_ref_get(
+        const ObjectDescriptionView_170 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_171_ref_get(
+        const ObjectDescriptionView_171 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_172_ref_get(
+        const ObjectDescriptionView_172 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_173_ref_get(
+        const ObjectDescriptionView_173 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_174_ref_get(
+        const ObjectDescriptionView_174 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_175_ref_get(
+        const ObjectDescriptionView_175 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_176_ref_get(
+        const ObjectDescriptionView_176 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_177_ref_get(
+        const ObjectDescriptionView_177 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_178_ref_get(
+        const ObjectDescriptionView_178 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_179_ref_get(
+        const ObjectDescriptionView_179 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_180_ref_get(
+        const ObjectDescriptionView_180 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_181_ref_get(
+        const ObjectDescriptionView_181 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_182_ref_get(
+        const ObjectDescriptionView_182 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_183_ref_get(
+        const ObjectDescriptionView_183 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_184_ref_get(
+        const ObjectDescriptionView_184 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_185_ref_get(
+        const ObjectDescriptionView_185 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_186_ref_get(
+        const ObjectDescriptionView_186 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_187_ref_get(
+        const ObjectDescriptionView_187 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_188_ref_get(
+        const ObjectDescriptionView_188 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_189_ref_get(
+        const ObjectDescriptionView_189 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_190_ref_get(
+        const ObjectDescriptionView_190 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_191_ref_get(
+        const ObjectDescriptionView_191 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_192_ref_get(
+        const ObjectDescriptionView_192 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_193_ref_get(
+        const ObjectDescriptionView_193 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_194_ref_get(
+        const ObjectDescriptionView_194 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_195_ref_get(
+        const ObjectDescriptionView_195 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_196_ref_get(
+        const ObjectDescriptionView_196 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_197_ref_get(
+        const ObjectDescriptionView_197 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_198_ref_get(
+        const ObjectDescriptionView_198 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_199_ref_get(
+        const ObjectDescriptionView_199 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_200_ref_get(
+        const ObjectDescriptionView_200 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_201_ref_get(
+        const ObjectDescriptionView_201 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_202_ref_get(
+        const ObjectDescriptionView_202 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_203_ref_get(
+        const ObjectDescriptionView_203 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_204_ref_get(
+        const ObjectDescriptionView_204 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_205_ref_get(
+        const ObjectDescriptionView_205 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_206_ref_get(
+        const ObjectDescriptionView_206 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_207_ref_get(
+        const ObjectDescriptionView_207 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_208_ref_get(
+        const ObjectDescriptionView_208 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_209_ref_get(
+        const ObjectDescriptionView_209 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_210_ref_get(
+        const ObjectDescriptionView_210 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_211_ref_get(
+        const ObjectDescriptionView_211 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_212_ref_get(
+        const ObjectDescriptionView_212 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_213_ref_get(
+        const ObjectDescriptionView_213 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_214_ref_get(
+        const ObjectDescriptionView_214 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_215_ref_get(
+        const ObjectDescriptionView_215 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_216_ref_get(
+        const ObjectDescriptionView_216 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_217_ref_get(
+        const ObjectDescriptionView_217 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_218_ref_get(
+        const ObjectDescriptionView_218 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_219_ref_get(
+        const ObjectDescriptionView_219 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_220_ref_get(
+        const ObjectDescriptionView_220 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_221_ref_get(
+        const ObjectDescriptionView_221 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_222_ref_get(
+        const ObjectDescriptionView_222 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_223_ref_get(
+        const ObjectDescriptionView_223 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_224_ref_get(
+        const ObjectDescriptionView_224 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_225_ref_get(
+        const ObjectDescriptionView_225 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_226_ref_get(
+        const ObjectDescriptionView_226 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_227_ref_get(
+        const ObjectDescriptionView_227 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_228_ref_get(
+        const ObjectDescriptionView_228 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_229_ref_get(
+        const ObjectDescriptionView_229 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_230_ref_get(
+        const ObjectDescriptionView_230 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_231_ref_get(
+        const ObjectDescriptionView_231 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_232_ref_get(
+        const ObjectDescriptionView_232 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_484_ref_get(
+        const ObjectDescriptionView_484 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_233_ref_get(
+        const ObjectDescriptionView_233 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_486_ref_get(
+        const ObjectDescriptionView_486 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_234_ref_get(
+        const ObjectDescriptionView_234 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_488_ref_get(
+        const ObjectDescriptionView_488 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_235_ref_get(
+        const ObjectDescriptionView_235 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_490_ref_get(
+        const ObjectDescriptionView_490 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_236_ref_get(
+        const ObjectDescriptionView_236 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_492_ref_get(
+        const ObjectDescriptionView_492 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_237_ref_get(
+        const ObjectDescriptionView_237 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_494_ref_get(
+        const ObjectDescriptionView_494 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_238_ref_get(
+        const ObjectDescriptionView_238 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_496_ref_get(
+        const ObjectDescriptionView_496 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_239_ref_get(
+        const ObjectDescriptionView_239 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_498_ref_get(
+        const ObjectDescriptionView_498 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_240_ref_get(
+        const ObjectDescriptionView_240 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_500_ref_get(
+        const ObjectDescriptionView_500 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_241_ref_get(
+        const ObjectDescriptionView_241 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_502_ref_get(
+        const ObjectDescriptionView_502 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_242_ref_get(
+        const ObjectDescriptionView_242 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_243_ref_get(
+        const ObjectDescriptionView_243 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_244_ref_get(
+        const ObjectDescriptionView_244 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_245_ref_get(
+        const ObjectDescriptionView_245 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_246_ref_get(
+        const ObjectDescriptionView_246 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_247_ref_get(
+        const ObjectDescriptionView_247 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_248_ref_get(
+        const ObjectDescriptionView_248 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_249_ref_get(
+        const ObjectDescriptionView_249 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_250_ref_get(
+        const ObjectDescriptionView_250 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_251_ref_get(
+        const ObjectDescriptionView_251 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_252_ref_get(
+        const ObjectDescriptionView_252 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_253_ref_get(
+        const ObjectDescriptionView_253 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_254_ref_get(
+        const ObjectDescriptionView_254 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_255_ref_get(
+        const ObjectDescriptionView_255 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_256_ref_get(
+        const ObjectDescriptionView_256 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_257_ref_get(
+        const ObjectDescriptionView_257 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_258_ref_get(
+        const ObjectDescriptionView_258 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_259_ref_get(
+        const ObjectDescriptionView_259 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_260_ref_get(
+        const ObjectDescriptionView_260 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_261_ref_get(
+        const ObjectDescriptionView_261 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_262_ref_get(
+        const ObjectDescriptionView_262 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_263_ref_get(
+        const ObjectDescriptionView_263 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_264_ref_get(
+        const ObjectDescriptionView_264 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_265_ref_get(
+        const ObjectDescriptionView_265 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_266_ref_get(
+        const ObjectDescriptionView_266 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_267_ref_get(
+        const ObjectDescriptionView_267 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_268_ref_get(
+        const ObjectDescriptionView_268 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_269_ref_get(
+        const ObjectDescriptionView_269 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_270_ref_get(
+        const ObjectDescriptionView_270 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_271_ref_get(
+        const ObjectDescriptionView_271 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_272_ref_get(
+        const ObjectDescriptionView_272 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_273_ref_get(
+        const ObjectDescriptionView_273 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_274_ref_get(
+        const ObjectDescriptionView_274 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_275_ref_get(
+        const ObjectDescriptionView_275 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_276_ref_get(
+        const ObjectDescriptionView_276 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_277_ref_get(
+        const ObjectDescriptionView_277 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_278_ref_get(
+        const ObjectDescriptionView_278 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_279_ref_get(
+        const ObjectDescriptionView_279 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_280_ref_get(
+        const ObjectDescriptionView_280 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_281_ref_get(
+        const ObjectDescriptionView_281 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_282_ref_get(
+        const ObjectDescriptionView_282 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_283_ref_get(
+        const ObjectDescriptionView_283 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_284_ref_get(
+        const ObjectDescriptionView_284 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_285_ref_get(
+        const ObjectDescriptionView_285 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_286_ref_get(
+        const ObjectDescriptionView_286 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_287_ref_get(
+        const ObjectDescriptionView_287 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_288_ref_get(
+        const ObjectDescriptionView_288 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_289_ref_get(
+        const ObjectDescriptionView_289 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_290_ref_get(
+        const ObjectDescriptionView_290 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_291_ref_get(
+        const ObjectDescriptionView_291 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_292_ref_get(
+        const ObjectDescriptionView_292 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_293_ref_get(
+        const ObjectDescriptionView_293 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_294_ref_get(
+        const ObjectDescriptionView_294 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_295_ref_get(
+        const ObjectDescriptionView_295 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_296_ref_get(
+        const ObjectDescriptionView_296 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_297_ref_get(
+        const ObjectDescriptionView_297 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_298_ref_get(
+        const ObjectDescriptionView_298 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_299_ref_get(
+        const ObjectDescriptionView_299 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_300_ref_get(
+        const ObjectDescriptionView_300 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_301_ref_get(
+        const ObjectDescriptionView_301 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_302_ref_get(
+        const ObjectDescriptionView_302 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_303_ref_get(
+        const ObjectDescriptionView_303 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_304_ref_get(
+        const ObjectDescriptionView_304 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_305_ref_get(
+        const ObjectDescriptionView_305 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_306_ref_get(
+        const ObjectDescriptionView_306 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_307_ref_get(
+        const ObjectDescriptionView_307 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_308_ref_get(
+        const ObjectDescriptionView_308 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_309_ref_get(
+        const ObjectDescriptionView_309 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_310_ref_get(
+        const ObjectDescriptionView_310 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_311_ref_get(
+        const ObjectDescriptionView_311 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_312_ref_get(
+        const ObjectDescriptionView_312 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_313_ref_get(
+        const ObjectDescriptionView_313 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_314_ref_get(
+        const ObjectDescriptionView_314 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_315_ref_get(
+        const ObjectDescriptionView_315 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_316_ref_get(
+        const ObjectDescriptionView_316 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_317_ref_get(
+        const ObjectDescriptionView_317 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_318_ref_get(
+        const ObjectDescriptionView_318 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_319_ref_get(
+        const ObjectDescriptionView_319 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_320_ref_get(
+        const ObjectDescriptionView_320 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_321_ref_get(
+        const ObjectDescriptionView_321 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_322_ref_get(
+        const ObjectDescriptionView_322 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_323_ref_get(
+        const ObjectDescriptionView_323 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_324_ref_get(
+        const ObjectDescriptionView_324 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_325_ref_get(
+        const ObjectDescriptionView_325 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_326_ref_get(
+        const ObjectDescriptionView_326 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_327_ref_get(
+        const ObjectDescriptionView_327 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_328_ref_get(
+        const ObjectDescriptionView_328 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_329_ref_get(
+        const ObjectDescriptionView_329 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_330_ref_get(
+        const ObjectDescriptionView_330 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_331_ref_get(
+        const ObjectDescriptionView_331 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_332_ref_get(
+        const ObjectDescriptionView_332 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_333_ref_get(
+        const ObjectDescriptionView_333 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_334_ref_get(
+        const ObjectDescriptionView_334 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_335_ref_get(
+        const ObjectDescriptionView_335 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_336_ref_get(
+        const ObjectDescriptionView_336 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_337_ref_get(
+        const ObjectDescriptionView_337 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_338_ref_get(
+        const ObjectDescriptionView_338 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_339_ref_get(
+        const ObjectDescriptionView_339 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_340_ref_get(
+        const ObjectDescriptionView_340 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_341_ref_get(
+        const ObjectDescriptionView_341 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_342_ref_get(
+        const ObjectDescriptionView_342 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_343_ref_get(
+        const ObjectDescriptionView_343 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_344_ref_get(
+        const ObjectDescriptionView_344 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_345_ref_get(
+        const ObjectDescriptionView_345 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_346_ref_get(
+        const ObjectDescriptionView_346 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_347_ref_get(
+        const ObjectDescriptionView_347 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_348_ref_get(
+        const ObjectDescriptionView_348 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_349_ref_get(
+        const ObjectDescriptionView_349 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_350_ref_get(
+        const ObjectDescriptionView_350 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_351_ref_get(
+        const ObjectDescriptionView_351 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_352_ref_get(
+        const ObjectDescriptionView_352 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_353_ref_get(
+        const ObjectDescriptionView_353 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_354_ref_get(
+        const ObjectDescriptionView_354 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_355_ref_get(
+        const ObjectDescriptionView_355 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_356_ref_get(
+        const ObjectDescriptionView_356 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_357_ref_get(
+        const ObjectDescriptionView_357 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_358_ref_get(
+        const ObjectDescriptionView_358 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_359_ref_get(
+        const ObjectDescriptionView_359 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_360_ref_get(
+        const ObjectDescriptionView_360 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_361_ref_get(
+        const ObjectDescriptionView_361 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_362_ref_get(
+        const ObjectDescriptionView_362 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_363_ref_get(
+        const ObjectDescriptionView_363 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_364_ref_get(
+        const ObjectDescriptionView_364 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_365_ref_get(
+        const ObjectDescriptionView_365 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_366_ref_get(
+        const ObjectDescriptionView_366 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_367_ref_get(
+        const ObjectDescriptionView_367 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_368_ref_get(
+        const ObjectDescriptionView_368 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_369_ref_get(
+        const ObjectDescriptionView_369 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_370_ref_get(
+        const ObjectDescriptionView_370 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_371_ref_get(
+        const ObjectDescriptionView_371 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_372_ref_get(
+        const ObjectDescriptionView_372 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_373_ref_get(
+        const ObjectDescriptionView_373 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_374_ref_get(
+        const ObjectDescriptionView_374 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_375_ref_get(
+        const ObjectDescriptionView_375 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_376_ref_get(
+        const ObjectDescriptionView_376 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_377_ref_get(
+        const ObjectDescriptionView_377 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_378_ref_get(
+        const ObjectDescriptionView_378 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_379_ref_get(
+        const ObjectDescriptionView_379 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_380_ref_get(
+        const ObjectDescriptionView_380 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_381_ref_get(
+        const ObjectDescriptionView_381 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_382_ref_get(
+        const ObjectDescriptionView_382 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_383_ref_get(
+        const ObjectDescriptionView_383 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_384_ref_get(
+        const ObjectDescriptionView_384 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_385_ref_get(
+        const ObjectDescriptionView_385 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_386_ref_get(
+        const ObjectDescriptionView_386 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_387_ref_get(
+        const ObjectDescriptionView_387 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_388_ref_get(
+        const ObjectDescriptionView_388 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_389_ref_get(
+        const ObjectDescriptionView_389 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_390_ref_get(
+        const ObjectDescriptionView_390 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_391_ref_get(
+        const ObjectDescriptionView_391 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_392_ref_get(
+        const ObjectDescriptionView_392 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_393_ref_get(
+        const ObjectDescriptionView_393 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_394_ref_get(
+        const ObjectDescriptionView_394 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_395_ref_get(
+        const ObjectDescriptionView_395 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_396_ref_get(
+        const ObjectDescriptionView_396 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_397_ref_get(
+        const ObjectDescriptionView_397 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_398_ref_get(
+        const ObjectDescriptionView_398 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_399_ref_get(
+        const ObjectDescriptionView_399 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_400_ref_get(
+        const ObjectDescriptionView_400 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_401_ref_get(
+        const ObjectDescriptionView_401 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_402_ref_get(
+        const ObjectDescriptionView_402 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_403_ref_get(
+        const ObjectDescriptionView_403 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_404_ref_get(
+        const ObjectDescriptionView_404 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_405_ref_get(
+        const ObjectDescriptionView_405 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_406_ref_get(
+        const ObjectDescriptionView_406 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_407_ref_get(
+        const ObjectDescriptionView_407 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_408_ref_get(
+        const ObjectDescriptionView_408 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_409_ref_get(
+        const ObjectDescriptionView_409 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_410_ref_get(
+        const ObjectDescriptionView_410 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_411_ref_get(
+        const ObjectDescriptionView_411 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_412_ref_get(
+        const ObjectDescriptionView_412 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_413_ref_get(
+        const ObjectDescriptionView_413 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_414_ref_get(
+        const ObjectDescriptionView_414 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_415_ref_get(
+        const ObjectDescriptionView_415 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_416_ref_get(
+        const ObjectDescriptionView_416 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_417_ref_get(
+        const ObjectDescriptionView_417 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_418_ref_get(
+        const ObjectDescriptionView_418 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_419_ref_get(
+        const ObjectDescriptionView_419 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_420_ref_get(
+        const ObjectDescriptionView_420 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_421_ref_get(
+        const ObjectDescriptionView_421 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_422_ref_get(
+        const ObjectDescriptionView_422 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_423_ref_get(
+        const ObjectDescriptionView_423 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_424_ref_get(
+        const ObjectDescriptionView_424 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_425_ref_get(
+        const ObjectDescriptionView_425 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_426_ref_get(
+        const ObjectDescriptionView_426 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_427_ref_get(
+        const ObjectDescriptionView_427 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_428_ref_get(
+        const ObjectDescriptionView_428 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_429_ref_get(
+        const ObjectDescriptionView_429 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_430_ref_get(
+        const ObjectDescriptionView_430 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_431_ref_get(
+        const ObjectDescriptionView_431 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_432_ref_get(
+        const ObjectDescriptionView_432 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_433_ref_get(
+        const ObjectDescriptionView_433 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_434_ref_get(
+        const ObjectDescriptionView_434 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_435_ref_get(
+        const ObjectDescriptionView_435 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_436_ref_get(
+        const ObjectDescriptionView_436 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_437_ref_get(
+        const ObjectDescriptionView_437 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_438_ref_get(
+        const ObjectDescriptionView_438 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_439_ref_get(
+        const ObjectDescriptionView_439 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_440_ref_get(
+        const ObjectDescriptionView_440 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_441_ref_get(
+        const ObjectDescriptionView_441 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_442_ref_get(
+        const ObjectDescriptionView_442 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_443_ref_get(
+        const ObjectDescriptionView_443 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_444_ref_get(
+        const ObjectDescriptionView_444 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_445_ref_get(
+        const ObjectDescriptionView_445 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_446_ref_get(
+        const ObjectDescriptionView_446 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_447_ref_get(
+        const ObjectDescriptionView_447 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_448_ref_get(
+        const ObjectDescriptionView_448 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_449_ref_get(
+        const ObjectDescriptionView_449 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_450_ref_get(
+        const ObjectDescriptionView_450 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_451_ref_get(
+        const ObjectDescriptionView_451 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_452_ref_get(
+        const ObjectDescriptionView_452 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_503_ref_get(
+        const ObjectDescriptionView_503 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_504_ref_get(
+        const ObjectDescriptionView_504 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_505_ref_get(
+        const ObjectDescriptionView_505 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_506_ref_get(
+        const ObjectDescriptionView_506 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_507_ref_get(
+        const ObjectDescriptionView_507 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_508_ref_get(
+        const ObjectDescriptionView_508 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_509_ref_get(
+        const ObjectDescriptionView_509 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_510_ref_get(
+        const ObjectDescriptionView_510 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_511_ref_get(
+        const ObjectDescriptionView_511 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_512_ref_get(
+        const ObjectDescriptionView_512 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_513_ref_get(
+        const ObjectDescriptionView_513 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_514_ref_get(
+        const ObjectDescriptionView_514 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_515_ref_get(
+        const ObjectDescriptionView_515 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_516_ref_get(
+        const ObjectDescriptionView_516 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_517_ref_get(
+        const ObjectDescriptionView_517 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_518_ref_get(
+        const ObjectDescriptionView_518 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_519_ref_get(
+        const ObjectDescriptionView_519 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_520_ref_get(
+        const ObjectDescriptionView_520 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_521_ref_get(
+        const ObjectDescriptionView_521 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_522_ref_get(
+        const ObjectDescriptionView_522 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_523_ref_get(
+        const ObjectDescriptionView_523 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_524_ref_get(
+        const ObjectDescriptionView_524 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_525_ref_get(
+        const ObjectDescriptionView_525 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_526_ref_get(
+        const ObjectDescriptionView_526 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_527_ref_get(
+        const ObjectDescriptionView_527 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_528_ref_get(
+        const ObjectDescriptionView_528 *value) { return &value->_description; }
+static inline const ObjectDescription *object_description_view_529_ref_get(
+        const ObjectDescriptionView_529 *value) { return &value->_description; }
+#undef ROHR_INTERNAL_OBJECT_VIEW_TYPES
+#define ROHR_INTERNAL_OBJECT_VIEW_TYPES(apply) \
+    apply(ObjectDescriptionView_1, object_description_view_1_ref_get) \
+    apply(ObjectDescriptionView_2, object_description_view_2_ref_get) \
+    apply(ObjectDescriptionView_3, object_description_view_3_ref_get) \
+    apply(ObjectDescriptionView_454, object_description_view_454_ref_get) \
+    apply(ObjectDescriptionView_456, object_description_view_456_ref_get) \
+    apply(ObjectDescriptionView_480, object_description_view_480_ref_get) \
+    apply(ObjectDescriptionView_4, object_description_view_4_ref_get) \
+    apply(ObjectDescriptionView_453, object_description_view_453_ref_get) \
+    apply(ObjectDescriptionView_5, object_description_view_5_ref_get) \
+    apply(ObjectDescriptionView_455, object_description_view_455_ref_get) \
+    apply(ObjectDescriptionView_458, object_description_view_458_ref_get) \
+    apply(ObjectDescriptionView_6, object_description_view_6_ref_get) \
+    apply(ObjectDescriptionView_457, object_description_view_457_ref_get) \
+    apply(ObjectDescriptionView_459, object_description_view_459_ref_get) \
+    apply(ObjectDescriptionView_461, object_description_view_461_ref_get) \
+    apply(ObjectDescriptionView_463, object_description_view_463_ref_get) \
+    apply(ObjectDescriptionView_465, object_description_view_465_ref_get) \
+    apply(ObjectDescriptionView_467, object_description_view_467_ref_get) \
+    apply(ObjectDescriptionView_469, object_description_view_469_ref_get) \
+    apply(ObjectDescriptionView_471, object_description_view_471_ref_get) \
+    apply(ObjectDescriptionView_473, object_description_view_473_ref_get) \
+    apply(ObjectDescriptionView_475, object_description_view_475_ref_get) \
+    apply(ObjectDescriptionView_477, object_description_view_477_ref_get) \
+    apply(ObjectDescriptionView_7, object_description_view_7_ref_get) \
+    apply(ObjectDescriptionView_479, object_description_view_479_ref_get) \
+    apply(ObjectDescriptionView_482, object_description_view_482_ref_get) \
+    apply(ObjectDescriptionView_8, object_description_view_8_ref_get) \
+    apply(ObjectDescriptionView_481, object_description_view_481_ref_get) \
+    apply(ObjectDescriptionView_483, object_description_view_483_ref_get) \
+    apply(ObjectDescriptionView_485, object_description_view_485_ref_get) \
+    apply(ObjectDescriptionView_487, object_description_view_487_ref_get) \
+    apply(ObjectDescriptionView_489, object_description_view_489_ref_get) \
+    apply(ObjectDescriptionView_491, object_description_view_491_ref_get) \
+    apply(ObjectDescriptionView_493, object_description_view_493_ref_get) \
+    apply(ObjectDescriptionView_495, object_description_view_495_ref_get) \
+    apply(ObjectDescriptionView_497, object_description_view_497_ref_get) \
+    apply(ObjectDescriptionView_499, object_description_view_499_ref_get) \
+    apply(ObjectDescriptionView_501, object_description_view_501_ref_get) \
+    apply(ObjectDescriptionView_9, object_description_view_9_ref_get) \
+    apply(ObjectDescriptionView_10, object_description_view_10_ref_get) \
+    apply(ObjectDescriptionView_460, object_description_view_460_ref_get) \
+    apply(ObjectDescriptionView_11, object_description_view_11_ref_get) \
+    apply(ObjectDescriptionView_462, object_description_view_462_ref_get) \
+    apply(ObjectDescriptionView_12, object_description_view_12_ref_get) \
+    apply(ObjectDescriptionView_464, object_description_view_464_ref_get) \
+    apply(ObjectDescriptionView_13, object_description_view_13_ref_get) \
+    apply(ObjectDescriptionView_466, object_description_view_466_ref_get) \
+    apply(ObjectDescriptionView_14, object_description_view_14_ref_get) \
+    apply(ObjectDescriptionView_468, object_description_view_468_ref_get) \
+    apply(ObjectDescriptionView_15, object_description_view_15_ref_get) \
+    apply(ObjectDescriptionView_470, object_description_view_470_ref_get) \
+    apply(ObjectDescriptionView_16, object_description_view_16_ref_get) \
+    apply(ObjectDescriptionView_472, object_description_view_472_ref_get) \
+    apply(ObjectDescriptionView_17, object_description_view_17_ref_get) \
+    apply(ObjectDescriptionView_474, object_description_view_474_ref_get) \
+    apply(ObjectDescriptionView_18, object_description_view_18_ref_get) \
+    apply(ObjectDescriptionView_476, object_description_view_476_ref_get) \
+    apply(ObjectDescriptionView_19, object_description_view_19_ref_get) \
+    apply(ObjectDescriptionView_478, object_description_view_478_ref_get) \
+    apply(ObjectDescriptionView_20, object_description_view_20_ref_get) \
+    apply(ObjectDescriptionView_21, object_description_view_21_ref_get) \
+    apply(ObjectDescriptionView_22, object_description_view_22_ref_get) \
+    apply(ObjectDescriptionView_23, object_description_view_23_ref_get) \
+    apply(ObjectDescriptionView_24, object_description_view_24_ref_get) \
+    apply(ObjectDescriptionView_25, object_description_view_25_ref_get) \
+    apply(ObjectDescriptionView_26, object_description_view_26_ref_get) \
+    apply(ObjectDescriptionView_27, object_description_view_27_ref_get) \
+    apply(ObjectDescriptionView_28, object_description_view_28_ref_get) \
+    apply(ObjectDescriptionView_29, object_description_view_29_ref_get) \
+    apply(ObjectDescriptionView_30, object_description_view_30_ref_get) \
+    apply(ObjectDescriptionView_31, object_description_view_31_ref_get) \
+    apply(ObjectDescriptionView_32, object_description_view_32_ref_get) \
+    apply(ObjectDescriptionView_33, object_description_view_33_ref_get) \
+    apply(ObjectDescriptionView_34, object_description_view_34_ref_get) \
+    apply(ObjectDescriptionView_35, object_description_view_35_ref_get) \
+    apply(ObjectDescriptionView_36, object_description_view_36_ref_get) \
+    apply(ObjectDescriptionView_37, object_description_view_37_ref_get) \
+    apply(ObjectDescriptionView_38, object_description_view_38_ref_get) \
+    apply(ObjectDescriptionView_39, object_description_view_39_ref_get) \
+    apply(ObjectDescriptionView_40, object_description_view_40_ref_get) \
+    apply(ObjectDescriptionView_41, object_description_view_41_ref_get) \
+    apply(ObjectDescriptionView_42, object_description_view_42_ref_get) \
+    apply(ObjectDescriptionView_43, object_description_view_43_ref_get) \
+    apply(ObjectDescriptionView_44, object_description_view_44_ref_get) \
+    apply(ObjectDescriptionView_45, object_description_view_45_ref_get) \
+    apply(ObjectDescriptionView_46, object_description_view_46_ref_get) \
+    apply(ObjectDescriptionView_47, object_description_view_47_ref_get) \
+    apply(ObjectDescriptionView_48, object_description_view_48_ref_get) \
+    apply(ObjectDescriptionView_49, object_description_view_49_ref_get) \
+    apply(ObjectDescriptionView_50, object_description_view_50_ref_get) \
+    apply(ObjectDescriptionView_51, object_description_view_51_ref_get) \
+    apply(ObjectDescriptionView_52, object_description_view_52_ref_get) \
+    apply(ObjectDescriptionView_53, object_description_view_53_ref_get) \
+    apply(ObjectDescriptionView_54, object_description_view_54_ref_get) \
+    apply(ObjectDescriptionView_55, object_description_view_55_ref_get) \
+    apply(ObjectDescriptionView_56, object_description_view_56_ref_get) \
+    apply(ObjectDescriptionView_57, object_description_view_57_ref_get) \
+    apply(ObjectDescriptionView_58, object_description_view_58_ref_get) \
+    apply(ObjectDescriptionView_59, object_description_view_59_ref_get) \
+    apply(ObjectDescriptionView_60, object_description_view_60_ref_get) \
+    apply(ObjectDescriptionView_61, object_description_view_61_ref_get) \
+    apply(ObjectDescriptionView_62, object_description_view_62_ref_get) \
+    apply(ObjectDescriptionView_63, object_description_view_63_ref_get) \
+    apply(ObjectDescriptionView_64, object_description_view_64_ref_get) \
+    apply(ObjectDescriptionView_65, object_description_view_65_ref_get) \
+    apply(ObjectDescriptionView_66, object_description_view_66_ref_get) \
+    apply(ObjectDescriptionView_67, object_description_view_67_ref_get) \
+    apply(ObjectDescriptionView_68, object_description_view_68_ref_get) \
+    apply(ObjectDescriptionView_69, object_description_view_69_ref_get) \
+    apply(ObjectDescriptionView_70, object_description_view_70_ref_get) \
+    apply(ObjectDescriptionView_71, object_description_view_71_ref_get) \
+    apply(ObjectDescriptionView_72, object_description_view_72_ref_get) \
+    apply(ObjectDescriptionView_73, object_description_view_73_ref_get) \
+    apply(ObjectDescriptionView_74, object_description_view_74_ref_get) \
+    apply(ObjectDescriptionView_75, object_description_view_75_ref_get) \
+    apply(ObjectDescriptionView_76, object_description_view_76_ref_get) \
+    apply(ObjectDescriptionView_77, object_description_view_77_ref_get) \
+    apply(ObjectDescriptionView_78, object_description_view_78_ref_get) \
+    apply(ObjectDescriptionView_79, object_description_view_79_ref_get) \
+    apply(ObjectDescriptionView_80, object_description_view_80_ref_get) \
+    apply(ObjectDescriptionView_81, object_description_view_81_ref_get) \
+    apply(ObjectDescriptionView_82, object_description_view_82_ref_get) \
+    apply(ObjectDescriptionView_83, object_description_view_83_ref_get) \
+    apply(ObjectDescriptionView_84, object_description_view_84_ref_get) \
+    apply(ObjectDescriptionView_85, object_description_view_85_ref_get) \
+    apply(ObjectDescriptionView_86, object_description_view_86_ref_get) \
+    apply(ObjectDescriptionView_87, object_description_view_87_ref_get) \
+    apply(ObjectDescriptionView_88, object_description_view_88_ref_get) \
+    apply(ObjectDescriptionView_89, object_description_view_89_ref_get) \
+    apply(ObjectDescriptionView_90, object_description_view_90_ref_get) \
+    apply(ObjectDescriptionView_91, object_description_view_91_ref_get) \
+    apply(ObjectDescriptionView_92, object_description_view_92_ref_get) \
+    apply(ObjectDescriptionView_93, object_description_view_93_ref_get) \
+    apply(ObjectDescriptionView_94, object_description_view_94_ref_get) \
+    apply(ObjectDescriptionView_95, object_description_view_95_ref_get) \
+    apply(ObjectDescriptionView_96, object_description_view_96_ref_get) \
+    apply(ObjectDescriptionView_97, object_description_view_97_ref_get) \
+    apply(ObjectDescriptionView_98, object_description_view_98_ref_get) \
+    apply(ObjectDescriptionView_99, object_description_view_99_ref_get) \
+    apply(ObjectDescriptionView_100, object_description_view_100_ref_get) \
+    apply(ObjectDescriptionView_101, object_description_view_101_ref_get) \
+    apply(ObjectDescriptionView_102, object_description_view_102_ref_get) \
+    apply(ObjectDescriptionView_103, object_description_view_103_ref_get) \
+    apply(ObjectDescriptionView_104, object_description_view_104_ref_get) \
+    apply(ObjectDescriptionView_105, object_description_view_105_ref_get) \
+    apply(ObjectDescriptionView_106, object_description_view_106_ref_get) \
+    apply(ObjectDescriptionView_107, object_description_view_107_ref_get) \
+    apply(ObjectDescriptionView_108, object_description_view_108_ref_get) \
+    apply(ObjectDescriptionView_109, object_description_view_109_ref_get) \
+    apply(ObjectDescriptionView_110, object_description_view_110_ref_get) \
+    apply(ObjectDescriptionView_111, object_description_view_111_ref_get) \
+    apply(ObjectDescriptionView_112, object_description_view_112_ref_get) \
+    apply(ObjectDescriptionView_113, object_description_view_113_ref_get) \
+    apply(ObjectDescriptionView_114, object_description_view_114_ref_get) \
+    apply(ObjectDescriptionView_115, object_description_view_115_ref_get) \
+    apply(ObjectDescriptionView_116, object_description_view_116_ref_get) \
+    apply(ObjectDescriptionView_117, object_description_view_117_ref_get) \
+    apply(ObjectDescriptionView_118, object_description_view_118_ref_get) \
+    apply(ObjectDescriptionView_119, object_description_view_119_ref_get) \
+    apply(ObjectDescriptionView_120, object_description_view_120_ref_get) \
+    apply(ObjectDescriptionView_121, object_description_view_121_ref_get) \
+    apply(ObjectDescriptionView_122, object_description_view_122_ref_get) \
+    apply(ObjectDescriptionView_123, object_description_view_123_ref_get) \
+    apply(ObjectDescriptionView_124, object_description_view_124_ref_get) \
+    apply(ObjectDescriptionView_125, object_description_view_125_ref_get) \
+    apply(ObjectDescriptionView_126, object_description_view_126_ref_get) \
+    apply(ObjectDescriptionView_127, object_description_view_127_ref_get) \
+    apply(ObjectDescriptionView_128, object_description_view_128_ref_get) \
+    apply(ObjectDescriptionView_129, object_description_view_129_ref_get) \
+    apply(ObjectDescriptionView_130, object_description_view_130_ref_get) \
+    apply(ObjectDescriptionView_131, object_description_view_131_ref_get) \
+    apply(ObjectDescriptionView_132, object_description_view_132_ref_get) \
+    apply(ObjectDescriptionView_133, object_description_view_133_ref_get) \
+    apply(ObjectDescriptionView_134, object_description_view_134_ref_get) \
+    apply(ObjectDescriptionView_135, object_description_view_135_ref_get) \
+    apply(ObjectDescriptionView_136, object_description_view_136_ref_get) \
+    apply(ObjectDescriptionView_137, object_description_view_137_ref_get) \
+    apply(ObjectDescriptionView_138, object_description_view_138_ref_get) \
+    apply(ObjectDescriptionView_139, object_description_view_139_ref_get) \
+    apply(ObjectDescriptionView_140, object_description_view_140_ref_get) \
+    apply(ObjectDescriptionView_141, object_description_view_141_ref_get) \
+    apply(ObjectDescriptionView_142, object_description_view_142_ref_get) \
+    apply(ObjectDescriptionView_143, object_description_view_143_ref_get) \
+    apply(ObjectDescriptionView_144, object_description_view_144_ref_get) \
+    apply(ObjectDescriptionView_145, object_description_view_145_ref_get) \
+    apply(ObjectDescriptionView_146, object_description_view_146_ref_get) \
+    apply(ObjectDescriptionView_147, object_description_view_147_ref_get) \
+    apply(ObjectDescriptionView_148, object_description_view_148_ref_get) \
+    apply(ObjectDescriptionView_149, object_description_view_149_ref_get) \
+    apply(ObjectDescriptionView_150, object_description_view_150_ref_get) \
+    apply(ObjectDescriptionView_151, object_description_view_151_ref_get) \
+    apply(ObjectDescriptionView_152, object_description_view_152_ref_get) \
+    apply(ObjectDescriptionView_153, object_description_view_153_ref_get) \
+    apply(ObjectDescriptionView_154, object_description_view_154_ref_get) \
+    apply(ObjectDescriptionView_155, object_description_view_155_ref_get) \
+    apply(ObjectDescriptionView_156, object_description_view_156_ref_get) \
+    apply(ObjectDescriptionView_157, object_description_view_157_ref_get) \
+    apply(ObjectDescriptionView_158, object_description_view_158_ref_get) \
+    apply(ObjectDescriptionView_159, object_description_view_159_ref_get) \
+    apply(ObjectDescriptionView_160, object_description_view_160_ref_get) \
+    apply(ObjectDescriptionView_161, object_description_view_161_ref_get) \
+    apply(ObjectDescriptionView_162, object_description_view_162_ref_get) \
+    apply(ObjectDescriptionView_163, object_description_view_163_ref_get) \
+    apply(ObjectDescriptionView_164, object_description_view_164_ref_get) \
+    apply(ObjectDescriptionView_165, object_description_view_165_ref_get) \
+    apply(ObjectDescriptionView_166, object_description_view_166_ref_get) \
+    apply(ObjectDescriptionView_167, object_description_view_167_ref_get) \
+    apply(ObjectDescriptionView_168, object_description_view_168_ref_get) \
+    apply(ObjectDescriptionView_169, object_description_view_169_ref_get) \
+    apply(ObjectDescriptionView_170, object_description_view_170_ref_get) \
+    apply(ObjectDescriptionView_171, object_description_view_171_ref_get) \
+    apply(ObjectDescriptionView_172, object_description_view_172_ref_get) \
+    apply(ObjectDescriptionView_173, object_description_view_173_ref_get) \
+    apply(ObjectDescriptionView_174, object_description_view_174_ref_get) \
+    apply(ObjectDescriptionView_175, object_description_view_175_ref_get) \
+    apply(ObjectDescriptionView_176, object_description_view_176_ref_get) \
+    apply(ObjectDescriptionView_177, object_description_view_177_ref_get) \
+    apply(ObjectDescriptionView_178, object_description_view_178_ref_get) \
+    apply(ObjectDescriptionView_179, object_description_view_179_ref_get) \
+    apply(ObjectDescriptionView_180, object_description_view_180_ref_get) \
+    apply(ObjectDescriptionView_181, object_description_view_181_ref_get) \
+    apply(ObjectDescriptionView_182, object_description_view_182_ref_get) \
+    apply(ObjectDescriptionView_183, object_description_view_183_ref_get) \
+    apply(ObjectDescriptionView_184, object_description_view_184_ref_get) \
+    apply(ObjectDescriptionView_185, object_description_view_185_ref_get) \
+    apply(ObjectDescriptionView_186, object_description_view_186_ref_get) \
+    apply(ObjectDescriptionView_187, object_description_view_187_ref_get) \
+    apply(ObjectDescriptionView_188, object_description_view_188_ref_get) \
+    apply(ObjectDescriptionView_189, object_description_view_189_ref_get) \
+    apply(ObjectDescriptionView_190, object_description_view_190_ref_get) \
+    apply(ObjectDescriptionView_191, object_description_view_191_ref_get) \
+    apply(ObjectDescriptionView_192, object_description_view_192_ref_get) \
+    apply(ObjectDescriptionView_193, object_description_view_193_ref_get) \
+    apply(ObjectDescriptionView_194, object_description_view_194_ref_get) \
+    apply(ObjectDescriptionView_195, object_description_view_195_ref_get) \
+    apply(ObjectDescriptionView_196, object_description_view_196_ref_get) \
+    apply(ObjectDescriptionView_197, object_description_view_197_ref_get) \
+    apply(ObjectDescriptionView_198, object_description_view_198_ref_get) \
+    apply(ObjectDescriptionView_199, object_description_view_199_ref_get) \
+    apply(ObjectDescriptionView_200, object_description_view_200_ref_get) \
+    apply(ObjectDescriptionView_201, object_description_view_201_ref_get) \
+    apply(ObjectDescriptionView_202, object_description_view_202_ref_get) \
+    apply(ObjectDescriptionView_203, object_description_view_203_ref_get) \
+    apply(ObjectDescriptionView_204, object_description_view_204_ref_get) \
+    apply(ObjectDescriptionView_205, object_description_view_205_ref_get) \
+    apply(ObjectDescriptionView_206, object_description_view_206_ref_get) \
+    apply(ObjectDescriptionView_207, object_description_view_207_ref_get) \
+    apply(ObjectDescriptionView_208, object_description_view_208_ref_get) \
+    apply(ObjectDescriptionView_209, object_description_view_209_ref_get) \
+    apply(ObjectDescriptionView_210, object_description_view_210_ref_get) \
+    apply(ObjectDescriptionView_211, object_description_view_211_ref_get) \
+    apply(ObjectDescriptionView_212, object_description_view_212_ref_get) \
+    apply(ObjectDescriptionView_213, object_description_view_213_ref_get) \
+    apply(ObjectDescriptionView_214, object_description_view_214_ref_get) \
+    apply(ObjectDescriptionView_215, object_description_view_215_ref_get) \
+    apply(ObjectDescriptionView_216, object_description_view_216_ref_get) \
+    apply(ObjectDescriptionView_217, object_description_view_217_ref_get) \
+    apply(ObjectDescriptionView_218, object_description_view_218_ref_get) \
+    apply(ObjectDescriptionView_219, object_description_view_219_ref_get) \
+    apply(ObjectDescriptionView_220, object_description_view_220_ref_get) \
+    apply(ObjectDescriptionView_221, object_description_view_221_ref_get) \
+    apply(ObjectDescriptionView_222, object_description_view_222_ref_get) \
+    apply(ObjectDescriptionView_223, object_description_view_223_ref_get) \
+    apply(ObjectDescriptionView_224, object_description_view_224_ref_get) \
+    apply(ObjectDescriptionView_225, object_description_view_225_ref_get) \
+    apply(ObjectDescriptionView_226, object_description_view_226_ref_get) \
+    apply(ObjectDescriptionView_227, object_description_view_227_ref_get) \
+    apply(ObjectDescriptionView_228, object_description_view_228_ref_get) \
+    apply(ObjectDescriptionView_229, object_description_view_229_ref_get) \
+    apply(ObjectDescriptionView_230, object_description_view_230_ref_get) \
+    apply(ObjectDescriptionView_231, object_description_view_231_ref_get) \
+    apply(ObjectDescriptionView_232, object_description_view_232_ref_get) \
+    apply(ObjectDescriptionView_484, object_description_view_484_ref_get) \
+    apply(ObjectDescriptionView_233, object_description_view_233_ref_get) \
+    apply(ObjectDescriptionView_486, object_description_view_486_ref_get) \
+    apply(ObjectDescriptionView_234, object_description_view_234_ref_get) \
+    apply(ObjectDescriptionView_488, object_description_view_488_ref_get) \
+    apply(ObjectDescriptionView_235, object_description_view_235_ref_get) \
+    apply(ObjectDescriptionView_490, object_description_view_490_ref_get) \
+    apply(ObjectDescriptionView_236, object_description_view_236_ref_get) \
+    apply(ObjectDescriptionView_492, object_description_view_492_ref_get) \
+    apply(ObjectDescriptionView_237, object_description_view_237_ref_get) \
+    apply(ObjectDescriptionView_494, object_description_view_494_ref_get) \
+    apply(ObjectDescriptionView_238, object_description_view_238_ref_get) \
+    apply(ObjectDescriptionView_496, object_description_view_496_ref_get) \
+    apply(ObjectDescriptionView_239, object_description_view_239_ref_get) \
+    apply(ObjectDescriptionView_498, object_description_view_498_ref_get) \
+    apply(ObjectDescriptionView_240, object_description_view_240_ref_get) \
+    apply(ObjectDescriptionView_500, object_description_view_500_ref_get) \
+    apply(ObjectDescriptionView_241, object_description_view_241_ref_get) \
+    apply(ObjectDescriptionView_502, object_description_view_502_ref_get) \
+    apply(ObjectDescriptionView_242, object_description_view_242_ref_get) \
+    apply(ObjectDescriptionView_243, object_description_view_243_ref_get) \
+    apply(ObjectDescriptionView_244, object_description_view_244_ref_get) \
+    apply(ObjectDescriptionView_245, object_description_view_245_ref_get) \
+    apply(ObjectDescriptionView_246, object_description_view_246_ref_get) \
+    apply(ObjectDescriptionView_247, object_description_view_247_ref_get) \
+    apply(ObjectDescriptionView_248, object_description_view_248_ref_get) \
+    apply(ObjectDescriptionView_249, object_description_view_249_ref_get) \
+    apply(ObjectDescriptionView_250, object_description_view_250_ref_get) \
+    apply(ObjectDescriptionView_251, object_description_view_251_ref_get) \
+    apply(ObjectDescriptionView_252, object_description_view_252_ref_get) \
+    apply(ObjectDescriptionView_253, object_description_view_253_ref_get) \
+    apply(ObjectDescriptionView_254, object_description_view_254_ref_get) \
+    apply(ObjectDescriptionView_255, object_description_view_255_ref_get) \
+    apply(ObjectDescriptionView_256, object_description_view_256_ref_get) \
+    apply(ObjectDescriptionView_257, object_description_view_257_ref_get) \
+    apply(ObjectDescriptionView_258, object_description_view_258_ref_get) \
+    apply(ObjectDescriptionView_259, object_description_view_259_ref_get) \
+    apply(ObjectDescriptionView_260, object_description_view_260_ref_get) \
+    apply(ObjectDescriptionView_261, object_description_view_261_ref_get) \
+    apply(ObjectDescriptionView_262, object_description_view_262_ref_get) \
+    apply(ObjectDescriptionView_263, object_description_view_263_ref_get) \
+    apply(ObjectDescriptionView_264, object_description_view_264_ref_get) \
+    apply(ObjectDescriptionView_265, object_description_view_265_ref_get) \
+    apply(ObjectDescriptionView_266, object_description_view_266_ref_get) \
+    apply(ObjectDescriptionView_267, object_description_view_267_ref_get) \
+    apply(ObjectDescriptionView_268, object_description_view_268_ref_get) \
+    apply(ObjectDescriptionView_269, object_description_view_269_ref_get) \
+    apply(ObjectDescriptionView_270, object_description_view_270_ref_get) \
+    apply(ObjectDescriptionView_271, object_description_view_271_ref_get) \
+    apply(ObjectDescriptionView_272, object_description_view_272_ref_get) \
+    apply(ObjectDescriptionView_273, object_description_view_273_ref_get) \
+    apply(ObjectDescriptionView_274, object_description_view_274_ref_get) \
+    apply(ObjectDescriptionView_275, object_description_view_275_ref_get) \
+    apply(ObjectDescriptionView_276, object_description_view_276_ref_get) \
+    apply(ObjectDescriptionView_277, object_description_view_277_ref_get) \
+    apply(ObjectDescriptionView_278, object_description_view_278_ref_get) \
+    apply(ObjectDescriptionView_279, object_description_view_279_ref_get) \
+    apply(ObjectDescriptionView_280, object_description_view_280_ref_get) \
+    apply(ObjectDescriptionView_281, object_description_view_281_ref_get) \
+    apply(ObjectDescriptionView_282, object_description_view_282_ref_get) \
+    apply(ObjectDescriptionView_283, object_description_view_283_ref_get) \
+    apply(ObjectDescriptionView_284, object_description_view_284_ref_get) \
+    apply(ObjectDescriptionView_285, object_description_view_285_ref_get) \
+    apply(ObjectDescriptionView_286, object_description_view_286_ref_get) \
+    apply(ObjectDescriptionView_287, object_description_view_287_ref_get) \
+    apply(ObjectDescriptionView_288, object_description_view_288_ref_get) \
+    apply(ObjectDescriptionView_289, object_description_view_289_ref_get) \
+    apply(ObjectDescriptionView_290, object_description_view_290_ref_get) \
+    apply(ObjectDescriptionView_291, object_description_view_291_ref_get) \
+    apply(ObjectDescriptionView_292, object_description_view_292_ref_get) \
+    apply(ObjectDescriptionView_293, object_description_view_293_ref_get) \
+    apply(ObjectDescriptionView_294, object_description_view_294_ref_get) \
+    apply(ObjectDescriptionView_295, object_description_view_295_ref_get) \
+    apply(ObjectDescriptionView_296, object_description_view_296_ref_get) \
+    apply(ObjectDescriptionView_297, object_description_view_297_ref_get) \
+    apply(ObjectDescriptionView_298, object_description_view_298_ref_get) \
+    apply(ObjectDescriptionView_299, object_description_view_299_ref_get) \
+    apply(ObjectDescriptionView_300, object_description_view_300_ref_get) \
+    apply(ObjectDescriptionView_301, object_description_view_301_ref_get) \
+    apply(ObjectDescriptionView_302, object_description_view_302_ref_get) \
+    apply(ObjectDescriptionView_303, object_description_view_303_ref_get) \
+    apply(ObjectDescriptionView_304, object_description_view_304_ref_get) \
+    apply(ObjectDescriptionView_305, object_description_view_305_ref_get) \
+    apply(ObjectDescriptionView_306, object_description_view_306_ref_get) \
+    apply(ObjectDescriptionView_307, object_description_view_307_ref_get) \
+    apply(ObjectDescriptionView_308, object_description_view_308_ref_get) \
+    apply(ObjectDescriptionView_309, object_description_view_309_ref_get) \
+    apply(ObjectDescriptionView_310, object_description_view_310_ref_get) \
+    apply(ObjectDescriptionView_311, object_description_view_311_ref_get) \
+    apply(ObjectDescriptionView_312, object_description_view_312_ref_get) \
+    apply(ObjectDescriptionView_313, object_description_view_313_ref_get) \
+    apply(ObjectDescriptionView_314, object_description_view_314_ref_get) \
+    apply(ObjectDescriptionView_315, object_description_view_315_ref_get) \
+    apply(ObjectDescriptionView_316, object_description_view_316_ref_get) \
+    apply(ObjectDescriptionView_317, object_description_view_317_ref_get) \
+    apply(ObjectDescriptionView_318, object_description_view_318_ref_get) \
+    apply(ObjectDescriptionView_319, object_description_view_319_ref_get) \
+    apply(ObjectDescriptionView_320, object_description_view_320_ref_get) \
+    apply(ObjectDescriptionView_321, object_description_view_321_ref_get) \
+    apply(ObjectDescriptionView_322, object_description_view_322_ref_get) \
+    apply(ObjectDescriptionView_323, object_description_view_323_ref_get) \
+    apply(ObjectDescriptionView_324, object_description_view_324_ref_get) \
+    apply(ObjectDescriptionView_325, object_description_view_325_ref_get) \
+    apply(ObjectDescriptionView_326, object_description_view_326_ref_get) \
+    apply(ObjectDescriptionView_327, object_description_view_327_ref_get) \
+    apply(ObjectDescriptionView_328, object_description_view_328_ref_get) \
+    apply(ObjectDescriptionView_329, object_description_view_329_ref_get) \
+    apply(ObjectDescriptionView_330, object_description_view_330_ref_get) \
+    apply(ObjectDescriptionView_331, object_description_view_331_ref_get) \
+    apply(ObjectDescriptionView_332, object_description_view_332_ref_get) \
+    apply(ObjectDescriptionView_333, object_description_view_333_ref_get) \
+    apply(ObjectDescriptionView_334, object_description_view_334_ref_get) \
+    apply(ObjectDescriptionView_335, object_description_view_335_ref_get) \
+    apply(ObjectDescriptionView_336, object_description_view_336_ref_get) \
+    apply(ObjectDescriptionView_337, object_description_view_337_ref_get) \
+    apply(ObjectDescriptionView_338, object_description_view_338_ref_get) \
+    apply(ObjectDescriptionView_339, object_description_view_339_ref_get) \
+    apply(ObjectDescriptionView_340, object_description_view_340_ref_get) \
+    apply(ObjectDescriptionView_341, object_description_view_341_ref_get) \
+    apply(ObjectDescriptionView_342, object_description_view_342_ref_get) \
+    apply(ObjectDescriptionView_343, object_description_view_343_ref_get) \
+    apply(ObjectDescriptionView_344, object_description_view_344_ref_get) \
+    apply(ObjectDescriptionView_345, object_description_view_345_ref_get) \
+    apply(ObjectDescriptionView_346, object_description_view_346_ref_get) \
+    apply(ObjectDescriptionView_347, object_description_view_347_ref_get) \
+    apply(ObjectDescriptionView_348, object_description_view_348_ref_get) \
+    apply(ObjectDescriptionView_349, object_description_view_349_ref_get) \
+    apply(ObjectDescriptionView_350, object_description_view_350_ref_get) \
+    apply(ObjectDescriptionView_351, object_description_view_351_ref_get) \
+    apply(ObjectDescriptionView_352, object_description_view_352_ref_get) \
+    apply(ObjectDescriptionView_353, object_description_view_353_ref_get) \
+    apply(ObjectDescriptionView_354, object_description_view_354_ref_get) \
+    apply(ObjectDescriptionView_355, object_description_view_355_ref_get) \
+    apply(ObjectDescriptionView_356, object_description_view_356_ref_get) \
+    apply(ObjectDescriptionView_357, object_description_view_357_ref_get) \
+    apply(ObjectDescriptionView_358, object_description_view_358_ref_get) \
+    apply(ObjectDescriptionView_359, object_description_view_359_ref_get) \
+    apply(ObjectDescriptionView_360, object_description_view_360_ref_get) \
+    apply(ObjectDescriptionView_361, object_description_view_361_ref_get) \
+    apply(ObjectDescriptionView_362, object_description_view_362_ref_get) \
+    apply(ObjectDescriptionView_363, object_description_view_363_ref_get) \
+    apply(ObjectDescriptionView_364, object_description_view_364_ref_get) \
+    apply(ObjectDescriptionView_365, object_description_view_365_ref_get) \
+    apply(ObjectDescriptionView_366, object_description_view_366_ref_get) \
+    apply(ObjectDescriptionView_367, object_description_view_367_ref_get) \
+    apply(ObjectDescriptionView_368, object_description_view_368_ref_get) \
+    apply(ObjectDescriptionView_369, object_description_view_369_ref_get) \
+    apply(ObjectDescriptionView_370, object_description_view_370_ref_get) \
+    apply(ObjectDescriptionView_371, object_description_view_371_ref_get) \
+    apply(ObjectDescriptionView_372, object_description_view_372_ref_get) \
+    apply(ObjectDescriptionView_373, object_description_view_373_ref_get) \
+    apply(ObjectDescriptionView_374, object_description_view_374_ref_get) \
+    apply(ObjectDescriptionView_375, object_description_view_375_ref_get) \
+    apply(ObjectDescriptionView_376, object_description_view_376_ref_get) \
+    apply(ObjectDescriptionView_377, object_description_view_377_ref_get) \
+    apply(ObjectDescriptionView_378, object_description_view_378_ref_get) \
+    apply(ObjectDescriptionView_379, object_description_view_379_ref_get) \
+    apply(ObjectDescriptionView_380, object_description_view_380_ref_get) \
+    apply(ObjectDescriptionView_381, object_description_view_381_ref_get) \
+    apply(ObjectDescriptionView_382, object_description_view_382_ref_get) \
+    apply(ObjectDescriptionView_383, object_description_view_383_ref_get) \
+    apply(ObjectDescriptionView_384, object_description_view_384_ref_get) \
+    apply(ObjectDescriptionView_385, object_description_view_385_ref_get) \
+    apply(ObjectDescriptionView_386, object_description_view_386_ref_get) \
+    apply(ObjectDescriptionView_387, object_description_view_387_ref_get) \
+    apply(ObjectDescriptionView_388, object_description_view_388_ref_get) \
+    apply(ObjectDescriptionView_389, object_description_view_389_ref_get) \
+    apply(ObjectDescriptionView_390, object_description_view_390_ref_get) \
+    apply(ObjectDescriptionView_391, object_description_view_391_ref_get) \
+    apply(ObjectDescriptionView_392, object_description_view_392_ref_get) \
+    apply(ObjectDescriptionView_393, object_description_view_393_ref_get) \
+    apply(ObjectDescriptionView_394, object_description_view_394_ref_get) \
+    apply(ObjectDescriptionView_395, object_description_view_395_ref_get) \
+    apply(ObjectDescriptionView_396, object_description_view_396_ref_get) \
+    apply(ObjectDescriptionView_397, object_description_view_397_ref_get) \
+    apply(ObjectDescriptionView_398, object_description_view_398_ref_get) \
+    apply(ObjectDescriptionView_399, object_description_view_399_ref_get) \
+    apply(ObjectDescriptionView_400, object_description_view_400_ref_get) \
+    apply(ObjectDescriptionView_401, object_description_view_401_ref_get) \
+    apply(ObjectDescriptionView_402, object_description_view_402_ref_get) \
+    apply(ObjectDescriptionView_403, object_description_view_403_ref_get) \
+    apply(ObjectDescriptionView_404, object_description_view_404_ref_get) \
+    apply(ObjectDescriptionView_405, object_description_view_405_ref_get) \
+    apply(ObjectDescriptionView_406, object_description_view_406_ref_get) \
+    apply(ObjectDescriptionView_407, object_description_view_407_ref_get) \
+    apply(ObjectDescriptionView_408, object_description_view_408_ref_get) \
+    apply(ObjectDescriptionView_409, object_description_view_409_ref_get) \
+    apply(ObjectDescriptionView_410, object_description_view_410_ref_get) \
+    apply(ObjectDescriptionView_411, object_description_view_411_ref_get) \
+    apply(ObjectDescriptionView_412, object_description_view_412_ref_get) \
+    apply(ObjectDescriptionView_413, object_description_view_413_ref_get) \
+    apply(ObjectDescriptionView_414, object_description_view_414_ref_get) \
+    apply(ObjectDescriptionView_415, object_description_view_415_ref_get) \
+    apply(ObjectDescriptionView_416, object_description_view_416_ref_get) \
+    apply(ObjectDescriptionView_417, object_description_view_417_ref_get) \
+    apply(ObjectDescriptionView_418, object_description_view_418_ref_get) \
+    apply(ObjectDescriptionView_419, object_description_view_419_ref_get) \
+    apply(ObjectDescriptionView_420, object_description_view_420_ref_get) \
+    apply(ObjectDescriptionView_421, object_description_view_421_ref_get) \
+    apply(ObjectDescriptionView_422, object_description_view_422_ref_get) \
+    apply(ObjectDescriptionView_423, object_description_view_423_ref_get) \
+    apply(ObjectDescriptionView_424, object_description_view_424_ref_get) \
+    apply(ObjectDescriptionView_425, object_description_view_425_ref_get) \
+    apply(ObjectDescriptionView_426, object_description_view_426_ref_get) \
+    apply(ObjectDescriptionView_427, object_description_view_427_ref_get) \
+    apply(ObjectDescriptionView_428, object_description_view_428_ref_get) \
+    apply(ObjectDescriptionView_429, object_description_view_429_ref_get) \
+    apply(ObjectDescriptionView_430, object_description_view_430_ref_get) \
+    apply(ObjectDescriptionView_431, object_description_view_431_ref_get) \
+    apply(ObjectDescriptionView_432, object_description_view_432_ref_get) \
+    apply(ObjectDescriptionView_433, object_description_view_433_ref_get) \
+    apply(ObjectDescriptionView_434, object_description_view_434_ref_get) \
+    apply(ObjectDescriptionView_435, object_description_view_435_ref_get) \
+    apply(ObjectDescriptionView_436, object_description_view_436_ref_get) \
+    apply(ObjectDescriptionView_437, object_description_view_437_ref_get) \
+    apply(ObjectDescriptionView_438, object_description_view_438_ref_get) \
+    apply(ObjectDescriptionView_439, object_description_view_439_ref_get) \
+    apply(ObjectDescriptionView_440, object_description_view_440_ref_get) \
+    apply(ObjectDescriptionView_441, object_description_view_441_ref_get) \
+    apply(ObjectDescriptionView_442, object_description_view_442_ref_get) \
+    apply(ObjectDescriptionView_443, object_description_view_443_ref_get) \
+    apply(ObjectDescriptionView_444, object_description_view_444_ref_get) \
+    apply(ObjectDescriptionView_445, object_description_view_445_ref_get) \
+    apply(ObjectDescriptionView_446, object_description_view_446_ref_get) \
+    apply(ObjectDescriptionView_447, object_description_view_447_ref_get) \
+    apply(ObjectDescriptionView_448, object_description_view_448_ref_get) \
+    apply(ObjectDescriptionView_449, object_description_view_449_ref_get) \
+    apply(ObjectDescriptionView_450, object_description_view_450_ref_get) \
+    apply(ObjectDescriptionView_451, object_description_view_451_ref_get) \
+    apply(ObjectDescriptionView_452, object_description_view_452_ref_get) \
+    apply(ObjectDescriptionView_503, object_description_view_503_ref_get) \
+    apply(ObjectDescriptionView_504, object_description_view_504_ref_get) \
+    apply(ObjectDescriptionView_505, object_description_view_505_ref_get) \
+    apply(ObjectDescriptionView_506, object_description_view_506_ref_get) \
+    apply(ObjectDescriptionView_507, object_description_view_507_ref_get) \
+    apply(ObjectDescriptionView_508, object_description_view_508_ref_get) \
+    apply(ObjectDescriptionView_509, object_description_view_509_ref_get) \
+    apply(ObjectDescriptionView_510, object_description_view_510_ref_get) \
+    apply(ObjectDescriptionView_511, object_description_view_511_ref_get) \
+    apply(ObjectDescriptionView_512, object_description_view_512_ref_get) \
+    apply(ObjectDescriptionView_513, object_description_view_513_ref_get) \
+    apply(ObjectDescriptionView_514, object_description_view_514_ref_get) \
+    apply(ObjectDescriptionView_515, object_description_view_515_ref_get) \
+    apply(ObjectDescriptionView_516, object_description_view_516_ref_get) \
+    apply(ObjectDescriptionView_517, object_description_view_517_ref_get) \
+    apply(ObjectDescriptionView_518, object_description_view_518_ref_get) \
+    apply(ObjectDescriptionView_519, object_description_view_519_ref_get) \
+    apply(ObjectDescriptionView_520, object_description_view_520_ref_get) \
+    apply(ObjectDescriptionView_521, object_description_view_521_ref_get) \
+    apply(ObjectDescriptionView_522, object_description_view_522_ref_get) \
+    apply(ObjectDescriptionView_523, object_description_view_523_ref_get) \
+    apply(ObjectDescriptionView_524, object_description_view_524_ref_get) \
+    apply(ObjectDescriptionView_525, object_description_view_525_ref_get) \
+    apply(ObjectDescriptionView_526, object_description_view_526_ref_get) \
+    apply(ObjectDescriptionView_527, object_description_view_527_ref_get) \
+    apply(ObjectDescriptionView_528, object_description_view_528_ref_get) \
+    apply(ObjectDescriptionView_529, object_description_view_529_ref_get)
 extern const ObjectDescriptionView_1 objects;
 
 #endif

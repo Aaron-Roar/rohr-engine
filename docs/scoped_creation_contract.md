@@ -24,10 +24,10 @@ or a matching description found elsewhere in the engine.
 
 | Operation | Created contents | Automatic connections |
 | --- | --- | --- |
-| `rohr_entity_create(&project.example.body)` | One member and its configured components; no separately authored children or siblings. | Only references to entities created in this attempt; optional references outside it remain unbound. |
-| `rohr_object_create(&project.example)` | The selected hierarchy, including its nested objects and aggregates. | References anywhere within that hierarchy, including across nested children. |
+| `rohr_entity_create(project.example.body)` | One member and its configured components; no separately authored children or siblings. | Only references to entities created in this attempt; optional references outside it remain unbound. |
+| `rohr_object_create(project.example)` | The selected hierarchy, including its nested objects and aggregates. | References anywhere within that hierarchy, including across nested children. |
 | `rohr_viewport_create(&project.initial_viewport)` | Its authored screens, UI, layout, and owned display resources. | No scene objects or cameras are created or discovered; screens without explicit runtime cameras remain empty. |
-| `rohr_project_create(&project)` | One project entity hierarchy, its authored viewports, input controllers/actions, and sound/music resources. | References across all created project objects and authored screen-to-camera connections within this new instance. |
+| `rohr_project_create(project)` | One project entity hierarchy, its authored viewports, input controllers/actions, and sound/music resources. | References across all created project objects and authored screen-to-camera connections within this new instance. |
 
 Object creation of the project root remains an entity-hierarchy-only operation;
 it does not become an alias for project creation. Keep individual and object
@@ -125,9 +125,9 @@ collections. Generated `project.h` continues to expose named fields such as
 refer to the same immutable records. Do not duplicate mutable state or add
 project-specific runtime constructors or callback tables for the new pathway.
 
-The generated typed view must support `rohr_project_create(&project)` and retain
+The generated typed view must support `rohr_project_create(project)` and retain
 entity/object access through the existing named fields. Preserve root-only
-`rohr_object_create(&project)` with a valid common-prefix layout or narrow typed
+`rohr_object_create(project)` with a valid common-prefix layout or narrow typed
 adapter. Any adapter evaluates arguments once and obeys C layout/aliasing rules.
 Raw engine `ProjectDescription` inputs use the same implementation. Generator and
 SDK must be rebuilt together if public description layout changes.
@@ -136,7 +136,7 @@ The target public API is:
 
 | Call | Result and responsibility |
 | --- | --- |
-| `rohr_project_create(const ProjectDescription *description)` | `ProjectIdResult`: a generation-checked owner of one newly created project instance. May allocate and load assets; never advances or presents a frame. |
+| `rohr_project_create(description)` | Accept a generated project view or engine `ProjectDescription` value; return `ProjectIdResult`, a generation-checked owner of one newly created project instance. May allocate and load assets; never advances or presents a frame. |
 | `rohr_project_root_get(ProjectId instance)` | `EntityResult`: borrowed entity-hierarchy root; use existing `rohr_object_member_get()` for members. |
 | `rohr_project_viewport_by_name_get(ProjectId instance, const char *name)` | `ViewportIdResult`: borrowed viewport selected by its authored name within this instance. |
 | `rohr_project_viewports_get(ProjectId instance)` | `ViewportListResult`: copied bounded array of borrowed viewport IDs, in authored order, with a count. No allocation or hidden presentation. |
@@ -245,7 +245,7 @@ comment dividers. Each section contains a complete alternative `main()` so setup
 the loop, and cleanup can be selected together:
 
 1. **Whole project — active by default.** Create through
-   `rohr_project_create(&project)`, retrieve the viewport batch, use the common
+   `rohr_project_create(project)`, retrieve the viewport batch, use the common
    game loop, and destroy the project instance. Authored cameras are wired by
    creation. Show a brief member lookup where it teaches gameplay access.
 2. **Whole object — commented out.** Create the authored object, obtain its camera

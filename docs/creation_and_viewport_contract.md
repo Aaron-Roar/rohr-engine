@@ -24,8 +24,8 @@ historical contract for its original implementation and verification.
 - Objects are immutable descriptions in the application. Creation produces
   independent mutable instances, not edits to the descriptions.
 - Shared engine functions replace generated object-specific creators.
-  `rohr_object_create(&project.water)` creates the described hierarchy;
-  `rohr_entity_create(&project.water.particle)` creates the selected member.
+  `rohr_object_create(project.water)` creates the described hierarchy;
+  `rohr_entity_create(project.water.particle)` creates the selected member.
 - A viewport gathers and draws scene entities using their runtime appearance,
   visibility, and layer. Application camera callbacks are unnecessary.
 - Equal-layer scene entities use discovery order, with no stability guarantee
@@ -101,9 +101,9 @@ proposed separate options argument. Result values must be checked before handles
 
 | Target call | Result and responsibility |
 | --- | --- |
-| `rohr_entity_create(&project.water.particle)` | `EntityResult`; instantiate one member template, with default options. |
+| `rohr_entity_create(project.water.particle)` | `EntityResult`; instantiate one member template, with default options. |
 | `rohr_entity_create_with_options(description, options)` | `EntityResult`; explicit owner, placement offset, and external-reference bindings. |
-| `rohr_object_create(&project.water)` | `EntityResult`; instantiate the full hierarchy and return its owning root. |
+| `rohr_object_create(project.water)` | `EntityResult`; instantiate the full hierarchy and return its owning root. |
 | `rohr_object_create_with_options(description, options)` | `EntityResult`; explicit creation options for the hierarchy. |
 | `rohr_object_member_get(instance, "particle")` | `EntityResult`; find a direct named member of this instance. |
 | `rohr_viewport_create(&project.main_viewport)` | `ViewportIdResult`; instantiate a self-contained viewport description without external bindings. |

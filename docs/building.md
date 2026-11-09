@@ -165,7 +165,7 @@ compiles.
 New projects include an **Example** scene and three complete alternatives in
 `src/main.c`, separated by numbered comment dividers:
 
-1. **Project creation** is active by default. `rohr_project_create(&project)`
+1. **Project creation** is active by default. `rohr_project_create(project)`
    creates the authored hierarchy, binds its viewports, creates its input
    controllers, and loads its audio without playing it. Destroy the project
    instance once; handles retrieved from it are borrowed.

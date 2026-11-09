@@ -24,7 +24,7 @@
 #include "tools.h"
 #include "ui.h"
 
-/* Generated views and runtime description pointers share the same C interface. */
+/* Generated views and runtime description values share the same typed C interface. */
 #define rohr_project_create project_create
 #define rohr_project_destroy project_destroy
 #define rohr_project_root_get project_root_get

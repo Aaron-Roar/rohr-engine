@@ -2123,6 +2123,1600 @@ typedef struct ProjectDescriptionView_1 {
     const ViewportCreateDescription *const *viewports;
     size_t viewport_count;
 } ProjectDescriptionView_1;
+static inline const ObjectDescription *project_description_view_1_ref_get(
+        const ProjectDescriptionView_1 *value) { return &value->_project.root; }
+static inline const ObjectDescription *project_description_view_2_ref_get(
+        const ProjectDescriptionView_2 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_3_ref_get(
+        const ProjectDescriptionView_3 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_454_ref_get(
+        const ProjectDescriptionView_454 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_456_ref_get(
+        const ProjectDescriptionView_456 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_480_ref_get(
+        const ProjectDescriptionView_480 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_4_ref_get(
+        const ProjectDescriptionView_4 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_453_ref_get(
+        const ProjectDescriptionView_453 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_5_ref_get(
+        const ProjectDescriptionView_5 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_455_ref_get(
+        const ProjectDescriptionView_455 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_458_ref_get(
+        const ProjectDescriptionView_458 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_6_ref_get(
+        const ProjectDescriptionView_6 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_457_ref_get(
+        const ProjectDescriptionView_457 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_459_ref_get(
+        const ProjectDescriptionView_459 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_461_ref_get(
+        const ProjectDescriptionView_461 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_463_ref_get(
+        const ProjectDescriptionView_463 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_465_ref_get(
+        const ProjectDescriptionView_465 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_467_ref_get(
+        const ProjectDescriptionView_467 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_469_ref_get(
+        const ProjectDescriptionView_469 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_471_ref_get(
+        const ProjectDescriptionView_471 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_473_ref_get(
+        const ProjectDescriptionView_473 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_475_ref_get(
+        const ProjectDescriptionView_475 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_477_ref_get(
+        const ProjectDescriptionView_477 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_7_ref_get(
+        const ProjectDescriptionView_7 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_479_ref_get(
+        const ProjectDescriptionView_479 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_482_ref_get(
+        const ProjectDescriptionView_482 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_8_ref_get(
+        const ProjectDescriptionView_8 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_481_ref_get(
+        const ProjectDescriptionView_481 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_483_ref_get(
+        const ProjectDescriptionView_483 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_485_ref_get(
+        const ProjectDescriptionView_485 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_487_ref_get(
+        const ProjectDescriptionView_487 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_489_ref_get(
+        const ProjectDescriptionView_489 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_491_ref_get(
+        const ProjectDescriptionView_491 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_493_ref_get(
+        const ProjectDescriptionView_493 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_495_ref_get(
+        const ProjectDescriptionView_495 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_497_ref_get(
+        const ProjectDescriptionView_497 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_499_ref_get(
+        const ProjectDescriptionView_499 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_501_ref_get(
+        const ProjectDescriptionView_501 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_9_ref_get(
+        const ProjectDescriptionView_9 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_10_ref_get(
+        const ProjectDescriptionView_10 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_460_ref_get(
+        const ProjectDescriptionView_460 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_11_ref_get(
+        const ProjectDescriptionView_11 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_462_ref_get(
+        const ProjectDescriptionView_462 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_12_ref_get(
+        const ProjectDescriptionView_12 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_464_ref_get(
+        const ProjectDescriptionView_464 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_13_ref_get(
+        const ProjectDescriptionView_13 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_466_ref_get(
+        const ProjectDescriptionView_466 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_14_ref_get(
+        const ProjectDescriptionView_14 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_468_ref_get(
+        const ProjectDescriptionView_468 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_15_ref_get(
+        const ProjectDescriptionView_15 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_470_ref_get(
+        const ProjectDescriptionView_470 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_16_ref_get(
+        const ProjectDescriptionView_16 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_472_ref_get(
+        const ProjectDescriptionView_472 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_17_ref_get(
+        const ProjectDescriptionView_17 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_474_ref_get(
+        const ProjectDescriptionView_474 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_18_ref_get(
+        const ProjectDescriptionView_18 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_476_ref_get(
+        const ProjectDescriptionView_476 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_19_ref_get(
+        const ProjectDescriptionView_19 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_478_ref_get(
+        const ProjectDescriptionView_478 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_20_ref_get(
+        const ProjectDescriptionView_20 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_21_ref_get(
+        const ProjectDescriptionView_21 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_22_ref_get(
+        const ProjectDescriptionView_22 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_23_ref_get(
+        const ProjectDescriptionView_23 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_24_ref_get(
+        const ProjectDescriptionView_24 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_25_ref_get(
+        const ProjectDescriptionView_25 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_26_ref_get(
+        const ProjectDescriptionView_26 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_27_ref_get(
+        const ProjectDescriptionView_27 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_28_ref_get(
+        const ProjectDescriptionView_28 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_29_ref_get(
+        const ProjectDescriptionView_29 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_30_ref_get(
+        const ProjectDescriptionView_30 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_31_ref_get(
+        const ProjectDescriptionView_31 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_32_ref_get(
+        const ProjectDescriptionView_32 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_33_ref_get(
+        const ProjectDescriptionView_33 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_34_ref_get(
+        const ProjectDescriptionView_34 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_35_ref_get(
+        const ProjectDescriptionView_35 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_36_ref_get(
+        const ProjectDescriptionView_36 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_37_ref_get(
+        const ProjectDescriptionView_37 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_38_ref_get(
+        const ProjectDescriptionView_38 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_39_ref_get(
+        const ProjectDescriptionView_39 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_40_ref_get(
+        const ProjectDescriptionView_40 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_41_ref_get(
+        const ProjectDescriptionView_41 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_42_ref_get(
+        const ProjectDescriptionView_42 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_43_ref_get(
+        const ProjectDescriptionView_43 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_44_ref_get(
+        const ProjectDescriptionView_44 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_45_ref_get(
+        const ProjectDescriptionView_45 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_46_ref_get(
+        const ProjectDescriptionView_46 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_47_ref_get(
+        const ProjectDescriptionView_47 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_48_ref_get(
+        const ProjectDescriptionView_48 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_49_ref_get(
+        const ProjectDescriptionView_49 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_50_ref_get(
+        const ProjectDescriptionView_50 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_51_ref_get(
+        const ProjectDescriptionView_51 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_52_ref_get(
+        const ProjectDescriptionView_52 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_53_ref_get(
+        const ProjectDescriptionView_53 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_54_ref_get(
+        const ProjectDescriptionView_54 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_55_ref_get(
+        const ProjectDescriptionView_55 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_56_ref_get(
+        const ProjectDescriptionView_56 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_57_ref_get(
+        const ProjectDescriptionView_57 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_58_ref_get(
+        const ProjectDescriptionView_58 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_59_ref_get(
+        const ProjectDescriptionView_59 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_60_ref_get(
+        const ProjectDescriptionView_60 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_61_ref_get(
+        const ProjectDescriptionView_61 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_62_ref_get(
+        const ProjectDescriptionView_62 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_63_ref_get(
+        const ProjectDescriptionView_63 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_64_ref_get(
+        const ProjectDescriptionView_64 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_65_ref_get(
+        const ProjectDescriptionView_65 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_66_ref_get(
+        const ProjectDescriptionView_66 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_67_ref_get(
+        const ProjectDescriptionView_67 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_68_ref_get(
+        const ProjectDescriptionView_68 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_69_ref_get(
+        const ProjectDescriptionView_69 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_70_ref_get(
+        const ProjectDescriptionView_70 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_71_ref_get(
+        const ProjectDescriptionView_71 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_72_ref_get(
+        const ProjectDescriptionView_72 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_73_ref_get(
+        const ProjectDescriptionView_73 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_74_ref_get(
+        const ProjectDescriptionView_74 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_75_ref_get(
+        const ProjectDescriptionView_75 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_76_ref_get(
+        const ProjectDescriptionView_76 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_77_ref_get(
+        const ProjectDescriptionView_77 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_78_ref_get(
+        const ProjectDescriptionView_78 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_79_ref_get(
+        const ProjectDescriptionView_79 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_80_ref_get(
+        const ProjectDescriptionView_80 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_81_ref_get(
+        const ProjectDescriptionView_81 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_82_ref_get(
+        const ProjectDescriptionView_82 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_83_ref_get(
+        const ProjectDescriptionView_83 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_84_ref_get(
+        const ProjectDescriptionView_84 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_85_ref_get(
+        const ProjectDescriptionView_85 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_86_ref_get(
+        const ProjectDescriptionView_86 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_87_ref_get(
+        const ProjectDescriptionView_87 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_88_ref_get(
+        const ProjectDescriptionView_88 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_89_ref_get(
+        const ProjectDescriptionView_89 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_90_ref_get(
+        const ProjectDescriptionView_90 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_91_ref_get(
+        const ProjectDescriptionView_91 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_92_ref_get(
+        const ProjectDescriptionView_92 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_93_ref_get(
+        const ProjectDescriptionView_93 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_94_ref_get(
+        const ProjectDescriptionView_94 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_95_ref_get(
+        const ProjectDescriptionView_95 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_96_ref_get(
+        const ProjectDescriptionView_96 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_97_ref_get(
+        const ProjectDescriptionView_97 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_98_ref_get(
+        const ProjectDescriptionView_98 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_99_ref_get(
+        const ProjectDescriptionView_99 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_100_ref_get(
+        const ProjectDescriptionView_100 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_101_ref_get(
+        const ProjectDescriptionView_101 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_102_ref_get(
+        const ProjectDescriptionView_102 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_103_ref_get(
+        const ProjectDescriptionView_103 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_104_ref_get(
+        const ProjectDescriptionView_104 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_105_ref_get(
+        const ProjectDescriptionView_105 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_106_ref_get(
+        const ProjectDescriptionView_106 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_107_ref_get(
+        const ProjectDescriptionView_107 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_108_ref_get(
+        const ProjectDescriptionView_108 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_109_ref_get(
+        const ProjectDescriptionView_109 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_110_ref_get(
+        const ProjectDescriptionView_110 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_111_ref_get(
+        const ProjectDescriptionView_111 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_112_ref_get(
+        const ProjectDescriptionView_112 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_113_ref_get(
+        const ProjectDescriptionView_113 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_114_ref_get(
+        const ProjectDescriptionView_114 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_115_ref_get(
+        const ProjectDescriptionView_115 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_116_ref_get(
+        const ProjectDescriptionView_116 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_117_ref_get(
+        const ProjectDescriptionView_117 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_118_ref_get(
+        const ProjectDescriptionView_118 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_119_ref_get(
+        const ProjectDescriptionView_119 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_120_ref_get(
+        const ProjectDescriptionView_120 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_121_ref_get(
+        const ProjectDescriptionView_121 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_122_ref_get(
+        const ProjectDescriptionView_122 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_123_ref_get(
+        const ProjectDescriptionView_123 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_124_ref_get(
+        const ProjectDescriptionView_124 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_125_ref_get(
+        const ProjectDescriptionView_125 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_126_ref_get(
+        const ProjectDescriptionView_126 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_127_ref_get(
+        const ProjectDescriptionView_127 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_128_ref_get(
+        const ProjectDescriptionView_128 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_129_ref_get(
+        const ProjectDescriptionView_129 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_130_ref_get(
+        const ProjectDescriptionView_130 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_131_ref_get(
+        const ProjectDescriptionView_131 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_132_ref_get(
+        const ProjectDescriptionView_132 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_133_ref_get(
+        const ProjectDescriptionView_133 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_134_ref_get(
+        const ProjectDescriptionView_134 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_135_ref_get(
+        const ProjectDescriptionView_135 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_136_ref_get(
+        const ProjectDescriptionView_136 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_137_ref_get(
+        const ProjectDescriptionView_137 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_138_ref_get(
+        const ProjectDescriptionView_138 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_139_ref_get(
+        const ProjectDescriptionView_139 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_140_ref_get(
+        const ProjectDescriptionView_140 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_141_ref_get(
+        const ProjectDescriptionView_141 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_142_ref_get(
+        const ProjectDescriptionView_142 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_143_ref_get(
+        const ProjectDescriptionView_143 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_144_ref_get(
+        const ProjectDescriptionView_144 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_145_ref_get(
+        const ProjectDescriptionView_145 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_146_ref_get(
+        const ProjectDescriptionView_146 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_147_ref_get(
+        const ProjectDescriptionView_147 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_148_ref_get(
+        const ProjectDescriptionView_148 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_149_ref_get(
+        const ProjectDescriptionView_149 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_150_ref_get(
+        const ProjectDescriptionView_150 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_151_ref_get(
+        const ProjectDescriptionView_151 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_152_ref_get(
+        const ProjectDescriptionView_152 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_153_ref_get(
+        const ProjectDescriptionView_153 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_154_ref_get(
+        const ProjectDescriptionView_154 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_155_ref_get(
+        const ProjectDescriptionView_155 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_156_ref_get(
+        const ProjectDescriptionView_156 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_157_ref_get(
+        const ProjectDescriptionView_157 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_158_ref_get(
+        const ProjectDescriptionView_158 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_159_ref_get(
+        const ProjectDescriptionView_159 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_160_ref_get(
+        const ProjectDescriptionView_160 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_161_ref_get(
+        const ProjectDescriptionView_161 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_162_ref_get(
+        const ProjectDescriptionView_162 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_163_ref_get(
+        const ProjectDescriptionView_163 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_164_ref_get(
+        const ProjectDescriptionView_164 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_165_ref_get(
+        const ProjectDescriptionView_165 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_166_ref_get(
+        const ProjectDescriptionView_166 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_167_ref_get(
+        const ProjectDescriptionView_167 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_168_ref_get(
+        const ProjectDescriptionView_168 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_169_ref_get(
+        const ProjectDescriptionView_169 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_170_ref_get(
+        const ProjectDescriptionView_170 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_171_ref_get(
+        const ProjectDescriptionView_171 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_172_ref_get(
+        const ProjectDescriptionView_172 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_173_ref_get(
+        const ProjectDescriptionView_173 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_174_ref_get(
+        const ProjectDescriptionView_174 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_175_ref_get(
+        const ProjectDescriptionView_175 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_176_ref_get(
+        const ProjectDescriptionView_176 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_177_ref_get(
+        const ProjectDescriptionView_177 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_178_ref_get(
+        const ProjectDescriptionView_178 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_179_ref_get(
+        const ProjectDescriptionView_179 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_180_ref_get(
+        const ProjectDescriptionView_180 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_181_ref_get(
+        const ProjectDescriptionView_181 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_182_ref_get(
+        const ProjectDescriptionView_182 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_183_ref_get(
+        const ProjectDescriptionView_183 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_184_ref_get(
+        const ProjectDescriptionView_184 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_185_ref_get(
+        const ProjectDescriptionView_185 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_186_ref_get(
+        const ProjectDescriptionView_186 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_187_ref_get(
+        const ProjectDescriptionView_187 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_188_ref_get(
+        const ProjectDescriptionView_188 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_189_ref_get(
+        const ProjectDescriptionView_189 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_190_ref_get(
+        const ProjectDescriptionView_190 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_191_ref_get(
+        const ProjectDescriptionView_191 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_192_ref_get(
+        const ProjectDescriptionView_192 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_193_ref_get(
+        const ProjectDescriptionView_193 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_194_ref_get(
+        const ProjectDescriptionView_194 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_195_ref_get(
+        const ProjectDescriptionView_195 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_196_ref_get(
+        const ProjectDescriptionView_196 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_197_ref_get(
+        const ProjectDescriptionView_197 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_198_ref_get(
+        const ProjectDescriptionView_198 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_199_ref_get(
+        const ProjectDescriptionView_199 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_200_ref_get(
+        const ProjectDescriptionView_200 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_201_ref_get(
+        const ProjectDescriptionView_201 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_202_ref_get(
+        const ProjectDescriptionView_202 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_203_ref_get(
+        const ProjectDescriptionView_203 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_204_ref_get(
+        const ProjectDescriptionView_204 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_205_ref_get(
+        const ProjectDescriptionView_205 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_206_ref_get(
+        const ProjectDescriptionView_206 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_207_ref_get(
+        const ProjectDescriptionView_207 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_208_ref_get(
+        const ProjectDescriptionView_208 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_209_ref_get(
+        const ProjectDescriptionView_209 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_210_ref_get(
+        const ProjectDescriptionView_210 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_211_ref_get(
+        const ProjectDescriptionView_211 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_212_ref_get(
+        const ProjectDescriptionView_212 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_213_ref_get(
+        const ProjectDescriptionView_213 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_214_ref_get(
+        const ProjectDescriptionView_214 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_215_ref_get(
+        const ProjectDescriptionView_215 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_216_ref_get(
+        const ProjectDescriptionView_216 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_217_ref_get(
+        const ProjectDescriptionView_217 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_218_ref_get(
+        const ProjectDescriptionView_218 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_219_ref_get(
+        const ProjectDescriptionView_219 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_220_ref_get(
+        const ProjectDescriptionView_220 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_221_ref_get(
+        const ProjectDescriptionView_221 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_222_ref_get(
+        const ProjectDescriptionView_222 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_223_ref_get(
+        const ProjectDescriptionView_223 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_224_ref_get(
+        const ProjectDescriptionView_224 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_225_ref_get(
+        const ProjectDescriptionView_225 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_226_ref_get(
+        const ProjectDescriptionView_226 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_227_ref_get(
+        const ProjectDescriptionView_227 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_228_ref_get(
+        const ProjectDescriptionView_228 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_229_ref_get(
+        const ProjectDescriptionView_229 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_230_ref_get(
+        const ProjectDescriptionView_230 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_231_ref_get(
+        const ProjectDescriptionView_231 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_232_ref_get(
+        const ProjectDescriptionView_232 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_484_ref_get(
+        const ProjectDescriptionView_484 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_233_ref_get(
+        const ProjectDescriptionView_233 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_486_ref_get(
+        const ProjectDescriptionView_486 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_234_ref_get(
+        const ProjectDescriptionView_234 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_488_ref_get(
+        const ProjectDescriptionView_488 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_235_ref_get(
+        const ProjectDescriptionView_235 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_490_ref_get(
+        const ProjectDescriptionView_490 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_236_ref_get(
+        const ProjectDescriptionView_236 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_492_ref_get(
+        const ProjectDescriptionView_492 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_237_ref_get(
+        const ProjectDescriptionView_237 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_494_ref_get(
+        const ProjectDescriptionView_494 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_238_ref_get(
+        const ProjectDescriptionView_238 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_496_ref_get(
+        const ProjectDescriptionView_496 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_239_ref_get(
+        const ProjectDescriptionView_239 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_498_ref_get(
+        const ProjectDescriptionView_498 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_240_ref_get(
+        const ProjectDescriptionView_240 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_500_ref_get(
+        const ProjectDescriptionView_500 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_241_ref_get(
+        const ProjectDescriptionView_241 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_502_ref_get(
+        const ProjectDescriptionView_502 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_242_ref_get(
+        const ProjectDescriptionView_242 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_243_ref_get(
+        const ProjectDescriptionView_243 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_244_ref_get(
+        const ProjectDescriptionView_244 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_245_ref_get(
+        const ProjectDescriptionView_245 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_246_ref_get(
+        const ProjectDescriptionView_246 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_247_ref_get(
+        const ProjectDescriptionView_247 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_248_ref_get(
+        const ProjectDescriptionView_248 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_249_ref_get(
+        const ProjectDescriptionView_249 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_250_ref_get(
+        const ProjectDescriptionView_250 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_251_ref_get(
+        const ProjectDescriptionView_251 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_252_ref_get(
+        const ProjectDescriptionView_252 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_253_ref_get(
+        const ProjectDescriptionView_253 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_254_ref_get(
+        const ProjectDescriptionView_254 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_255_ref_get(
+        const ProjectDescriptionView_255 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_256_ref_get(
+        const ProjectDescriptionView_256 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_257_ref_get(
+        const ProjectDescriptionView_257 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_258_ref_get(
+        const ProjectDescriptionView_258 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_259_ref_get(
+        const ProjectDescriptionView_259 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_260_ref_get(
+        const ProjectDescriptionView_260 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_261_ref_get(
+        const ProjectDescriptionView_261 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_262_ref_get(
+        const ProjectDescriptionView_262 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_263_ref_get(
+        const ProjectDescriptionView_263 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_264_ref_get(
+        const ProjectDescriptionView_264 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_265_ref_get(
+        const ProjectDescriptionView_265 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_266_ref_get(
+        const ProjectDescriptionView_266 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_267_ref_get(
+        const ProjectDescriptionView_267 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_268_ref_get(
+        const ProjectDescriptionView_268 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_269_ref_get(
+        const ProjectDescriptionView_269 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_270_ref_get(
+        const ProjectDescriptionView_270 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_271_ref_get(
+        const ProjectDescriptionView_271 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_272_ref_get(
+        const ProjectDescriptionView_272 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_273_ref_get(
+        const ProjectDescriptionView_273 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_274_ref_get(
+        const ProjectDescriptionView_274 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_275_ref_get(
+        const ProjectDescriptionView_275 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_276_ref_get(
+        const ProjectDescriptionView_276 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_277_ref_get(
+        const ProjectDescriptionView_277 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_278_ref_get(
+        const ProjectDescriptionView_278 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_279_ref_get(
+        const ProjectDescriptionView_279 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_280_ref_get(
+        const ProjectDescriptionView_280 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_281_ref_get(
+        const ProjectDescriptionView_281 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_282_ref_get(
+        const ProjectDescriptionView_282 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_283_ref_get(
+        const ProjectDescriptionView_283 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_284_ref_get(
+        const ProjectDescriptionView_284 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_285_ref_get(
+        const ProjectDescriptionView_285 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_286_ref_get(
+        const ProjectDescriptionView_286 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_287_ref_get(
+        const ProjectDescriptionView_287 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_288_ref_get(
+        const ProjectDescriptionView_288 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_289_ref_get(
+        const ProjectDescriptionView_289 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_290_ref_get(
+        const ProjectDescriptionView_290 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_291_ref_get(
+        const ProjectDescriptionView_291 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_292_ref_get(
+        const ProjectDescriptionView_292 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_293_ref_get(
+        const ProjectDescriptionView_293 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_294_ref_get(
+        const ProjectDescriptionView_294 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_295_ref_get(
+        const ProjectDescriptionView_295 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_296_ref_get(
+        const ProjectDescriptionView_296 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_297_ref_get(
+        const ProjectDescriptionView_297 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_298_ref_get(
+        const ProjectDescriptionView_298 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_299_ref_get(
+        const ProjectDescriptionView_299 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_300_ref_get(
+        const ProjectDescriptionView_300 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_301_ref_get(
+        const ProjectDescriptionView_301 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_302_ref_get(
+        const ProjectDescriptionView_302 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_303_ref_get(
+        const ProjectDescriptionView_303 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_304_ref_get(
+        const ProjectDescriptionView_304 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_305_ref_get(
+        const ProjectDescriptionView_305 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_306_ref_get(
+        const ProjectDescriptionView_306 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_307_ref_get(
+        const ProjectDescriptionView_307 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_308_ref_get(
+        const ProjectDescriptionView_308 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_309_ref_get(
+        const ProjectDescriptionView_309 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_310_ref_get(
+        const ProjectDescriptionView_310 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_311_ref_get(
+        const ProjectDescriptionView_311 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_312_ref_get(
+        const ProjectDescriptionView_312 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_313_ref_get(
+        const ProjectDescriptionView_313 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_314_ref_get(
+        const ProjectDescriptionView_314 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_315_ref_get(
+        const ProjectDescriptionView_315 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_316_ref_get(
+        const ProjectDescriptionView_316 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_317_ref_get(
+        const ProjectDescriptionView_317 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_318_ref_get(
+        const ProjectDescriptionView_318 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_319_ref_get(
+        const ProjectDescriptionView_319 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_320_ref_get(
+        const ProjectDescriptionView_320 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_321_ref_get(
+        const ProjectDescriptionView_321 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_322_ref_get(
+        const ProjectDescriptionView_322 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_323_ref_get(
+        const ProjectDescriptionView_323 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_324_ref_get(
+        const ProjectDescriptionView_324 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_325_ref_get(
+        const ProjectDescriptionView_325 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_326_ref_get(
+        const ProjectDescriptionView_326 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_327_ref_get(
+        const ProjectDescriptionView_327 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_328_ref_get(
+        const ProjectDescriptionView_328 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_329_ref_get(
+        const ProjectDescriptionView_329 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_330_ref_get(
+        const ProjectDescriptionView_330 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_331_ref_get(
+        const ProjectDescriptionView_331 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_332_ref_get(
+        const ProjectDescriptionView_332 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_333_ref_get(
+        const ProjectDescriptionView_333 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_334_ref_get(
+        const ProjectDescriptionView_334 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_335_ref_get(
+        const ProjectDescriptionView_335 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_336_ref_get(
+        const ProjectDescriptionView_336 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_337_ref_get(
+        const ProjectDescriptionView_337 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_338_ref_get(
+        const ProjectDescriptionView_338 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_339_ref_get(
+        const ProjectDescriptionView_339 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_340_ref_get(
+        const ProjectDescriptionView_340 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_341_ref_get(
+        const ProjectDescriptionView_341 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_342_ref_get(
+        const ProjectDescriptionView_342 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_343_ref_get(
+        const ProjectDescriptionView_343 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_344_ref_get(
+        const ProjectDescriptionView_344 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_345_ref_get(
+        const ProjectDescriptionView_345 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_346_ref_get(
+        const ProjectDescriptionView_346 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_347_ref_get(
+        const ProjectDescriptionView_347 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_348_ref_get(
+        const ProjectDescriptionView_348 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_349_ref_get(
+        const ProjectDescriptionView_349 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_350_ref_get(
+        const ProjectDescriptionView_350 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_351_ref_get(
+        const ProjectDescriptionView_351 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_352_ref_get(
+        const ProjectDescriptionView_352 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_353_ref_get(
+        const ProjectDescriptionView_353 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_354_ref_get(
+        const ProjectDescriptionView_354 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_355_ref_get(
+        const ProjectDescriptionView_355 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_356_ref_get(
+        const ProjectDescriptionView_356 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_357_ref_get(
+        const ProjectDescriptionView_357 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_358_ref_get(
+        const ProjectDescriptionView_358 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_359_ref_get(
+        const ProjectDescriptionView_359 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_360_ref_get(
+        const ProjectDescriptionView_360 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_361_ref_get(
+        const ProjectDescriptionView_361 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_362_ref_get(
+        const ProjectDescriptionView_362 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_363_ref_get(
+        const ProjectDescriptionView_363 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_364_ref_get(
+        const ProjectDescriptionView_364 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_365_ref_get(
+        const ProjectDescriptionView_365 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_366_ref_get(
+        const ProjectDescriptionView_366 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_367_ref_get(
+        const ProjectDescriptionView_367 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_368_ref_get(
+        const ProjectDescriptionView_368 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_369_ref_get(
+        const ProjectDescriptionView_369 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_370_ref_get(
+        const ProjectDescriptionView_370 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_371_ref_get(
+        const ProjectDescriptionView_371 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_372_ref_get(
+        const ProjectDescriptionView_372 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_373_ref_get(
+        const ProjectDescriptionView_373 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_374_ref_get(
+        const ProjectDescriptionView_374 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_375_ref_get(
+        const ProjectDescriptionView_375 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_376_ref_get(
+        const ProjectDescriptionView_376 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_377_ref_get(
+        const ProjectDescriptionView_377 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_378_ref_get(
+        const ProjectDescriptionView_378 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_379_ref_get(
+        const ProjectDescriptionView_379 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_380_ref_get(
+        const ProjectDescriptionView_380 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_381_ref_get(
+        const ProjectDescriptionView_381 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_382_ref_get(
+        const ProjectDescriptionView_382 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_383_ref_get(
+        const ProjectDescriptionView_383 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_384_ref_get(
+        const ProjectDescriptionView_384 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_385_ref_get(
+        const ProjectDescriptionView_385 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_386_ref_get(
+        const ProjectDescriptionView_386 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_387_ref_get(
+        const ProjectDescriptionView_387 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_388_ref_get(
+        const ProjectDescriptionView_388 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_389_ref_get(
+        const ProjectDescriptionView_389 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_390_ref_get(
+        const ProjectDescriptionView_390 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_391_ref_get(
+        const ProjectDescriptionView_391 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_392_ref_get(
+        const ProjectDescriptionView_392 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_393_ref_get(
+        const ProjectDescriptionView_393 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_394_ref_get(
+        const ProjectDescriptionView_394 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_395_ref_get(
+        const ProjectDescriptionView_395 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_396_ref_get(
+        const ProjectDescriptionView_396 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_397_ref_get(
+        const ProjectDescriptionView_397 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_398_ref_get(
+        const ProjectDescriptionView_398 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_399_ref_get(
+        const ProjectDescriptionView_399 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_400_ref_get(
+        const ProjectDescriptionView_400 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_401_ref_get(
+        const ProjectDescriptionView_401 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_402_ref_get(
+        const ProjectDescriptionView_402 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_403_ref_get(
+        const ProjectDescriptionView_403 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_404_ref_get(
+        const ProjectDescriptionView_404 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_405_ref_get(
+        const ProjectDescriptionView_405 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_406_ref_get(
+        const ProjectDescriptionView_406 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_407_ref_get(
+        const ProjectDescriptionView_407 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_408_ref_get(
+        const ProjectDescriptionView_408 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_409_ref_get(
+        const ProjectDescriptionView_409 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_410_ref_get(
+        const ProjectDescriptionView_410 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_411_ref_get(
+        const ProjectDescriptionView_411 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_412_ref_get(
+        const ProjectDescriptionView_412 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_413_ref_get(
+        const ProjectDescriptionView_413 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_414_ref_get(
+        const ProjectDescriptionView_414 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_415_ref_get(
+        const ProjectDescriptionView_415 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_416_ref_get(
+        const ProjectDescriptionView_416 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_417_ref_get(
+        const ProjectDescriptionView_417 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_418_ref_get(
+        const ProjectDescriptionView_418 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_419_ref_get(
+        const ProjectDescriptionView_419 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_420_ref_get(
+        const ProjectDescriptionView_420 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_421_ref_get(
+        const ProjectDescriptionView_421 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_422_ref_get(
+        const ProjectDescriptionView_422 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_423_ref_get(
+        const ProjectDescriptionView_423 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_424_ref_get(
+        const ProjectDescriptionView_424 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_425_ref_get(
+        const ProjectDescriptionView_425 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_426_ref_get(
+        const ProjectDescriptionView_426 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_427_ref_get(
+        const ProjectDescriptionView_427 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_428_ref_get(
+        const ProjectDescriptionView_428 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_429_ref_get(
+        const ProjectDescriptionView_429 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_430_ref_get(
+        const ProjectDescriptionView_430 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_431_ref_get(
+        const ProjectDescriptionView_431 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_432_ref_get(
+        const ProjectDescriptionView_432 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_433_ref_get(
+        const ProjectDescriptionView_433 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_434_ref_get(
+        const ProjectDescriptionView_434 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_435_ref_get(
+        const ProjectDescriptionView_435 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_436_ref_get(
+        const ProjectDescriptionView_436 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_437_ref_get(
+        const ProjectDescriptionView_437 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_438_ref_get(
+        const ProjectDescriptionView_438 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_439_ref_get(
+        const ProjectDescriptionView_439 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_440_ref_get(
+        const ProjectDescriptionView_440 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_441_ref_get(
+        const ProjectDescriptionView_441 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_442_ref_get(
+        const ProjectDescriptionView_442 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_443_ref_get(
+        const ProjectDescriptionView_443 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_444_ref_get(
+        const ProjectDescriptionView_444 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_445_ref_get(
+        const ProjectDescriptionView_445 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_446_ref_get(
+        const ProjectDescriptionView_446 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_447_ref_get(
+        const ProjectDescriptionView_447 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_448_ref_get(
+        const ProjectDescriptionView_448 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_449_ref_get(
+        const ProjectDescriptionView_449 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_450_ref_get(
+        const ProjectDescriptionView_450 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_451_ref_get(
+        const ProjectDescriptionView_451 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_452_ref_get(
+        const ProjectDescriptionView_452 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_503_ref_get(
+        const ProjectDescriptionView_503 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_504_ref_get(
+        const ProjectDescriptionView_504 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_505_ref_get(
+        const ProjectDescriptionView_505 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_506_ref_get(
+        const ProjectDescriptionView_506 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_507_ref_get(
+        const ProjectDescriptionView_507 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_508_ref_get(
+        const ProjectDescriptionView_508 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_509_ref_get(
+        const ProjectDescriptionView_509 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_510_ref_get(
+        const ProjectDescriptionView_510 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_511_ref_get(
+        const ProjectDescriptionView_511 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_512_ref_get(
+        const ProjectDescriptionView_512 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_513_ref_get(
+        const ProjectDescriptionView_513 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_514_ref_get(
+        const ProjectDescriptionView_514 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_515_ref_get(
+        const ProjectDescriptionView_515 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_516_ref_get(
+        const ProjectDescriptionView_516 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_517_ref_get(
+        const ProjectDescriptionView_517 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_518_ref_get(
+        const ProjectDescriptionView_518 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_519_ref_get(
+        const ProjectDescriptionView_519 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_520_ref_get(
+        const ProjectDescriptionView_520 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_521_ref_get(
+        const ProjectDescriptionView_521 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_522_ref_get(
+        const ProjectDescriptionView_522 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_523_ref_get(
+        const ProjectDescriptionView_523 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_524_ref_get(
+        const ProjectDescriptionView_524 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_525_ref_get(
+        const ProjectDescriptionView_525 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_526_ref_get(
+        const ProjectDescriptionView_526 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_527_ref_get(
+        const ProjectDescriptionView_527 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_528_ref_get(
+        const ProjectDescriptionView_528 *value) { return &value->_description; }
+static inline const ObjectDescription *project_description_view_529_ref_get(
+        const ProjectDescriptionView_529 *value) { return &value->_description; }
+#undef ROHR_INTERNAL_PROJECT_VIEW_TYPES
+#define ROHR_INTERNAL_PROJECT_VIEW_TYPES(apply) \
+    apply(ProjectDescriptionView_1, project_description_view_1_ref_get) \
+    apply(ProjectDescriptionView_2, project_description_view_2_ref_get) \
+    apply(ProjectDescriptionView_3, project_description_view_3_ref_get) \
+    apply(ProjectDescriptionView_454, project_description_view_454_ref_get) \
+    apply(ProjectDescriptionView_456, project_description_view_456_ref_get) \
+    apply(ProjectDescriptionView_480, project_description_view_480_ref_get) \
+    apply(ProjectDescriptionView_4, project_description_view_4_ref_get) \
+    apply(ProjectDescriptionView_453, project_description_view_453_ref_get) \
+    apply(ProjectDescriptionView_5, project_description_view_5_ref_get) \
+    apply(ProjectDescriptionView_455, project_description_view_455_ref_get) \
+    apply(ProjectDescriptionView_458, project_description_view_458_ref_get) \
+    apply(ProjectDescriptionView_6, project_description_view_6_ref_get) \
+    apply(ProjectDescriptionView_457, project_description_view_457_ref_get) \
+    apply(ProjectDescriptionView_459, project_description_view_459_ref_get) \
+    apply(ProjectDescriptionView_461, project_description_view_461_ref_get) \
+    apply(ProjectDescriptionView_463, project_description_view_463_ref_get) \
+    apply(ProjectDescriptionView_465, project_description_view_465_ref_get) \
+    apply(ProjectDescriptionView_467, project_description_view_467_ref_get) \
+    apply(ProjectDescriptionView_469, project_description_view_469_ref_get) \
+    apply(ProjectDescriptionView_471, project_description_view_471_ref_get) \
+    apply(ProjectDescriptionView_473, project_description_view_473_ref_get) \
+    apply(ProjectDescriptionView_475, project_description_view_475_ref_get) \
+    apply(ProjectDescriptionView_477, project_description_view_477_ref_get) \
+    apply(ProjectDescriptionView_7, project_description_view_7_ref_get) \
+    apply(ProjectDescriptionView_479, project_description_view_479_ref_get) \
+    apply(ProjectDescriptionView_482, project_description_view_482_ref_get) \
+    apply(ProjectDescriptionView_8, project_description_view_8_ref_get) \
+    apply(ProjectDescriptionView_481, project_description_view_481_ref_get) \
+    apply(ProjectDescriptionView_483, project_description_view_483_ref_get) \
+    apply(ProjectDescriptionView_485, project_description_view_485_ref_get) \
+    apply(ProjectDescriptionView_487, project_description_view_487_ref_get) \
+    apply(ProjectDescriptionView_489, project_description_view_489_ref_get) \
+    apply(ProjectDescriptionView_491, project_description_view_491_ref_get) \
+    apply(ProjectDescriptionView_493, project_description_view_493_ref_get) \
+    apply(ProjectDescriptionView_495, project_description_view_495_ref_get) \
+    apply(ProjectDescriptionView_497, project_description_view_497_ref_get) \
+    apply(ProjectDescriptionView_499, project_description_view_499_ref_get) \
+    apply(ProjectDescriptionView_501, project_description_view_501_ref_get) \
+    apply(ProjectDescriptionView_9, project_description_view_9_ref_get) \
+    apply(ProjectDescriptionView_10, project_description_view_10_ref_get) \
+    apply(ProjectDescriptionView_460, project_description_view_460_ref_get) \
+    apply(ProjectDescriptionView_11, project_description_view_11_ref_get) \
+    apply(ProjectDescriptionView_462, project_description_view_462_ref_get) \
+    apply(ProjectDescriptionView_12, project_description_view_12_ref_get) \
+    apply(ProjectDescriptionView_464, project_description_view_464_ref_get) \
+    apply(ProjectDescriptionView_13, project_description_view_13_ref_get) \
+    apply(ProjectDescriptionView_466, project_description_view_466_ref_get) \
+    apply(ProjectDescriptionView_14, project_description_view_14_ref_get) \
+    apply(ProjectDescriptionView_468, project_description_view_468_ref_get) \
+    apply(ProjectDescriptionView_15, project_description_view_15_ref_get) \
+    apply(ProjectDescriptionView_470, project_description_view_470_ref_get) \
+    apply(ProjectDescriptionView_16, project_description_view_16_ref_get) \
+    apply(ProjectDescriptionView_472, project_description_view_472_ref_get) \
+    apply(ProjectDescriptionView_17, project_description_view_17_ref_get) \
+    apply(ProjectDescriptionView_474, project_description_view_474_ref_get) \
+    apply(ProjectDescriptionView_18, project_description_view_18_ref_get) \
+    apply(ProjectDescriptionView_476, project_description_view_476_ref_get) \
+    apply(ProjectDescriptionView_19, project_description_view_19_ref_get) \
+    apply(ProjectDescriptionView_478, project_description_view_478_ref_get) \
+    apply(ProjectDescriptionView_20, project_description_view_20_ref_get) \
+    apply(ProjectDescriptionView_21, project_description_view_21_ref_get) \
+    apply(ProjectDescriptionView_22, project_description_view_22_ref_get) \
+    apply(ProjectDescriptionView_23, project_description_view_23_ref_get) \
+    apply(ProjectDescriptionView_24, project_description_view_24_ref_get) \
+    apply(ProjectDescriptionView_25, project_description_view_25_ref_get) \
+    apply(ProjectDescriptionView_26, project_description_view_26_ref_get) \
+    apply(ProjectDescriptionView_27, project_description_view_27_ref_get) \
+    apply(ProjectDescriptionView_28, project_description_view_28_ref_get) \
+    apply(ProjectDescriptionView_29, project_description_view_29_ref_get) \
+    apply(ProjectDescriptionView_30, project_description_view_30_ref_get) \
+    apply(ProjectDescriptionView_31, project_description_view_31_ref_get) \
+    apply(ProjectDescriptionView_32, project_description_view_32_ref_get) \
+    apply(ProjectDescriptionView_33, project_description_view_33_ref_get) \
+    apply(ProjectDescriptionView_34, project_description_view_34_ref_get) \
+    apply(ProjectDescriptionView_35, project_description_view_35_ref_get) \
+    apply(ProjectDescriptionView_36, project_description_view_36_ref_get) \
+    apply(ProjectDescriptionView_37, project_description_view_37_ref_get) \
+    apply(ProjectDescriptionView_38, project_description_view_38_ref_get) \
+    apply(ProjectDescriptionView_39, project_description_view_39_ref_get) \
+    apply(ProjectDescriptionView_40, project_description_view_40_ref_get) \
+    apply(ProjectDescriptionView_41, project_description_view_41_ref_get) \
+    apply(ProjectDescriptionView_42, project_description_view_42_ref_get) \
+    apply(ProjectDescriptionView_43, project_description_view_43_ref_get) \
+    apply(ProjectDescriptionView_44, project_description_view_44_ref_get) \
+    apply(ProjectDescriptionView_45, project_description_view_45_ref_get) \
+    apply(ProjectDescriptionView_46, project_description_view_46_ref_get) \
+    apply(ProjectDescriptionView_47, project_description_view_47_ref_get) \
+    apply(ProjectDescriptionView_48, project_description_view_48_ref_get) \
+    apply(ProjectDescriptionView_49, project_description_view_49_ref_get) \
+    apply(ProjectDescriptionView_50, project_description_view_50_ref_get) \
+    apply(ProjectDescriptionView_51, project_description_view_51_ref_get) \
+    apply(ProjectDescriptionView_52, project_description_view_52_ref_get) \
+    apply(ProjectDescriptionView_53, project_description_view_53_ref_get) \
+    apply(ProjectDescriptionView_54, project_description_view_54_ref_get) \
+    apply(ProjectDescriptionView_55, project_description_view_55_ref_get) \
+    apply(ProjectDescriptionView_56, project_description_view_56_ref_get) \
+    apply(ProjectDescriptionView_57, project_description_view_57_ref_get) \
+    apply(ProjectDescriptionView_58, project_description_view_58_ref_get) \
+    apply(ProjectDescriptionView_59, project_description_view_59_ref_get) \
+    apply(ProjectDescriptionView_60, project_description_view_60_ref_get) \
+    apply(ProjectDescriptionView_61, project_description_view_61_ref_get) \
+    apply(ProjectDescriptionView_62, project_description_view_62_ref_get) \
+    apply(ProjectDescriptionView_63, project_description_view_63_ref_get) \
+    apply(ProjectDescriptionView_64, project_description_view_64_ref_get) \
+    apply(ProjectDescriptionView_65, project_description_view_65_ref_get) \
+    apply(ProjectDescriptionView_66, project_description_view_66_ref_get) \
+    apply(ProjectDescriptionView_67, project_description_view_67_ref_get) \
+    apply(ProjectDescriptionView_68, project_description_view_68_ref_get) \
+    apply(ProjectDescriptionView_69, project_description_view_69_ref_get) \
+    apply(ProjectDescriptionView_70, project_description_view_70_ref_get) \
+    apply(ProjectDescriptionView_71, project_description_view_71_ref_get) \
+    apply(ProjectDescriptionView_72, project_description_view_72_ref_get) \
+    apply(ProjectDescriptionView_73, project_description_view_73_ref_get) \
+    apply(ProjectDescriptionView_74, project_description_view_74_ref_get) \
+    apply(ProjectDescriptionView_75, project_description_view_75_ref_get) \
+    apply(ProjectDescriptionView_76, project_description_view_76_ref_get) \
+    apply(ProjectDescriptionView_77, project_description_view_77_ref_get) \
+    apply(ProjectDescriptionView_78, project_description_view_78_ref_get) \
+    apply(ProjectDescriptionView_79, project_description_view_79_ref_get) \
+    apply(ProjectDescriptionView_80, project_description_view_80_ref_get) \
+    apply(ProjectDescriptionView_81, project_description_view_81_ref_get) \
+    apply(ProjectDescriptionView_82, project_description_view_82_ref_get) \
+    apply(ProjectDescriptionView_83, project_description_view_83_ref_get) \
+    apply(ProjectDescriptionView_84, project_description_view_84_ref_get) \
+    apply(ProjectDescriptionView_85, project_description_view_85_ref_get) \
+    apply(ProjectDescriptionView_86, project_description_view_86_ref_get) \
+    apply(ProjectDescriptionView_87, project_description_view_87_ref_get) \
+    apply(ProjectDescriptionView_88, project_description_view_88_ref_get) \
+    apply(ProjectDescriptionView_89, project_description_view_89_ref_get) \
+    apply(ProjectDescriptionView_90, project_description_view_90_ref_get) \
+    apply(ProjectDescriptionView_91, project_description_view_91_ref_get) \
+    apply(ProjectDescriptionView_92, project_description_view_92_ref_get) \
+    apply(ProjectDescriptionView_93, project_description_view_93_ref_get) \
+    apply(ProjectDescriptionView_94, project_description_view_94_ref_get) \
+    apply(ProjectDescriptionView_95, project_description_view_95_ref_get) \
+    apply(ProjectDescriptionView_96, project_description_view_96_ref_get) \
+    apply(ProjectDescriptionView_97, project_description_view_97_ref_get) \
+    apply(ProjectDescriptionView_98, project_description_view_98_ref_get) \
+    apply(ProjectDescriptionView_99, project_description_view_99_ref_get) \
+    apply(ProjectDescriptionView_100, project_description_view_100_ref_get) \
+    apply(ProjectDescriptionView_101, project_description_view_101_ref_get) \
+    apply(ProjectDescriptionView_102, project_description_view_102_ref_get) \
+    apply(ProjectDescriptionView_103, project_description_view_103_ref_get) \
+    apply(ProjectDescriptionView_104, project_description_view_104_ref_get) \
+    apply(ProjectDescriptionView_105, project_description_view_105_ref_get) \
+    apply(ProjectDescriptionView_106, project_description_view_106_ref_get) \
+    apply(ProjectDescriptionView_107, project_description_view_107_ref_get) \
+    apply(ProjectDescriptionView_108, project_description_view_108_ref_get) \
+    apply(ProjectDescriptionView_109, project_description_view_109_ref_get) \
+    apply(ProjectDescriptionView_110, project_description_view_110_ref_get) \
+    apply(ProjectDescriptionView_111, project_description_view_111_ref_get) \
+    apply(ProjectDescriptionView_112, project_description_view_112_ref_get) \
+    apply(ProjectDescriptionView_113, project_description_view_113_ref_get) \
+    apply(ProjectDescriptionView_114, project_description_view_114_ref_get) \
+    apply(ProjectDescriptionView_115, project_description_view_115_ref_get) \
+    apply(ProjectDescriptionView_116, project_description_view_116_ref_get) \
+    apply(ProjectDescriptionView_117, project_description_view_117_ref_get) \
+    apply(ProjectDescriptionView_118, project_description_view_118_ref_get) \
+    apply(ProjectDescriptionView_119, project_description_view_119_ref_get) \
+    apply(ProjectDescriptionView_120, project_description_view_120_ref_get) \
+    apply(ProjectDescriptionView_121, project_description_view_121_ref_get) \
+    apply(ProjectDescriptionView_122, project_description_view_122_ref_get) \
+    apply(ProjectDescriptionView_123, project_description_view_123_ref_get) \
+    apply(ProjectDescriptionView_124, project_description_view_124_ref_get) \
+    apply(ProjectDescriptionView_125, project_description_view_125_ref_get) \
+    apply(ProjectDescriptionView_126, project_description_view_126_ref_get) \
+    apply(ProjectDescriptionView_127, project_description_view_127_ref_get) \
+    apply(ProjectDescriptionView_128, project_description_view_128_ref_get) \
+    apply(ProjectDescriptionView_129, project_description_view_129_ref_get) \
+    apply(ProjectDescriptionView_130, project_description_view_130_ref_get) \
+    apply(ProjectDescriptionView_131, project_description_view_131_ref_get) \
+    apply(ProjectDescriptionView_132, project_description_view_132_ref_get) \
+    apply(ProjectDescriptionView_133, project_description_view_133_ref_get) \
+    apply(ProjectDescriptionView_134, project_description_view_134_ref_get) \
+    apply(ProjectDescriptionView_135, project_description_view_135_ref_get) \
+    apply(ProjectDescriptionView_136, project_description_view_136_ref_get) \
+    apply(ProjectDescriptionView_137, project_description_view_137_ref_get) \
+    apply(ProjectDescriptionView_138, project_description_view_138_ref_get) \
+    apply(ProjectDescriptionView_139, project_description_view_139_ref_get) \
+    apply(ProjectDescriptionView_140, project_description_view_140_ref_get) \
+    apply(ProjectDescriptionView_141, project_description_view_141_ref_get) \
+    apply(ProjectDescriptionView_142, project_description_view_142_ref_get) \
+    apply(ProjectDescriptionView_143, project_description_view_143_ref_get) \
+    apply(ProjectDescriptionView_144, project_description_view_144_ref_get) \
+    apply(ProjectDescriptionView_145, project_description_view_145_ref_get) \
+    apply(ProjectDescriptionView_146, project_description_view_146_ref_get) \
+    apply(ProjectDescriptionView_147, project_description_view_147_ref_get) \
+    apply(ProjectDescriptionView_148, project_description_view_148_ref_get) \
+    apply(ProjectDescriptionView_149, project_description_view_149_ref_get) \
+    apply(ProjectDescriptionView_150, project_description_view_150_ref_get) \
+    apply(ProjectDescriptionView_151, project_description_view_151_ref_get) \
+    apply(ProjectDescriptionView_152, project_description_view_152_ref_get) \
+    apply(ProjectDescriptionView_153, project_description_view_153_ref_get) \
+    apply(ProjectDescriptionView_154, project_description_view_154_ref_get) \
+    apply(ProjectDescriptionView_155, project_description_view_155_ref_get) \
+    apply(ProjectDescriptionView_156, project_description_view_156_ref_get) \
+    apply(ProjectDescriptionView_157, project_description_view_157_ref_get) \
+    apply(ProjectDescriptionView_158, project_description_view_158_ref_get) \
+    apply(ProjectDescriptionView_159, project_description_view_159_ref_get) \
+    apply(ProjectDescriptionView_160, project_description_view_160_ref_get) \
+    apply(ProjectDescriptionView_161, project_description_view_161_ref_get) \
+    apply(ProjectDescriptionView_162, project_description_view_162_ref_get) \
+    apply(ProjectDescriptionView_163, project_description_view_163_ref_get) \
+    apply(ProjectDescriptionView_164, project_description_view_164_ref_get) \
+    apply(ProjectDescriptionView_165, project_description_view_165_ref_get) \
+    apply(ProjectDescriptionView_166, project_description_view_166_ref_get) \
+    apply(ProjectDescriptionView_167, project_description_view_167_ref_get) \
+    apply(ProjectDescriptionView_168, project_description_view_168_ref_get) \
+    apply(ProjectDescriptionView_169, project_description_view_169_ref_get) \
+    apply(ProjectDescriptionView_170, project_description_view_170_ref_get) \
+    apply(ProjectDescriptionView_171, project_description_view_171_ref_get) \
+    apply(ProjectDescriptionView_172, project_description_view_172_ref_get) \
+    apply(ProjectDescriptionView_173, project_description_view_173_ref_get) \
+    apply(ProjectDescriptionView_174, project_description_view_174_ref_get) \
+    apply(ProjectDescriptionView_175, project_description_view_175_ref_get) \
+    apply(ProjectDescriptionView_176, project_description_view_176_ref_get) \
+    apply(ProjectDescriptionView_177, project_description_view_177_ref_get) \
+    apply(ProjectDescriptionView_178, project_description_view_178_ref_get) \
+    apply(ProjectDescriptionView_179, project_description_view_179_ref_get) \
+    apply(ProjectDescriptionView_180, project_description_view_180_ref_get) \
+    apply(ProjectDescriptionView_181, project_description_view_181_ref_get) \
+    apply(ProjectDescriptionView_182, project_description_view_182_ref_get) \
+    apply(ProjectDescriptionView_183, project_description_view_183_ref_get) \
+    apply(ProjectDescriptionView_184, project_description_view_184_ref_get) \
+    apply(ProjectDescriptionView_185, project_description_view_185_ref_get) \
+    apply(ProjectDescriptionView_186, project_description_view_186_ref_get) \
+    apply(ProjectDescriptionView_187, project_description_view_187_ref_get) \
+    apply(ProjectDescriptionView_188, project_description_view_188_ref_get) \
+    apply(ProjectDescriptionView_189, project_description_view_189_ref_get) \
+    apply(ProjectDescriptionView_190, project_description_view_190_ref_get) \
+    apply(ProjectDescriptionView_191, project_description_view_191_ref_get) \
+    apply(ProjectDescriptionView_192, project_description_view_192_ref_get) \
+    apply(ProjectDescriptionView_193, project_description_view_193_ref_get) \
+    apply(ProjectDescriptionView_194, project_description_view_194_ref_get) \
+    apply(ProjectDescriptionView_195, project_description_view_195_ref_get) \
+    apply(ProjectDescriptionView_196, project_description_view_196_ref_get) \
+    apply(ProjectDescriptionView_197, project_description_view_197_ref_get) \
+    apply(ProjectDescriptionView_198, project_description_view_198_ref_get) \
+    apply(ProjectDescriptionView_199, project_description_view_199_ref_get) \
+    apply(ProjectDescriptionView_200, project_description_view_200_ref_get) \
+    apply(ProjectDescriptionView_201, project_description_view_201_ref_get) \
+    apply(ProjectDescriptionView_202, project_description_view_202_ref_get) \
+    apply(ProjectDescriptionView_203, project_description_view_203_ref_get) \
+    apply(ProjectDescriptionView_204, project_description_view_204_ref_get) \
+    apply(ProjectDescriptionView_205, project_description_view_205_ref_get) \
+    apply(ProjectDescriptionView_206, project_description_view_206_ref_get) \
+    apply(ProjectDescriptionView_207, project_description_view_207_ref_get) \
+    apply(ProjectDescriptionView_208, project_description_view_208_ref_get) \
+    apply(ProjectDescriptionView_209, project_description_view_209_ref_get) \
+    apply(ProjectDescriptionView_210, project_description_view_210_ref_get) \
+    apply(ProjectDescriptionView_211, project_description_view_211_ref_get) \
+    apply(ProjectDescriptionView_212, project_description_view_212_ref_get) \
+    apply(ProjectDescriptionView_213, project_description_view_213_ref_get) \
+    apply(ProjectDescriptionView_214, project_description_view_214_ref_get) \
+    apply(ProjectDescriptionView_215, project_description_view_215_ref_get) \
+    apply(ProjectDescriptionView_216, project_description_view_216_ref_get) \
+    apply(ProjectDescriptionView_217, project_description_view_217_ref_get) \
+    apply(ProjectDescriptionView_218, project_description_view_218_ref_get) \
+    apply(ProjectDescriptionView_219, project_description_view_219_ref_get) \
+    apply(ProjectDescriptionView_220, project_description_view_220_ref_get) \
+    apply(ProjectDescriptionView_221, project_description_view_221_ref_get) \
+    apply(ProjectDescriptionView_222, project_description_view_222_ref_get) \
+    apply(ProjectDescriptionView_223, project_description_view_223_ref_get) \
+    apply(ProjectDescriptionView_224, project_description_view_224_ref_get) \
+    apply(ProjectDescriptionView_225, project_description_view_225_ref_get) \
+    apply(ProjectDescriptionView_226, project_description_view_226_ref_get) \
+    apply(ProjectDescriptionView_227, project_description_view_227_ref_get) \
+    apply(ProjectDescriptionView_228, project_description_view_228_ref_get) \
+    apply(ProjectDescriptionView_229, project_description_view_229_ref_get) \
+    apply(ProjectDescriptionView_230, project_description_view_230_ref_get) \
+    apply(ProjectDescriptionView_231, project_description_view_231_ref_get) \
+    apply(ProjectDescriptionView_232, project_description_view_232_ref_get) \
+    apply(ProjectDescriptionView_484, project_description_view_484_ref_get) \
+    apply(ProjectDescriptionView_233, project_description_view_233_ref_get) \
+    apply(ProjectDescriptionView_486, project_description_view_486_ref_get) \
+    apply(ProjectDescriptionView_234, project_description_view_234_ref_get) \
+    apply(ProjectDescriptionView_488, project_description_view_488_ref_get) \
+    apply(ProjectDescriptionView_235, project_description_view_235_ref_get) \
+    apply(ProjectDescriptionView_490, project_description_view_490_ref_get) \
+    apply(ProjectDescriptionView_236, project_description_view_236_ref_get) \
+    apply(ProjectDescriptionView_492, project_description_view_492_ref_get) \
+    apply(ProjectDescriptionView_237, project_description_view_237_ref_get) \
+    apply(ProjectDescriptionView_494, project_description_view_494_ref_get) \
+    apply(ProjectDescriptionView_238, project_description_view_238_ref_get) \
+    apply(ProjectDescriptionView_496, project_description_view_496_ref_get) \
+    apply(ProjectDescriptionView_239, project_description_view_239_ref_get) \
+    apply(ProjectDescriptionView_498, project_description_view_498_ref_get) \
+    apply(ProjectDescriptionView_240, project_description_view_240_ref_get) \
+    apply(ProjectDescriptionView_500, project_description_view_500_ref_get) \
+    apply(ProjectDescriptionView_241, project_description_view_241_ref_get) \
+    apply(ProjectDescriptionView_502, project_description_view_502_ref_get) \
+    apply(ProjectDescriptionView_242, project_description_view_242_ref_get) \
+    apply(ProjectDescriptionView_243, project_description_view_243_ref_get) \
+    apply(ProjectDescriptionView_244, project_description_view_244_ref_get) \
+    apply(ProjectDescriptionView_245, project_description_view_245_ref_get) \
+    apply(ProjectDescriptionView_246, project_description_view_246_ref_get) \
+    apply(ProjectDescriptionView_247, project_description_view_247_ref_get) \
+    apply(ProjectDescriptionView_248, project_description_view_248_ref_get) \
+    apply(ProjectDescriptionView_249, project_description_view_249_ref_get) \
+    apply(ProjectDescriptionView_250, project_description_view_250_ref_get) \
+    apply(ProjectDescriptionView_251, project_description_view_251_ref_get) \
+    apply(ProjectDescriptionView_252, project_description_view_252_ref_get) \
+    apply(ProjectDescriptionView_253, project_description_view_253_ref_get) \
+    apply(ProjectDescriptionView_254, project_description_view_254_ref_get) \
+    apply(ProjectDescriptionView_255, project_description_view_255_ref_get) \
+    apply(ProjectDescriptionView_256, project_description_view_256_ref_get) \
+    apply(ProjectDescriptionView_257, project_description_view_257_ref_get) \
+    apply(ProjectDescriptionView_258, project_description_view_258_ref_get) \
+    apply(ProjectDescriptionView_259, project_description_view_259_ref_get) \
+    apply(ProjectDescriptionView_260, project_description_view_260_ref_get) \
+    apply(ProjectDescriptionView_261, project_description_view_261_ref_get) \
+    apply(ProjectDescriptionView_262, project_description_view_262_ref_get) \
+    apply(ProjectDescriptionView_263, project_description_view_263_ref_get) \
+    apply(ProjectDescriptionView_264, project_description_view_264_ref_get) \
+    apply(ProjectDescriptionView_265, project_description_view_265_ref_get) \
+    apply(ProjectDescriptionView_266, project_description_view_266_ref_get) \
+    apply(ProjectDescriptionView_267, project_description_view_267_ref_get) \
+    apply(ProjectDescriptionView_268, project_description_view_268_ref_get) \
+    apply(ProjectDescriptionView_269, project_description_view_269_ref_get) \
+    apply(ProjectDescriptionView_270, project_description_view_270_ref_get) \
+    apply(ProjectDescriptionView_271, project_description_view_271_ref_get) \
+    apply(ProjectDescriptionView_272, project_description_view_272_ref_get) \
+    apply(ProjectDescriptionView_273, project_description_view_273_ref_get) \
+    apply(ProjectDescriptionView_274, project_description_view_274_ref_get) \
+    apply(ProjectDescriptionView_275, project_description_view_275_ref_get) \
+    apply(ProjectDescriptionView_276, project_description_view_276_ref_get) \
+    apply(ProjectDescriptionView_277, project_description_view_277_ref_get) \
+    apply(ProjectDescriptionView_278, project_description_view_278_ref_get) \
+    apply(ProjectDescriptionView_279, project_description_view_279_ref_get) \
+    apply(ProjectDescriptionView_280, project_description_view_280_ref_get) \
+    apply(ProjectDescriptionView_281, project_description_view_281_ref_get) \
+    apply(ProjectDescriptionView_282, project_description_view_282_ref_get) \
+    apply(ProjectDescriptionView_283, project_description_view_283_ref_get) \
+    apply(ProjectDescriptionView_284, project_description_view_284_ref_get) \
+    apply(ProjectDescriptionView_285, project_description_view_285_ref_get) \
+    apply(ProjectDescriptionView_286, project_description_view_286_ref_get) \
+    apply(ProjectDescriptionView_287, project_description_view_287_ref_get) \
+    apply(ProjectDescriptionView_288, project_description_view_288_ref_get) \
+    apply(ProjectDescriptionView_289, project_description_view_289_ref_get) \
+    apply(ProjectDescriptionView_290, project_description_view_290_ref_get) \
+    apply(ProjectDescriptionView_291, project_description_view_291_ref_get) \
+    apply(ProjectDescriptionView_292, project_description_view_292_ref_get) \
+    apply(ProjectDescriptionView_293, project_description_view_293_ref_get) \
+    apply(ProjectDescriptionView_294, project_description_view_294_ref_get) \
+    apply(ProjectDescriptionView_295, project_description_view_295_ref_get) \
+    apply(ProjectDescriptionView_296, project_description_view_296_ref_get) \
+    apply(ProjectDescriptionView_297, project_description_view_297_ref_get) \
+    apply(ProjectDescriptionView_298, project_description_view_298_ref_get) \
+    apply(ProjectDescriptionView_299, project_description_view_299_ref_get) \
+    apply(ProjectDescriptionView_300, project_description_view_300_ref_get) \
+    apply(ProjectDescriptionView_301, project_description_view_301_ref_get) \
+    apply(ProjectDescriptionView_302, project_description_view_302_ref_get) \
+    apply(ProjectDescriptionView_303, project_description_view_303_ref_get) \
+    apply(ProjectDescriptionView_304, project_description_view_304_ref_get) \
+    apply(ProjectDescriptionView_305, project_description_view_305_ref_get) \
+    apply(ProjectDescriptionView_306, project_description_view_306_ref_get) \
+    apply(ProjectDescriptionView_307, project_description_view_307_ref_get) \
+    apply(ProjectDescriptionView_308, project_description_view_308_ref_get) \
+    apply(ProjectDescriptionView_309, project_description_view_309_ref_get) \
+    apply(ProjectDescriptionView_310, project_description_view_310_ref_get) \
+    apply(ProjectDescriptionView_311, project_description_view_311_ref_get) \
+    apply(ProjectDescriptionView_312, project_description_view_312_ref_get) \
+    apply(ProjectDescriptionView_313, project_description_view_313_ref_get) \
+    apply(ProjectDescriptionView_314, project_description_view_314_ref_get) \
+    apply(ProjectDescriptionView_315, project_description_view_315_ref_get) \
+    apply(ProjectDescriptionView_316, project_description_view_316_ref_get) \
+    apply(ProjectDescriptionView_317, project_description_view_317_ref_get) \
+    apply(ProjectDescriptionView_318, project_description_view_318_ref_get) \
+    apply(ProjectDescriptionView_319, project_description_view_319_ref_get) \
+    apply(ProjectDescriptionView_320, project_description_view_320_ref_get) \
+    apply(ProjectDescriptionView_321, project_description_view_321_ref_get) \
+    apply(ProjectDescriptionView_322, project_description_view_322_ref_get) \
+    apply(ProjectDescriptionView_323, project_description_view_323_ref_get) \
+    apply(ProjectDescriptionView_324, project_description_view_324_ref_get) \
+    apply(ProjectDescriptionView_325, project_description_view_325_ref_get) \
+    apply(ProjectDescriptionView_326, project_description_view_326_ref_get) \
+    apply(ProjectDescriptionView_327, project_description_view_327_ref_get) \
+    apply(ProjectDescriptionView_328, project_description_view_328_ref_get) \
+    apply(ProjectDescriptionView_329, project_description_view_329_ref_get) \
+    apply(ProjectDescriptionView_330, project_description_view_330_ref_get) \
+    apply(ProjectDescriptionView_331, project_description_view_331_ref_get) \
+    apply(ProjectDescriptionView_332, project_description_view_332_ref_get) \
+    apply(ProjectDescriptionView_333, project_description_view_333_ref_get) \
+    apply(ProjectDescriptionView_334, project_description_view_334_ref_get) \
+    apply(ProjectDescriptionView_335, project_description_view_335_ref_get) \
+    apply(ProjectDescriptionView_336, project_description_view_336_ref_get) \
+    apply(ProjectDescriptionView_337, project_description_view_337_ref_get) \
+    apply(ProjectDescriptionView_338, project_description_view_338_ref_get) \
+    apply(ProjectDescriptionView_339, project_description_view_339_ref_get) \
+    apply(ProjectDescriptionView_340, project_description_view_340_ref_get) \
+    apply(ProjectDescriptionView_341, project_description_view_341_ref_get) \
+    apply(ProjectDescriptionView_342, project_description_view_342_ref_get) \
+    apply(ProjectDescriptionView_343, project_description_view_343_ref_get) \
+    apply(ProjectDescriptionView_344, project_description_view_344_ref_get) \
+    apply(ProjectDescriptionView_345, project_description_view_345_ref_get) \
+    apply(ProjectDescriptionView_346, project_description_view_346_ref_get) \
+    apply(ProjectDescriptionView_347, project_description_view_347_ref_get) \
+    apply(ProjectDescriptionView_348, project_description_view_348_ref_get) \
+    apply(ProjectDescriptionView_349, project_description_view_349_ref_get) \
+    apply(ProjectDescriptionView_350, project_description_view_350_ref_get) \
+    apply(ProjectDescriptionView_351, project_description_view_351_ref_get) \
+    apply(ProjectDescriptionView_352, project_description_view_352_ref_get) \
+    apply(ProjectDescriptionView_353, project_description_view_353_ref_get) \
+    apply(ProjectDescriptionView_354, project_description_view_354_ref_get) \
+    apply(ProjectDescriptionView_355, project_description_view_355_ref_get) \
+    apply(ProjectDescriptionView_356, project_description_view_356_ref_get) \
+    apply(ProjectDescriptionView_357, project_description_view_357_ref_get) \
+    apply(ProjectDescriptionView_358, project_description_view_358_ref_get) \
+    apply(ProjectDescriptionView_359, project_description_view_359_ref_get) \
+    apply(ProjectDescriptionView_360, project_description_view_360_ref_get) \
+    apply(ProjectDescriptionView_361, project_description_view_361_ref_get) \
+    apply(ProjectDescriptionView_362, project_description_view_362_ref_get) \
+    apply(ProjectDescriptionView_363, project_description_view_363_ref_get) \
+    apply(ProjectDescriptionView_364, project_description_view_364_ref_get) \
+    apply(ProjectDescriptionView_365, project_description_view_365_ref_get) \
+    apply(ProjectDescriptionView_366, project_description_view_366_ref_get) \
+    apply(ProjectDescriptionView_367, project_description_view_367_ref_get) \
+    apply(ProjectDescriptionView_368, project_description_view_368_ref_get) \
+    apply(ProjectDescriptionView_369, project_description_view_369_ref_get) \
+    apply(ProjectDescriptionView_370, project_description_view_370_ref_get) \
+    apply(ProjectDescriptionView_371, project_description_view_371_ref_get) \
+    apply(ProjectDescriptionView_372, project_description_view_372_ref_get) \
+    apply(ProjectDescriptionView_373, project_description_view_373_ref_get) \
+    apply(ProjectDescriptionView_374, project_description_view_374_ref_get) \
+    apply(ProjectDescriptionView_375, project_description_view_375_ref_get) \
+    apply(ProjectDescriptionView_376, project_description_view_376_ref_get) \
+    apply(ProjectDescriptionView_377, project_description_view_377_ref_get) \
+    apply(ProjectDescriptionView_378, project_description_view_378_ref_get) \
+    apply(ProjectDescriptionView_379, project_description_view_379_ref_get) \
+    apply(ProjectDescriptionView_380, project_description_view_380_ref_get) \
+    apply(ProjectDescriptionView_381, project_description_view_381_ref_get) \
+    apply(ProjectDescriptionView_382, project_description_view_382_ref_get) \
+    apply(ProjectDescriptionView_383, project_description_view_383_ref_get) \
+    apply(ProjectDescriptionView_384, project_description_view_384_ref_get) \
+    apply(ProjectDescriptionView_385, project_description_view_385_ref_get) \
+    apply(ProjectDescriptionView_386, project_description_view_386_ref_get) \
+    apply(ProjectDescriptionView_387, project_description_view_387_ref_get) \
+    apply(ProjectDescriptionView_388, project_description_view_388_ref_get) \
+    apply(ProjectDescriptionView_389, project_description_view_389_ref_get) \
+    apply(ProjectDescriptionView_390, project_description_view_390_ref_get) \
+    apply(ProjectDescriptionView_391, project_description_view_391_ref_get) \
+    apply(ProjectDescriptionView_392, project_description_view_392_ref_get) \
+    apply(ProjectDescriptionView_393, project_description_view_393_ref_get) \
+    apply(ProjectDescriptionView_394, project_description_view_394_ref_get) \
+    apply(ProjectDescriptionView_395, project_description_view_395_ref_get) \
+    apply(ProjectDescriptionView_396, project_description_view_396_ref_get) \
+    apply(ProjectDescriptionView_397, project_description_view_397_ref_get) \
+    apply(ProjectDescriptionView_398, project_description_view_398_ref_get) \
+    apply(ProjectDescriptionView_399, project_description_view_399_ref_get) \
+    apply(ProjectDescriptionView_400, project_description_view_400_ref_get) \
+    apply(ProjectDescriptionView_401, project_description_view_401_ref_get) \
+    apply(ProjectDescriptionView_402, project_description_view_402_ref_get) \
+    apply(ProjectDescriptionView_403, project_description_view_403_ref_get) \
+    apply(ProjectDescriptionView_404, project_description_view_404_ref_get) \
+    apply(ProjectDescriptionView_405, project_description_view_405_ref_get) \
+    apply(ProjectDescriptionView_406, project_description_view_406_ref_get) \
+    apply(ProjectDescriptionView_407, project_description_view_407_ref_get) \
+    apply(ProjectDescriptionView_408, project_description_view_408_ref_get) \
+    apply(ProjectDescriptionView_409, project_description_view_409_ref_get) \
+    apply(ProjectDescriptionView_410, project_description_view_410_ref_get) \
+    apply(ProjectDescriptionView_411, project_description_view_411_ref_get) \
+    apply(ProjectDescriptionView_412, project_description_view_412_ref_get) \
+    apply(ProjectDescriptionView_413, project_description_view_413_ref_get) \
+    apply(ProjectDescriptionView_414, project_description_view_414_ref_get) \
+    apply(ProjectDescriptionView_415, project_description_view_415_ref_get) \
+    apply(ProjectDescriptionView_416, project_description_view_416_ref_get) \
+    apply(ProjectDescriptionView_417, project_description_view_417_ref_get) \
+    apply(ProjectDescriptionView_418, project_description_view_418_ref_get) \
+    apply(ProjectDescriptionView_419, project_description_view_419_ref_get) \
+    apply(ProjectDescriptionView_420, project_description_view_420_ref_get) \
+    apply(ProjectDescriptionView_421, project_description_view_421_ref_get) \
+    apply(ProjectDescriptionView_422, project_description_view_422_ref_get) \
+    apply(ProjectDescriptionView_423, project_description_view_423_ref_get) \
+    apply(ProjectDescriptionView_424, project_description_view_424_ref_get) \
+    apply(ProjectDescriptionView_425, project_description_view_425_ref_get) \
+    apply(ProjectDescriptionView_426, project_description_view_426_ref_get) \
+    apply(ProjectDescriptionView_427, project_description_view_427_ref_get) \
+    apply(ProjectDescriptionView_428, project_description_view_428_ref_get) \
+    apply(ProjectDescriptionView_429, project_description_view_429_ref_get) \
+    apply(ProjectDescriptionView_430, project_description_view_430_ref_get) \
+    apply(ProjectDescriptionView_431, project_description_view_431_ref_get) \
+    apply(ProjectDescriptionView_432, project_description_view_432_ref_get) \
+    apply(ProjectDescriptionView_433, project_description_view_433_ref_get) \
+    apply(ProjectDescriptionView_434, project_description_view_434_ref_get) \
+    apply(ProjectDescriptionView_435, project_description_view_435_ref_get) \
+    apply(ProjectDescriptionView_436, project_description_view_436_ref_get) \
+    apply(ProjectDescriptionView_437, project_description_view_437_ref_get) \
+    apply(ProjectDescriptionView_438, project_description_view_438_ref_get) \
+    apply(ProjectDescriptionView_439, project_description_view_439_ref_get) \
+    apply(ProjectDescriptionView_440, project_description_view_440_ref_get) \
+    apply(ProjectDescriptionView_441, project_description_view_441_ref_get) \
+    apply(ProjectDescriptionView_442, project_description_view_442_ref_get) \
+    apply(ProjectDescriptionView_443, project_description_view_443_ref_get) \
+    apply(ProjectDescriptionView_444, project_description_view_444_ref_get) \
+    apply(ProjectDescriptionView_445, project_description_view_445_ref_get) \
+    apply(ProjectDescriptionView_446, project_description_view_446_ref_get) \
+    apply(ProjectDescriptionView_447, project_description_view_447_ref_get) \
+    apply(ProjectDescriptionView_448, project_description_view_448_ref_get) \
+    apply(ProjectDescriptionView_449, project_description_view_449_ref_get) \
+    apply(ProjectDescriptionView_450, project_description_view_450_ref_get) \
+    apply(ProjectDescriptionView_451, project_description_view_451_ref_get) \
+    apply(ProjectDescriptionView_452, project_description_view_452_ref_get) \
+    apply(ProjectDescriptionView_503, project_description_view_503_ref_get) \
+    apply(ProjectDescriptionView_504, project_description_view_504_ref_get) \
+    apply(ProjectDescriptionView_505, project_description_view_505_ref_get) \
+    apply(ProjectDescriptionView_506, project_description_view_506_ref_get) \
+    apply(ProjectDescriptionView_507, project_description_view_507_ref_get) \
+    apply(ProjectDescriptionView_508, project_description_view_508_ref_get) \
+    apply(ProjectDescriptionView_509, project_description_view_509_ref_get) \
+    apply(ProjectDescriptionView_510, project_description_view_510_ref_get) \
+    apply(ProjectDescriptionView_511, project_description_view_511_ref_get) \
+    apply(ProjectDescriptionView_512, project_description_view_512_ref_get) \
+    apply(ProjectDescriptionView_513, project_description_view_513_ref_get) \
+    apply(ProjectDescriptionView_514, project_description_view_514_ref_get) \
+    apply(ProjectDescriptionView_515, project_description_view_515_ref_get) \
+    apply(ProjectDescriptionView_516, project_description_view_516_ref_get) \
+    apply(ProjectDescriptionView_517, project_description_view_517_ref_get) \
+    apply(ProjectDescriptionView_518, project_description_view_518_ref_get) \
+    apply(ProjectDescriptionView_519, project_description_view_519_ref_get) \
+    apply(ProjectDescriptionView_520, project_description_view_520_ref_get) \
+    apply(ProjectDescriptionView_521, project_description_view_521_ref_get) \
+    apply(ProjectDescriptionView_522, project_description_view_522_ref_get) \
+    apply(ProjectDescriptionView_523, project_description_view_523_ref_get) \
+    apply(ProjectDescriptionView_524, project_description_view_524_ref_get) \
+    apply(ProjectDescriptionView_525, project_description_view_525_ref_get) \
+    apply(ProjectDescriptionView_526, project_description_view_526_ref_get) \
+    apply(ProjectDescriptionView_527, project_description_view_527_ref_get) \
+    apply(ProjectDescriptionView_528, project_description_view_528_ref_get) \
+    apply(ProjectDescriptionView_529, project_description_view_529_ref_get)
+static inline const ProjectDescription *project_description_view_1_project_ref_get(
+        const ProjectDescriptionView_1 *value) { return &value->_project; }
+#undef ROHR_INTERNAL_PROJECT_CREATE_TYPES
+#define ROHR_INTERNAL_PROJECT_CREATE_TYPES(apply) \
+    apply(ProjectDescriptionView_1, project_description_view_1_project_ref_get)
 extern const ProjectDescriptionView_1 project;
 
 #endif

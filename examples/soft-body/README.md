@@ -22,7 +22,7 @@ Regenerate after editing the document:
 rohr-cli --project examples/soft-body generate-c
 ```
 
-`rohr_object_create(&project.car)` creates independent entities on each call.
+`rohr_object_create(project.car)` creates independent entities on each call.
 `car_instance_bind()` provides a typed view of that root's handles for gameplay.
 Deleting the owning root deletes its members and remaining sources. Stored
 appearance supplies the car's drawing, and `rohr_graphics_viewport_show()` renders

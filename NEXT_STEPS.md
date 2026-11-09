@@ -984,10 +984,24 @@ factories and new physics, pacing, or world-isolation behavior are out of scope.
    [verification](docs/reports.md#milestone-17-goal-1-verification) and
    `sandbox/milestone_17/goal_1/`. Physics and pacing are unchanged. Stop for review
    and commit; later creation changes remain unimplemented.
-2. [ ] **Establish unified creation dispatch.** Implement value-style
+2. [x] **Establish unified creation dispatch.** Implement value-style
    entity/object/project creation and typed-adapter conventions. Preserve
    immutable recipe identity, scope resolution, rollback, and lifetime rules;
    evaluate each argument once and reject unsupported types at compile time.
+   **Result: complete for review.** C11 dispatch accepts engine descriptor values
+   and exact generated view types, borrowing canonical recipe addresses without
+   copying hierarchies. Old public pointer spellings and function-pointer entry
+   points are removed. Affected generated templates, bundled examples, callers,
+   and usage guides are migrated; developer-edited mains remain preserved.
+   Eleven focused tests and five installed-SDK consumers pass in Release and
+   ASan/UBSan with leak detection, including 1,000-cycle ownership checks.
+   Supported forms compile and all 20 invalid input cases are rejected on Linux
+   and Windows. Engine/editor, consumers, generated paths, and three independent
+   examples cross-build for Windows; native Windows execution is unverified.
+   Linux examples run outside their source directories; the car completes its
+   full simulation with unchanged work counts. No compiler warnings or sanitizer
+   findings remain. See [verification](docs/shared_creation.md#milestone-17-goal-2-verification)
+   and `sandbox/milestone_17/goal_2/`. Stop for review and commit; Goal 3 has not begun.
 3. [ ] **Expose named controllers and resources.** Generate named
    controller/action, audio, layer, and nested viewport-item recipes. Add
    rohr_controller_create for runtime descriptors and complete authored recipes,

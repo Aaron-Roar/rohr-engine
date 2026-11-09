@@ -348,6 +348,33 @@ static void project_resources_write(FILE *f, const EditorProject *p) {
         if(count) fputs("};\n", f);
     }
 }
+/* Register exact generated types; never accept arbitrary initial-member casts.
+ * Both catalogs may coexist, so each fills its own dispatch extension. */
+static void creation_adapters_write(FILE *f, const Catalog *c, bool unified) {
+    const char *prefix = unified ? "project" : "object";
+    const char *hook = unified ? "PROJECT" : "OBJECT";
+    for(size_t i = 0; i < c->count; ++i) {
+        const ObjectDescription *d = c->entries[i].d;
+        unsigned long long id = d->id;
+        fprintf(f, "static inline const ObjectDescription *%s_description_view_%llu_ref_get(\n"
+            "        const %sDescriptionView_%llu *value) { return &value->%s; }\n",
+            prefix, id, c->prefix, id, unified && !d->parent ? "_project.root" : "_description");
+    }
+    fprintf(f, "#undef ROHR_INTERNAL_%s_VIEW_TYPES\n#define ROHR_INTERNAL_%s_VIEW_TYPES(apply)", hook, hook);
+    for(size_t i = 0; i < c->count; ++i) {
+        unsigned long long id = c->entries[i].d->id;
+        fprintf(f, " \\\n    apply(%sDescriptionView_%llu, %s_description_view_%llu_ref_get)", c->prefix, id, prefix, id);
+    }
+    fputs("\n", f);
+    if(unified) {
+        unsigned long long id = c->entries[0].d->id;
+        fprintf(f, "static inline const ProjectDescription *project_description_view_%llu_project_ref_get(\n"
+            "        const ProjectDescriptionView_%llu *value) { return &value->_project; }\n"
+            "#undef ROHR_INTERNAL_PROJECT_CREATE_TYPES\n#define ROHR_INTERNAL_PROJECT_CREATE_TYPES(apply) \\\n"
+            "    apply(ProjectDescriptionView_%llu, project_description_view_%llu_project_ref_get)\n",
+            id, id, id, id);
+    }
+}
 static bool catalog_write(FILE *header, FILE *source, const EditorProject *project, bool unified) {
     if(!project) return false;
     ObjectDescriptionResult converted = object_description_project_read(project, "");
@@ -357,6 +384,7 @@ static bool catalog_write(FILE *header, FILE *source, const EditorProject *proje
     bool ok = catalog && collect(catalog,converted.result.value,unified ? "project" : "objects",0);
     if(ok) {
         type_write(header,catalog,converted.result.value);
+        creation_adapters_write(header,catalog,unified);
         fprintf(header,"extern const %sDescriptionView_%llu %s;\n\n",catalog->prefix,
             (unsigned long long)converted.result.value->id,unified ? "project" : "objects");
         for(size_t i = 0; i < catalog->count; ++i) array_write(source,catalog,catalog->entries[i].d);

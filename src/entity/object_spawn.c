@@ -1045,7 +1045,7 @@ EntityCreateOptions entity_create_options_default_get(void) {
 ObjectCreateOptions object_create_options_default_get(void) {
     return (ObjectCreateOptions){.flags = ROHR_ENTITY_OBJECT_ALL};
 }
-EntityResult (entity_create_with_options)(const EntityCreateDescription *description,
+EntityResult rohr_internal_entity_create(const EntityCreateDescription *description,
         EntityCreateOptions options) {
     if(!description || description->kind == OBJECT_CONTAINER || description->kind == OBJECT_SOFT_BODY)
         return ERROR_RESULT_MAKE_ERROR(EntityResult, ERROR_ENGINE_STATE_INVALID);
@@ -1053,17 +1053,13 @@ EntityResult (entity_create_with_options)(const EntityCreateDescription *descrip
         .owner = options.owner, .offset = options.offset, .bindings = options.bindings,
         .binding_count = options.binding_count}, true, true);
 }
-EntityResult (entity_create)(const EntityCreateDescription *description) {
-    return entity_create_with_options(description, entity_create_options_default_get());
-}
-EntityResult (object_create_with_options)(const ObjectDescription *description, ObjectCreateOptions options) {
+
+EntityResult rohr_internal_object_create(const ObjectDescription *description, ObjectCreateOptions options) {
     if(!description || (description->kind != OBJECT_CONTAINER && description->kind != OBJECT_SOFT_BODY))
         return ERROR_RESULT_MAKE_ERROR(EntityResult, ERROR_ENGINE_STATE_INVALID);
     return description_spawn(description, options, true, false);
 }
-EntityResult (object_create)(const ObjectDescription *description) {
-    return object_create_with_options(description, object_create_options_default_get());
-}
+
 EntityResult entity_object_description_add(const ObjectDescription *description, ObjectSpawnDescription options) {
     return description_spawn(description, (ObjectCreateOptions){.flags = options.flags, .offset = options.offset}, false, false);
 }

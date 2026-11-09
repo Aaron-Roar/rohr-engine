@@ -22,7 +22,7 @@ typedef struct Workflow {
 static bool create(Workflow *w, bool whole_project) {
     for(unsigned i=0;i<2;++i) {
         if(whole_project) {
-            ProjectIdResult instance=rohr_project_create(&project); OK(instance);
+            ProjectIdResult instance=rohr_project_create(project); OK(instance);
             w->projects[i]=instance.result.value;
             EntityResult root=rohr_project_root_get(w->projects[i]); OK(root);
             EntityResult object=rohr_object_member_get(root.result.value,project.mass_demo.name); OK(object);
@@ -38,7 +38,7 @@ static bool create(Workflow *w, bool whole_project) {
         } else {
             ObjectCreateOptions options=rohr_object_create_options_default_get();
             options.offset=(Position){i*1800.0f,0};
-            EntityResult root=rohr_object_create_with_options(&project.mass_demo,options); OK(root);
+            EntityResult root=rohr_object_create_with_options(project.mass_demo,options); OK(root);
             w->roots[i]=root.result.value;
         }
         EntityResult body=rohr_object_member_get(w->roots[i],project.mass_demo.automatic_body.name); OK(body);
@@ -102,7 +102,7 @@ static bool create(Workflow *w, bool whole_project) {
         .value="Toggle orange body",.color={255,255,255,255}}); OK(text); w->caption=text.result.value;
     w->button=example_button_add(w->views[0],w->caption,(UIRect){150,600,300,50},NULL);
     assert(w->button);
-    EntityResult late=rohr_entity_create(&project.mass_demo.explicit_body); OK(late); w->late=late.result.value;
+    EntityResult late=rohr_entity_create(project.mass_demo.explicit_body); OK(late); w->late=late.result.value;
     OK(rohr_physics_position_set(w->late,(Position){0,-180}));
     assert(rohr_entity_owner_get(w->late).result.value==ENTITY_INVALID);
     return true;

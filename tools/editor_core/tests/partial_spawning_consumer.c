@@ -13,17 +13,17 @@ int main(int argc, char **argv) {
     OK(rohr_directory_working_set(rohr_directory_base_get()));
     Entity root = ENTITY_INVALID, example = ENTITY_INVALID, tug = ENTITY_INVALID;
     if(full) {
-        root = take(rohr_object_create(&project));
+        root = take(rohr_object_create(project));
         example = take(rohr_object_member_get(root, project.example.name));
-    } else if(!missing) example = take(rohr_object_create(&project.example));
-    else tug = take(rohr_object_create(&project.tug));
+    } else if(!missing) example = take(rohr_object_create(project.example));
+    else tug = take(rohr_object_create(project.tug));
     ViewportObjectBinding binding = {&project.example._description, example};
     ViewportCreateDescription description = {.template=&project.initial_viewport,
         .objects=&binding,.object_count=1};
     ViewportIdResult view = rohr_viewport_create(&description);
     if(missing) {
         assert(rohr_error_check(view)); /* An explicitly supplied invalid owner still fails. */
-        example = take(rohr_object_create(&project.example));
+        example = take(rohr_object_create(project.example));
         binding.instance = example;
         view = rohr_viewport_create(&description);
     }

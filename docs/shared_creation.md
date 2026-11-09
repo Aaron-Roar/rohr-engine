@@ -3,12 +3,43 @@
 Milestone 15 Goal 2 implements the entity/object portion of the
 [creation contract](creation_and_viewport_contract.md). Goal 3 adds
 [automatic viewports](automatic_viewports.md), and Goal 4 adds the unified
-generated `project.h`. Existing generated catalogs remain compatible.
+generated `project.h`.
 
 Milestone 16 Goal 2 implements the [scoped creation rules](scoped_creation_contract.md)
 for optional external links and unbound viewport screens. Goal 3 adds
 `rohr_project_create()` and project ownership. Goal 4 adds generated project
 recipes and the three-path example main.
+
+Milestone 17 Goal 2 changes entity, object, and project creation to typed value
+syntax. Rebuild the SDK and regenerate catalogs together; older generated headers
+do not contain the required adapters. Existing developer-edited mains are preserved
+and need the source migration below. Other resource creators keep their current
+signatures until their milestone goals are implemented.
+
+## Creation values and source migration
+
+Pass a generated field or an engine descriptor directly: `rohr_entity_create(body)`,
+`rohr_object_create(project.example)`, or `rohr_project_create(project)`. The direct
+engine names behave identically. Both `_with_options` creators also take a value
+as their first argument. Replace old `create(&value)` calls with `create(value)`;
+when holding a valid descriptor pointer, explicitly use `create(*pointer)`.
+Check nullable pointers before dereferencing them.
+
+C11 dispatch accepts only the appropriate descriptor or a registered generated
+view. Pointer arguments, unrelated structs (even with an identical first member),
+and non-project fields passed to project creation are compile errors. The old
+pointer functions and creator function-pointer spellings are removed. Applications
+needing a function pointer can define an explicitly typed wrapper around a value
+call. Do not call the `rohr_internal_*` implementation helpers directly.
+
+Arguments and creation options are evaluated once. Hierarchy recipes are borrowed
+at their original addresses: keep generated catalogs as named immutable values,
+and do not copy them to rebind a hierarchy. Their parent/child and external-binding
+references must point to the same canonical records. A parentless plain descriptor
+may be a C compound literal; double-parenthesize compound literals when passing
+them alongside options to protect initializer commas from macro argument parsing.
+Only the returned runtime resources are owned by the caller. Dispatch adds no
+allocation, runtime registry, or hierarchy copy.
 
 ## Unified generated project
 
@@ -25,7 +56,7 @@ The initial main uses the whole-project path:
 
 /* After starting engine/graphics and applying project_settings_apply() once.
  * Start audio as well if the project contains sound/music recipes. */
-ProjectIdResult created = rohr_project_create(&project);
+ProjectIdResult created = rohr_project_create(project);
 /* Check created, then use its project-local resources. */
 ViewportListResult views = rohr_project_viewports_get(created.result.value);
 /* Check views before presenting its values/count in the ordinary game loop. */
@@ -40,7 +71,7 @@ a separate startup operation, and each system update remains explicit in the loo
 `rohr_project_destroy()` releases the owned resources without changing other instances.
 
 The generated main contains complete, line-commented alternatives for
-`rohr_object_create(&project.example)` and individual `rohr_entity_create()` calls.
+`rohr_object_create(project.example)` and individual `rohr_entity_create()` calls.
 Comment out the active main and uncomment exactly one alternative; the shared
 loop stays in place. The object path creates a blank viewport then binds its screen
 camera. The entity path supplies a camera in a local viewport creation descriptor.
@@ -119,8 +150,8 @@ bundled center-of-mass catalog exposes these descriptions:
 #include "project_objects.h"
 
 /* Alternative creation operations; check each result before using its value. */
-EntityResult instance = rohr_object_create(&objects.mass_demo);
-EntityResult body = rohr_entity_create(&objects.mass_demo.automatic_body);
+EntityResult instance = rohr_object_create(objects.mass_demo);
+EntityResult body = rohr_entity_create(objects.mass_demo.automatic_body);
 ```
 
 The first operation creates the whole object, including its bodies, anchors,
@@ -186,7 +217,7 @@ EntityCreateOptions options = rohr_entity_create_options_default_get();
 options.bindings = &binding;
 options.binding_count = 1;
 EntityResult anchor = rohr_entity_create_with_options(
-    &objects.mass_demo.automatic_body.automatic_tip, options);
+    objects.mass_demo.automatic_body.automatic_tip, options);
 ```
 
 Binding descriptions must belong to the same catalog as the selected template.
@@ -269,3 +300,48 @@ the obsolete forces-test timing assertion to allow the adopted fixed-step mode.
 All force/torque numerical checks remain intact and pass; the joint and other
 physics failures are not claimed resolved. See the
 [integrated verification report](creation_rendering_verification.md).
+
+## Milestone 17 Goal 2 verification
+
+Value-style entity/object/project creation passes eleven focused checks in both
+Release and ASan/UBSan with leak detection: `automatic_viewports`,
+`object_instances`, `project_creation`, `descriptor_creation`,
+`editor_example_pathways`, `editor_partial_spawning`,
+`editor_construction_generated`, `editor_configuration_generated`,
+`editor_scene_generation`, `editor_cli_scene_selection`, and `editor_project`.
+These include immutable catalog identity, optional/required scope bindings,
+independent runtime instances, released source descriptions, allocation-failure
+rollback, survivor-safe destruction, and 1,000-cycle resource-lifetime checks.
+
+Five consumers pass against separately installed Release and sanitizer SDKs:
+`rohr_creation_dispatch`, `rohr_object_descriptions`, `rohr_automatic_viewports`,
+`rohr_generated_workflow`, and `rohr_project_creation`. The workflow consumer
+performs 1,000 object and 1,000 project create/extend/use/destroy cycles.
+New dispatch checks exercise side-effecting arguments and options exactly once,
+both generated catalogs, plain descriptors, const/mutable inputs, compound
+literals, root-only creation, and public/direct equivalents. Compile checks
+first accept supported forms, then reject all twenty unsupported-type cases.
+The expected negative compiler diagnostics are successful contract checks,
+not unresolved build failures.
+
+The Linux engine/editor build succeeds. Engine/editor, affected tests, all five
+consumers, and the three generated example pathways cross-build for Windows.
+The same compile contract passes against the installed Windows SDK. Native
+Windows execution remains unverified. No compiler warnings or sanitizer findings
+remain in the verified builds/runs.
+
+Center of mass, player controller, and soft-body car build independently against
+the installed Linux and Windows SDKs. Linux runs use dummy SDL drivers from
+`/tmp`; center of mass and player controller exit cleanly after SIGINT. The car
+reaches all 3,600 frames / 60 simulated seconds with 14,400 substeps, 7,222,164
+candidates, and 1,195,541 contacts, matching the earlier functional reference.
+This is not a performance acceptance run or a new visual review; its
+`realtime_pass=0` is not claimed resolved. Physics and presentation behavior were
+not changed. Generic Linux distribution packaging remains a later parity goal.
+
+Regenerating copies of all three bundled projects produces byte-identical
+catalogs and preserves their custom main/build files. The generated pathway
+test also preserves edited entry points and build files. Historical exact-match
+main snapshots remain unchanged; external mains using pointer-style calls need
+the explicit migration described above. Build/test logs, SDK installs, and
+disposable verification projects are under `sandbox/milestone_17/goal_2/`.

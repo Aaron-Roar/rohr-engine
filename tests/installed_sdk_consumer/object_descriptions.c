@@ -46,12 +46,12 @@ int main(void) {
             .transform_driver={.kind=OBJECT_BODY,.id=2},.transform_position=true}};
     const ObjectDescription *source_children[] = {&receiving_body,&authored_force,&authored_torque,&follower};
     source_object.children=source_children;source_object.child_count=4;
-    EntityResult standalone_follower=rohr_entity_create(&follower); OK(standalone_follower);
+    EntityResult standalone_follower=rohr_entity_create(follower); OK(standalone_follower);
     assert(!rohr_entity_components_check(standalone_follower.result.value,ROHR_TARGETABLE));
     assert(rohr_error_check(rohr_physics_transform_lock_description_get(standalone_follower.result.value)));
     assert(rohr_physics_position_get(standalone_follower.result.value).result.value.x==5);
-    assert(rohr_error_check(rohr_entity_create(&authored_force)));
-    EntityResult complete_object=rohr_object_create(&source_object); OK(complete_object);
+    assert(rohr_error_check(rohr_entity_create(authored_force)));
+    EntityResult complete_object=rohr_object_create(source_object); OK(complete_object);
     EntityResult created_follower=rohr_object_member_get(complete_object.result.value,"follower"); OK(created_follower);
     EntityResult created_target=rohr_object_member_get(complete_object.result.value,"receiver"); OK(created_target);
     assert(rohr_physics_transform_lock_description_get(created_follower.result.value).result.value.driver==created_target.result.value);
@@ -144,9 +144,9 @@ int main(void) {
     assert(!rohr_entity_alive_check(pin.result.value.joint) && !rohr_entity_alive_check(force.result.value));
     assert(!rohr_entity_alive_check(local.result.value) && !rohr_entity_alive_check(beam.result.value));
     assert(objects.mass_demo.automatic_body.mass > 0);
-    EntityResult generic = rohr_object_create(&objects.mass_demo); OK(generic);
+    EntityResult generic = rohr_object_create(objects.mass_demo); OK(generic);
     EntityResult generic_body = rohr_object_member_get(generic.result.value, "automatic_body"); OK(generic_body);
-    EntityResult independent = rohr_entity_create(&objects.mass_demo.automatic_body); OK(independent);
+    EntityResult independent = rohr_entity_create(objects.mass_demo.automatic_body); OK(independent);
     assert(generic_body.result.value != independent.result.value);
     assert(rohr_physics_joint_anchors_get(generic_body.result.value).result.value.count == 1);
     assert(rohr_physics_joint_anchors_get(independent.result.value).result.value.count == 0);
@@ -155,7 +155,7 @@ int main(void) {
     EntityCreateOptions creation_options = rohr_entity_create_options_default_get();
     creation_options.bindings = &body_binding; creation_options.binding_count = 1;
     EntityResult independent_anchor = rohr_entity_create_with_options(
-        &objects.mass_demo.automatic_body.automatic_tip, creation_options); OK(independent_anchor);
+        objects.mass_demo.automatic_body.automatic_tip, creation_options); OK(independent_anchor);
     JointAnchorIdResult created_anchor = rohr_entity_object_anchor_get(independent_anchor.result.value); OK(created_anchor);
     assert(rohr_physics_joint_anchor_description_get(created_anchor.result.value).result.value.entity == independent.result.value);
     OK(rohr_entity_delete(independent_anchor.result.value));

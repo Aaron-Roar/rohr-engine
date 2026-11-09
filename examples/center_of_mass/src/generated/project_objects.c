@@ -46,7 +46,7 @@ EngineResult mass_demo_create(MassDemo *object, Position position) {
     if(!object) return rohr_error_result_error(ERROR_MEMORY_POOL_NULL_POINTER);
     *object = (MassDemo){0};
     const ObjectDescription *description = rohr_object_get(objects.mass_demo);
-    EntityResult added = rohr_object_create_with_options(description,
+    EntityResult added = rohr_object_create_with_options(*description,
         ((ObjectCreateOptions){.flags=ROHR_ENTITY_OBJECT_ALL,
             .offset={position.x - description->position.x, position.y - description->position.y}}));
     if(rohr_error_check(added)) return rohr_error_result_error(added.result.error);
@@ -116,7 +116,7 @@ EngineResult project_objects_create_all(ProjectObjects *instances) {
     if(rohr_error_check(result)) goto fail;
     result = project_settings_apply();
     if(rohr_error_check(result)) goto fail;
-    { EntityResult added = rohr_object_create(&objects.mass_demo);
+    { EntityResult added = rohr_object_create(objects.mass_demo);
       if(rohr_error_check(added)) { result = rohr_error_result_error(added.result.error); goto fail; }
       instances->mass_demo.source_instance = added.result.value;
       result = mass_demo_instance_bind(&instances->mass_demo, added.result.value);

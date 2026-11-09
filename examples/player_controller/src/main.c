@@ -76,7 +76,7 @@ int main(void) {
     if(!ok(rohr_directory_working_set(rohr_directory_base_get()))) return 1;
     if(!ok(rohr_engine_start()) || !ok(rohr_graphics_start())) goto fail;
     if(!ok(project_settings_apply()) || !ok(project_controllers_create(&controllers))) goto fail;
-    EntityResult created = rohr_object_create(&project.player_world);
+    EntityResult created = rohr_object_create(project.player_world);
     if(rohr_error_check(created)) goto fail;
     root = created.result.value;
     EntityResult member = rohr_object_member_get(root, project.player_world.player.name);

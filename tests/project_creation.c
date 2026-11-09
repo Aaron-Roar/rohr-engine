@@ -33,7 +33,7 @@ void *__wrap_realloc(void *p,size_t n) { return reject() ? NULL : __real_realloc
 #endif
 
 typedef struct Fixture {
-    ProjectDescription project; /* Initial member also exercises typed views. */
+    ProjectDescription project; /* Canonical root of this hand-written catalog. */
     ObjectDescription left, right, body, camera, follower;
     const ObjectDescription *roots[2], *left_members[1], *right_members[2];
     ViewportCreateItemDescription items[3];
@@ -106,7 +106,7 @@ static void fixture_init(Fixture *f) {
     f->project.sounds=f->sounds; f->project.sound_count=2;
     f->project.music=&f->music; f->project.music_count=1;
 }
-static ProjectId create(Fixture *f) { ProjectIdResult r=rohr_project_create(f); OK(r); return r.result.value; }
+static ProjectId create(Fixture *f) { ProjectIdResult r=rohr_project_create(f->project); OK(r); return r.result.value; }
 static Entity root(ProjectId p) { EntityResult r=rohr_project_root_get(p); OK(r); return r.result.value; }
 static Entity member(Entity p,const char *name) { EntityResult r=rohr_object_member_get(p,name); OK(r); return r.result.value; }
 static Entity body(ProjectId p) { return member(member(root(p),"left"),"body"); }
@@ -192,7 +192,7 @@ static void two_instances(void) {
     assert(viewport(a) && controller(a) && sound(a) && music(a));
     Entity old_body=body(a); InputActionId old_action=toggle(a); Sound old_sound=sound(a);
     OK(rohr_entity_delete(old_body)); BAD(rohr_object_member_get(member(root(a),"left"),"body"));
-    Entity replacement=rohr_entity_create(&f.body).result.value; assert(replacement && replacement!=old_body);
+    Entity replacement=rohr_entity_create(f.body).result.value; assert(replacement && replacement!=old_body);
     OK(rohr_project_destroy(a)); BAD(rohr_project_root_get(a)); BAD(rohr_project_destroy(a));
     BAD(rohr_input_action_type_get(old_action)); assert(!rohr_audio_sound_valid_check(old_sound));
     assert(rohr_entity_alive_check(replacement)); audio_counts(2,1,1); wiring(b); show(b);
@@ -201,7 +201,7 @@ static void two_instances(void) {
     assert(rohr_entity_alive_count_get()==0);
 }
 static void failed(Fixture *f,ProjectId survivor,uint32_t alive) {
-    BAD(rohr_project_create(f));
+    BAD(rohr_project_create(f->project));
     assert(rohr_entity_alive_count_get()==alive);
     audio_counts(2,1,1); wiring(survivor);
     assert(controller(survivor) && sound(survivor) && music(survivor));
@@ -209,7 +209,7 @@ static void failed(Fixture *f,ProjectId survivor,uint32_t alive) {
 static void failures(void) {
     Fixture f; fixture_init(&f);
     ProjectId survivor=create(&f); uint32_t alive=rohr_entity_alive_count_get();
-    BAD(rohr_project_create(NULL)); BAD(rohr_project_root_get(UINT64_MAX));
+    BAD(rohr_internal_project_create(NULL)); BAD(rohr_project_root_get(UINT64_MAX));
     BAD(rohr_project_controller_by_name_get(survivor,NULL)); BAD(rohr_project_sound_by_name_get(survivor,"absent"));
     BAD(rohr_project_music_by_name_get(survivor,"absent")); BAD(rohr_project_viewport_by_name_get(survivor,"absent"));
     f.project.root.parent=&f.right; failed(&f,survivor,alive); f.project.root.parent=NULL;
@@ -227,7 +227,7 @@ static void failures(void) {
     f.music.description.path="missing_project_music.ogg";
     strcpy(f.body.layer_name,"failed_project_layer"); f.body.layer=7;
     f.layer.name="failed_viewport_layer"; f.items[2].layer_name=f.layer.name;
-    ProjectIdResult missing=rohr_project_create(&f); BAD(missing);
+    ProjectIdResult missing=rohr_project_create(f.project); BAD(missing);
     assert(missing.result.error==ERROR_ENGINE_AUDIO_MUSIC_LOAD_FAILED);
     failed(&f,survivor,alive);
     BAD(rohr_graphics_layer_name_id_get("failed_project_layer"));
@@ -242,7 +242,7 @@ static void failures(void) {
     unsigned rejected=0; bool complete=false;
     for(long point=0;point<2048;++point) {
         allocation_countdown=point;
-        ProjectIdResult r=rohr_project_create(&f);
+        ProjectIdResult r=rohr_project_create(f.project);
         allocation_countdown=-1;
         if(!rohr_error_check(r)) { OK(rohr_project_destroy(r.result.value)); complete=true; break; }
         ++rejected; assert(rohr_entity_alive_count_get()==alive); audio_counts(2,1,1);
@@ -268,12 +268,12 @@ static void capacities(void) {
     /* One sound slot remains: failure after loading the project's first sound. */
     Sound sounds[ROHR_AUDIO_SOUND_LIMIT-1];
     for(size_t i=0;i<ROHR_AUDIO_SOUND_LIMIT-1;++i) { SoundResult s=rohr_audio_sound_create(f.sounds[0].description); OK(s); sounds[i]=s.result.value; }
-    ProjectIdResult r=rohr_project_create(&f); BAD(r); assert(r.result.error==ERROR_ENGINE_AUDIO_SOUND_CAPACITY_EXCEEDED);
+    ProjectIdResult r=rohr_project_create(f.project); BAD(r); assert(r.result.error==ERROR_ENGINE_AUDIO_SOUND_CAPACITY_EXCEEDED);
     assert(rohr_entity_alive_count_get()==0); audio_counts(ROHR_AUDIO_SOUND_LIMIT-1,1,0);
     for(size_t i=0;i<ROHR_AUDIO_SOUND_LIMIT-1;++i) OK(rohr_audio_sound_destroy(&sounds[i]));
     Music tracks[ROHR_AUDIO_MUSIC_LIMIT];
     for(size_t i=0;i<ROHR_AUDIO_MUSIC_LIMIT;++i) { MusicResult m=rohr_audio_music_create(f.music.description); OK(m); tracks[i]=m.result.value; }
-    r=rohr_project_create(&f); BAD(r); assert(r.result.error==ERROR_ENGINE_AUDIO_MUSIC_CAPACITY_EXCEEDED);
+    r=rohr_project_create(f.project); BAD(r); assert(r.result.error==ERROR_ENGINE_AUDIO_MUSIC_CAPACITY_EXCEEDED);
     audio_counts(0,0,ROHR_AUDIO_MUSIC_LIMIT);
     for(size_t i=0;i<ROHR_AUDIO_MUSIC_LIMIT;++i) OK(rohr_audio_music_destroy(&tracks[i]));
     InputControllerId controllers[ROHR_INPUT_CONTROLLER_LIMIT];
@@ -281,19 +281,19 @@ static void capacities(void) {
         InputControllerDescription d={.enabled=true}; snprintf(d.name,sizeof(d.name),"external_%zu",i);
         InputControllerIdResult c=rohr_input_controller_create(d); OK(c); controllers[i]=c.result.value;
     }
-    r=rohr_project_create(&f); BAD(r); assert(r.result.error==ERROR_ENGINE_INPUT_CAPACITY_EXCEEDED);
+    r=rohr_project_create(f.project); BAD(r); assert(r.result.error==ERROR_ENGINE_INPUT_CAPACITY_EXCEEDED);
     assert(rohr_entity_alive_count_get()==0);
     for(size_t i=0;i<ROHR_INPUT_CONTROLLER_LIMIT;++i) OK(rohr_input_controller_destroy(controllers[i]));
     ViewportId views[MAX_VIEWPORTS-1];
     for(size_t i=0;i<MAX_VIEWPORTS-1;++i) {
         ViewportIdResult v=rohr_viewport_create(rohr_viewport_description_default_get()); OK(v); views[i]=v.result.value;
     }
-    BAD(rohr_project_create(&f)); assert(rohr_entity_alive_count_get()==0);
+    BAD(rohr_project_create(f.project)); assert(rohr_entity_alive_count_get()==0);
     for(size_t i=0;i<MAX_VIEWPORTS-1;++i) OK(rohr_viewport_destroy(views[i]));
     ProjectDescription empty={.root={.id=1,.name="empty",.kind=OBJECT_CONTAINER,.categories=ROHR_ENTITY_OBJECT_ALL}};
     ProjectId owners[ROHR_PROJECT_LIMIT];
-    for(size_t i=0;i<ROHR_PROJECT_LIMIT;++i) { ProjectIdResult p=rohr_project_create(&empty); OK(p); owners[i]=p.result.value; }
-    BAD(rohr_project_create(&empty));
+    for(size_t i=0;i<ROHR_PROJECT_LIMIT;++i) { ProjectIdResult p=rohr_project_create(empty); OK(p); owners[i]=p.result.value; }
+    BAD(rohr_project_create(empty));
     for(size_t i=0;i<ROHR_PROJECT_LIMIT;++i) OK(rohr_project_destroy(owners[i]));
     ProjectId recovery=create(&f); OK(rohr_project_destroy(recovery));
 }
@@ -304,7 +304,7 @@ static void expired_root(void) {
         .tick_enabled=true,.expiry_tick=rohr_engine_tick_get()}));
     Report report=rohr_engine_lifecycle_update(); assert(report.header.status==ROHR_REPORT_COMPLETE);
     BAD(rohr_project_root_get(p)); assert(!rohr_entity_alive_check(old));
-    EntityResult replacement=rohr_object_create(&f.project); OK(replacement);
+    EntityResult replacement=rohr_object_create(f.project); OK(replacement);
     assert(replacement.result.value!=old);
     OK(rohr_project_destroy(p)); assert(rohr_entity_alive_check(replacement.result.value));
     OK(rohr_entity_delete(replacement.result.value)); audio_counts(0,0,0);
@@ -365,13 +365,13 @@ static void restart(void) {
     OK(rohr_project_destroy(fresh));
 }
 static void prerequisites(void) {
-    Fixture f; fixture_init(&f); BAD(rohr_project_create(&f));
-    OK(rohr_engine_start()); BAD(rohr_project_create(&f));
+    Fixture f; fixture_init(&f); BAD(rohr_project_create(f.project));
+    OK(rohr_engine_start()); BAD(rohr_project_create(f.project));
     ProjectDescription empty={.root={.id=1,.name="empty",.kind=OBJECT_CONTAINER,.categories=ROHR_ENTITY_OBJECT_ALL}};
-    ProjectIdResult p=rohr_project_create(&empty); OK(p); OK(rohr_project_destroy(p.result.value));
+    ProjectIdResult p=rohr_project_create(empty); OK(p); OK(rohr_project_destroy(p.result.value));
     /* Empty viewport collections do not conceal camera/texture prerequisites. */
-    f.project.viewport_count=0; BAD(rohr_project_create(&f)); f.project.viewport_count=2;
-    OK(rohr_graphics_start()); BAD(rohr_project_create(&f));
+    f.project.viewport_count=0; BAD(rohr_project_create(f.project)); f.project.viewport_count=2;
+    OK(rohr_graphics_start()); BAD(rohr_project_create(f.project));
     assert(rohr_entity_alive_count_get()==0); OK(rohr_audio_start());
 }
 static void preview(void) {

@@ -255,30 +255,46 @@ ObjectCreateOptions object_create_options_default_get(void);
  * Input is borrowed during the call; returned state and asset references are
  * independently owned. Creation may allocate/load assets. Failure rolls back
  * the attempt without altering borrowed instances. Delete with entity_delete. */
-EntityResult entity_create(const EntityCreateDescription *description);
-EntityResult entity_create_with_options(const EntityCreateDescription *description,
+EntityResult rohr_internal_entity_create(const EntityCreateDescription *description,
     EntityCreateOptions options);
 /** Create a container/aggregate and its members. Internal references resolve
  * within this instance. Optional external links stay unbound without explicit
  * bindings; required physics dependencies must resolve. */
-EntityResult object_create(const ObjectDescription *description);
-EntityResult object_create_with_options(const ObjectDescription *description,
+EntityResult rohr_internal_object_create(const ObjectDescription *description,
     ObjectCreateOptions options);
 /** Get a borrowed direct member by authored name. Does not search descendants;
  * missing/ambiguous names fail. Visual aliases may name the same body entity. */
 EntityResult object_member_get(Entity object, const char *name);
 
-/* Generated views begin with ObjectDescription (possibly in their first union).
- * Pointer conversion addresses that initial member and evaluates input once.
- * The parenthesized function names also remain usable as function pointers. */
-#define entity_create(description) \
-    (entity_create)((const EntityCreateDescription *)(description))
+/* Implementation hooks, populated by generated headers with typed adapters.
+ * No default association: pointers and unrelated structs are compile errors.
+ * Borrow the original lvalue, never a hierarchy copy. The controlling expression
+ * is unevaluated, so side effects in the argument occur exactly once. */
+#define ROHR_INTERNAL_OBJECT_VIEW_TYPES(apply)
+#define ROHR_INTERNAL_PROJECT_VIEW_TYPES(apply)
+#define ROHR_INTERNAL_PROJECT_ROOT_TYPES(apply)
+#define ROHR_INTERNAL_CREATION_TYPE(type, adapter) \
+    , type *: adapter, const type *: adapter
+static inline const ObjectDescription *rohr_internal_object_description_ref(
+        const ObjectDescription *description) { return description; }
+#define ROHR_INTERNAL_OBJECT_RECIPE(value) _Generic(&(value), \
+    ObjectDescription *: rohr_internal_object_description_ref, \
+    const ObjectDescription *: rohr_internal_object_description_ref \
+    ROHR_INTERNAL_OBJECT_VIEW_TYPES(ROHR_INTERNAL_CREATION_TYPE) \
+    ROHR_INTERNAL_PROJECT_VIEW_TYPES(ROHR_INTERNAL_CREATION_TYPE) \
+    ROHR_INTERNAL_PROJECT_ROOT_TYPES(ROHR_INTERNAL_CREATION_TYPE))(&(value))
+
+/* Public value-style creators. Named catalogs must outlive the call. Plain
+ * descriptors also accept compound literals; pointer callers must dereference
+ * explicitly. Internal pointer entry points above are not public alternatives. */
+#define entity_create(...) \
+    rohr_internal_entity_create(ROHR_INTERNAL_OBJECT_RECIPE((__VA_ARGS__)), entity_create_options_default_get())
 #define entity_create_with_options(description, options) \
-    (entity_create_with_options)((const EntityCreateDescription *)(description), (options))
-#define object_create(description) \
-    (object_create)((const ObjectDescription *)(description))
+    rohr_internal_entity_create(ROHR_INTERNAL_OBJECT_RECIPE(description), (options))
+#define object_create(...) \
+    rohr_internal_object_create(ROHR_INTERNAL_OBJECT_RECIPE((__VA_ARGS__)), object_create_options_default_get())
 #define object_create_with_options(description, options) \
-    (object_create_with_options)((const ObjectDescription *)(description), (options))
+    rohr_internal_object_create(ROHR_INTERNAL_OBJECT_RECIPE(description), (options))
 
 /* Accept a generated view lvalue or a common description pointer. Generated
  * views start with a union whose first member is ObjectDescription. */

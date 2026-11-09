@@ -40,7 +40,7 @@ int main(void) {
     if(!result_ok(rohr_directory_working_set(rohr_directory_base_get())) ||
             !result_ok(rohr_engine_start()) || !result_ok(rohr_graphics_start()) ||
             !result_ok(project_settings_apply())) goto done;
-    EntityResult created=rohr_object_create(&project.mass_demo);
+    EntityResult created=rohr_object_create(project.mass_demo);
     if(rohr_error_check(created)) goto done;
     if(!result_ok(mass_demo_instance_bind(&demo,created.result.value))) {
         (void)rohr_entity_delete(created.result.value); goto done;

@@ -17,6 +17,15 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
 endif()
 
 set(object_fixture ${CMAKE_CURRENT_SOURCE_DIR}/../../examples/center_of_mass/src/generated)
+include(creation_compile_contract.cmake)
+add_executable(rohr_creation_dispatch creation_dispatch.c ${object_fixture}/project_objects.c)
+target_include_directories(rohr_creation_dispatch PRIVATE ${object_fixture})
+target_link_libraries(rohr_creation_dispatch PRIVATE Rohr::Engine)
+if(MSVC)
+    target_compile_options(rohr_creation_dispatch PRIVATE /UNDEBUG)
+else()
+    target_compile_options(rohr_creation_dispatch PRIVATE -Wall -Wextra -Wpedantic -UNDEBUG)
+endif()
 add_executable(rohr_object_descriptions object_descriptions.c ${object_fixture}/project_objects.c)
 target_include_directories(rohr_object_descriptions PRIVATE ${object_fixture})
 target_link_libraries(rohr_object_descriptions PRIVATE Rohr::Engine)
@@ -149,7 +158,7 @@ endif()
 
 if(BUILD_TESTING AND NOT CMAKE_CROSSCOMPILING)
     foreach(consumer
-            rohr_installed_sdk_consumer rohr_object_descriptions
+            rohr_installed_sdk_consumer rohr_object_descriptions rohr_creation_dispatch
             rohr_system_reports rohr_entity_info rohr_entity_info_adversarial
             rohr_forces rohr_runtime_persistence rohr_asset_descriptions
             rohr_audio_descriptions rohr_input_descriptions
