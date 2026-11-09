@@ -50,6 +50,25 @@ creation_compile_case(project_child FALSE "rohr_project_create(project.mass_demo
 creation_compile_case(project_runtime_pointer FALSE "rohr_project_create(&root)")
 creation_compile_case(entity_options_pointer FALSE "rohr_entity_create_with_options(&object, entity_create_options_default_get())")
 creation_compile_case(object_options_unrelated FALSE "rohr_object_create_with_options(unrelated, object_create_options_default_get())")
+set(CMAKE_REQUIRED_INCLUDES "${CMAKE_CURRENT_SOURCE_DIR}/../../examples/player_controller/src/generated")
+creation_compile_case(controller_supported TRUE "
+    InputControllerDescription native = {.name=\"native\", .enabled=true};
+    const ControllerDescription complete = {.controller={.name=\"complete\"}};
+    rohr_controller_create(native); controller_create(complete);
+    rohr_controller_create(project.player); controller_create(project.player._description);
+    rohr_controller_create((InputControllerDescription){.name=\"literal\", .enabled=true});
+    rohr_controller_create(*(ProjectControllerView_0 *)0);
+    rohr_viewport_create(&project.game_viewport);
+    graphics_viewport_create(&project.game_viewport);
+    ViewportCreateItemDescription screen=project.game_viewport.main_screen;
+    ControllerActionDescription jump=project.player.jump; (void)screen; (void)jump")
+creation_compile_case(controller_pointer FALSE "InputControllerDescription c={0}; rohr_controller_create(&c)")
+creation_compile_case(controller_generated_pointer FALSE "rohr_controller_create(&project.player)")
+creation_compile_case(controller_action FALSE "rohr_controller_create(project.player.jump)")
+creation_compile_case(controller_wrong_recipe FALSE "rohr_controller_create(project.player_world)")
+creation_compile_case(entity_controller FALSE "rohr_entity_create(project.player)")
+creation_compile_case(controller_unrelated FALSE "rohr_controller_create(unrelated)")
+creation_compile_case(controller_null FALSE "rohr_controller_create(NULL)")
 unset(CMAKE_REQUIRED_LIBRARIES)
 unset(CMAKE_REQUIRED_INCLUDES)
 unset(CMAKE_TRY_COMPILE_TARGET_TYPE)

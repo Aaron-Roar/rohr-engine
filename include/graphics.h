@@ -449,17 +449,19 @@ typedef struct ViewportCameraBinding {
 /** Complete creation input. A local descriptor may reference an immutable template
  * and supply only runtime bindings. Template chains and bindings in templates are
  * rejected. Input storage is borrowed for this call only. */
+#define ROHR_VIEWPORT_CREATE_DESCRIPTION_FIELDS \
+    const struct ViewportCreateDescription *template; \
+    ViewportDescription viewport; \
+    const ViewportCreateItemDescription *items; \
+    size_t item_count; \
+    const LayerDescription *layers; \
+    size_t layer_count; \
+    const ViewportObjectBinding *objects; \
+    size_t object_count; \
+    const ViewportCameraBinding *cameras; \
+    size_t camera_count
 typedef struct ViewportCreateDescription {
-    const struct ViewportCreateDescription *template;
-    ViewportDescription viewport;
-    const ViewportCreateItemDescription *items;
-    size_t item_count;
-    const LayerDescription *layers;
-    size_t layer_count;
-    const ViewportObjectBinding *objects;
-    size_t object_count;
-    const ViewportCameraBinding *cameras;
-    size_t camera_count;
+    ROHR_VIEWPORT_CREATE_DESCRIPTION_FIELDS;
 } ViewportCreateDescription;
 
 ViewportIdResult graphics_viewport_create_description(const ViewportCreateDescription *description);
@@ -1187,7 +1189,11 @@ EngineResult graphics_soft_body_node_color_set(Entity soft_body, Entity node, Co
 EngineResult graphics_soft_body_beam_color_set(
     Entity soft_body, Entity node_a, Entity node_b, Color color);
 /* Preserve the by-value symbol, including function-pointer callers. */
+#define ROHR_INTERNAL_VIEWPORT_POINTER_TYPES(apply)
+#define ROHR_INTERNAL_VIEWPORT_POINTER_TYPE(type, adapter) \
+    type *: adapter, const type *: adapter,
 #define graphics_viewport_create(...) _Generic((__VA_ARGS__), \
+    ROHR_INTERNAL_VIEWPORT_POINTER_TYPES(ROHR_INTERNAL_VIEWPORT_POINTER_TYPE) \
     ViewportDescription: (graphics_viewport_create), \
     default: graphics_viewport_create_description)(__VA_ARGS__)
 #endif

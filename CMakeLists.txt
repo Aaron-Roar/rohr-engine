@@ -566,6 +566,16 @@ if(ROHR_BUILD_TESTS)
         RUNTIME_OUTPUT_DIRECTORY ${ROHR_BUILD_OUTPUT_DIRECTORY}/tests)
     add_test(NAME input_actions COMMAND input_actions_test)
 
+    add_executable(controller_creation_test tests/controller_creation.c)
+    target_link_libraries(controller_creation_test PRIVATE rohr_engine)
+    set_target_properties(controller_creation_test PROPERTIES RUNTIME_OUTPUT_DIRECTORY ${ROHR_BUILD_OUTPUT_DIRECTORY}/tests)
+    if(MSVC)
+        target_compile_options(controller_creation_test PRIVATE /UNDEBUG)
+    else()
+        target_compile_options(controller_creation_test PRIVATE -Wall -Wextra -Wpedantic -UNDEBUG)
+    endif()
+    add_test(NAME controller_creation COMMAND controller_creation_test)
+
     add_executable(camera_descriptions_test tests/camera_descriptions.c)
     target_link_libraries(camera_descriptions_test PRIVATE rohr_engine)
     set_target_properties(camera_descriptions_test PROPERTIES RUNTIME_OUTPUT_DIRECTORY ${ROHR_BUILD_OUTPUT_DIRECTORY}/tests)
@@ -1626,6 +1636,7 @@ if(ROHR_BUILD_TESTS)
         engine_reports_test
         directory_test
         input_actions_test
+        controller_creation_test
         cameras_test
         camera_descriptions_test
         viewport_descriptions_test

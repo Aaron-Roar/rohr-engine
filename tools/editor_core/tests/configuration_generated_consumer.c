@@ -21,7 +21,7 @@ typedef struct TestViewports {
 
 static void views_create(TestViewports *views, CameraId camera) {
     ViewportCameraBinding bindings[] = {{.item_name="front",.camera=camera}, {.item_name="rear",.camera=camera}};
-    ViewportCreateDescription description = {.template=&project.play,.cameras=bindings,.camera_count=2};
+    ViewportCreateDescription description = {.template=&project.play._description,.cameras=bindings,.camera_count=2};
     ViewportIdResult created = rohr_viewport_create(&description); OK(created); views->viewports[0]=created.result.value;
     created = rohr_viewport_create(&project.overlay); OK(created); views->viewports[1]=created.result.value;
     created = rohr_viewport_create(&project.empty_view); OK(created); views->viewports[2]=created.result.value;

@@ -147,7 +147,7 @@ static const char editor_example_main_source[] =
     "//     // A local creation descriptor can also provide the camera immediately.\n"
     "//     ViewportCameraBinding binding = {.item_name=project.initial_viewport.items[0].name,\n"
     "//         .camera=camera.result.value};\n"
-    "//     ViewportCreateDescription description = {.template=&project.initial_viewport,\n"
+    "//     ViewportCreateDescription description = {.template=&project.initial_viewport._description,\n"
     "//         .cameras=&binding, .camera_count=1};\n"
     "//     ViewportIdResult view = rohr_viewport_create(&description);\n"
     "//     if(rohr_error_check(view)) goto done;\n"

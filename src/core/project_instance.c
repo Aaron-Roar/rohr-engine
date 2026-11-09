@@ -162,15 +162,15 @@ static ViewportIdResult viewport_create(const ProjectDescription *d, Entity root
     ViewportCreateDescription input = {.template = v, .objects = bindings, .object_count = count};
     return graphics_viewport_create_description(&input);
 }
-static InputControllerIdResult controller_create(ProjectId project, size_t index,
-        InputControllerDescription description) {
+static InputControllerIdResult project_controller_create(ProjectId project, size_t index,
+        ControllerDescription description) {
     /* At most LIMIT live names can collide; LIMIT+1 candidates guarantee a free
      * name without reserving a public prefix or silently truncating authored names. */
     for(unsigned attempt = 0; attempt <= ROHR_INPUT_CONTROLLER_LIMIT; ++attempt) {
-        int length = snprintf(description.name, sizeof(description.name),
+        int length = snprintf(description.controller.name, sizeof(description.controller.name),
             "__rohr_project_%" PRIu64 "_%zu_%u", project, index, attempt);
-        if(length < 0 || (size_t)length >= sizeof(description.name)) break;
-        if(error_check(input_controller_by_name_get(description.name))) return input_controller_create(description);
+        if(length < 0 || (size_t)length >= sizeof(description.controller.name)) break;
+        if(error_check(input_controller_by_name_get(description.controller.name))) return controller_create(description);
     }
     return ERROR_RESULT_MAKE_ERROR(InputControllerIdResult, ERROR_ENGINE_INPUT_CAPACITY_EXCEEDED);
 }
@@ -199,18 +199,10 @@ ProjectIdResult rohr_internal_project_create(const ProjectDescription *d) {
     }
     for(size_t i = 0; i < d->controller_count; ++i) {
         const ProjectControllerDescription *c = &d->controllers[i];
-        ACQUIRE(InputControllerIdResult, controller, controller_create(p->id, i, c->controller));
+        ACQUIRE(InputControllerIdResult, controller, project_controller_create(p->id, i, *c));
         p->controllers[i].id = controller.result.value;
         strcpy(p->controllers[i].name, c->controller.name);
         ++p->controller_count;
-        for(size_t j = 0; j < c->action_count; ++j) {
-            const ProjectActionDescription *a = &c->actions[j];
-            InputActionDescription action = {.controller = controller.result.value, .type = a->type,
-                .button_mode = a->button_mode, .button_initial_state = a->button_initial_state,
-                .bindings_default = a->bindings_default};
-            memcpy(action.name, a->name, sizeof(action.name));
-            ACQUIRE(InputActionIdResult, created, input_action_create(action));
-        }
     }
     for(size_t i = 0; i < d->sound_count; ++i) {
         ACQUIRE(SoundResult, sound, audio_sound_create(d->sounds[i].description));

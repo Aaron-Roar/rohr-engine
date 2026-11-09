@@ -54,7 +54,7 @@ static bool create(Workflow *w, bool whole_project) {
             w->views[i]=view.result.value;
         } else {
             ViewportObjectBinding binding={&project.mass_demo._description,w->roots[i]};
-            ViewportCreateDescription description={.template=&project.mass_viewport,.objects=&binding,.object_count=1};
+            ViewportCreateDescription description={.template=&project.mass_viewport._description,.objects=&binding,.object_count=1};
             ViewportIdResult view=rohr_viewport_create(&description); OK(view); w->views[i]=view.result.value;
         }
         ViewportDescriptionResult viewport=rohr_viewport_description_get(w->views[i]); OK(viewport);

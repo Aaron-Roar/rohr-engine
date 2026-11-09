@@ -46,7 +46,7 @@ int main(void) {
         (void)rohr_entity_delete(created.result.value); goto done;
     }
     ViewportObjectBinding binding={&project.mass_demo._description,demo.source_instance};
-    ViewportCreateDescription description={.template=&project.mass_viewport,.objects=&binding,.object_count=1};
+    ViewportCreateDescription description={.template=&project.mass_viewport._description,.objects=&binding,.object_count=1};
     ViewportIdResult view=rohr_viewport_create(&description);
     if(rohr_error_check(view)) goto done;
     viewport=view.result.value;

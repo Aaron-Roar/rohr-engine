@@ -4,6 +4,7 @@
 #include "editor_command.h"
 #include "editor_history.h"
 #include "editor_workspace.h"
+#include "editor_object_catalog.h"
 #include "entity/object_internal.h"
 #include "rohr.h"
 #include <assert.h>
@@ -631,6 +632,7 @@ static void generation_fixture(const char *directory, const char *font_path) {
     assert(action); action->button_mode = INPUT_BUTTON_PERSISTENT; action->button_initial_state = true;
     assert(editor_project_input_binding_add(&p, input->id, action->id,
         input_binding_scancode_create(SDL_SCANCODE_SPACE)));
+    assert(editor_project_input_action_add(&p, input->id, "alternate", INPUT_ACTION_AXIS_1D));
     input = editor_project_input_controller_add(&p, "disabled"); assert(input); input->enabled = false;
     assert(editor_workspace_save(&workspace, &p));
     static EditorProject loaded; editor_project_init(&loaded);
@@ -673,13 +675,32 @@ static void generation_fixture(const char *directory, const char *font_path) {
         }
     }
     /* Name conflicts must fail before replacing any generated files. */
-    snprintf(loaded.layout_viewports[0].name, sizeof(loaded.layout_viewports[0].name), "Parity");
-    assert(!editor_workspace_c_generate(&loaded_workspace, &loaded));
-    for(size_t i=0;i<sizeof(files)/sizeof(files[0]);++i) {
-        snprintf(destination,sizeof(destination),"%s/src/%s",directory,files[i]);
-        size_t length; void *content=SDL_LoadFile(destination,&length); assert(content);
-        assert(length==lengths[i] && !memcmp(content,contents[i],length));
-        SDL_free(content);
+    struct { char *name; const char *invalid; const char *field; } conflicts[] = {
+        {loaded.layout_viewports[0].name, "Parity", "parity"},
+        {loaded.input_controllers[0].name, "Parity", "parity"},
+        {loaded.audio_definitions[0].name, "player", "player"},
+        {loaded.graphics_layers[0].name, "impact", "impact"},
+        {loaded.layout_viewports[0].name, "world", "world"},
+        {loaded.input_controllers[0].name, "viewport_count", "viewport_count"},
+        {loaded.input_controllers[0].actions[0].name, "actions", "actions"},
+        {loaded.input_controllers[0].actions[1].name, "Toggle", "toggle"},
+        {loaded.layout_viewports[0].ui_items[0].name, "Front", "front"},
+        {loaded.layout_viewports[0].ui_items[0].name, "camera_count", "camera_count"},
+    };
+    for(size_t c=0;c<sizeof(conflicts)/sizeof(conflicts[0]);++c) {
+        char saved[EDITOR_OBJECT_NAME_MAX]; strcpy(saved,conflicts[c].name);
+        strcpy(conflicts[c].name,conflicts[c].invalid);
+        EditorResult invalid=editor_project_catalog_validate(&loaded);
+        assert(editor_result_check(invalid));
+        assert(strstr(invalid.result.error.message,conflicts[c].field));
+        assert(!editor_workspace_c_generate(&loaded_workspace, &loaded));
+        for(size_t i=0;i<sizeof(files)/sizeof(files[0]);++i) {
+            snprintf(destination,sizeof(destination),"%s/src/%s",directory,files[i]);
+            size_t length; void *content=SDL_LoadFile(destination,&length); assert(content);
+            assert(length==lengths[i] && !memcmp(content,contents[i],length));
+            SDL_free(content);
+        }
+        strcpy(conflicts[c].name,saved);
     }
     for(size_t i=0;i<sizeof(files)/sizeof(files[0]);++i) SDL_free(contents[i]);
     editor_project_destroy(&loaded);

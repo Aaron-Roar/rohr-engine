@@ -1001,11 +1001,27 @@ factories and new physics, pacing, or world-isolation behavior are out of scope.
    Linux examples run outside their source directories; the car completes its
    full simulation with unchanged work counts. No compiler warnings or sanitizer
    findings remain. See [verification](docs/shared_creation.md#milestone-17-goal-2-verification)
-   and `sandbox/milestone_17/goal_2/`. Stop for review and commit; Goal 3 has not begun.
-3. [ ] **Expose named controllers and resources.** Generate named
+   and `sandbox/milestone_17/goal_2/`. Goal 2 migrated entity/object/project creation.
+3. [x] **Expose named controllers and resources.** Generate named
    controller/action, audio, layer, and nested viewport-item recipes. Add
    rohr_controller_create for runtime descriptors and complete authored recipes,
    and make project creation reuse it. Reject conflicting generated names.
+   **Result: complete for review.** Generated catalogs expose direct named
+   resources, controller actions, and viewport screen/UI items. Controller
+   creation accepts native descriptors and generated views, creates actions
+   atomically, and is shared by whole-project creation. Existing instance naming
+   and ownership remain intact. Normalized/reserved name conflicts fail before
+   replacing generated output. Thirteen focused tests and seven installed-SDK
+   consumers pass in Release and ASan/UBSan with leak detection, including
+   1,000-cycle controller checks, capacity rollback, and standalone/project
+   survivor checks. Supported inputs compile and 27 invalid inputs are rejected
+   on Linux and Windows. Engine/editor, generated paths/resource fixtures,
+   consumers, and independent examples cross-build for Windows; native Windows
+   execution remains unverified. Linux examples complete functional runs with
+   no physics or rendering changes. No compiler warnings or sanitizer findings
+   remain. See [verification](docs/shared_creation.md#milestone-17-goal-3-verification)
+   and `sandbox/milestone_17/goal_3/`. Stop for review and commit; Goals 4–6 remain
+   pending, including the explicit helper-free teaching mains in Goal 5.
 4. [ ] **Unify remaining authored-resource creators.** Apply the shared pattern
    to viewports, screens, UI, cameras, graphics assets, layers, and audio. Keep
    resource ownership explicit and reuse the creators in larger compositions.

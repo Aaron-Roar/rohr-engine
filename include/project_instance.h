@@ -13,19 +13,9 @@
 typedef uint64_t ProjectId;
 ERROR_DECLARE_RESULT_TYPE(ProjectIdResult, ProjectId);
 
-/** Authored action without a runtime controller. Creation supplies its owner. */
-typedef struct ProjectActionDescription {
-    char name[ROHR_INPUT_NAME_MAX];
-    InputActionType type;
-    InputButtonMode button_mode;
-    bool button_initial_state;
-    InputBindingList bindings_default;
-} ProjectActionDescription;
-typedef struct ProjectControllerDescription {
-    InputControllerDescription controller;
-    const ProjectActionDescription *actions;
-    size_t action_count;
-} ProjectControllerDescription;
+/* Project composition uses the same input-owned recipes as standalone creation. */
+typedef ControllerActionDescription ProjectActionDescription;
+typedef ControllerDescription ProjectControllerDescription;
 typedef struct ProjectViewportDescription {
     const char *name;
     /** An immutable recipe without runtime bindings or a template chain. */

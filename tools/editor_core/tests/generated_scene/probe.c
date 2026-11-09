@@ -55,7 +55,7 @@ static void run_check(bool tutorial) {
     assert(project.viewport_count == 1 && project.initial_viewport.item_count >= 1);
     ViewportCameraBinding binding = {.item_name=project.initial_viewport.items[0].name,
         .camera=scene.example.camera_main_camera};
-    ViewportCreateDescription description = {.template=&project.initial_viewport,.cameras=&binding,.camera_count=1};
+    ViewportCreateDescription description = {.template=&project.initial_viewport._description,.cameras=&binding,.camera_count=1};
     ViewportIdResult viewport = rohr_viewport_create(&description); OK(viewport);
 
     /* Another whole object must have entirely independent bindings. */

@@ -5,6 +5,19 @@
 #ifndef ROHR_GENERATED_PROJECT_H
 #define ROHR_GENERATED_PROJECT_H
 #include "project_objects.h"
+#undef ROHR_INTERNAL_CONTROLLER_VIEW_TYPES
+#define ROHR_INTERNAL_CONTROLLER_VIEW_TYPES(apply)
+typedef struct ProjectViewportView_0 {
+    union { ViewportCreateDescription _description; struct { ROHR_VIEWPORT_CREATE_DESCRIPTION_FIELDS; }; };
+    ViewportCreateItemDescription main_screen;
+} ProjectViewportView_0;
+static inline ViewportIdResult project_viewport_view_0_create(
+        const ProjectViewportView_0 *value) {
+    return graphics_viewport_create_description(value ? &value->_description : NULL);
+}
+#undef ROHR_INTERNAL_VIEWPORT_POINTER_TYPES
+#define ROHR_INTERNAL_VIEWPORT_POINTER_TYPES(apply) \
+    apply(ProjectViewportView_0, project_viewport_view_0_create)
 typedef struct ProjectDescriptionView_5 {
     union { ObjectDescription _description; struct { ROHR_OBJECT_DESCRIPTION_FIELDS; }; };
 } ProjectDescriptionView_5;
@@ -34,7 +47,7 @@ typedef struct ProjectDescriptionView_1 {
     ProjectDescriptionView_2 mass_demo;
     const ViewportCreateDescription *const *viewports;
     size_t viewport_count;
-    ViewportCreateDescription mass_viewport;
+    ProjectViewportView_0 mass_viewport;
 } ProjectDescriptionView_1;
 static inline const ObjectDescription *project_description_view_1_ref_get(
         const ProjectDescriptionView_1 *value) { return &value->_project.root; }

@@ -18,7 +18,7 @@ int main(int argc, char **argv) {
     } else if(!missing) example = take(rohr_object_create(project.example));
     else tug = take(rohr_object_create(project.tug));
     ViewportObjectBinding binding = {&project.example._description, example};
-    ViewportCreateDescription description = {.template=&project.initial_viewport,
+    ViewportCreateDescription description = {.template=&project.initial_viewport._description,
         .objects=&binding,.object_count=1};
     ViewportIdResult view = rohr_viewport_create(&description);
     if(missing) {

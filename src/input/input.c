@@ -479,6 +479,32 @@ InputControllerDescription input_controller_description_default_get(void) {
     return (InputControllerDescription){.enabled = true};
 }
 
+ControllerDescription controller_description_default_get(void) {
+    return (ControllerDescription){.controller = input_controller_description_default_get()};
+}
+
+InputControllerIdResult rohr_internal_controller_create(ControllerDescription description) {
+    if(description.action_count > ROHR_INPUT_ACTION_LIMIT ||
+            (description.action_count && !description.actions))
+        return ERROR_RESULT_MAKE_ERROR(InputControllerIdResult, ERROR_ENGINE_INPUT_CONFIGURATION_INVALID);
+    InputControllerIdResult created = input_controller_create(description.controller);
+    if(error_check(created)) return created;
+    for(size_t i = 0; i < description.action_count; ++i) {
+        const ControllerActionDescription *recipe = &description.actions[i];
+        InputActionDescription action = {.controller = created.result.value,
+            .type = recipe->type, .button_mode = recipe->button_mode,
+            .button_initial_state = recipe->button_initial_state,
+            .bindings_default = recipe->bindings_default};
+        memcpy(action.name, recipe->name, sizeof(action.name));
+        InputActionIdResult result = input_action_create(action);
+        if(error_check(result)) {
+            (void)input_controller_destroy(created.result.value);
+            return ERROR_RESULT_MAKE_ERROR(InputControllerIdResult, result.result.error);
+        }
+    }
+    return created;
+}
+
 static EngineResult input_description_name_validate(
         const char name[ROHR_INPUT_NAME_MAX]) {
     if(name[0] == '\0') return error_result_error(ERROR_ENGINE_INVALID_INPUT_NAME);

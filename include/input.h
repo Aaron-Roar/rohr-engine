@@ -130,6 +130,48 @@ typedef struct InputActionDescription {
 } InputActionDescription;
 ERROR_DECLARE_RESULT_TYPE(InputActionDescriptionResult, InputActionDescription);
 
+/** Immutable action recipe without a live owner. Controller creation supplies
+ * the owner and copies names, bindings, and initial state. */
+typedef struct ControllerActionDescription {
+    char name[ROHR_INPUT_NAME_MAX];
+    InputActionType type;
+    InputButtonMode button_mode;
+    bool button_initial_state;
+    InputBindingList bindings_default;
+} ControllerActionDescription;
+#define ROHR_CONTROLLER_DESCRIPTION_FIELDS \
+    InputControllerDescription controller; \
+    const ControllerActionDescription *actions; \
+    size_t action_count
+typedef struct ControllerDescription {
+    ROHR_CONTROLLER_DESCRIPTION_FIELDS;
+} ControllerDescription;
+
+/** Enabled unnamed controller, no actions. Names remain globally unique.
+ * Creation owns the returned controller and every action; destroy with
+ * input_controller_destroy. Failure removes this attempt's controller/actions
+ * without changing existing input state. No entity owner or heap allocation. */
+ControllerDescription controller_description_default_get(void);
+InputControllerIdResult rohr_internal_controller_create(ControllerDescription description);
+static inline ControllerDescription rohr_internal_controller_recipe_get(
+        const ControllerDescription *description) { return *description; }
+static inline ControllerDescription rohr_internal_controller_empty_recipe_get(
+        const InputControllerDescription *description) {
+    return (ControllerDescription){.controller = *description};
+}
+/* Generated views borrow their original storage; only this small recipe header
+ * is copied. As with entity/object creation, the argument executes once. */
+#define ROHR_INTERNAL_CONTROLLER_VIEW_TYPES(apply)
+#define ROHR_INTERNAL_CONTROLLER_TYPE(type, adapter) \
+    , type *: adapter, const type *: adapter
+#define controller_create(...) \
+    rohr_internal_controller_create(_Generic(&(__VA_ARGS__), \
+        ControllerDescription *: rohr_internal_controller_recipe_get, \
+        const ControllerDescription *: rohr_internal_controller_recipe_get, \
+        InputControllerDescription *: rohr_internal_controller_empty_recipe_get, \
+        const InputControllerDescription *: rohr_internal_controller_empty_recipe_get \
+        ROHR_INTERNAL_CONTROLLER_VIEW_TYPES(ROHR_INTERNAL_CONTROLLER_TYPE))(&(__VA_ARGS__)))
+
 /** Per-frame committed and in-progress UTF-8 text input. */
 typedef struct InputTextState {
     char committed[ROHR_INPUT_TEXT_CAPACITY];

@@ -5,6 +5,27 @@
 #ifndef ROHR_GENERATED_PROJECT_H
 #define ROHR_GENERATED_PROJECT_H
 #include "project_objects.h"
+typedef struct ProjectControllerView_0 {
+    union { ControllerDescription _description; struct { ROHR_CONTROLLER_DESCRIPTION_FIELDS; }; };
+    ControllerActionDescription move;
+    ControllerActionDescription jump;
+} ProjectControllerView_0;
+static inline ControllerDescription project_controller_view_0_recipe_get(
+        const ProjectControllerView_0 *value) { return value->_description; }
+#undef ROHR_INTERNAL_CONTROLLER_VIEW_TYPES
+#define ROHR_INTERNAL_CONTROLLER_VIEW_TYPES(apply) \
+    apply(ProjectControllerView_0, project_controller_view_0_recipe_get)
+typedef struct ProjectViewportView_0 {
+    union { ViewportCreateDescription _description; struct { ROHR_VIEWPORT_CREATE_DESCRIPTION_FIELDS; }; };
+    ViewportCreateItemDescription main_screen;
+} ProjectViewportView_0;
+static inline ViewportIdResult project_viewport_view_0_create(
+        const ProjectViewportView_0 *value) {
+    return graphics_viewport_create_description(value ? &value->_description : NULL);
+}
+#undef ROHR_INTERNAL_VIEWPORT_POINTER_TYPES
+#define ROHR_INTERNAL_VIEWPORT_POINTER_TYPES(apply) \
+    apply(ProjectViewportView_0, project_viewport_view_0_create)
 typedef struct ProjectDescriptionView_3 {
     union { ObjectDescription _description; struct { ROHR_OBJECT_DESCRIPTION_FIELDS; }; };
 } ProjectDescriptionView_3;
@@ -26,7 +47,8 @@ typedef struct ProjectDescriptionView_1 {
     ProjectDescriptionView_2 player_world;
     const ViewportCreateDescription *const *viewports;
     size_t viewport_count;
-    ViewportCreateDescription game_viewport;
+    ProjectViewportView_0 game_viewport;
+    ProjectControllerView_0 player;
 } ProjectDescriptionView_1;
 static inline const ObjectDescription *project_description_view_1_ref_get(
         const ProjectDescriptionView_1 *value) { return &value->_project.root; }

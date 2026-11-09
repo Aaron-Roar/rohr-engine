@@ -17,7 +17,9 @@ static void check_generated(const EditorWorkspace *workspace, size_t objects, si
     char *text = read_file(workspace, "src/generated/scene/project_objects.c");
     assert(occurrences(text, "rohr_object_create(objects.") == objects); SDL_free(text);
     text = read_file(workspace, "src/generated/scene/project_objects.c");
-    assert(occurrences(text, ".kind=VIEWPORT_CREATE_SCREEN") == screens);
+    /* Each immutable screen recipe appears in the ordered runtime list and
+     * its named catalog field; runtime creation still visits the list once. */
+    assert(occurrences(text, ".kind=VIEWPORT_CREATE_SCREEN") == screens * 2);
     assert(occurrences(text, ".viewport={.rectangle=") == viewports); SDL_free(text);
 }
 int main(int argc, char **argv) {

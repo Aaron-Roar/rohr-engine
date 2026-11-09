@@ -19,7 +19,7 @@ static ViewportItemDescription item(ViewportId viewport, const char *name) {
 }
 static ViewportId view_create(Entity instance) {
     ViewportObjectBinding binding = {&project.parity._description, instance};
-    ViewportCreateDescription description = {.template=&project.play, .objects=&binding, .object_count=1};
+    ViewportCreateDescription description = {.template=&project.play._description, .objects=&binding, .object_count=1};
     ViewportIdResult result = rohr_viewport_create(&description); OK(result);
     return result.result.value;
 }
@@ -72,6 +72,14 @@ int main(void) {
     assert(project._project.root.children[0] == &project.parity._description);
     assert(project.parity.body.parent == &project.parity._description);
     assert(project.play.items[0].camera_member == &project.parity.camera._description);
+    assert(project.play.front.camera_member == project.play.items[0].camera_member);
+    assert(project.play.front.placement.orientation == project.play.items[0].placement.orientation);
+    assert(!strcmp(project.play.label.text_value,"Wrapped text"));
+    assert(project.play.slider.slider.minimum == -2 && project.play.slider.slider.value == 3);
+    assert(project.overlay.button.shape.orientation == 21);
+    assert(!strcmp(project.world.name,"world") && project.world.value == 5);
+    assert(!strcmp(project.effects.name,"effects") && project.effects.value == 5);
+    assert(project.ui_only.value == 8 && project.quoted_layer.value == 8);
     assert(!strcmp(project.parity.body.layer_name,"world"));
     assert(!strcmp(project.parity.flipped.layer_name,"effects"));
     ViewportIdResult unbound = rohr_viewport_create(&project.play); OK(unbound);
@@ -123,10 +131,39 @@ int main(void) {
     /* The same named views now expose a full project recipe, without duplicating
      * object/camera descriptions or retaining generated mutable runtime state. */
     assert(&project._project.root == &project._description);
-    assert(project._project.viewports[0].description == &project.play);
+    assert(project._project.viewports[0].description == &project.play._description);
     assert(project._project.controller_count == 2);
     assert(project._project.sound_count == 1 && project._project.music_count == 1);
     OK(rohr_audio_start());
+    /* Named recipes work without whole-project creation or generated helpers. */
+    assert(project.player.action_count == 2 && project.disabled.action_count == 0);
+    assert(project.player.toggle.type == project.player.actions[0].type);
+    assert(project.player.toggle.button_initial_state && project.player.toggle.bindings_default.count == 1);
+    assert(project.player.alternate.type == INPUT_ACTION_AXIS_1D);
+    for(unsigned cycle=0;cycle<1000;++cycle) {
+        unsigned evaluated=0;
+        InputControllerIdResult controller=rohr_controller_create((&project.player)[evaluated++]); OK(controller);
+        assert(evaluated==1);
+        InputActionIdResult toggle=rohr_input_action_by_name_get(controller.result.value,project.player.toggle.name); OK(toggle);
+        assert(rohr_input_action_button_down_check(toggle.result.value));
+        OK(rohr_input_action_button_state_set(toggle.result.value,false));
+        assert(project.player.toggle.button_initial_state);
+        OK(rohr_input_controller_destroy(controller.result.value));
+        assert(rohr_error_check(rohr_input_action_description_get(toggle.result.value)));
+    }
+    InputControllerIdResult disabled=controller_create(project.disabled); OK(disabled);
+    assert(!rohr_input_controller_enabled_check(disabled.result.value));
+    OK(rohr_input_controller_destroy(disabled.result.value));
+    SoundResult standalone_sound=rohr_audio_sound_create(project.impact); OK(standalone_sound);
+    MusicResult standalone_music=rohr_audio_music_create(project.theme); OK(standalone_music);
+    assert(!rohr_audio_sound_playing_check(standalone_sound.result.value));
+    assert(!rohr_audio_music_playing_check(standalone_music.result.value));
+    SoundDescriptionResult sound_description=rohr_audio_sound_description_get(standalone_sound.result.value); OK(sound_description);
+    assert(sound_description.result.value.pan == project.impact.pan);
+    OK(rohr_audio_sound_destroy(&standalone_sound.result.value)); OK(rohr_audio_music_destroy(&standalone_music.result.value));
+    InputControllerIdResult independent=rohr_controller_create(project.player); OK(independent);
+    InputActionIdResult independent_toggle=rohr_input_action_by_name_get(independent.result.value,project.player.toggle.name); OK(independent_toggle);
+    OK(rohr_input_action_button_state_set(independent_toggle.result.value,false));
     ProjectIdResult p1 = rohr_project_create(project); OK(p1);
     ProjectIdResult p2 = rohr_project_create(project); OK(p2);
     ProjectId ids[] = {p1.result.value, p2.result.value};
@@ -142,6 +179,8 @@ int main(void) {
         InputControllerIdResult controller = rohr_project_controller_by_name_get(ids[i], "player"); OK(controller);
         inputs[i] = controller.result.value;
         InputActionIdResult action = rohr_input_action_by_name_get(inputs[i], "toggle"); OK(action);
+        assert(rohr_input_action_button_down_check(action.result.value));
+        assert(!rohr_input_action_button_down_check(independent_toggle.result.value));
         InputActionDescriptionResult description = rohr_input_action_description_get(action.result.value); OK(description);
         assert(description.result.value.button_mode == INPUT_BUTTON_PERSISTENT);
         assert(description.result.value.button_initial_state);
@@ -165,6 +204,9 @@ int main(void) {
     assert(rohr_entity_alive_check(instances[1]));
     OK(rohr_input_controller_description_get(inputs[1]));
     OK(rohr_project_destroy(ids[1]));
+    OK(rohr_input_controller_description_get(independent.result.value));
+    assert(!rohr_input_action_button_down_check(independent_toggle.result.value));
+    OK(rohr_input_controller_destroy(independent.result.value));
     assert(rohr_entity_alive_count_get() == 0);
     assert(rohr_audio_stop().header.status != ROHR_REPORT_FAILED);
     rohr_graphics_stop(); rohr_engine_stop();

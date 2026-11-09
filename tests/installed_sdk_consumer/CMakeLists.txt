@@ -100,6 +100,14 @@ if(NOT MSVC)
     target_compile_options(rohr_input_descriptions PRIVATE -Wall -Wextra -Wpedantic)
 endif()
 
+add_executable(rohr_controller_creation ../controller_creation.c)
+target_link_libraries(rohr_controller_creation PRIVATE Rohr::Engine)
+if(MSVC)
+    target_compile_options(rohr_controller_creation PRIVATE /UNDEBUG)
+else()
+    target_compile_options(rohr_controller_creation PRIVATE -Wall -Wextra -Wpedantic -UNDEBUG)
+endif()
+
 add_executable(rohr_camera_descriptions ../camera_descriptions.c)
 target_link_libraries(rohr_camera_descriptions PRIVATE Rohr::Engine)
 if(NOT MSVC)
@@ -161,7 +169,7 @@ if(BUILD_TESTING AND NOT CMAKE_CROSSCOMPILING)
             rohr_installed_sdk_consumer rohr_object_descriptions rohr_creation_dispatch
             rohr_system_reports rohr_entity_info rohr_entity_info_adversarial
             rohr_forces rohr_runtime_persistence rohr_asset_descriptions
-            rohr_audio_descriptions rohr_input_descriptions
+            rohr_audio_descriptions rohr_input_descriptions rohr_controller_creation
             rohr_camera_descriptions rohr_viewport_descriptions rohr_automatic_viewports
             rohr_generated_workflow rohr_project_creation)
         # Each consumer owns its temporary fixtures and runs outside the source tree.

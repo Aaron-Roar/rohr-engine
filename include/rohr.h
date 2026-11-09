@@ -25,6 +25,8 @@
 #include "ui.h"
 
 /* Generated views and runtime description values share the same typed C interface. */
+#define rohr_controller_create controller_create
+#define rohr_controller_description_default_get controller_description_default_get
 #define rohr_project_create project_create
 #define rohr_project_destroy project_destroy
 #define rohr_project_root_get project_root_get
@@ -2793,6 +2795,7 @@ UISliderResult rohr_ui_slider_with_text(const char *id, float value,
     const UISliderConfig *config, const UISliderText *text);
 
 #define rohr_viewport_create(...) _Generic((__VA_ARGS__), \
+    ROHR_INTERNAL_VIEWPORT_POINTER_TYPES(ROHR_INTERNAL_VIEWPORT_POINTER_TYPE) \
     ViewportDescription: (rohr_viewport_create), \
     default: graphics_viewport_create_description)(__VA_ARGS__)
 #endif

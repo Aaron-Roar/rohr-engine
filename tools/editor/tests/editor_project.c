@@ -737,9 +737,11 @@ int main(void) {
         snprintf(path, sizeof(path), "%s/src/generated/project_viewports.c", fixture);
         if(SDL_GetPathInfo(path, &info)) return 1;
         snprintf(path, sizeof(path), "%s/src/generated/project_objects.c", fixture);
-        if(file_occurrence_count(path, ".kind=VIEWPORT_CREATE_SHAPE") != 2 ||
-                file_occurrence_count(path, ".kind=VIEWPORT_CREATE_TEXT") != 2 ||
-                file_occurrence_count(path, ".kind=VIEWPORT_CREATE_SLIDER") != 2 ||
+        /* Ordered runtime recipes and named fields describe the same two
+         * authored instances of each UI kind. */
+        if(file_occurrence_count(path, ".kind=VIEWPORT_CREATE_SHAPE") != 4 ||
+                file_occurrence_count(path, ".kind=VIEWPORT_CREATE_TEXT") != 4 ||
+                file_occurrence_count(path, ".kind=VIEWPORT_CREATE_SLIDER") != 4 ||
                 !file_contains(path, ".minimum=-1.000000000e+01f") ||
                 !file_contains(path, ".thumb_shape=1") ||
                 !file_contains(path, ".thumb_radius=1.400000000e+01f") ||

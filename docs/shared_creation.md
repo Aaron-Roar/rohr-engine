@@ -14,7 +14,8 @@ Milestone 17 Goal 2 changes entity, object, and project creation to typed value
 syntax. Rebuild the SDK and regenerate catalogs together; older generated headers
 do not contain the required adapters. Existing developer-edited mains are preserved
 and need the source migration below. Other resource creators keep their current
-signatures until their milestone goals are implemented.
+signatures until their milestone goals are implemented. Goal 3 adds named resource
+recipes and the shared controller creator described below.
 
 ## Creation values and source migration
 
@@ -40,6 +41,68 @@ may be a C compound literal; double-parenthesize compound literals when passing
 them alongside options to protect initializer commas from macro argument parsing.
 Only the returned runtime resources are owned by the caller. Dispatch adds no
 allocation, runtime registry, or hierarchy copy.
+
+## Named resources and controller creation
+
+Milestone 17 Goal 3 exposes authored controllers, sounds, music, and layers as
+direct project fields. Actions belong under their controller, and screen/UI item
+recipes belong under their viewport. For a project with these authored names:
+
+```c
+InputControllerIdResult player = rohr_controller_create(project.player);
+/* After checking player, select an action on this runtime controller. */
+InputActionIdResult jump = rohr_input_action_by_name_get(
+    player.result.value, project.player.jump.name);
+
+/* These named recipes already use the native resource descriptor types. */
+SoundResult sound = rohr_audio_sound_create(project.jump_sound);
+MusicResult music = rohr_audio_music_create(project.theme);
+GraphicsLayerIdResult layer = rohr_graphics_layer_create(project.world_layer);
+ViewportCreateItemDescription screen = project.initial_viewport.world;
+```
+
+Check every result before using its handle. The field names come from the
+authored names; they are not fixed engine names. Audio services must be started
+before loading sounds/music, and loading does not start playback. Layers retain
+their existing globally shared named identity. Merely reading a recipe creates
+no runtime state.
+
+`rohr_controller_create()` and direct `controller_create()` accept a generated
+controller view, a `ControllerDescription` containing a controller plus its action
+list, or an `InputControllerDescription` for a controller with no actions. Use
+`rohr_controller_description_default_get()` for an enabled, unnamed controller
+with no actions, then fill its name and optional action list. A
+`ControllerActionDescription` contains an action's configuration without a live
+controller handle. `ProjectControllerDescription` and `ProjectActionDescription`
+remain aliases of these input-owned recipe types.
+
+Each call evaluates its argument once and copies the configured input state into
+fixed engine pools. No entity owner or heap allocation is introduced. Destroy a
+standalone controller and all its actions with `rohr_input_controller_destroy()`.
+Malformed actions, duplicate names, and exhausted controller/action capacity
+fail without leaving this attempt's resources or changing existing controllers.
+Names and bindings are copied; caller recipe storage need only survive creation.
+
+Standalone controller names remain globally unique. To create another named
+instance, copy `project.player._description` into a `ControllerDescription` and
+change its controller name before creation. Whole-project creation uses this same
+creator after supplying its existing private instance name; project-local lookup
+still uses the authored name, so independent project instances remain isolated.
+Deleting one project does not destroy independently created controllers.
+
+Viewport fields now include named screen/UI recipes while retaining ordered
+`items` and `item_count` access. Current `rohr_viewport_create(&project.viewport)`
+calls remain supported through typed adapters. When setting a native descriptor's
+`template` pointer, use `&project.viewport._description`. Rebuild the SDK and
+regenerate together. The full viewport/resource creator migration remains Goal 4;
+removal of local helper functions from generated mains remains Goal 5.
+
+Generation rejects conflicting C identifiers across objects, viewports,
+controllers, audio, and layers, and within each controller/viewport. For example,
+`jumpSound` and `jump_sound` cannot occupy the same generated scope. Reserved
+descriptor fields such as controller `actions` and viewport `item_count` are
+also rejected. Diagnostics identify the conflicting names and resulting field;
+failed validation preserves existing generated output and developer-edited mains.
 
 ## Unified generated project
 
@@ -345,3 +408,44 @@ test also preserves edited entry points and build files. Historical exact-match
 main snapshots remain unchanged; external mains using pointer-style calls need
 the explicit migration described above. Build/test logs, SDK installs, and
 disposable verification projects are under `sandbox/milestone_17/goal_2/`.
+
+## Milestone 17 Goal 3 verification
+
+Thirteen focused checks pass in Release and ASan/UBSan with leak detection:
+the eleven Goal 2 checks above plus `input_actions` and `controller_creation`.
+The new controller test exercises native/simple and complete recipe forms,
+single evaluation, copied configuration, independent state, stale handles,
+malformed actions, duplicate names, controller capacity, partial action-capacity
+rollback, survivor preservation, and 1,000 create/destroy cycles.
+
+Seven consumers pass against independently installed Release and sanitizer SDKs:
+the five Goal 2 consumers plus `rohr_controller_creation` and
+`rohr_input_descriptions`. Compile-contract checks accept native and generated
+inputs and reject all 27 invalid cases, including passing an action, object, or
+pointer to controller creation and passing a controller to entity creation.
+
+The generated-resource fixture exercises named controller/action, sound/music,
+layer, and screen/UI recipes. It runs 1,000 generated-controller cycles, compares
+named data with ordered recipes, and verifies independently created controllers
+survive destruction of two project instances using the same authored recipes.
+Disabled controllers and initial action state remain correct. Ten name-conflict
+cases cover cross-category collisions, normalized action/screen/UI collisions,
+and reserved fields; each checks diagnostics and unchanged generated files.
+Save/reload/regeneration produces identical artifacts and preserves an edited
+main. Named recipe fields duplicate immutable values for direct access; the
+runtime lists still instantiate each configured resource exactly once.
+
+The engine/editor, affected tests, seven SDK consumers, all three generated
+creation paths, and the generated named-resource fixture cross-build for Windows.
+Center of mass, player controller, and soft-body car build independently against
+the installed Linux and Windows SDKs. Native Windows execution and generic Linux
+distribution packaging were not performed in this goal. No compiler warnings or
+sanitizer findings remain in the verified builds/runs.
+
+Linux examples run with dummy SDL drivers from `/tmp`. Center of mass and player
+controller exit cleanly after SIGINT; the car reaches all 3,600 frames / 60
+simulated seconds with the unchanged 14,400 substeps, 7,222,164 candidates, and
+1,195,541 contacts. These are functional checks, not performance acceptance;
+the benchmark's `realtime_pass=0` is not claimed resolved. Physics and rendering
+behavior are unchanged. Evidence and disposable SDK/consumer builds are under
+`sandbox/milestone_17/goal_3/`.
