@@ -32,6 +32,58 @@ static ReportStatistic stat(ReportMetricId metric, ReportAggregation rule, uint6
     return (ReportStatistic){.report_id = ROHR_PHYSICS_JOINTS_REPORT_ID, .metric_id = metric, .aggregation = rule, .value = value};
 }
 
+static void success_predicates(void) {
+    Report value = rohr_report_create();
+    assert(!rohr_report_check(value) && !rohr_report_status_check(value));
+    /* Each row is independent; strict checks must not change ordinary success. */
+    for(unsigned row = 0; row < 18; ++row) {
+        value = make_report(ROHR_PHYSICS_REPORT_ID);
+        bool success = true, clean = false;
+        ReportDiagnostic diagnostic = issue(10, ROHR_REPORT_SEVERITY_INFORMATION);
+        diagnostic.code = ERROR_NONE;
+        switch(row) {
+        case 0: clean = true; break;
+        case 1: value.header.status = ROHR_REPORT_NOT_RUN; success = false; break;
+        case 2: value.header.status = ROHR_REPORT_FAILED; success = false; break;
+        case 3: OK(report_diagnostic_add(&value, issue(10, ROHR_REPORT_SEVERITY_WARNING))); break;
+        case 4: OK(report_diagnostic_add(&value, diagnostic)); clean = true; break;
+        case 5: diagnostic.detail_truncated = true; OK(report_diagnostic_add(&value, diagnostic)); break;
+        case 6: value.dropped_entry_count = 1; break;
+        case 7: value.dropped_statistic_count = 1; break;
+        case 8: value.dropped_diagnostic_occurrences = 1; break;
+        case 9: value.counters_saturated = true; break;
+        case 10:
+            value.entries[0] = (ReportEntry){
+                .header = {ROHR_PHYSICS_JOINTS_REPORT_ID, ROHR_REPORT_NOT_RUN, 0},
+                .group_root = true, .group_version = 1};
+            value.entry_count = 1; clean = true; break;
+        case 11:
+            OK(report_entry_add(&value, (ReportEntry){
+                .header = {ROHR_PHYSICS_JOINTS_REPORT_ID, ROHR_REPORT_FAILED, 0},
+                .invocation_count = 1}));
+            success = false; break;
+        case 12: OK(report_diagnostic_add(&value, issue(10, ROHR_REPORT_SEVERITY_FATAL)));
+            success = false; break;
+        case 13: value.entry_count = ROHR_REPORT_ENTRY_CAPACITY + 1; success = false; break;
+        case 14: value.statistic_count = ROHR_REPORT_STATISTIC_CAPACITY + 1; success = false; break;
+        case 15: value.diagnostic_count = ROHR_REPORT_DIAGNOSTIC_CAPACITY + 1; success = false; break;
+        case 16: value.header.total_ms = NAN; success = false; break;
+        case 17:
+            value.entries[0] = (ReportEntry){
+                .header = {ROHR_PHYSICS_JOINTS_REPORT_ID, ROHR_REPORT_FAILED, 0},
+                .invocation_count = 1};
+            value.entry_count = 1; success = false; break;
+        }
+        Report before = value;
+        assert(report_check(value) == success && rohr_report_check(value) == success);
+        assert(report_status_check(value) == clean && rohr_report_status_check(value) == clean);
+        assert(memcmp(&before, &value, sizeof(value)) == 0);
+    }
+    /* Returned value expressions are supported. */
+    assert(rohr_report_check(make_report(ROHR_PHYSICS_REPORT_ID)));
+    assert(report_status_check(make_report(ROHR_PHYSICS_REPORT_ID)));
+}
+
 static void construction(void) {
     Report value = rohr_report_create();
     ReportDiagnostic diagnostic = {0};
@@ -346,6 +398,8 @@ static void invalid_matrix(void) {
         }
         Report before = bad, destination = good;
         assert(!report_valid_check(&bad) && !rohr_report_valid_check(&bad));
+        assert(!report_check(bad) && !rohr_report_check(bad));
+        assert(!report_status_check(bad) && !rohr_report_status_check(bad));
         BAD(report_merge(&destination, &bad));
         assert(memcmp(&destination, &good, sizeof(good)) == 0);
         BAD(rohr_report_merge(&bad, &good));
@@ -400,6 +454,7 @@ static void copy_and_merge_measurement(void) {
 }
 
 int main(void) {
+    success_predicates();
     seeded_full_buffers();
     invalid_matrix();
     construction();

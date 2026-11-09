@@ -62,7 +62,7 @@ static EditorCollisionMigration *prepare(const char *const *paths, size_t count)
     if(editor_result_check(r)) editor_result_stderr_print(r);
     assert(!editor_result_check(r)); assert(plan); return plan;
 }
-static void report_check(EditorCollisionMigration *plan, bool remapped) {
+static void migration_report_assert(EditorCollisionMigration *plan, bool remapped) {
     const char *text = editor_collision_migration_report_get(plan);
     yyjson_doc *doc = yyjson_read(text, strlen(text), 0); assert(doc);
     yyjson_val *root = yyjson_doc_get_root(doc), *profiles = yyjson_obj_get(root, "profiles");
@@ -93,7 +93,7 @@ static void runtime_cases(void) {
     write_text(paths[1], "{\"version\":9,\"entities\":[{\"name\":\"implicit\",\"components\":{}}]}");
     char *before_a = read_text(paths[0]), *before_b = read_text(paths[1]);
     EditorCollisionMigration *p = prepare(paths, 2);
-    report_check(p, true);
+    migration_report_assert(p, true);
     unchanged_check(paths[0], before_a); unchanged_check(paths[1], before_b);
     EditorCollisionMigration *again = prepare(paths, 2);
     assert(!strcmp(editor_collision_migration_report_get(p), editor_collision_migration_report_get(again)));
@@ -163,7 +163,7 @@ static void project_case(void) {
     assert(editor_project_save(project, path)); editor_project_destroy(project);
     make_legacy(path, true);
     char *before = read_text(path);
-    EditorCollisionMigration *plan = prepare(&path, 1); report_check(plan, true);
+    EditorCollisionMigration *plan = prepare(&path, 1); migration_report_assert(plan, true);
     OK(editor_collision_migration_apply(plan)); editor_collision_migration_destroy(plan);
     unchanged_check("migration_project.json.collision_original", before); SDL_free(before);
     OK(editor_project_load(project, path));
@@ -199,11 +199,11 @@ static void limits_and_errors(void) {
     /* All 64 bits, including the reserved high bit, retain exact numeric values. */
     for(unsigned i = 0; i < 64; ++i) categories[i] = masks[i] = UINT64_C(1) << i;
     state_write(path, categories, masks, 64);
-    EditorCollisionMigration *p = prepare(&path, 1); report_check(p, false); editor_collision_migration_destroy(p);
+    EditorCollisionMigration *p = prepare(&path, 1); migration_report_assert(p, false); editor_collision_migration_destroy(p);
     /* Distinct masks can share adjacency rows: 130 profiles need only one bit. */
     for(unsigned i = 0; i < 130; ++i) categories[i] = 1, masks[i] = (uint64_t)i << 1;
     state_write(path, categories, masks, 130);
-    p = prepare(&path, 1); report_check(p, false); editor_collision_migration_destroy(p);
+    p = prepare(&path, 1); migration_report_assert(p, false); editor_collision_migration_destroy(p);
     /* 130 neighborhoods over seven old bits fit into at most 49 bit-pair
      * channels, despite failing both category retention and row grouping. */
     for(unsigned i = 0; i < 130; ++i) {
@@ -211,7 +211,7 @@ static void limits_and_errors(void) {
         masks[i] = (i * 71u + 23u) & 127u;
     }
     state_write(path, categories, masks, 130);
-    p = prepare(&path, 1); report_check(p, true); editor_collision_migration_destroy(p);
+    p = prepare(&path, 1); migration_report_assert(p, true); editor_collision_migration_destroy(p);
     /* 33 isolated pairs have 66 singleton response neighborhoods, excluding
      * self-profile contacts. Every responding target needs a distinct bit:
      * sharing one introduces a forbidden pair. Nine legacy bits express this
@@ -225,7 +225,7 @@ static void limits_and_errors(void) {
         }
     assert(count == 66);
     state_write(path, categories, masks, 64);
-    p = prepare(&path, 1); report_check(p, true); editor_collision_migration_destroy(p);
+    p = prepare(&path, 1); migration_report_assert(p, true); editor_collision_migration_destroy(p);
     state_write(path, categories, masks, count);
     char *before = read_text(path);
     EditorResult r = editor_collision_migration_prepare(&path, 1, &p);
@@ -255,7 +255,7 @@ static void snapshot_case(void) {
     ENGINE_OK(rohr_entity_name_set(edge.result.value, "edge"));
     ENGINE_OK(rohr_game_state_file_save(path)); rohr_engine_stop();
     make_legacy(path, false);
-    EditorCollisionMigration *p = prepare(&path, 1); report_check(p, true);
+    EditorCollisionMigration *p = prepare(&path, 1); migration_report_assert(p, true);
     OK(editor_collision_migration_apply(p)); editor_collision_migration_destroy(p);
     ENGINE_OK(rohr_engine_start()); ENGINE_OK(rohr_game_state_file_load(path));
     EntityResult ar = rohr_entity_by_name_get("a"), br = rohr_entity_by_name_get("b"), er = rohr_entity_by_name_get("edge");

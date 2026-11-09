@@ -49,7 +49,7 @@ typedef struct Sample {
     ContactInfo contact;
 } Sample;
 
-static void report_check(Report report, bool allocation_failure) {
+static void particle_report_assert(Report report, bool allocation_failure) {
     assert(!report.has_fatal && report.header.status == ROHR_REPORT_COMPLETE);
     assert(rohr_report_valid_check(&report));
     if(allocation_failure && ROHR_TEST_COMPACT_PARTICLES)
@@ -100,11 +100,11 @@ static void scene_sample(bool manual, bool allocation_failure, uint32_t iteratio
 #endif
         if(manual) {
             rohr_physics_pipeline_substep_begin();
-            report_check(rohr_physics_pipeline_contacts_gather(), false);
+            particle_report_assert(rohr_physics_pipeline_contacts_gather(), false);
             uint32_t passes = ROHR_TEST_PARTICLE_PASSES && ROHR_TEST_PARTICLE_PASSES < iterations
                 ? ROHR_TEST_PARTICLE_PASSES : iterations;
-            report_check(rohr_physics_pipeline_constraints_solve(passes), false);
-        } else report_check(rohr_physics_pipeline_substep(0), allocation_failure);
+            particle_report_assert(rohr_physics_pipeline_constraints_solve(passes), false);
+        } else particle_report_assert(rohr_physics_pipeline_substep(0), allocation_failure);
 #ifdef ROHR_TEST_PARTICLE_WRAP
         reject_scratch = false;
 #endif
@@ -165,7 +165,7 @@ static void scratch_lifetime_check(void) {
     for(unsigned cycle = 0; cycle < 1000; ++cycle) {
         /* Overlap remains within the slop, retaining contacts through teardown. */
         rohr_physics_pipeline_step_begin();
-        report_check(rohr_physics_pipeline_substep(0), false);
+        particle_report_assert(rohr_physics_pipeline_substep(0), false);
         if(ROHR_TEST_COMPACT_PARTICLES)
             assert(physics_step_contact_constraints.particle_solver != NULL);
         contact_constraint_list_destroy(&physics_step_contact_constraints);

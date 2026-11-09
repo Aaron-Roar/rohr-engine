@@ -61,6 +61,10 @@ static void fixture(bool wrapped, Report *reports) {
     assert(reports[4].header.status == ROHR_REPORT_NOT_RUN);
     for(size_t i = 0; i < SYSTEM_COUNT; ++i) {
         assert(rohr_report_valid_check(&reports[i]));
+        assert(rohr_report_check(reports[i]) == (i != 4));
+        assert(rohr_report_status_check(reports[i]) == (i == 0 || i == 1));
+        assert(report_check(reports[i]) == rohr_report_check(reports[i]));
+        assert(report_status_check(reports[i]) == rohr_report_status_check(reports[i]));
         if(i != 4) assert(reports[i].header.status == ROHR_REPORT_COMPLETE);
         assert(!reports[i].has_fatal);
     }

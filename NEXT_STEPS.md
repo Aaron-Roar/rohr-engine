@@ -16,7 +16,8 @@ priority order.
 | 14 | Frame pacing before game development | Complete; corrected pacing verified and initial previews accepted |
 | 15 | [Descriptor-based creation and automatic viewport rendering](#15-descriptor-based-creation-and-automatic-viewport-rendering) | Complete; all six goals verified, final generated workflow accepted |
 | 16 | [Scoped creation and a teaching example](#16-scoped-creation-and-a-teaching-example) | Complete; all three creation paths and SDK workflows verified, final preview accepted |
-| — | [C game experiment](#c-game-experiment) | Follows milestone 16 by user direction; agree concept and completion criteria with the user |
+| 17 | [Consistent creation APIs and report checks](#17-consistent-creation-apis-and-report-checks) | Goal 1 complete; Goals 2–6 await user instruction |
+| — | [C game experiment](#c-game-experiment) | Follows milestone 17 by user direction; agree concept and completion criteria with the user |
 | 13 | Physics rebuild from the simpler baseline | Paused by user direction for frame pacing and game development; goals 1, 2a, 2b and 4a complete; goals 2 and 3 failed; goal 4 blocking remains incomplete; goals 5–8 not started |
 | 12 | Real-time physics pipeline rework | Closed by user direction; superseded by milestone 13, not complete; goals 1–13 complete, goal 14 unfinished, goals 15–19 not started; evidence preserved |
 | 11 | Soft-body correctness and real-time performance | Superseded by milestone 12; not complete; evidence preserved |
@@ -27,17 +28,15 @@ priority order.
 | 7 | Editor implementation scalability | Deferred until after Python unless game development makes it necessary sooner |
 | 10 | End-to-end game | Pending; separate larger game directed by the user |
 
-**Current priority:** Milestone 16 is complete. Scope-based creation, optional
-viewport bindings, project ownership, and the three-path generated example are
-verified against fresh Nix and generic Linux SDKs. The user accepts the final
-whole-project workflow preview. See the
-[verification record](docs/scoped_creation_contract.md#goal-5-verification).
-Stop for Goal 5 review and commit. The next checkpoint is to agree the C game
-concept and completion criteria with the user; no game implementation starts
-automatically. Use **example** naming for new teaching content and preserve
-developer-owned entry points. Physics remains paused with its existing settings,
-gates, and known failure inventory intact. Functional checks make no new
-performance claims.
+**Current priority:** By user direction, milestone 17 precedes the C game
+checkpoint. Goal 1 is complete: successful and strict report predicates plus
+explicit intentional-skip handling in generated game loops are verified. Stop
+for review and commit; Goal 2 requires a new user instruction.
+The remaining goals unify value-style creation from authored recipes and runtime
+descriptors, expose named resources, and migrate callers. Milestone 16 remains
+complete. Preserve developer-owned mains, physics settings, frame pacing, and
+known failure records; neither later goals nor game implementation starts
+automatically.
 
 Milestone 15 is complete. Its Goal 1 defines the
 [creation and viewport contract](docs/creation_and_viewport_contract.md).
@@ -943,9 +942,70 @@ by default. Preserve existing physics, presentation, and developer-owned code.
    performance claim is made. Stop for review and commit.
 
 Each implementation goal includes focused verification before its boundary.
-Only the user may start the next goal. After milestone 16, return to agreeing the
-C game concept and completion criteria; neither game development nor deferred
-physics work starts automatically.
+Only the user may start the next goal. The user subsequently selected milestone
+17 before the C game concept and completion criteria; neither game development
+nor deferred physics work starts automatically.
+
+### 17. Consistent creation APIs and report checks
+
+Expose authored resources by name and accept authored recipes or runtime
+descriptors through one creator per resource. Keep whole-project creation as a
+composition of those shared creators. Add explicit ordinary and strict report
+success predicates, and teach the consistent workflow in generated examples.
+
+Approved decisions: both report predicates mean success, with top-level NOT_RUN
+false; the strict predicate also rejects warnings and evidence loss. Creation
+uses value syntax and C11 typed dispatch with single argument evaluation. Large
+hierarchy recipes remain named values borrowed internally to preserve catalog
+identity; plain runtime descriptors may use temporary values. Remove old public
+pointer-style creation calls as their families migrate. Authored and runtime
+inputs have the same return types and ownership; resource creators do not
+implicitly create entity owners. Controller recipes include actions and roll
+back together. Expose direct named fields such as project.controller_1, with
+nested actions/items and explicit generation errors for identifier collisions.
+Bindings stay explicit; required missing dependencies remain errors. Mathematical
+factories and new physics, pacing, or world-isolation behavior are out of scope.
+
+1. [x] **Add report success predicates.** Implement rohr_report_check and
+   rohr_report_status_check with direct-engine equivalents. Validate successful
+   completion, warnings, information, failures, skipped execution, malformed
+   reports, truncation, overflow, and saturation. Update generated loops to
+   explicitly allow valid zero-tick physics skips and retain failure diagnostics.
+   **Result: complete for review.** Both predicates accept report values and
+   validate successful completion; only the strict check rejects warnings and
+   evidence loss. New generated mains explicitly permit valid zero-tick physics
+   NOT_RUN reports. Twelve focused checks and two installed-SDK consumers pass
+   in Release and ASan/UBSan with leak detection, including all three generated
+   paths with pause/resume and malformed/failed report rejection. Engine/editor,
+   affected tests, SDK consumers, and generated paths cross-build for Windows;
+   native Windows execution remains unverified. Four private test helpers were
+   renamed to avoid collisions with the new direct API, preserving their checks.
+   No compiler warnings or sanitizer findings remain. See
+   [verification](docs/reports.md#milestone-17-goal-1-verification) and
+   `sandbox/milestone_17/goal_1/`. Physics and pacing are unchanged. Stop for review
+   and commit; later creation changes remain unimplemented.
+2. [ ] **Establish unified creation dispatch.** Implement value-style
+   entity/object/project creation and typed-adapter conventions. Preserve
+   immutable recipe identity, scope resolution, rollback, and lifetime rules;
+   evaluate each argument once and reject unsupported types at compile time.
+3. [ ] **Expose named controllers and resources.** Generate named
+   controller/action, audio, layer, and nested viewport-item recipes. Add
+   rohr_controller_create for runtime descriptors and complete authored recipes,
+   and make project creation reuse it. Reject conflicting generated names.
+4. [ ] **Unify remaining authored-resource creators.** Apply the shared pattern
+   to viewports, screens, UI, cameras, graphics assets, layers, and audio. Keep
+   resource ownership explicit and reuse the creators in larger compositions.
+5. [ ] **Migrate examples and generated teaching code.** Update all three
+   creation pathways and repository callers. Remove obsolete creation adapters
+   and pointer spellings. Preserve edited mains during regeneration and document
+   required migration for external source.
+6. [ ] **Verify SDK parity and the workflow.** Verify both input forms,
+   independent instances, required bindings, rollback, survivor-safe destruction,
+   deterministic generation, 1,000-cycle sanitizer checks, installed Nix/generic
+   Linux SDK consumers, Windows cross-builds, and real Linux previews with the user.
+
+Complete and review one goal at a time. After this milestone, agree the C game
+concept and completion criteria with the user; no later goal starts automatically.
 
 ### 13. Physics rebuild from the simpler baseline
 
@@ -2538,9 +2598,9 @@ collision semantics.
 ### C game experiment
 
 Build a small, playful game in C after the frame-pacing fix, milestone 15's
-creation/rendering workflow, and milestone 16's simpler creation paths and starter
-to discover practical engine needs before runtime
-isolation. By user direction, further physics work
+creation/rendering workflow, milestone 16's scoped creation and teaching example,
+and milestone 17's consistent creation APIs/report checks. Discover practical
+engine needs before runtime isolation. By user direction, further physics work
 is paused with its known failures preserved; robust general physics is no longer
 a prerequisite for this checkpoint. This intermediate checkpoint is separate
 from the larger end-to-end game in milestone 10. Agree its concept, scope, and

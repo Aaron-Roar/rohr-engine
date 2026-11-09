@@ -227,7 +227,9 @@ static bool scene_scaffold_check(const EditorWorkspace *workspace,
     bool valid = false;
     if(!main_source || !scene_source || !cmake_source || SDL_GetPathInfo(legacy_path, NULL)) goto done;
     if(!strstr(scene_source, "scene/project.h") ||
-            !strstr(main_source, "rohr_project_create(&project)")) goto done;
+            !strstr(main_source, "rohr_project_create(&project)") ||
+            !strstr(main_source, "rohr_report_check(report)") ||
+            !strstr(main_source, "rohr_engine_tick_delta_get() == 0")) goto done;
     const char *include = strstr(cmake_source, "\ninclude(\"${ROHR_GENERATED_DIRECTORY}/project_scene.cmake\")\n");
     if(!include) goto done;
     edited = SDL_malloc(strlen(cmake_source) + 64);

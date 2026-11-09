@@ -79,6 +79,28 @@ Windows runtime behavior.
 
 ## Inspect and combine returned reports
 
+Use `rohr_report_check(report)` to test successful completion. It returns true
+only for a structurally valid `COMPLETE` report without failures; warnings and
+evidence loss are allowed. Use `rohr_report_status_check(report)` for stricter
+acceptance: it additionally rejects warnings, truncated diagnostic details,
+dropped entries/statistics/diagnostics, and saturated counters. Informational
+diagnostics are acceptable. A completed parent may contain intentionally skipped
+child groups without failing either predicate.
+
+Both predicates accept report values, including returned expressions, and have
+equivalent `report_check` / `report_status_check` direct functions. They do not
+allocate, print, change reports, consume stored evidence, or require startup.
+`rohr_report_valid_check(&report)` remains the separate structural check: a valid
+failed report passes validation but fails both success predicates.
+
+A top-level `NOT_RUN` returns false from both success predicates. Handle intended
+skips explicitly: the generated main permits a valid physics `NOT_RUN` when the
+engine tick delta is zero, including paused frames. It does not treat unrelated
+skipped systems or malformed skipped reports as successful. Failed reports still
+reach the console diagnostic writer before the loop exits. Existing edited mains
+are not rewritten; new and already-supported legacy-template migrations use the
+updated helper.
+
 Check status separately from diagnostics: COMPLETE can contain warnings, FAILED
 stops dependent work, and NOT_RUN describes non-execution. Check `has_fatal`
 before reading `first_fatal`; developer-built FAILED reports can lack a fatal
@@ -1045,3 +1067,40 @@ newly observed evidence, including cleanup; it does not replay the child's
 cumulative report. A borrowed report observer can receive updates during session
 destruction. The session preserves its first failure text and requires the
 previous child to be reaped before another launch.
+
+## Milestone 17 Goal 1 verification
+
+Complete for review, 2026-11-09. The ordinary and strict success predicates share
+structural validation, remain independent of engine startup, and leave reports
+and stored evidence unchanged. Four unrelated private test helpers were renamed
+because their old names conflicted with the new direct `report_check` API; their
+assertions and numerical expectations are unchanged.
+
+Evidence is in `sandbox/milestone_17/goal_1/logs/`:
+
+- Twelve focused tests pass in both Release and ASan/UBSan: report construction,
+  output, system composition, engine/physics/graphics reports, editor project
+  preservation, generated example pathways, force preparation, the simple physics
+  baseline, particle solver, and collision migration. The success matrix covers
+  complete/skipped/failed reports, warnings, information, truncated details,
+  dropped records, saturated counters, skipped children, child failures, fatal
+  diagnostics, and malformed inputs. Both public and direct predicates are tested.
+- Two external installed-SDK consumers pass in both configurations, exercising
+  exported symbols and actual clean, warning, failed, and inactive-system reports.
+  Consumer code and engine code are sanitizer-instrumented; leak detection and
+  halt-on-undefined-behavior are enabled.
+- Each generated project/object/entity main compiles against the installed SDK
+  and runs 120 bounded frames outside its source directory, pausing at frame 40
+  and resuming at frame 80. A fourth generated consumer verifies intentional
+  physics skips are permitted while unrelated skips, malformed reports, and
+  failures are rejected. Developer-edited main/build preservation still passes.
+- Engine/editor, affected tests, two installed consumers, and all four generated
+  consumers cross-build for Windows. Native Windows execution is unverified.
+- The initial supplemental physics tests lacked the headless SDL environment;
+  their engine-start failures are superseded by the final passing dummy-driver
+  runs. No compiler warnings or sanitizer findings remain. No rendering, physics,
+  or frame-pacing behavior was changed, and no new performance claim is made.
+
+Only Goal 1 is complete. The approved value-style creation API, named-resource
+exposure, and caller migration remain future goals in
+[milestone 17](../NEXT_STEPS.md#17-consistent-creation-apis-and-report-checks).

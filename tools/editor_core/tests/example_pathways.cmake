@@ -23,7 +23,7 @@ if(first LESS 0 OR second LESS 0 OR third LESS 0)
 endif()
 string(SUBSTRING "${original}" 0 ${first} shared)
 # A bounded functional run; production main remains unchanged and user-owned.
-string(REPLACE "    for(;;) {" "    for(unsigned frame = 0;; ++frame) {\n        if(frame == 120) return 0;" shared "${shared}")
+string(REPLACE "    for(;;) {" "    for(unsigned frame = 0;; ++frame) {\n        if(frame == 120) return 0;\n        if(frame == 40) rohr_engine_pause();\n        if(frame == 80) rohr_engine_resume();" shared "${shared}")
 math(EXPR length "${second} - ${first}")
 string(SUBSTRING "${original}" ${first} ${length} project)
 math(EXPR length "${third} - ${second}")
@@ -40,12 +40,38 @@ foreach(pathway project object entity)
     endif()
     file(WRITE "${FIXTURE}/src/${pathway}.c" "${shared}${body}")
 endforeach()
+file(WRITE "${FIXTURE}/src/report_policy.c" [=[
+#define main example_main
+#include "project.c"
+#undef main
+
+int main(void) {
+    if(rohr_error_check(rohr_engine_start())) return 1;
+    rohr_engine_pause();
+    if(!rohr_report_check(rohr_engine_update())) return 2;
+    Report skipped = rohr_physics_update(rohr_engine_tick_delta_get());
+    if(skipped.header.status != ROHR_REPORT_NOT_RUN || rohr_report_check(skipped) ||
+            !report_ok(skipped)) return 3;
+    /* An unrelated skipped system is not silently treated as success. */
+    skipped.header.id = ROHR_GRAPHICS_REPORT_ID;
+    if(report_ok(skipped)) return 4;
+    skipped.header.id = ROHR_PHYSICS_REPORT_ID;
+    skipped.diagnostic_count = ROHR_REPORT_DIAGNOSTIC_CAPACITY + 1;
+    if(report_ok(skipped)) return 5;
+    Report failed = rohr_report_create();
+    if(rohr_error_check(rohr_report_header_set(&failed,
+            (ReportHeader){ROHR_PHYSICS_REPORT_ID, ROHR_REPORT_FAILED, 0})) ||
+            report_ok(failed)) return 6;
+    rohr_engine_stop();
+    return 0;
+}
+]=])
 file(WRITE "${FIXTURE}/CMakeLists.txt" [=[
 cmake_minimum_required(VERSION 3.20)
 project(example_pathways LANGUAGES C)
 set(CMAKE_C_STANDARD 11)
 find_package(Rohr CONFIG REQUIRED)
-foreach(pathway project object entity)
+foreach(pathway project object entity report_policy)
     add_executable(${pathway} src/${pathway}.c src/generated/project_objects.c)
     target_include_directories(${pathway} PRIVATE src/generated)
     target_link_libraries(${pathway} PRIVATE Rohr::Engine)
@@ -73,7 +99,7 @@ run(${configure})
 run("${CMAKE_COMMAND}" --build "${FIXTURE}/build" --parallel 4)
 if(NOT DEFINED TOOLCHAIN)
     file(MAKE_DIRECTORY "${FIXTURE}/outside_source")
-    foreach(pathway project object entity)
+    foreach(pathway project object entity report_policy)
         file(READ "${FIXTURE}/build/${pathway}.path" executable)
         execute_process(COMMAND "${CMAKE_COMMAND}" -E env SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy
             "${executable}" WORKING_DIRECTORY "${FIXTURE}/outside_source" RESULT_VARIABLE result TIMEOUT 30)

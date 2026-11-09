@@ -16,6 +16,8 @@ EngineResult rohr_engine_start(void) { return engine_start(); }
 Report rohr_report_create(void) { return report_create(); }
 ReportResult rohr_report_get(ReportFlags flags) { return report_get(flags); }
 bool rohr_report_valid_check(const Report *report) { return report_valid_check(report); }
+bool rohr_report_check(Report report) { return report_check(report); }
+bool rohr_report_status_check(Report report) { return report_status_check(report); }
 EngineResult rohr_report_header_set(Report *report, ReportHeader header) { return report_header_set(report, header); }
 EngineResult rohr_report_entry_add(Report *report, ReportEntry entry) { return report_entry_add(report, entry); }
 EngineResult rohr_report_statistic_add(Report *report, ReportStatistic statistic) { return report_statistic_add(report, statistic); }

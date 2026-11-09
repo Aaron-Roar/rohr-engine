@@ -12,7 +12,7 @@ static Entity entity_make(void) {
 static EntityIndex index_get(Entity entity) {
     EntityIndexResult result = rohr_entity_index_get(entity); OK(result); return result.result.value;
 }
-static void report_check(Report report) {
+static void force_report_assert(Report report) {
     assert(!report.has_fatal && report.diagnostic_count == 0);
 }
 int main(void) {
@@ -57,20 +57,20 @@ int main(void) {
     OK(rohr_physics_gravity_set((Acceleration){0, -3}));
 
     rohr_physics_pipeline_accelerations_clear();
-    report_check(rohr_physics_pipeline_forces_apply());
+    force_report_assert(rohr_physics_pipeline_forces_apply());
     assert(force_accelerations[ai].x == 6 && force_accelerations[bi].x == -6);
     assert(force_accelerations[ai].y == 0 && accelerations[ai].y == 2);
     assert(torque_angular_accelerations[ai] > 0 && torque_angular_accelerations[bi] < 0);
     /* Manual force preparation is additive; it neither clears nor applies the
      * explicit source. External loads remain owned by integration. */
-    report_check(rohr_physics_pipeline_forces_apply());
+    force_report_assert(rohr_physics_pipeline_forces_apply());
     assert(force_accelerations[ai].x == 12 && force_accelerations[bi].x == -12);
     rohr_physics_pipeline_accelerations_clear();
     assert(force_accelerations[ai].x == 0 && torque_angular_accelerations[ai] == 0);
     assert(accelerations[ai].y == 2);
     rohr_physics_pipeline_gravity_apply();
-    report_check(rohr_physics_pipeline_forces_apply());
-    report_check(rohr_physics_pipeline_integrate(.01));
+    force_report_assert(rohr_physics_pipeline_forces_apply());
+    force_report_assert(rohr_physics_pipeline_integrate(.01));
     assert(fabsf(velocities[ai].x - .07f) < .000001f);
     assert(fabsf(velocities[bi].x + .06f) < .000001f);
     assert(fabsf(velocities[ai].y + .01f) < .000001f);
@@ -79,21 +79,21 @@ int main(void) {
     OK(rohr_entity_delete(joint.result.value));
     Entity reused = entity_make();
     rohr_physics_pipeline_accelerations_clear();
-    report_check(rohr_physics_pipeline_forces_apply());
+    force_report_assert(rohr_physics_pipeline_forces_apply());
     assert(force_accelerations[ai].x == 0 && force_accelerations[bi].x == 0);
     assert(torque_angular_accelerations[ai] == 0);
     OK(rohr_physics_joint_description_set(reused, spring));
-    report_check(rohr_physics_pipeline_forces_apply());
+    force_report_assert(rohr_physics_pipeline_forces_apply());
     assert(force_accelerations[ai].x > 0 && force_accelerations[bi].x < 0);
     OK(rohr_entity_components_delete(reused, ROHR_JOINT));
     rohr_physics_pipeline_accelerations_clear();
-    report_check(rohr_physics_pipeline_forces_apply());
+    force_report_assert(rohr_physics_pipeline_forces_apply());
     assert(force_accelerations[ai].x == 0 && force_accelerations[bi].x == 0);
 
     OK(rohr_entity_delete(owner));
     assert(!rohr_entity_alive_check(source.result.value));
     assert(rohr_entity_alive_check(a) && rohr_entity_alive_check(b));
-    report_check(rohr_physics_pipeline_integrate(0));
+    force_report_assert(rohr_physics_pipeline_integrate(0));
     assert(force_accelerations[ai].x == 0);
     rohr_engine_stop();
     return 0;

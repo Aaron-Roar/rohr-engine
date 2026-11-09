@@ -30,7 +30,7 @@ static Entity body(float x, float speed) {
     return e.result.value;
 }
 
-static void report_check(Report r) {
+static void baseline_report_assert(Report r) {
     if(r.has_fatal || r.header.status != ROHR_REPORT_COMPLETE)
         (void)rohr_report_console_write(&r);
     assert(!r.has_fatal && r.header.status == ROHR_REPORT_COMPLETE);
@@ -49,19 +49,19 @@ static void prepared_composition_check(bool manual) {
         rohr_physics_pipeline_substep_begin();
         rohr_physics_pipeline_accelerations_clear();
         rohr_physics_pipeline_gravity_apply();
-        report_check(rohr_physics_pipeline_forces_apply());
-        report_check(rohr_physics_pipeline_integrate(.25));
-        report_check(rohr_physics_pipeline_contacts_gather());
-        report_check(rohr_physics_pipeline_joints_gather());
-        report_check(rohr_physics_pipeline_constraints_solve(4));
-    } else report_check(rohr_physics_pipeline_substep(.25));
+        baseline_report_assert(rohr_physics_pipeline_forces_apply());
+        baseline_report_assert(rohr_physics_pipeline_integrate(.25));
+        baseline_report_assert(rohr_physics_pipeline_contacts_gather());
+        baseline_report_assert(rohr_physics_pipeline_joints_gather());
+        baseline_report_assert(rohr_physics_pipeline_constraints_solve(4));
+    } else baseline_report_assert(rohr_physics_pipeline_substep(.25));
     EntityIndexResult index = rohr_entity_index_get(e); OK(index);
     assert(velocities[index.result.value].y == 1.5f);
     assert(positions[index.result.value].y == .375f);
     OK(rohr_entity_delete(source.result.value));
     /* Integration does not own/delete a persistent source, and a fresh force
      * preparation does not reapply it after explicit source destruction. */
-    report_check(rohr_physics_pipeline_substep(.25));
+    baseline_report_assert(rohr_physics_pipeline_substep(.25));
     assert(velocities[index.result.value].y == 1.5f);
     assert(positions[index.result.value].y == .75f);
     rohr_engine_stop();
@@ -92,11 +92,11 @@ static void particle_pair_sample(bool manual, unsigned mode, float tangent,
     rohr_physics_pipeline_step_begin();
     if(manual) {
         rohr_physics_pipeline_substep_begin();
-        report_check(rohr_physics_pipeline_contacts_gather());
+        baseline_report_assert(rohr_physics_pipeline_contacts_gather());
         uint32_t passes = ROHR_TEST_PARTICLE_PASSES && ROHR_TEST_PARTICLE_PASSES < iterations
             ? ROHR_TEST_PARTICLE_PASSES : iterations;
-        report_check(rohr_physics_pipeline_constraints_solve(passes));
-    } else report_check(rohr_physics_pipeline_substep(0));
+        baseline_report_assert(rohr_physics_pipeline_constraints_solve(passes));
+    } else baseline_report_assert(rohr_physics_pipeline_substep(0));
     for(unsigned side = 0; side < 2; ++side) {
         EntityIndexResult result = rohr_entity_index_get(entities[side]); OK(result);
         EntityIndex i = result.result.value;
@@ -169,7 +169,7 @@ static void particle_discovery_check(void) {
             particle_geometries_pool.objects[index.result.value].local_origin = (Position){1e20f, 1e20f};
         }
         rohr_physics_pipeline_step_begin();
-        report_check(rohr_physics_pipeline_substep(0));
+        baseline_report_assert(rohr_physics_pipeline_substep(0));
         for(unsigned n = 0; n < 128; ++n) for(unsigned m = n + 1; m < 128; ++m) {
             EntityIndexResult a = rohr_entity_index_get(entities[n]), b = rohr_entity_index_get(entities[m]);
             OK(a); OK(b);
@@ -208,7 +208,7 @@ static void particle_distant_discovery_check(void) {
             OK(rohr_physics_position_set(entities[n], position));
         }
         rohr_physics_pipeline_step_begin();
-        report_check(rohr_physics_pipeline_substep(0));
+        baseline_report_assert(rohr_physics_pipeline_substep(0));
         for(unsigned n = 0; n < 12; ++n) for(unsigned m = n + 1; m < 12; ++m) {
             bool expected = n / 3 == m / 3 && n % 3 == 0 && m % 3 == 1;
             assert(rohr_physics_overlap_check(entities[n], entities[m]) == expected);
@@ -230,7 +230,7 @@ int main(void) {
     assert(rohr_engine_time_per_tick_get() == 1.0 / 60.0);
     Entity a = body(-20, 1000), b = body(20, -1000);
     physics_substep_observer_set(observe, NULL);
-    Report r = rohr_physics_dt_update(.1f); report_check(r);
+    Report r = rohr_physics_dt_update(.1f); baseline_report_assert(r);
     assert(observed_steps == 4 && fabs(observed_time - (double).1f) < 1e-12);
     unsigned completed = 0;
     for(size_t i = 0; i < r.statistic_count; ++i)
@@ -245,15 +245,15 @@ int main(void) {
     OK(rohr_physics_position_set(a, (Position){0, 0}));
     OK(rohr_physics_position_set(b, (Position){4, 0}));
     rohr_physics_pipeline_step_begin();
-    report_check(rohr_physics_pipeline_contacts_gather());
+    baseline_report_assert(rohr_physics_pipeline_contacts_gather());
     OK(rohr_entity_delete(b));
     Entity replacement = body(100, 0);
     assert(replacement != b);
-    report_check(rohr_physics_pipeline_constraints_solve(4));
+    baseline_report_assert(rohr_physics_pipeline_constraints_solve(4));
     assert(!rohr_physics_contact_check(a, replacement));
     OK(rohr_physics_position_set(replacement, (Position){4, 0}));
-    report_check(rohr_physics_pipeline_contacts_gather());
-    report_check(rohr_physics_pipeline_constraints_solve(4));
+    baseline_report_assert(rohr_physics_pipeline_contacts_gather());
+    baseline_report_assert(rohr_physics_pipeline_constraints_solve(4));
     assert(rohr_physics_contact_check(a, replacement));
     rohr_engine_stop();
     assert(!physics_simple_baseline_active_check());

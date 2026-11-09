@@ -270,6 +270,13 @@ ReportResult report_get(ReportFlags flags);
 Report report_create(void);
 /** Validate populated slots and reserved fatal consistency; ignores unused slots. */
 bool report_valid_check(const Report *report);
+/** True for a valid COMPLETE report without fatal failures. Warnings and
+ * evidence loss are allowed; NOT_RUN is false. Does not print or mutate state. */
+bool report_check(Report report);
+/** Additionally require no warnings, truncated diagnostics, dropped records,
+ * or saturated counters. Informational diagnostics and skipped child groups
+ * are allowed when the parent completed successfully. */
+bool report_status_check(Report report);
 /** Set identity/status/measured parent timing. A failed report cannot be cleared. */
 EngineResult report_header_set(Report *report, ReportHeader header);
 /** Accumulate matching IDs within a group/root kind; preserve parent time. */

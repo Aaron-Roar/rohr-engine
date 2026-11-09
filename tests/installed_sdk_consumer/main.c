@@ -9,6 +9,14 @@
 #include <string.h>
 
 int main(void) {
+    Report checked = rohr_report_create();
+    if(rohr_report_check(checked) || report_status_check(checked)) return 1;
+    if(rohr_error_check(rohr_report_header_set(&checked,
+            (ReportHeader){ROHR_REPORT_CUSTOM_ID_BEGIN, ROHR_REPORT_COMPLETE, 0}))) return 1;
+    if(!rohr_report_check(checked) || !report_check(checked) ||
+            !rohr_report_status_check(checked) || !report_status_check(checked)) return 1;
+    checked.dropped_diagnostic_occurrences = 1;
+    if(!rohr_report_check(checked) || rohr_report_status_check(checked)) return 1;
     ReportResult latest = rohr_report_get(ROHR_ENGINE_REPORT);
     if(rohr_error_check(latest) || latest.result.value.version != 0 ||
             latest.result.value.header.status != ROHR_REPORT_NOT_RUN) return 1;

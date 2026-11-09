@@ -162,6 +162,13 @@ Report rohr_report_create(void);
 ReportResult rohr_report_get(ReportFlags flags);
 /** Checks populated report fields, custom IDs, and reserved-fatal consistency. */
 bool rohr_report_valid_check(const Report *report);
+/** True for valid successful completion, allowing warnings and evidence loss.
+ * NOT_RUN, malformed reports, and failures return false. No output or mutation. */
+bool rohr_report_check(Report report);
+/** True for valid successful completion with no warnings, truncated diagnostic
+ * details, dropped records, or saturated counters. Informational diagnostics
+ * and intentionally skipped child groups do not fail a completed parent. */
+bool rohr_report_status_check(Report report);
 /** Sets report identity, completion status, and measured time; failure is sticky. */
 EngineResult rohr_report_header_set(Report *report, ReportHeader header);
 /** Adds/aggregates a child summary without changing the parent's elapsed time. */

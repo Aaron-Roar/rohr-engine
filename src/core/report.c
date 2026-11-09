@@ -163,6 +163,25 @@ bool report_valid_check(const Report *report) {
     return true;
 }
 
+static bool report_complete_check(const Report *report) {
+    return report_valid_check(report) && report->header.status == ROHR_REPORT_COMPLETE &&
+        !report->has_fatal;
+}
+
+bool report_check(Report report) {
+    return report_complete_check(&report);
+}
+
+bool report_status_check(Report report) {
+    if(!report_complete_check(&report) || report.dropped_entry_count ||
+            report.dropped_statistic_count || report.dropped_diagnostic_occurrences ||
+            report.counters_saturated) return false;
+    for(size_t i = 0; i < report.diagnostic_count; ++i)
+        if(report.diagnostics[i].severity == ROHR_REPORT_SEVERITY_WARNING ||
+                report.diagnostics[i].detail_truncated) return false;
+    return true;
+}
+
 static uint64_t report_sum(Report *report, uint64_t a, uint64_t b) {
     if(UINT64_MAX - a < b) {
         report->counters_saturated = true;
