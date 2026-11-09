@@ -1011,8 +1011,14 @@ factories and new physics, pacing, or world-isolation behavior are out of scope.
    resource ownership explicit and reuse the creators in larger compositions.
 5. [ ] **Migrate examples and generated teaching code.** Update all three
    creation pathways and repository callers. Remove obsolete creation adapters
-   and pointer spellings. Preserve edited mains during regeneration and document
-   required migration for external source.
+   and pointer spellings. Generated mains must show engine calls, error/report
+   checks, the frame loop, and cleanup directly inside each main, without local
+   utility functions such as ok, report_ok, or game_loop or replacement wrapper
+   macros. Keep all three pathways self-contained with clear comment dividers;
+   only whole-project creation is active, with the other two alternatives
+   commented out. Verify each pathway independently, retaining failure
+   diagnostics and valid zero-tick physics handling. Preserve edited mains
+   during regeneration and document required migration for external source.
 6. [ ] **Verify SDK parity and the workflow.** Verify both input forms,
    independent instances, required bindings, rollback, survivor-safe destruction,
    deterministic generation, 1,000-cycle sanitizer checks, installed Nix/generic
