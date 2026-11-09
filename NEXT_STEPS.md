@@ -1047,7 +1047,7 @@ factories and new physics, pacing, or world-isolation behavior are out of scope.
    remain. See [verification](docs/shared_creation.md#milestone-17-goal-4-verification)
    and `sandbox/milestone_17/goal_4/`. Stop for review and commit; Goal 5's
    helper-free teaching mains and Goal 6's integrated parity review remain next.
-5. [ ] **Migrate examples and generated teaching code.** Update all three
+5. [x] **Migrate examples and generated teaching code.** Update all three
    creation pathways and repository callers. Remove obsolete creation adapters
    and pointer spellings. Generated mains must show engine calls, error/report
    checks, the frame loop, and cleanup directly inside each main, without local
@@ -1057,6 +1057,22 @@ factories and new physics, pacing, or world-isolation behavior are out of scope.
    commented out. Verify each pathway independently, retaining failure
    diagnostics and valid zero-tick physics handling. Preserve edited mains
    during regeneration and document required migration for external source.
+   **Result: complete for review.** Each generated pathway directly contains its
+   startup, checks, loop, and cleanup, with only whole-project creation active.
+   The player-controller example uses named shared creation and action lookup;
+   generated compatibility wrappers delegate to the same creator. Strict old
+   template migration preserves developer edits. Ten focused tests and seven
+   installed-SDK consumers pass in Release and ASan/UBSan with leak detection.
+   Each main handles pause/resume and injected report failures with diagnostics
+   and cleanup before service shutdown. Engine/editor, consumers, generated paths,
+   resource fixtures, and three independent examples cross-build for Windows;
+   those examples also run against the Linux SDK. All 67 unsupported-input compile
+   checks remain rejected. The user accepted the generated example preview.
+   No compiler warnings or sanitizer findings remain. Native Windows execution
+   and generic Linux packaging remain unverified. Physics and pacing are unchanged;
+   the car's existing performance gate is not reclassified. See
+   [verification](docs/shared_creation.md#milestone-17-goal-5-verification) and
+   `sandbox/milestone_17/goal_5/`. Stop for review and commit before Goal 6.
 6. [ ] **Verify SDK parity and the workflow.** Verify both input forms,
    independent instances, required bindings, rollback, survivor-safe destruction,
    deterministic generation, 1,000-cycle sanitizer checks, installed Nix/generic

@@ -95,7 +95,7 @@ Viewport fields include named screen/UI recipes while retaining ordered
 value syntax: `rohr_viewport_create(project.viewport)` or
 `rohr_viewport_create(description)`. When setting a native creation descriptor's
 `template` pointer, use `&project.viewport._description`. Rebuild the SDK and
-regenerate together. Removing local helpers from generated mains remains Goal 5.
+regenerate together. Generated teaching mains use these calls directly.
 
 Generation rejects conflicting C identifiers across objects, viewports,
 controllers, audio, and layers, and within each controller/viewport. For example,
@@ -192,11 +192,36 @@ a separate startup operation, and each system update remains explicit in the loo
 
 The generated main contains complete, line-commented alternatives for
 `rohr_object_create(project.example)` and individual `rohr_entity_create()` calls.
-Comment out the active main and uncomment exactly one alternative; the shared
-loop stays in place. The object path creates a blank viewport then binds its screen
+Comment out the active main and uncomment exactly one alternative. Each main
+contains its own startup, error checks, frame loop, report checks, and cleanup;
+there are no local utility functions or wrapper macros. The object path creates
+a blank viewport then binds its named screen
 camera. The entity path supplies a camera in a local viewport creation descriptor.
 Both explicitly clean up their resources. The independent entity path intentionally
 shows a subset of the scene; it does not spawn a joint without its topology.
+
+The object/entity alternatives create only their selected resources. Add a named
+controller with `rohr_controller_create(project.player)`, then resolve its actions
+with `rohr_input_action_by_name_get(controller, project.player.move.name)` after
+checking each result. The player-controller example demonstrates this sequence.
+Destroy separately created controllers explicitly; whole-project creation owns
+its controllers. Existing generated `ProjectControllers` compatibility helpers
+now delegate to the same creator rather than generating an action-construction
+algorithm.
+
+Generated loops accept physics NOT_RUN only when the report belongs to physics,
+the tick delta is zero, and the report is valid. Other unsuccessful reports are
+written to the console and lead to cleanup. Owned instances are destroyed before
+their shared services stop. Authored global settings remain a separate
+`project_settings_apply()` startup operation.
+
+Regeneration upgrades only exact recognized old main templates. The previous
+helper-based templates upgrade to a catalog-independent whole-project main, so
+renaming authored example members does not break that migration. A developer
+edit, including an added comment, preserves the entire main. To migrate an edited
+main, use a fresh generated example as a reference and copy the selected pathway's
+explicit calls, checks, loop, and teardown while retaining your gameplay. Archived
+template strings exist only for strict migration recognition.
 
 Authored screen camera choices remain in the immutable recipe. Whole-project
 creation resolves them within the new instance. Standalone viewport creation
@@ -542,5 +567,46 @@ rotated insets, text/buttons, and the first instance's visibility toggle.
   Generic Linux packaging and the wider final SDK review remain Goal 6.
 
 Rebuild the SDK and regenerate catalogs together before migrating external
-callers. Developer-edited mains remain preserved. Goal 5 will remove local
-teaching helpers and show each complete creation pathway directly in main.
+callers. Developer-edited mains remain preserved. The following Goal 5 updates
+the teaching mains without changing the resource-creation contracts above.
+
+## Milestone 17 Goal 5 verification
+
+Evidence and isolated SDK installations are in `sandbox/milestone_17/goal_5/`.
+The user accepted the generated whole-project example's scene, animation, and
+viewport UI. Its unchanged production main ran outside the source directory and
+exited cleanly.
+
+- Ten focused tests pass in Release and ASan/UBSan with leak detection: all three
+  example pathways, editor project generation/preservation, build scaffolding
+  recovery, partial spawning, construction/configuration parity, scene generation,
+  scene session lifecycle, CLI scene selection, and center-of-mass integration.
+- Each teaching main compiles and runs independently. Test-only copies exercise
+  pause/resume and valid zero-tick skips, plus failed physics, wrong-system and
+  malformed NOT_RUN reports, and engine, animation-update, and presentation
+  failures. Failure paths attempt diagnostics, return failure, and destroy all
+  entities before service shutdown. Test wrappers are never generated into mains.
+- Exact old templates migrate; near matches and developer comments remain
+  untouched. Regeneration preserves edited mains and custom CMake files. Generated
+  controller compatibility wrappers preserve action settings while using the
+  shared creator. The scene runner retains its required lifecycle callbacks;
+  its redundant viewport-construction helper is removed.
+- Seven installed-SDK consumers pass in Release and ASan/UBSan: controller
+  creation, input descriptions, creation dispatch, object descriptions, automatic
+  viewports, generated workflow, and project creation. The 67 negative compile
+  cases continue to reject unsupported inputs on Linux and Windows.
+- Engine/editor, affected tests, SDK consumers, all three generated pathways and
+  their failure harnesses, and the named-resource fixture cross-build for Windows.
+  Center of mass, player controller, and the soft-body car independently build
+  against both installed SDKs and run on Linux outside their source directories.
+  Native Windows execution and generic Linux packaging remain Goal 6 work.
+- The car completes 3,600 frames / 60 simulated seconds with 14,400 substeps,
+  7,222,164 candidates, and 1,195,541 contacts. These are functional checks;
+  the existing `realtime_pass=0` gate remains unresolved. No physics, presentation,
+  or performance behavior is changed by this goal.
+
+The expanded checks caught and corrected a controller-value dereference in the
+generated scene. The sanitizer scene-session runner also required building its
+existing child fixture. A test-only macro redefinition warning was fixed and the
+three pathway checks rerun. No compiler warnings or sanitizer findings remain in
+the final runs. Goal 6's integrated SDK parity review remains pending.

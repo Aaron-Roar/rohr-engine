@@ -10,6 +10,7 @@
 #include "editor_starter_main_legacy.h"
 #include "editor_main_previous.h"
 #include "editor_example_main.h"
+#include "editor_main_m17_previous.h"
 
 #include <math.h>
 #include <stdio.h>
@@ -229,7 +230,9 @@ static bool scene_scaffold_check(const EditorWorkspace *workspace,
     if(!strstr(scene_source, "scene/project.h") ||
             !strstr(main_source, "rohr_project_create(project)") ||
             !strstr(main_source, "rohr_report_check(report)") ||
-            !strstr(main_source, "rohr_engine_tick_delta_get() == 0")) goto done;
+            !strstr(main_source, "ticks_advanced == 0") ||
+            strstr(main_source, "static bool ok(") || strstr(main_source, "report_ok(") ||
+            strstr(main_source, "game_loop(") || strstr(main_source, "#define ")) goto done;
     const char *include = strstr(cmake_source, "\ninclude(\"${ROHR_GENERATED_DIRECTORY}/project_scene.cmake\")\n");
     if(!include) goto done;
     edited = SDL_malloc(strlen(cmake_source) + 64);
@@ -272,7 +275,8 @@ static bool scene_scaffold_check(const EditorWorkspace *workspace,
             !editor_workspace_c_generate(workspace, project)) goto done;
     SDL_free(loaded); loaded = SDL_LoadFile(main_path, NULL);
     if(!loaded || strcmp(loaded, editor_project_main_source)) goto done;
-    const char *previous[] = {editor_main_previous_source, editor_main_previous_example_source};
+    const char *previous[] = {editor_main_previous_source, editor_main_previous_example_source,
+        editor_main_m17_previous_source, editor_main_m17_previous_example_source};
     for(size_t i = 0; i < sizeof(previous) / sizeof(previous[0]); ++i) {
         if(!file_replace(main_path, previous[i]) || !editor_workspace_c_generate(workspace, project)) goto done;
         SDL_free(loaded); loaded = SDL_LoadFile(main_path, NULL);
@@ -676,7 +680,10 @@ int main(void) {
                 file_contains(path, "SDL_GetBasePath()") ||
                 !file_contains(path, "rohr_project_create(project)") ||
                 !file_contains(path, "//     EntityResult created = rohr_object_create(project.example);") ||
-                !file_contains(path, "//         EntityResult created = rohr_entity_create(*descriptions[i]);") ||
+                !file_contains(path, "//     EntityResult created = rohr_entity_create(project.example.floor);") ||
+                file_contains(path, "game_loop(") || file_contains(path, "report_ok(") ||
+                file_contains(path, "static bool ok(") || file_contains(path, "#define ") ||
+                file_contains(path, "project_controllers_create(") ||
                 file_contains(path, "create_tutorial") ||
                 file_contains(path, "entity_object_add(objects.example.") ||
                 file_contains(path, "rohr_physics_joint_description_set") ||
@@ -708,19 +715,16 @@ int main(void) {
                 !file_contains(path, "rohr_physics_solver_iterations_set(16)") ||
                 !file_contains(path, "project_controllers_create") ||
                 !file_contains(path,
-                    "rohr_input_controller_create((InputControllerDescription){.name = \"gameplay\"") ||
+                    "rohr_controller_create(project.gameplay)") ||
                 !file_contains(path,
-                    ".enabled = false") ||
+                    ".enabled=0") ||
                 !file_contains(path,
-                    "rohr_input_action_create((InputActionDescription){") ||
+                    "rohr_input_action_by_name_get(controllers->controller_gameplay_") ||
                 !file_contains(path,
-                    ".controller = controllers->controller_gameplay_") ||
-                !file_contains(path, "INPUT_BUTTON_PERSISTENT") ||
-                !file_contains(path,
-                    ".button_initial_state = true") ||
+                    ".button_initial_state=1") ||
                 !file_contains(path, "controllers->created = true") ||
                 !file_contains(path,
-                    ".bindings_default = {.count =") ||
+                    ".bindings_default={.count=") ||
                 !file_contains(path, ".name = \"move_up\"") ||
                 !file_contains(path, ".name = \"primary_click\"") ||
                 !file_contains(path, "INPUT_BINDING_MOUSE_MOTION") ||

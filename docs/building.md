@@ -176,8 +176,10 @@ New projects include an **Example** scene and three complete alternatives in
    must still be supplied. The example binds its camera and cleans up each owner.
 
 To try an alternative, comment out the active main and uncomment one complete
-alternative. Apply authored engine/window settings once at startup, as the shared
-example setup does. Project creation does not reset global settings. Runtime
+alternative. Each main shows startup, checks, the frame loop, and cleanup directly,
+without local utility functions or wrapper macros. Apply authored engine/window
+settings once at startup using `project_settings_apply()`, as each path shows.
+Project creation does not reset global settings. Runtime
 screens and buttons can still be added to any created viewport.
 
 Edit `src/main.c` for your game; keep editor-authored recipes in `src/generated/`.

@@ -22,8 +22,6 @@ if(first LESS 0 OR second LESS 0 OR third LESS 0)
     message(FATAL_ERROR "Missing complete example alternatives")
 endif()
 string(SUBSTRING "${original}" 0 ${first} shared)
-# A bounded functional run; production main remains unchanged and user-owned.
-string(REPLACE "    for(;;) {" "    for(unsigned frame = 0;; ++frame) {\n        if(frame == 120) return 0;\n        if(frame == 40) rohr_engine_pause();\n        if(frame == 80) rohr_engine_resume();" shared "${shared}")
 math(EXPR length "${second} - ${first}")
 string(SUBSTRING "${original}" ${first} ${length} project)
 math(EXPR length "${third} - ${second}")
@@ -38,49 +36,36 @@ foreach(pathway project object entity)
         string(REPLACE "\n// " "\n" body "${body}")
         string(REPLACE "\n//\n" "\n\n" body "${body}")
     endif()
+    if(body MATCHES "static " OR body MATCHES "#define" OR body MATCHES "game_loop\\(" OR body MATCHES "report_ok\\(" OR body MATCHES "ProjectControllers")
+        message(FATAL_ERROR "${pathway} contains a teaching helper or obsolete controller adapter")
+    endif()
+    # Bound each actual main, preserving its cleanup path, and exercise pause.
+    string(REPLACE "    for(;;) {" "    for(unsigned frame = 0;; ++frame) {\n        if(frame == 120) { status = 0; goto done; }\n        if(frame == 40) rohr_engine_pause();\n        if(frame == 80) rohr_engine_resume();" body "${body}")
     file(WRITE "${FIXTURE}/src/${pathway}.c" "${shared}${body}")
 endforeach()
-file(WRITE "${FIXTURE}/src/report_policy.c" [=[
-#define main example_main
-#include "project.c"
-#undef main
-
-int main(void) {
-    if(rohr_error_check(rohr_engine_start())) return 1;
-    rohr_engine_pause();
-    if(!rohr_report_check(rohr_engine_update())) return 2;
-    Report skipped = rohr_physics_update(rohr_engine_tick_delta_get());
-    if(skipped.header.status != ROHR_REPORT_NOT_RUN || rohr_report_check(skipped) ||
-            !report_ok(skipped)) return 3;
-    /* An unrelated skipped system is not silently treated as success. */
-    skipped.header.id = ROHR_GRAPHICS_REPORT_ID;
-    if(report_ok(skipped)) return 4;
-    skipped.header.id = ROHR_PHYSICS_REPORT_ID;
-    skipped.diagnostic_count = ROHR_REPORT_DIAGNOSTIC_CAPACITY + 1;
-    if(report_ok(skipped)) return 5;
-    Report failed = rohr_report_create();
-    if(rohr_error_check(rohr_report_header_set(&failed,
-            (ReportHeader){ROHR_PHYSICS_REPORT_ID, ROHR_REPORT_FAILED, 0})) ||
-            report_ok(failed)) return 6;
-    rohr_engine_stop();
-    return 0;
-}
-]=])
+configure_file("${CMAKE_CURRENT_LIST_DIR}/example_report_policy.c"
+    "${FIXTURE}/src/report_policy.c" COPYONLY)
 file(WRITE "${FIXTURE}/CMakeLists.txt" [=[
 cmake_minimum_required(VERSION 3.20)
 project(example_pathways LANGUAGES C)
 set(CMAKE_C_STANDARD 11)
 find_package(Rohr CONFIG REQUIRED)
-foreach(pathway project object entity report_policy)
+foreach(pathway project object entity)
     add_executable(${pathway} src/${pathway}.c src/generated/project_objects.c)
-    target_include_directories(${pathway} PRIVATE src/generated)
-    target_link_libraries(${pathway} PRIVATE Rohr::Engine)
-    if(NOT MSVC)
-        target_compile_options(${pathway} PRIVATE -Wall -Wextra -Wpedantic)
+    add_executable(policy_${pathway} src/report_policy.c src/generated/project_objects.c)
+    target_compile_definitions(policy_${pathway} PRIVATE EXAMPLE_PATHWAY_SOURCE="${pathway}.c")
+    foreach(target ${pathway} policy_${pathway})
+    target_include_directories(${target} PRIVATE src/generated)
+    target_link_libraries(${target} PRIVATE Rohr::Engine)
+    if(MSVC)
+        target_compile_options(${target} PRIVATE /UNDEBUG)
+    else()
+        target_compile_options(${target} PRIVATE -Wall -Wextra -Wpedantic -UNDEBUG)
     endif()
-    add_custom_command(TARGET ${pathway} POST_BUILD COMMAND ${CMAKE_COMMAND} -E copy_directory
-        "${CMAKE_CURRENT_SOURCE_DIR}/assets" "$<TARGET_FILE_DIR:${pathway}>/assets")
-    file(GENERATE OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/${pathway}.path" CONTENT "$<TARGET_FILE:${pathway}>")
+    add_custom_command(TARGET ${target} POST_BUILD COMMAND ${CMAKE_COMMAND} -E copy_directory
+        "${CMAKE_CURRENT_SOURCE_DIR}/assets" "$<TARGET_FILE_DIR:${target}>/assets")
+    file(GENERATE OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/${target}.path" CONTENT "$<TARGET_FILE:${target}>")
+    endforeach()
 endforeach()
 ]=])
 file(SHA256 "${FIXTURE}/CMakeLists.txt" build_before)
@@ -89,6 +74,13 @@ file(READ "${FIXTURE}/src/main.c" regenerated)
 file(SHA256 "${FIXTURE}/CMakeLists.txt" build_after)
 if(NOT original STREQUAL regenerated OR NOT build_before STREQUAL build_after)
     message(FATAL_ERROR "Regeneration changed example main or custom build file")
+endif()
+file(APPEND "${FIXTURE}/src/main.c" "\n/* developer customization: retain my chosen pathway */\n")
+file(SHA256 "${FIXTURE}/src/main.c" edited_before)
+run("${CLI}" --project "${FIXTURE}" generate-c)
+file(SHA256 "${FIXTURE}/src/main.c" edited_after)
+if(NOT edited_before STREQUAL edited_after)
+    message(FATAL_ERROR "Regeneration overwrote developer-edited main")
 endif()
 set(configure "${CMAKE_COMMAND}" -S "${FIXTURE}" -B "${FIXTURE}/build"
     "-DCMAKE_PREFIX_PATH=${SDK_PREFIX}" -DCMAKE_BUILD_TYPE=Release)
@@ -99,12 +91,20 @@ run(${configure})
 run("${CMAKE_COMMAND}" --build "${FIXTURE}/build" --parallel 4)
 if(NOT DEFINED TOOLCHAIN)
     file(MAKE_DIRECTORY "${FIXTURE}/outside_source")
-    foreach(pathway project object entity report_policy)
+    foreach(pathway project object entity)
         file(READ "${FIXTURE}/build/${pathway}.path" executable)
         execute_process(COMMAND "${CMAKE_COMMAND}" -E env SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy
             "${executable}" WORKING_DIRECTORY "${FIXTURE}/outside_source" RESULT_VARIABLE result TIMEOUT 30)
         if(NOT result EQUAL 0)
             message(FATAL_ERROR "${pathway} example failed: ${result}")
         endif()
+        file(READ "${FIXTURE}/build/policy_${pathway}.path" policy)
+        foreach(mode RANGE 0 6)
+            execute_process(COMMAND "${CMAKE_COMMAND}" -E env SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy
+                "${policy}" "${mode}" WORKING_DIRECTORY "${FIXTURE}/outside_source" RESULT_VARIABLE result TIMEOUT 30)
+            if(NOT result EQUAL 0)
+                message(FATAL_ERROR "${pathway} report/cleanup mode ${mode} failed: ${result}")
+            endif()
+        endforeach()
     endforeach()
 endif()

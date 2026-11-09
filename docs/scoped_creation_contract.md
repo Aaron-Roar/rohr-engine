@@ -479,6 +479,10 @@ system reports in the shared loop. Each path destroys its owned resources before
 stopping shared services. No extra direct-API tutorial bodies are added to the
 active authored scene.
 
+Milestone 17 Goal 5 supersedes that shared-loop layout: each alternative now has
+its own explicit startup, report checks, loop, and cleanup inside main, without
+local teaching helpers. See [the current workflow](shared_creation.md).
+
 The generated root view starts with a union containing the actual immutable
 `ProjectDescription`. Its root, named children, and viewport entries reference the
 same records. The `_description` common-initial-member alias preserves object-root

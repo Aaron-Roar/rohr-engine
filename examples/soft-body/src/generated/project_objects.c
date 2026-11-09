@@ -4,7 +4,7 @@
  * The project's developer may use, modify, and distribute it without restriction.
  */
 
-#include "project_objects.h"
+#include "project.h"
 
 /* Legacy instance wrappers use the shared descriptor creators. */
 EngineResult car_instance_bind(Car *output, Entity instance) {

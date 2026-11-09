@@ -69,13 +69,23 @@ static bool player_speed_limit_apply(Entity player) {
 
 int main(void) {
     Entity root = ENTITY_INVALID, player = ENTITY_INVALID;
-    ProjectControllers controllers = {0};
+    InputControllerId controller = INPUT_CONTROLLER_INVALID;
+    InputActionId move_action = INPUT_ACTION_INVALID, jump_action = INPUT_ACTION_INVALID;
     ViewportId viewport = VIEWPORT_INVALID;
     bool jump_queued = false;
 
     if(!ok(rohr_directory_working_set(rohr_directory_base_get()))) return 1;
     if(!ok(rohr_engine_start()) || !ok(rohr_graphics_start())) goto fail;
-    if(!ok(project_settings_apply()) || !ok(project_controllers_create(&controllers))) goto fail;
+    if(!ok(project_settings_apply())) goto fail;
+    InputControllerIdResult input = rohr_controller_create(project.player);
+    if(rohr_error_check(input)) { fprintf(stderr, "%s\n", rohr_error_message_get(input)); goto fail; }
+    controller = input.result.value;
+    InputActionIdResult action = rohr_input_action_by_name_get(controller, project.player.move.name);
+    if(rohr_error_check(action)) { fprintf(stderr, "%s\n", rohr_error_message_get(action)); goto fail; }
+    move_action = action.result.value;
+    action = rohr_input_action_by_name_get(controller, project.player.jump.name);
+    if(rohr_error_check(action)) { fprintf(stderr, "%s\n", rohr_error_message_get(action)); goto fail; }
+    jump_action = action.result.value;
     EntityResult created = rohr_object_create(project.player_world);
     if(rohr_error_check(created)) goto fail;
     root = created.result.value;
@@ -101,7 +111,7 @@ int main(void) {
         if(rohr_input_key_pressed_check(SDL_SCANCODE_ESCAPE)) break;
 
         if(rohr_input_action_button_pressed_check(
-                controllers.action_player_jump_2) &&
+                jump_action) &&
                 player_grounded_check(player))
             jump_queued = true;
 
@@ -109,7 +119,7 @@ int main(void) {
         ticks_advanced = rohr_engine_tick_delta_get();
         if(ticks_advanced > 0) {
             move = rohr_input_action_axis_1d_get(
-                controllers.action_player_move_1);
+                move_action);
             move_axis = rohr_error_check(move) ? 0.0f : move.result.value;
             if(!player_velocity_get(player, &velocity))
                 goto fail;
@@ -131,7 +141,7 @@ int main(void) {
 done:
     if(viewport) (void)rohr_viewport_destroy(viewport);
     if(root) (void)rohr_entity_delete(root);
-    project_controllers_destroy(&controllers);
+    if(controller) (void)rohr_input_controller_destroy(controller);
     rohr_graphics_stop();
     rohr_engine_stop();
     return 0;
@@ -139,7 +149,7 @@ fail:
     fprintf(stderr, "Player controller example failed\n");
     if(viewport) (void)rohr_viewport_destroy(viewport);
     if(root) (void)rohr_entity_delete(root);
-    project_controllers_destroy(&controllers);
+    if(controller) (void)rohr_input_controller_destroy(controller);
     rohr_graphics_stop();
     rohr_engine_stop();
     return 1;

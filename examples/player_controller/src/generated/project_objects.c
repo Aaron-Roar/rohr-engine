@@ -4,7 +4,7 @@
  * The project's developer may use, modify, and distribute it without restriction.
  */
 
-#include "project_objects.h"
+#include "project.h"
 
 /* Legacy instance wrappers use the shared descriptor creators. */
 EngineResult player_world_instance_bind(PlayerWorld *output, Entity instance) {
@@ -66,25 +66,13 @@ EngineResult project_controllers_create(ProjectControllers *controllers) {
     EngineResult result;
     if(controllers == NULL) return rohr_error_result_error(ERROR_MEMORY_POOL_NULL_POINTER);
     *controllers = (ProjectControllers){0};
-    controller_result = rohr_input_controller_create((InputControllerDescription){.name = "player", .enabled = true});
+    controller_result = rohr_controller_create(project.player);
     if(rohr_error_check(controller_result)) { result = rohr_error_result_error(controller_result.result.error); goto fail; }
     controllers->controller_player_1 = controller_result.result.value;
-    action_result = rohr_input_action_create((InputActionDescription){
-        .controller = controllers->controller_player_1, .name = "move", .type = INPUT_ACTION_AXIS_1D,
-        .bindings_default = {.count = 2, .values = {
-        {.name = "move_left", .source = INPUT_BINDING_KEY, .input.key = (SDL_Scancode)4, .modifiers = (SDL_Keymod)0, .affects_x = true, .affects_y = true, .scale = {-1.00000000f, 1.00000000f}, .inverted_x = false, .inverted_y = false, .direction = {0.00000000f, 0.00000000f}},
-        {.name = "move_right", .source = INPUT_BINDING_KEY, .input.key = (SDL_Scancode)7, .modifiers = (SDL_Keymod)0, .affects_x = true, .affects_y = true, .scale = {1.00000000f, 1.00000000f}, .inverted_x = false, .inverted_y = false, .direction = {0.00000000f, 0.00000000f}}
-        }}
-    });
+    action_result = rohr_input_action_by_name_get(controllers->controller_player_1, project.player.move.name);
     if(rohr_error_check(action_result)) { result = rohr_error_result_error(action_result.result.error); goto fail; }
     controllers->action_player_move_1 = action_result.result.value;
-    action_result = rohr_input_action_create((InputActionDescription){
-        .controller = controllers->controller_player_1, .name = "jump", .type = INPUT_ACTION_BUTTON,
-        .button_mode = INPUT_BUTTON_MOMENTARY, .button_initial_state = false,
-        .bindings_default = {.count = 1, .values = {
-        {.name = "jump_space", .source = INPUT_BINDING_KEY, .input.key = (SDL_Scancode)44, .modifiers = (SDL_Keymod)0, .affects_x = true, .affects_y = true, .scale = {1.00000000f, 1.00000000f}, .inverted_x = false, .inverted_y = false, .direction = {0.00000000f, 0.00000000f}}
-        }}
-    });
+    action_result = rohr_input_action_by_name_get(controllers->controller_player_1, project.player.jump.name);
     if(rohr_error_check(action_result)) { result = rohr_error_result_error(action_result.result.error); goto fail; }
     controllers->action_player_jump_2 = action_result.result.value;
     controllers->created = true;

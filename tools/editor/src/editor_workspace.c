@@ -5,6 +5,7 @@
 #include "editor_workspace.h"
 #include "editor_example_main.h"
 #include "editor_main_previous.h"
+#include "editor_main_m17_previous.h"
 #include "editor_starter_main_legacy.h"
 #include "editor_scene_source.h"
 #include "editor_log.h"
@@ -876,7 +877,7 @@ static bool editor_workspace_generated_objects_write(const EditorWorkspace *work
         " * This generated file is not covered by Rohr Engine's LGPL-3.0-only license.\n"
         " * The project's developer may use, modify, and distribute it without restriction.\n"
         " */\n\n"
-        "#include \"project_objects.h\"\n\n"
+        "#include \"project.h\"\n\n"
         "/* Legacy instance wrappers use the shared descriptor creators. */\n");
     for(size_t object_index = 0; object_index < project->object_count; object_index += 1) {
         const EditorObject *object = &project->objects[object_index];
@@ -1000,53 +1001,25 @@ static bool editor_workspace_generated_objects_write(const EditorWorkspace *work
         char controller_variable[ROHR_INPUT_NAME_MAX * 2];
         editor_workspace_input_controller_variable(controller_variable,
             sizeof(controller_variable), controller);
-        fprintf(source, "    controller_result = rohr_input_controller_create("
-            "(InputControllerDescription){.name = ");
-        editor_workspace_c_string_write(source, controller->name);
+        char controller_field[EDITOR_OBJECT_NAME_MAX];
+        editor_project_property_name_format(controller_field, sizeof(controller_field), controller->name);
         fprintf(source,
-            ", .enabled = %s});\n"
+            "    controller_result = rohr_controller_create(project.%s);\n"
             "    if(rohr_error_check(controller_result)) { result = "
-                "rohr_error_result_error(controller_result.result.error); "
-                "goto fail; }\n"
+                "rohr_error_result_error(controller_result.result.error); goto fail; }\n"
             "    controllers->%s = controller_result.result.value;\n",
-            controller->enabled ? "true" : "false", controller_variable);
-        for(size_t action_index = 0; action_index < controller->action_count;
-                action_index += 1) {
+            controller_field, controller_variable);
+        for(size_t action_index = 0; action_index < controller->action_count; ++action_index) {
             const EditorInputAction *action = &controller->actions[action_index];
-            char action_variable[ROHR_INPUT_NAME_MAX * 3];
-            editor_workspace_input_action_variable(action_variable,
-                sizeof(action_variable), controller, action);
+            char action_variable[ROHR_INPUT_NAME_MAX * 3], action_field[EDITOR_OBJECT_NAME_MAX];
+            editor_workspace_input_action_variable(action_variable, sizeof(action_variable), controller, action);
+            editor_project_property_name_format(action_field, sizeof(action_field), action->name);
             fprintf(source,
-                "    action_result = rohr_input_action_create((InputActionDescription){\n"
-                "        .controller = controllers->%s, .name = ", controller_variable);
-            editor_workspace_c_string_write(source, action->name);
-            fprintf(source, ", .type = %s,\n",
-                action->type == INPUT_ACTION_BUTTON ? "INPUT_ACTION_BUTTON" :
-                action->type == INPUT_ACTION_AXIS_1D ? "INPUT_ACTION_AXIS_1D" :
-                    "INPUT_ACTION_AXIS_2D");
-            if(action->type == INPUT_ACTION_BUTTON) fprintf(source,
-                "        .button_mode = %s, .button_initial_state = %s,\n",
-                action->button_mode == INPUT_BUTTON_PERSISTENT ?
-                    "INPUT_BUTTON_PERSISTENT" : "INPUT_BUTTON_MOMENTARY",
-                action->button_initial_state ? "true" : "false");
-            fprintf(source, "        .bindings_default = {.count = %zu", action->binding_count);
-            if(action->binding_count > 0) {
-                fprintf(source, ", .values = {\n");
-                for(size_t binding_index = 0;
-                        binding_index < action->binding_count;
-                        binding_index += 1) {
-                    editor_catalog_input_binding_write(source,
-                        &action->bindings[binding_index]);
-                    fprintf(source, "%s\n",
-                        binding_index + 1 == action->binding_count ? "" : ",");
-                }
-                fprintf(source, "        }");
-            }
-            fprintf(source,
-                "}\n    });\n"
+                "    action_result = rohr_input_action_by_name_get(controllers->%s, project.%s.%s.name);\n"
                 "    if(rohr_error_check(action_result)) { result = "
                     "rohr_error_result_error(action_result.result.error); goto fail; }\n"
-                "    controllers->%s = action_result.result.value;\n", action_variable);
+                "    controllers->%s = action_result.result.value;\n",
+                controller_variable, controller_field, action_field, action_variable);
         }
     }
     fprintf(source,
@@ -1742,7 +1715,9 @@ static bool editor_workspace_legacy_main_upgrade(const EditorWorkspace *workspac
     if(contents == NULL) return false;
     bool legacy_joints = strcmp(contents, editor_starter_main_legacy_joint_source) == 0;
     bool legacy_viewport = !strcmp(contents, editor_starter_main_legacy_viewport_source);
-    legacy = !strcmp(contents, editor_main_previous_example_source) ||
+    legacy = !strcmp(contents, editor_main_m17_previous_example_source) ||
+        !strcmp(contents, editor_main_m17_previous_source) ||
+        !strcmp(contents, editor_main_previous_example_source) ||
         !strcmp(contents, editor_main_previous_source) || legacy_joints || legacy_viewport || !strcmp(contents, editor_workspace_main_legacy_viewport_source) ||
         editor_workspace_tick_main_check(contents);
     if(!legacy && (strstr(contents, "project_viewports.h") || strstr(contents, "project_viewports_create(")))
