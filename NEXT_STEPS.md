@@ -1073,10 +1073,31 @@ factories and new physics, pacing, or world-isolation behavior are out of scope.
    the car's existing performance gate is not reclassified. See
    [verification](docs/shared_creation.md#milestone-17-goal-5-verification) and
    `sandbox/milestone_17/goal_5/`. Stop for review and commit before Goal 6.
-6. [ ] **Verify SDK parity and the workflow.** Verify both input forms,
+6. [x] **Verify SDK parity and the workflow.** Verify both input forms,
    independent instances, required bindings, rollback, survivor-safe destruction,
    deterministic generation, 1,000-cycle sanitizer checks, installed Nix/generic
    Linux SDK consumers, Windows cross-builds, and real Linux previews with the user.
+   **Result: complete for review.** All 17 installed consumers pass in Release,
+   ASan/UBSan with leak detection, and both freshly packaged Linux SDKs; eleven
+   focused engine checks pass in Release and sanitizer builds. Supported creation
+   forms compile and all 67 unsupported inputs remain rejected. Both packaged
+   CLIs produce the three explicit example paths, with deterministic catalogs,
+   preserved developer files, report-failure checks, and independent resources.
+   The generic SDK is additionally exercised inside Rocky Linux 8; all 149 archive
+   files match the tested installation. Engine/editor, consumers, generated paths,
+   and affected examples cross-build for Windows; native Windows and ARM Linux
+   execution remain unverified. Four independent examples build and run against
+   both Linux packages. The car completes its full simulation with unchanged
+   physics work counts; its existing performance gate remains unresolved.
+   User review exposed missing diagonal backdrops beneath bound camera images.
+   Runtime composition now matches the editor, with clipped, batched short-band
+   geometry avoiding the software-renderer timeout of individual stripe lines.
+   The user accepted the corrected backgrounds, rotated insets, and behavior.
+   No compiler warnings or sanitizer findings remain. See
+   [verification](docs/shared_creation.md#milestone-17-goal-6-verification) and
+   `sandbox/milestone_17/goal_6/`. Verification packages are in that sandbox;
+   normal `dist/` outputs require the usual SDK rebuild. Milestone complete;
+   stop for review and commit before selecting the game concept.
 
 Complete and review one goal at a time. After this milestone, agree the C game
 concept and completion criteria with the user; no later goal starts automatically.

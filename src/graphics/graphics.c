@@ -4147,29 +4147,81 @@ static void graphics_screen_background_draw(const GraphicsViewport *viewport,
     (void)GRAPHICS_DRAW(SDL_RenderGeometry(sdl_renderer, NULL, vertices, 4, indices, 6));
 }
 
-/* Stale bound cameras retain a diagnostic placeholder. An intentionally empty
- * screen uses only its background. Clip stripes locally before rotating. */
-static void graphics_missing_camera_draw(const GraphicsViewport *viewport,
+/* Match the editor's screen backdrop beneath the independently transformed
+ * camera image. Stale bindings show the same backdrop without an image;
+ * intentionally unbound screens retain their configured background instead.
+ * Clip stripes locally before rotating. */
+static void graphics_screen_backdrop_draw(const GraphicsViewport *viewport,
         const ViewportItemDescription *item) {
     const Color background = {52, 54, 58, 255}, stripe = {105, 88, 32, 255};
     float width = item->rectangle.width, height = item->rectangle.height;
     Position center = {viewport->rectangle.x + item->rectangle.x + width * 0.5f,
         viewport->rectangle.y + item->rectangle.y + height * 0.5f};
     graphics_screen_background_draw(viewport, item, background);
-    GRAPHICS_STATE(SDL_SetRenderDrawColor(sdl_renderer, stripe.red, stripe.green, stripe.blue, stripe.alpha));
+    /* Batch short diagonal bands. Long thin triangles have large bounding boxes
+     * that the software renderer scans almost entirely outside the stripe. */
+    enum { STRIPE_VERTEX_LIMIT = 256, STRIPE_INDEX_LIMIT = 576,
+        STRIPE_ROW_LIMIT = 64, STRIPE_ROW_HEIGHT = 16 };
+    SDL_Vertex vertices[STRIPE_VERTEX_LIMIT];
+    int indices[STRIPE_INDEX_LIMIT];
+    int vertex_count = 0, index_count = 0;
     /* Bound work for extreme authored dimensions while retaining normal spacing. */
     float spacing = fmaxf(24.0f, (width + height) / 4096.0f);
+    unsigned rows = (unsigned)fminf(STRIPE_ROW_LIMIT, fmaxf(1.0f, ceilf(height / STRIPE_ROW_HEIGHT)));
     for(float x = -height; x < width; x += spacing) {
-        float diagonal = x + height;
-        Vec2D first = {fmaxf(0.0f, x) - width * 0.5f,
-            fminf(height, diagonal) - height * 0.5f};
-        Vec2D second = {fminf(width, diagonal) - width * 0.5f,
-            fmaxf(0.0f, diagonal - width) - height * 0.5f};
-        first = graphics_screen_vector_rotate(first, item->orientation);
-        second = graphics_screen_vector_rotate(second, item->orientation);
-        (void)GRAPHICS_DRAW(SDL_RenderLine(sdl_renderer, center.x + first.x,
-            center.y + first.y, center.x + second.x, center.y + second.y));
+        for(unsigned row = 0; row < rows; ++row) {
+            float top = height * ((float)row / rows);
+            float bottom = height * ((float)(row + 1) / rows);
+            if(x + height + .70710678f < top || x + height - .70710678f > width + bottom) continue;
+            /* Intersect the screen rectangle with a one-pixel-wide diagonal band
+             * before rotation, so stripe thickness cannot leak past its edges. */
+            Vec2D polygon[8] = {{0,top},{width,top},{width,bottom},{0,bottom}};
+            int count = 4;
+            for(int side = 0; side < 2; ++side) {
+                Vec2D clipped[8];
+                int clipped_count = 0;
+                float boundary = x + height + (side ? .70710678f : -.70710678f);
+                for(int point = 0; point < count; ++point) {
+                    Vec2D previous = polygon[(point + count - 1) % count];
+                    Vec2D current = polygon[point];
+                    float previous_distance = previous.x + previous.y - boundary;
+                    float current_distance = current.x + current.y - boundary;
+                    bool previous_inside = side ? previous_distance <= 0 : previous_distance >= 0;
+                    bool current_inside = side ? current_distance <= 0 : current_distance >= 0;
+                    if(previous_inside != current_inside) {
+                        float amount = previous_distance / (previous_distance - current_distance);
+                        clipped[clipped_count++] = (Vec2D){
+                            previous.x + amount * (current.x - previous.x),
+                            previous.y + amount * (current.y - previous.y)};
+                    }
+                    if(current_inside) clipped[clipped_count++] = current;
+                }
+                count = clipped_count;
+                for(int point = 0; point < count; ++point) polygon[point] = clipped[point];
+            }
+            if(count < 3) continue;
+            int needed_indices = (count - 2) * 3;
+            if(vertex_count + count > STRIPE_VERTEX_LIMIT || index_count + needed_indices > STRIPE_INDEX_LIMIT) {
+                (void)GRAPHICS_DRAW(SDL_RenderGeometry(sdl_renderer, NULL, vertices, vertex_count, indices, index_count));
+                vertex_count = index_count = 0;
+            }
+            for(int point = 0; point < count; ++point) {
+                Vec2D rotated = graphics_screen_vector_rotate((Vec2D){
+                    polygon[point].x - width * .5f, polygon[point].y - height * .5f}, item->orientation);
+                vertices[vertex_count + point] = (SDL_Vertex){
+                    .position = {center.x + rotated.x, center.y + rotated.y},
+                    .color = {stripe.red / 255.0f, stripe.green / 255.0f, stripe.blue / 255.0f, 1}};
+            }
+            for(int point = 1; point + 1 < count; ++point) {
+                indices[index_count++] = vertex_count;
+                indices[index_count++] = vertex_count + point;
+                indices[index_count++] = vertex_count + point + 1;
+            }
+            vertex_count += count;
+        }
     }
+    if(index_count)
+        (void)GRAPHICS_DRAW(SDL_RenderGeometry(sdl_renderer, NULL, vertices, vertex_count, indices, index_count));
 }
 
 static void graphics_viewports_draw(const GraphicsSelection *selection) {
@@ -4360,13 +4412,14 @@ static void graphics_viewports_draw(const GraphicsSelection *selection) {
                         "Screen camera is unavailable; displaying construction placeholder");
                     missing_camera_reported[screen_slot] = true;
                 }
-                graphics_missing_camera_draw(viewport, config);
+                graphics_screen_backdrop_draw(viewport, config);
                 if(context->item_failed) context->skipped++;
                 else context->processed++;
                 continue;
             }
             if((screen->camera_entity && !entity_visible_check(screen->camera_entity)) ||
                     (screen->content_mode == SCREEN_CONTENT_AUTOMATIC && !camera_runtime[camera_slot].enabled)) continue;
+            graphics_screen_backdrop_draw(viewport, config);
             destination = (SDL_FRect){
                 viewport->rectangle.x + config->rectangle.x,
                 viewport->rectangle.y + config->rectangle.y,

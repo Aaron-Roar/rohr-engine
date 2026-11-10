@@ -16,6 +16,8 @@ do not contain the required adapters. Existing developer-edited mains are preser
 and need the source migration below. Goal 3 adds named resource recipes and the
 shared controller creator. Goal 4 extends the normal graphics resource creators
 to authored recipes and migrates viewport creation to value syntax.
+Goal 5 makes the three teaching mains explicit and self-contained. Goal 6 verifies
+the complete workflow across packaged SDKs; see the verification record below.
 
 ## Creation values and source migration
 
@@ -610,3 +612,77 @@ generated scene. The sanitizer scene-session runner also required building its
 existing child fixture. A test-only macro redefinition warning was fixed and the
 three pathway checks rerun. No compiler warnings or sanitizer findings remain in
 the final runs. Goal 6's integrated SDK parity review remains pending.
+
+## Milestone 17 Goal 6 verification
+
+Verification evidence, package outputs, and reproducible runners are retained in
+`sandbox/milestone_17/goal_6/`. Current Release, sanitizer, and Windows build
+directories from Goal 5 were reused; both packaged Linux SDKs were built anew.
+This goal adds a regression check for deterministic generation: repeated
+generation must preserve the complete generated-file inventory and every file's
+SHA-256, while keeping the existing edited-main and custom-build-file checks.
+The initial visual review identified an editor/runtime mismatch: bound runtime
+screens omitted the diagonal backdrop behind their independently transformed
+camera images. The runtime now draws the same locally clipped, rotated backdrop
+before the image. Camera background colors, hidden-camera behavior, intentional
+unbound screens, and stale-binding diagnostics retain their existing contracts.
+Regression checks cover the backdrop's placement, clipping, local stripe bounds,
+and ordering beneath scaled/rotated content. No public API or physics code changed.
+Reusing individual SDL line draws initially made the software-renderer lifecycle
+test exceed its unchanged 180-second timeout. The final backdrop batches clipped
+one-pixel bands into short triangles, avoiding large rasterization bounding boxes.
+Fixed-size vertex/index buffers and bounded subdivision require no new persistent
+resources or engine-side heap allocation. The full lifecycle test passes without
+reducing its 1,000-object/1,000-project cycle counts or increasing the timeout.
+The user accepted the corrected real Linux preview, including the final batched
+stripes around rotated insets without gaps or stray lines and the independent
+visibility-toggle behavior.
+
+- All 17 installed consumers pass in Release and ASan/UBSan with leak detection
+  and undefined behavior configured to halt. Both engine and consumer code are
+  instrumented. Eleven focused engine checks also pass in both configurations:
+  reports, controller creation, descriptor creation, project creation, texture,
+  animation, font, and text assets, plus graphics reports, automatic viewports,
+  and viewport descriptions.
+- The workflow covers 1,000 object and 1,000 project create/extend/use/destroy
+  cycles, with standalone entities, independent instances, runtime screens/UI,
+  visibility mutation, and a surviving instance after destruction of its peer.
+  Project tests exercise required bindings, malformed recipes, capacity failures,
+  allocation failure rollback, stale handles, per-cycle resource counts, and
+  independent controllers/audio. Generated resource tests additionally cover
+  1,000-cycle authored graphics and controller creation, single argument
+  evaluation, wrong-kind rejection, explicit camera binding, and asset survival.
+- Supported native/generated creation forms compile; all 67 unsupported-input
+  cases are rejected in Release, sanitizer, Windows, Nix-package, and
+  generic-package consumer configurations. Ordinary and strict report predicates
+  retain their success, warning, NOT_RUN, and malformed-report semantics.
+- Fresh Nix packaging runs all 17 consumers during its install check. The generic
+  Linux package builds and passes its installed consumers in Rocky Linux 8.
+  External host consumers also pass all 17 tests against each package. All 149
+  regular archive files match the tested generic installation byte-for-byte;
+  `logs/archive_parity.json` records their hashes and the archive SHA-256. The
+  checked public headers match both packages and the source tree.
+- Both packaged CLIs generate all three self-contained example mains. Each main
+  compiles and runs outside its source directory, including pause/resume,
+  injected report failures, and cleanup checks. Deterministic generation and
+  developer-file preservation pass. The generic CLI runs inside Rocky Linux
+  because NixOS does not directly execute its generic ELF interpreter. Its rich
+  named-resource catalog also regenerates identically and compiles/runs with the
+  container toolchain. Both packages pass the authored/native configuration and
+  named-resource fixture checks; those checks also pass under ASan/UBSan.
+- All 17 consumers and the eleven focused engine test targets cross-build for
+  Windows. The three generated mains and their failure harnesses cross-build
+  with the deterministic-generation check. The updated editor/CLI and three
+  affected example targets also cross-build; native Windows execution is
+  unverified. This verification covers x86-64 Linux, not ARM Linux.
+- Center of mass, player controller, soft-body car, and viewports independently
+  build against each fresh Linux SDK and run from `/tmp`. Both car runs reach
+  3,600 frames / 60 simulated seconds with 14,400 substeps, 7,222,164 candidates,
+  and 1,195,541 contacts. These are functional checks, not controlled performance
+  measurements; the existing `realtime_pass=0` gate remains unresolved.
+
+No compiler warnings or sanitizer findings remain in these checks. Logs from
+selected older disposable sanitizer builds were preserved before removing those
+build copies to recover disk space. Normal `dist/` outputs were left intact;
+the new verification SDKs are under this goal's sandbox. Use the documented SDK
+build commands to refresh the normal distribution.

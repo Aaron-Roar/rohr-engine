@@ -74,6 +74,13 @@ A camera destroyed after binding is different from an intentional empty screen:
 its stale handle still produces the existing warning/placeholder until explicitly
 cleared or rebound. Slot reuse never silently selects a replacement camera.
 
+A bound screen draws the editor's diagonal backdrop underneath its camera image.
+The backdrop follows screen placement and clipping; the image keeps its own fit,
+scale, offset, rotation, and configured background color. Uncovered screen areas
+therefore show the pattern instead of unrelated content underneath. This does not
+turn an intentionally unbound screen into a missing-camera warning: unbound
+screens still display only their configured background.
+
 Instance matching uses copied catalog-root ID/name, member ID and retained kind,
 then walks direct authored member names. It does not retain catalog pointers or
 search global runtime names. This provenance is optional runtime persistence

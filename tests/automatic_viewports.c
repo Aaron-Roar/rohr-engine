@@ -30,7 +30,7 @@ static Report show(ViewportId v) {
 #include "graphics/text_assets.h"
 static unsigned present_count, clear_count;
 static int fail_texture_after=-1;
-static bool trace;
+static bool trace, trace_scene_only;
 static unsigned color_order[256], color_count;
 static float pointer_x,pointer_y;
 static bool pointer_down;
@@ -45,7 +45,8 @@ SDL_Texture *__wrap_SDL_CreateTexture(SDL_Renderer *r,SDL_PixelFormat f,SDL_Text
 }
 bool __real_SDL_RenderGeometry(SDL_Renderer *,SDL_Texture *,const SDL_Vertex *,int,const int *,int);
 bool __wrap_SDL_RenderGeometry(SDL_Renderer *r,SDL_Texture *t,const SDL_Vertex *v,int n,const int *i,int m) {
-    if(trace && !t && n && color_count<256) color_order[color_count++]=(unsigned)(v[0].color.r*255+.5f);
+    if(trace && (!trace_scene_only || SDL_GetRenderTarget(r)) && !t && n && color_count<256)
+        color_order[color_count++]=(unsigned)(v[0].color.r*255+.5f);
     return __real_SDL_RenderGeometry(r,t,v,n,i,m);
 }
 SDL_MouseButtonFlags __wrap_SDL_GetMouseState(float *x,float *y) {
@@ -136,12 +137,13 @@ static void selection_and_rendering(Entity root) {
     ObjectAppearance style=rohr_entity_appearance_get(later).result.value; style.color.red=101;
     OK(rohr_entity_appearance_set(later,style));
 #ifdef ROHR_TEST_VIEWPORT_WRAP
-    color_count=0; trace=true;
+    color_count=0; trace=true; trace_scene_only=true;
 #endif
     r=show(a);
     assert(metric(r,ROHR_GRAPHICS_COMMANDS_REPORT_ID,ROHR_REPORT_PROCESSED_COUNT)==8);
 #ifdef ROHR_TEST_VIEWPORT_WRAP
-    trace=false; assert(color_count==4 && color_order[0]==101 && color_order[1]==101 && color_order[2]==201 && color_order[3]==201);
+    trace=false; trace_scene_only=false;
+    assert(color_count==4 && color_order[0]==101 && color_order[1]==101 && color_order[2]==201 && color_order[3]==201);
 #endif
     OK(rohr_entity_delete(later));
     /* Invalid selections preserve queued work; selected frames discard window work. */

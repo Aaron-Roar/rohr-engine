@@ -38,38 +38,55 @@ bool __wrap_SDL_SetRenderVSync(SDL_Renderer *renderer, int interval) {
     return __real_SDL_SetRenderVSync(renderer, interval);
 }
 static bool trace_missing;
-static unsigned missing_quads, missing_lines, missing_textures;
+static unsigned missing_quads, stripe_batches, missing_textures;
 bool __real_SDL_RenderGeometry(SDL_Renderer *, SDL_Texture *, const SDL_Vertex *, int, const int *, int);
 bool __wrap_SDL_RenderGeometry(SDL_Renderer *renderer, SDL_Texture *texture,
         const SDL_Vertex *vertices, int count, const int *indices, int index_count) {
     if(trace_missing && !texture && count == 4 && fabsf(vertices[0].color.r - 52.0f/255.0f) < .001f) {
-        assert(missing_quads < 2 && index_count == 6);
+        assert(missing_quads < 3 && index_count == 6);
         SDL_Rect clip; assert(SDL_GetRenderClipRect(renderer, &clip));
-        assert(clip.x == 40 && clip.y == 40 && clip.w == 600 && clip.h == 420);
+        if(missing_quads == 1)
+            assert(clip.x == 230 && clip.y == 140 && clip.w == 250 && clip.h == 180);
+        else assert(clip.x == 40 && clip.y == 40 && clip.w == 600 && clip.h == 420);
         float cx = 0, cy = 0;
         for(int i = 0; i < 4; ++i) { cx += vertices[i].position.x / 4; cy += vertices[i].position.y / 4; }
-        assert(fabsf(cx - (missing_quads ? 595 : 135)) < .01f);
-        assert(fabsf(cy - (missing_quads ? 380 : 190)) < .01f);
+        const float centers_x[] = {135,390,595}, centers_y[] = {190,250,380};
+        assert(fabsf(cx - centers_x[missing_quads]) < .01f);
+        assert(fabsf(cy - centers_y[missing_quads]) < .01f);
         missing_quads++;
+    }
+    if(trace_missing && !texture && count && fabsf(vertices[0].color.r - 105.0f/255.0f) < .001f) {
+        assert(missing_quads >= 1 && missing_quads <= 3);
+        const float angles[] = {30,-20,15}, centers_x[] = {135,390,595}, centers_y[] = {190,250,380};
+        const float widths[] = {280,320,170}, heights[] = {240,220,100};
+        unsigned index = missing_quads - 1;
+        float angle = angles[index] * 0.017453292519943295f;
+        float cx = centers_x[index], cy = centers_y[index];
+        float width = widths[index], height = heights[index];
+        assert(count <= 256 && index_count <= 576 && index_count % 3 == 0);
+        for(int i = 0; i < index_count; ++i) assert(indices[i] >= 0 && indices[i] < count);
+        for(int i = 0; i < count; ++i) {
+            float x = (vertices[i].position.x-cx)*cosf(angle) + (vertices[i].position.y-cy)*sinf(angle);
+            float y = -(vertices[i].position.x-cx)*sinf(angle) + (vertices[i].position.y-cy)*cosf(angle);
+            assert(fabsf(x) <= width/2 + .01f && fabsf(y) <= height/2 + .01f);
+        }
+        /* Normal-size screens use short triangles, avoiding the software
+         * rasterizer's expensive bounding boxes for full-length diagonals. */
+        for(int i = 0; i < index_count; i += 3) {
+            float minimum = INFINITY, maximum = -INFINITY;
+            for(int j = 0; j < 3; ++j) {
+                SDL_FPoint point = vertices[indices[i+j]].position;
+                float y = -(point.x-cx)*sinf(angle) + (point.y-cy)*cosf(angle);
+                minimum = fminf(minimum,y); maximum = fmaxf(maximum,y);
+            }
+            assert(maximum - minimum <= 16.01f);
+        }
+        stripe_batches++;
     }
     return __real_SDL_RenderGeometry(renderer, texture, vertices, count, indices, index_count);
 }
 bool __real_SDL_RenderLine(SDL_Renderer *, float, float, float, float);
 bool __wrap_SDL_RenderLine(SDL_Renderer *renderer, float x1, float y1, float x2, float y2) {
-    if(trace_missing) {
-        assert(missing_quads == 1 || missing_quads == 2);
-        bool second = missing_quads == 2;
-        float angle = (second ? 15.0f : 30.0f) * 0.017453292519943295f;
-        float cx = second ? 595 : 135, cy = second ? 380 : 190;
-        float width = second ? 170 : 280, height = second ? 100 : 240;
-        float xs[] = {x1, x2}, ys[] = {y1, y2};
-        for(int i = 0; i < 2; ++i) {
-            float x = (xs[i]-cx)*cosf(angle) + (ys[i]-cy)*sinf(angle);
-            float y = -(xs[i]-cx)*sinf(angle) + (ys[i]-cy)*cosf(angle);
-            assert(fabsf(x) <= width/2 + .01f && fabsf(y) <= height/2 + .01f);
-        }
-        missing_lines++;
-    }
     return __real_SDL_RenderLine(renderer, x1, y1, x2, y2);
 }
 static bool fail_allocation, fail_draw, fail_texture, fail_target, fail_present, fail_capture;
@@ -108,7 +125,15 @@ bool __real_SDL_RenderTextureRotated(SDL_Renderer *, SDL_Texture *, const SDL_FR
     const SDL_FRect *, double, const SDL_FPoint *, SDL_FlipMode);
 bool __wrap_SDL_RenderTextureRotated(SDL_Renderer *r, SDL_Texture *t, const SDL_FRect *src,
         const SDL_FRect *dst, double angle, const SDL_FPoint *center, SDL_FlipMode flip) {
-    if(trace_missing) missing_textures++;
+    if(trace_missing) {
+        if(missing_quads == 2) {
+            /* The live image follows its rotated/clipped screen backdrop and
+             * leaves it visible around the separately scaled/rotated content. */
+            assert(stripe_batches > 0 && missing_textures == 1);
+            assert(fabs(angle + 3) < .01 && dst->w < 320 && dst->h < 220);
+        }
+        missing_textures++;
+    }
     if(trace_image_targets) {
         assert(image_composite_count < 2);
         assert(SDL_GetRenderTarget(r) == NULL && t == image_targets[image_composite_count]);
@@ -638,8 +663,11 @@ static void missing_camera_checks(bool visual) {
     item.rectangle = (ViewportRectangle){-45, 30, 280, 240}; item.orientation = 30; item.layer = 0;
     ViewportItemIdResult first = rohr_viewport_screen_add(viewport.result.value, missing.result.value, item); OK(first);
     item.rectangle = (ViewportRectangle){190, 100, 320, 220}; item.orientation = -20; item.layer = 2;
+    item.content_scale = (Scale){.5f,.5f}; item.content_orientation = 17;
+    item.clip_enabled = true; item.clip_rectangle = (ViewportRectangle){190,100,250,180};
     OK(rohr_viewport_screen_add(viewport.result.value, healthy.result.value, item));
     /* A second placement of the same missing screen produces one warning. */
+    item.content_scale = (Scale){1,1}; item.content_orientation = 0; item.clip_enabled = false;
     item.rectangle = (ViewportRectangle){470, 290, 170, 100}; item.orientation = 15;
     ViewportItemIdResult shared = rohr_viewport_screen_add(viewport.result.value, missing.result.value, item); OK(shared);
     TextAssetResult text = rohr_graphics_text_create((TextDescription){.value = "UI between screens", .color = white}); OK(text);
@@ -665,12 +693,12 @@ static void missing_camera_checks(bool visual) {
     complete(rohr_graphics_pipeline_cameras_update());
     complete(rohr_graphics_pipeline_commands_execute());
 #ifdef ROHR_TEST_GRAPHICS_WRAP
-    trace_missing = true; missing_quads = missing_lines = missing_textures = 0;
+    trace_missing = true; missing_quads = stripe_batches = missing_textures = 0;
 #endif
     Report report = graphics_pipeline_viewports_draw(); complete(report);
 #ifdef ROHR_TEST_GRAPHICS_WRAP
     trace_missing = false;
-    assert(missing_quads == 2 && missing_lines > 0 && missing_textures == 3);
+    assert(missing_quads == 3 && stripe_batches > 0 && missing_textures == 3);
 #endif
     assert(report.diagnostic_count == 1);
     ReportDiagnostic retained = report.diagnostics[0];

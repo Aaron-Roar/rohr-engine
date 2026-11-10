@@ -131,6 +131,8 @@ developers only need the single SDK command for their system.
 Every SDK build installs the exported CMake package, installs the license
 notices, and builds a separate consumer project to verify that an external game
 can link against the finished SDK.
+Nix and generic Linux packaging execute the installed consumers as well;
+cross-built Windows consumers are compiled without claiming native execution.
 
 ## Make a game with the SDK
 
@@ -187,6 +189,11 @@ Regeneration preserves developer-edited main and build files. Multiple project
 instances have independent owned resources but share the engine's physics world
 and presentation services; they are not isolated worlds. See
 [creation scope and ownership](scoped_creation_contract.md).
+
+When upgrading to the shared creation APIs, rebuild the SDK and regenerate the
+project catalogs together. Developer-edited mains require manual source migration;
+regeneration preserves them. See [shared creation and migration](shared_creation.md)
+for value-style calls, named resources, ownership, and the verified SDK matrix.
 
 ### Hand-written CMake game
 
