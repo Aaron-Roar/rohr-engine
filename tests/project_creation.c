@@ -2,6 +2,8 @@
  * SPDX-License-Identifier: LGPL-3.0-only
  */
 #include "rohr.h"
+#include "../src/entity/entity_internal.h"
+#include "../src/core/project_internal.h"
 #define AUDIO_TEST_PATH "project_creation.wav"
 #define AUDIO_TEST_MUSIC_PATH "project_creation.ogg"
 #include "audio_fixture.h"
@@ -108,21 +110,21 @@ static void fixture_init(Fixture *f) {
     f->project.music=&f->music; f->project.music_count=1;
 }
 static ProjectId create(Fixture *f) { ProjectIdResult r=rohr_project_create(f->project); OK(r); return r.result.value; }
-static Entity root(ProjectId p) { EntityResult r=rohr_project_root_get(p); OK(r); return r.result.value; }
-static Entity member(Entity p,const char *name) { EntityResult r=rohr_object_member_get(p,name); OK(r); return r.result.value; }
+static Entity root(ProjectId p) { EntityResult r=project_root_get(p); OK(r); return r.result.value; }
+static Entity member(Entity p,const char *name) { EntityResult r=object_member_get(p,name); OK(r); return r.result.value; }
 static Entity body(ProjectId p) { return member(member(root(p),"left"),"body"); }
-static ViewportId viewport(ProjectId p) { ViewportIdResult r=rohr_project_viewport_by_name_get(p,"play"); OK(r); return r.result.value; }
-static InputControllerId controller(ProjectId p) { InputControllerIdResult r=rohr_project_controller_by_name_get(p,"player"); OK(r); return r.result.value; }
+static ViewportId viewport(ProjectId p) { ViewportIdResult r=project_viewport_by_name_get(p,"play"); OK(r); return r.result.value; }
+static InputControllerId controller(ProjectId p) { InputControllerIdResult r=project_controller_by_name_get(p,"player"); OK(r); return r.result.value; }
 static InputActionId toggle(ProjectId p) { InputActionIdResult r=rohr_input_action_by_name_get(controller(p),"toggle"); OK(r); return r.result.value; }
-static Sound sound(ProjectId p) { SoundResult r=rohr_project_sound_by_name_get(p,"jump"); OK(r); return r.result.value; }
-static Music music(ProjectId p) { MusicResult r=rohr_project_music_by_name_get(p,"theme"); OK(r); return r.result.value; }
+static Sound sound(ProjectId p) { SoundResult r=project_sound_by_name_get(p,"jump"); OK(r); return r.result.value; }
+static Music music(ProjectId p) { MusicResult r=project_music_by_name_get(p,"theme"); OK(r); return r.result.value; }
 static ScreenDescription screen(ViewportId v,const char *name) {
     ViewportItemIdResult i=rohr_viewport_item_by_name_get(v,name); OK(i);
     ViewportItemDescriptionResult d=rohr_viewport_item_description_get(i.result.value); OK(d);
     ScreenDescriptionResult s=rohr_screen_description_get(d.result.value.screen); OK(s); return s.result.value;
 }
 static void show(ProjectId p) {
-    ViewportListResult list=rohr_project_viewports_get(p); OK(list);
+    ViewportListResult list=project_viewports_get(p); OK(list);
     Report r=rohr_graphics_viewports_show(list.result.value.values,list.result.value.count);
     assert(r.header.status==ROHR_REPORT_COMPLETE && r.diagnostic_count==0);
     bool cameras=false, commands=false;
@@ -141,9 +143,9 @@ static void wiring(ProjectId p) {
     assert(rohr_physics_transform_lock_description_get(member(right,"follower")).result.value.driver==b);
     assert(screen(viewport(p),"main").camera==c.result.value);
     assert(screen(viewport(p),"inset").camera_entity==camera);
-    ViewportListResult list=rohr_project_viewports_get(p); OK(list);
+    ViewportListResult list=project_viewports_get(p); OK(list);
     assert(list.result.value.count==2 && list.result.value.values[0]==viewport(p));
-    assert(list.result.value.values[1]==rohr_project_viewport_by_name_get(p,"second").result.value);
+    assert(list.result.value.values[1]==project_viewport_by_name_get(p,"second").result.value);
 }
 static void audio_counts(size_t players,size_t resources,size_t tracks) {
 #ifdef ROHR_TEST_PROJECT_INTERNAL
@@ -192,9 +194,9 @@ static void two_instances(void) {
     strcpy(f.controller.controller.name,"changed");
     assert(viewport(a) && controller(a) && sound(a) && music(a));
     Entity old_body=body(a); InputActionId old_action=toggle(a); Sound old_sound=sound(a);
-    OK(rohr_entity_delete(old_body)); BAD(rohr_object_member_get(member(root(a),"left"),"body"));
+    OK(rohr_entity_delete(old_body)); BAD(object_member_get(member(root(a),"left"),"body"));
     Entity replacement=rohr_entity_create(f.body).result.value; assert(replacement && replacement!=old_body);
-    OK(rohr_project_destroy(a)); BAD(rohr_project_root_get(a)); BAD(rohr_project_destroy(a));
+    OK(rohr_project_destroy(a)); BAD(project_root_get(a)); BAD(rohr_project_destroy(a));
     BAD(rohr_input_action_type_get(old_action)); assert(!rohr_audio_sound_valid_check(old_sound));
     assert(rohr_entity_alive_check(replacement)); audio_counts(2,1,1); wiring(b); show(b);
     OK(rohr_entity_delete(replacement)); OK(rohr_project_destroy(b)); audio_counts(0,0,0);
@@ -210,9 +212,9 @@ static void failed(Fixture *f,ProjectId survivor,uint32_t alive) {
 static void failures(void) {
     Fixture f; fixture_init(&f);
     ProjectId survivor=create(&f); uint32_t alive=rohr_entity_alive_count_get();
-    BAD(rohr_internal_project_create(NULL)); BAD(rohr_project_root_get(UINT64_MAX));
-    BAD(rohr_project_controller_by_name_get(survivor,NULL)); BAD(rohr_project_sound_by_name_get(survivor,"absent"));
-    BAD(rohr_project_music_by_name_get(survivor,"absent")); BAD(rohr_project_viewport_by_name_get(survivor,"absent"));
+    BAD(rohr_internal_project_create(NULL)); BAD(project_root_get(UINT64_MAX));
+    BAD(project_controller_by_name_get(survivor,NULL)); BAD(project_sound_by_name_get(survivor,"absent"));
+    BAD(project_music_by_name_get(survivor,"absent")); BAD(project_viewport_by_name_get(survivor,"absent"));
     f.project.root.parent=&f.right; failed(&f,survivor,alive); f.project.root.parent=NULL;
     f.project.viewport_count=MAX_VIEWPORTS+1; failed(&f,survivor,alive); f.project.viewport_count=2;
     f.viewports[1].name=f.viewports[0].name; failed(&f,survivor,alive); f.viewports[1].name="second";
@@ -304,7 +306,7 @@ static void expired_root(void) {
     OK(rohr_entity_lifetime_description_set(old,(EntityLifetimeDescription){
         .tick_enabled=true,.expiry_tick=rohr_engine_tick_get()}));
     Report report=rohr_engine_lifecycle_update(); assert(report.header.status==ROHR_REPORT_COMPLETE);
-    BAD(rohr_project_root_get(p)); assert(!rohr_entity_alive_check(old));
+    BAD(project_root_get(p)); assert(!rohr_entity_alive_check(old));
     EntityResult replacement=rohr_object_create(f.project); OK(replacement);
     assert(replacement.result.value!=old);
     OK(rohr_project_destroy(p)); assert(rohr_entity_alive_check(replacement.result.value));
@@ -329,7 +331,7 @@ static void lifecycle(void) {
         if(i==0 || i==999) { wiring(p); show(p); }
         ViewportId old=viewport(p); InputControllerId old_controller=controller(p);
         OK(rohr_project_destroy(p));
-        BAD(rohr_project_viewports_get(p)); BAD(rohr_viewport_description_get(old));
+        BAD(project_viewports_get(p)); BAD(rohr_viewport_description_get(old));
         BAD(rohr_input_controller_description_get(old_controller));
         audio_counts(2,1,1);
         assert(rohr_entity_alive_check(body(survivor)));
@@ -358,7 +360,7 @@ static void restart(void) {
     /* Ordinary app order destroys graphics before engine; remaining projects
      * must still release input/audio and forget stale graphics handles safely. */
     rohr_graphics_stop(); rohr_engine_stop();
-    BAD(rohr_project_root_get(old)); BAD(rohr_project_destroy(old));
+    BAD(project_root_get(old)); BAD(rohr_project_destroy(old));
     OK(rohr_engine_start()); OK(rohr_graphics_start()); OK(rohr_audio_start());
     ProjectId fresh=create(&f); assert(fresh!=old && controller(fresh)!=c && toggle(fresh)!=a);
     BAD(rohr_input_controller_description_get(c)); BAD(rohr_input_action_type_get(a));
@@ -400,7 +402,7 @@ static void runtime_names_and_reuse(void) {
 #ifdef ROHR_TEST_PROJECT_INTERNAL
     /* Even the temporary legacy member alias is not an authored binding key. */
     OK(entity_object_member_restore(right, camera, "changed_alias"));
-    BAD(rohr_object_member_get(right, "camera"));
+    BAD(object_member_get(right, "camera"));
 #endif
     ViewportObjectBinding binding = {&f.right, right};
     ViewportCreateDescription bound = {.template = &f.viewport[0], .objects = &binding, .object_count = 1};
@@ -457,7 +459,7 @@ static void preview(void) {
     ProjectId b=create(&f);
     ProjectId projects[]={a,b}; ViewportId batch[4];
     for(unsigned row=0;row<2;++row) {
-        ViewportListResult list=rohr_project_viewports_get(projects[row]); OK(list);
+        ViewportListResult list=project_viewports_get(projects[row]); OK(list);
         for(unsigned col=0;col<2;++col) {
             ViewportId id=list.result.value.values[col]; batch[row*2+col]=id;
             ViewportDescriptionResult d=rohr_viewport_description_get(id); OK(d);

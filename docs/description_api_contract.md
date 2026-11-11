@@ -715,17 +715,18 @@ below. Numeric constants, typedefs, struct fields, extern storage, and callback
 type declarations are not callable API entries; configuration types are covered
 in the family table and exemptions above.
 
-The current inventory contains **1620** classified declaration/macro entries.
+The current inventory contains **1614** classified declaration/macro entries.
 The additions after the milestone-4 inventory freeze are the direct and
 public-wrapper joint placement operations and directional response queries;
 the frozen baseline remains 1,602. Milestone 18 Goal 2 adds 14 direct/facade
-runtime-name query declarations.
+runtime-name query declarations. Goal 3 removes six listed public member-query
+declarations; other unlisted legacy aliases are also removed.
 
 | Classification | Meaning | Owning goal | Entries |
 | --- | --- | --- | --- |
 | C: Compliant | Existing description interface | — | 342 |
 | EV: Intentionally exempt | Focused/basic-value mutation or lookup | — | 275 |
-| EQ: Intentionally exempt | Query, validation, snapshot, or result access | — | 416 |
+| EQ: Intentionally exempt | Query, validation, snapshot, or result access | — | 410 |
 | EO: Intentionally exempt | Operation, lifecycle, execution, or drawing | — | 458 |
 | EM: Intentionally exempt | Pure math or utility calculation | — | 77 |
 | ES: Intentionally exempt | Internal storage, reporting, or macro machinery | — | 48 |
@@ -813,7 +814,7 @@ Source: [engine.h](../include/engine.h).
 </details>
 
 <details>
-<summary>entity_components.h: 42 entries</summary>
+<summary>entity_components.h: 39 entries</summary>
 
 Source: [entity_components.h](../include/entity_components.h).
 
@@ -834,8 +835,8 @@ Source: [entity_components.h](../include/entity_components.h).
 - `entity_from_index_get`, `entity_group_by_name_get`, `entity_group_entity_check`.
 - `entity_group_get`, `entity_group_name_get`, `entity_groups_get`.
 - `entity_index_alive_check`, `entity_index_components_check`, `entity_index_get`.
-- `entity_name_get`, `entity_object_member_by_name_get`, `entity_object_member_name_get`.
-- `entity_object_members_get`, `entity_owner_get`, `entity_parent_get`.
+- `entity_name_get`.
+- `entity_owner_get`, `entity_parent_get`.
 
 **EO — Operation, lifecycle, execution, or drawing**
 
@@ -1235,7 +1236,7 @@ Source: [report.h](../include/report.h).
 </details>
 
 <details>
-<summary>rohr.h: 798 entries</summary>
+<summary>rohr.h: 795 entries</summary>
 
 Source: [rohr.h](../include/rohr.h).
 
@@ -1368,8 +1369,8 @@ Source: [rohr.h](../include/rohr.h).
 - `rohr_entity_index_get`, `rohr_entity_info_check`, `rohr_entity_info_get`.
 - `rohr_entity_info_issues_count_get`, `rohr_entity_info_issues_get`, `rohr_entity_info_release`.
 - `rohr_entity_info_retain`, `rohr_entity_name_get`, `rohr_entity_object_anchor_get`.
-- `rohr_entity_object_camera_get`, `rohr_entity_object_member_by_name_get`, `rohr_entity_object_member_name_get`.
-- `rohr_entity_object_members_get`, `rohr_entity_owner_get`, `rohr_entity_parent_get`.
+- `rohr_entity_object_camera_get`.
+- `rohr_entity_owner_get`, `rohr_entity_parent_get`.
 - `rohr_graphics_aabb_tree_debug_check`, `rohr_graphics_animated_sprite_body_offset_get`, `rohr_graphics_animated_sprite_frame_index_get`.
 - `rohr_graphics_animated_sprite_frame_offset_get`, `rohr_graphics_animated_sprite_frame_rotation_get`, `rohr_graphics_animated_sprite_frame_rotation_radians_get`.
 - `rohr_graphics_animated_sprite_frame_scale_get`, `rohr_graphics_animated_sprite_orientation_offset_get`, `rohr_graphics_animated_sprite_orientation_offset_radians_get`.

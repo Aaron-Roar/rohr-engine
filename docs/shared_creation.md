@@ -180,9 +180,10 @@ The initial main uses the whole-project path:
 /* After starting engine/graphics and applying project_settings_apply() once.
  * Start audio as well if the project contains sound/music recipes. */
 ProjectIdResult created = rohr_project_create(project);
-/* Check created, then use its project-local resources. */
-ViewportListResult views = rohr_project_viewports_get(created.result.value);
-/* Check views before presenting its values/count in the ordinary game loop. */
+/* Check created and retain its ProjectId for grouped cleanup.
+ * In a fresh world, authored names are available for the first instance. */
+ViewportIdResult view = rohr_viewport_by_name_get(project._project.viewports[0].name);
+/* Check view and retain its ViewportId for the ordinary game loop. */
 /* Destroy the project before stopping graphics/audio/engine. */
 ```
 
@@ -190,7 +191,7 @@ ViewportListResult views = rohr_project_viewports_get(created.result.value);
 adapter. Its root hierarchy, named viewport recipes, controllers/actions, and all
 audio recipes are created together. Audio loads stopped. Global settings remain
 a separate startup operation, and each system update remains explicit in the loop.
-`rohr_project_root_get()` and project-local resource lookups return borrowed handles.
+Runtime-name lookups return typed handles; retain those IDs for subsequent access.
 `rohr_project_destroy()` releases the owned resources without changing other instances.
 
 The generated main contains complete, line-commented alternatives for
@@ -316,24 +317,27 @@ description after creation is safe. A const compiled catalog needs no release.
 `EntityCreateDescription` names the existing common catalog record for a member;
 the metadata-only `EntityDescription` API remains unchanged.
 
-## Finding created members
+## Accessing created resources
 
-After checking `instance`, find its immediate members with:
+In an initially empty world, the first creation preserves authored names:
 
 ```c
-EntityResult body = rohr_object_member_get(instance.result.value, "automatic_body");
-/* After checking body: */
-EntityResult anchor = rohr_object_member_get(body.result.value, "automatic_tip");
+EntityResult body = rohr_entity_by_name_get("automatic_body");
+/* After checking body, retain body.result.value for gameplay. */
+EntityResult anchor_entity = rohr_entity_by_name_get("automatic_tip");
 ```
 
-Lookup uses authored member names, independent of runtime name suffixes or later
-runtime renaming. It does not recursively select a member from another nested
-object. Missing or ambiguous names return an error. The older recursive
-`rohr_entity_object_member_by_name_get` retains its original semantics.
+Names belong to the runtime resource family, without project/object prefixes.
+Occupied names gain the lowest available suffix. A deleted name can be reused;
+keep IDs when identity matters. For repeated creations, retain creator results
+and inspect caller-owned `EntityList`/`EntityNameList` snapshots as needed.
+Do not guess suffixed names to wire authored connections: explicit creation
+bindings resolve those connections within the intended instance.
 
-Returned member handles are borrowed aliases. Some attached sprite/animation
-descriptions resolve to their body's entity; deleting that handle deletes the
-body. Remove the visual component when only that visual should be removed.
+Attached visuals can share their body's entity. Deleting that entity deletes the
+body; remove a visual component when only the visual should disappear. See the
+[runtime access migration guide](runtime_access_migration.md) for removed APIs,
+snapshot ownership and developer-owned entry points.
 
 ## Placement, ownership, and dependencies
 

@@ -1,5 +1,9 @@
 # Descriptor creation and automatic viewport rendering
 
+> Historical creation design: Milestone 18 replaces the runtime hierarchy lookup
+> APIs described below. Current code uses typed IDs, runtime names and explicit
+> entity lists; see [runtime access migration](runtime_access_migration.md).
+
 Milestone 15 Goal 1 design contract, 2026-11-06. This document specifies the
 target API and behavior. Goal 2 implements the entity/object creation portion;
 see [shared creation](shared_creation.md) for the available calls. Goal 3 implements

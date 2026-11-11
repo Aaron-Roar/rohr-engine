@@ -1,23 +1,16 @@
 /* Copyright 2026 Aaron Rohrer
  * SPDX-License-Identifier: LGPL-3.0-only
  */
-#include "generated/project_objects.h"
+#include "generated/project.h"
 #include "motion_checks.h"
 int main(void) {
     MOTION_OK(rohr_directory_working_set(rohr_directory_base_get()));
     for(unsigned path=0;path<3;++path) {
         MOTION_OK(rohr_engine_start());
         if(path==0) {
-            Motion instance={0}; MOTION_OK(motion_create(&instance,(Position){0}));
-            assert(instance.source_instance==ENTITY_INVALID);
-            Entity handles[3][4]={{instance.body_0,instance.body_1,instance.body_2,instance.body_3},
-                {instance.particle_0,instance.particle_1,instance.particle_2,instance.particle_3},
-                {instance.node_0,instance.node_1,instance.node_2,instance.node_3}};
-            for(unsigned kind=0;kind<3;++kind) for(unsigned mode=0;mode<4;++mode)
-                motion_entity_check(handles[kind][mode],kind,mode);
-            motion_entity_check(instance.driven_0,2,1);
-            motion_entity_check(instance.driven_1,2,1);
-            motion_destroy(&instance);
+            EntityResult instance = rohr_object_create(project.motion); MOTION_OK(instance);
+            motion_instance_check(instance.result.value);
+            MOTION_OK(rohr_entity_delete(instance.result.value));
         } else {
             ObjectDescriptionResult file={0};
             const ObjectDescription *description=rohr_object_get(objects.motion);

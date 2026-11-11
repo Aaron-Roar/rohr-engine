@@ -12,6 +12,7 @@ if(NOT result EQUAL 0)
     message(FATAL_ERROR "Construction fixture failed: ${result}")
 endif()
 configure_file("${CMAKE_CURRENT_LIST_DIR}/construction_generated_consumer.c" "${FIXTURE}/src/main.c" COPYONLY)
+configure_file("${CMAKE_CURRENT_LIST_DIR}/runtime_fixture.h" "${FIXTURE}/src/runtime_fixture.h" COPYONLY)
 configure_file("${CMAKE_CURRENT_LIST_DIR}/construction_checks.h" "${FIXTURE}/src/construction_checks.h" COPYONLY)
 file(WRITE "${FIXTURE}/CMakeLists.txt" [=[
 cmake_minimum_required(VERSION 3.20)

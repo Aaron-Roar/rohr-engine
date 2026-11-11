@@ -4,11 +4,28 @@
  * Compiled against the installed SDK and the configuration parity fixture.
  */
 #include "generated/project.h"
+#include "runtime_fixture.h"
 #include <assert.h>
 #include <math.h>
 #include <stdio.h>
 #include <string.h>
 #define OK(call) assert(!rohr_error_check(call))
+typedef struct Parity {
+    Entity source_instance, body, soft, fixed_node, node, beam, sprite_flipped;
+    CameraId camera_camera;
+} Parity;
+static Parity parity_snapshot(Entity root) {
+    Parity value = {.source_instance = root};
+    const char *names[] = {"body", "soft", "fixed_node", "node", "beam", "flipped"};
+    Entity *ids[] = {&value.body, &value.soft, &value.fixed_node, &value.node, &value.beam, &value.sprite_flipped};
+    for(size_t i = 0; i < 6; ++i) {
+        EntityResult found = fixture_entity_get(root, names[i]); OK(found); *ids[i] = found.result.value;
+    }
+    EntityResult camera = fixture_entity_get(root, "camera"); OK(camera);
+    CameraIdResult handle = rohr_entity_object_camera_get(camera.result.value); OK(handle);
+    value.camera_camera = handle.result.value;
+    return value;
+}
 typedef struct TestViewports {
     ViewportId viewports[3];
     ScreenId screens[2];
@@ -47,12 +64,13 @@ static void views_destroy(TestViewports *views) {
 int main(void) {
     OK(rohr_directory_working_set(rohr_directory_base_get()));
     OK(rohr_engine_start()); OK(rohr_graphics_start());
-    ProjectObjects objects_in_scene = {0};
+    OK(project_settings_apply());
     Time start_time = rohr_engine_time_get(); Tick start_tick = rohr_engine_tick_get();
-    EngineResult created = project_objects_create_all(&objects_in_scene);
+    EntityResult created = rohr_object_create(project.parity);
     if(rohr_error_check(created)) fprintf(stderr, "Project creation: %s\n", rohr_error_message_get(created));
     OK(created);
-    Parity *instance = &objects_in_scene.parity;
+    Parity snapshot = parity_snapshot(created.result.value);
+    Parity *instance = &snapshot;
     EntityLifetimeDescription lifetime = rohr_entity_lifetime_description_get(instance->body).result.value;
     assert(lifetime.time_enabled && lifetime.expiry_time == start_time + 100);
     assert(lifetime.tick_enabled && lifetime.expiry_tick == start_tick + 1000);
@@ -77,9 +95,9 @@ int main(void) {
     WindowPresentationDescription window = rohr_graphics_window_presentation_description_get();
     assert(window.window_width == 900 && window.window_height == 600);
     assert(window.logical_width == 450 && window.logical_height == 300 && window.aspect_ratio_auto);
-    assert(project_audio.sounds.impact.volume == .75f && project_audio.sounds.impact.pan == -.5f);
-    assert(project_audio.sounds.impact.loop && project_audio.sounds.impact.playback_rate == 1.5f);
-    assert(!strcmp(project_audio.music.theme.path, "assets/theme.ogg") && project_audio.music.theme.volume == 0);
+    assert(project.impact.volume == .75f && project.impact.pan == -.5f);
+    assert(project.impact.loop && project.impact.playback_rate == 1.5f);
+    assert(!strcmp(project.theme.path, "assets/theme.ogg") && project.theme.volume == 0);
     TestViewports views = {0}; views_create(&views, instance->camera_camera);
     assert(views.screen_count == 2 && views.text_count == 3 && views.ui_element_count == 4);
     direct_composition(instance,&views); direct_assets(instance);
@@ -94,9 +112,11 @@ int main(void) {
     assert(text.wrap_width == 70);
     assert(rohr_graphics_font_description_get(text.font).result.value.point_size == 24);
     assert(rohr_graphics_ui_text_description_get(views.ui_elements[0]).result.value.orientation == 17);
-    /* Legacy generated convenience creation uses the same configuration and
-     * treats its position as the requested object origin. */
-    Parity independent = {0}; OK(parity_create(&independent, (Position){100, 200}));
+    /* Explicit creation offsets preserve independent instance state. */
+    ObjectCreateOptions options = rohr_object_create_options_default_get();
+    options.offset = (Position){90, 180};
+    EntityResult second_instance = rohr_object_create_with_options(project.parity, options); OK(second_instance);
+    Parity independent = parity_snapshot(second_instance.result.value);
     Position position = rohr_physics_position_get(independent.body).result.value;
     assert(position.x == 102 && position.y == 203);
     info = rohr_entity_info_get(independent.body, ROHR_ENTITY_INFO_CORE_TARGET); OK(info);
@@ -111,7 +131,7 @@ int main(void) {
     assert(rohr_physics_angular_velocity_maximum_get(instance->body).result.value==3);
     assert(rohr_physics_soft_body_beam_description_get(instance->beam).result.value.rest_length==2.5f);
     assert(rohr_physics_position_get(instance->body).result.value.x==12);
-    parity_destroy(&independent);
+    OK(rohr_entity_delete(independent.source_instance));
     assert(rohr_entity_alive_check(instance->body));
     info=rohr_entity_info_get(instance->body,ROHR_ENTITY_INFO_CORE_TARGET); OK(info);
     assert(info.result.value.target==instance->soft); rohr_entity_info_release(&info.result.value);
@@ -120,7 +140,7 @@ int main(void) {
     OK(rohr_graphics_layer_ui_get(repeated.ui_items[3]));
     assert(rohr_graphics_layer_ui_get(repeated.ui_items[3]).result.value == 8);
     views_destroy(&repeated);
-    project_objects_destroy_all(&objects_in_scene);
+    OK(rohr_entity_delete(snapshot.source_instance));
     rohr_graphics_stop(); rohr_engine_stop();
     return 0;
 }

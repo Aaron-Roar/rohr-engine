@@ -23,7 +23,8 @@ rohr-cli --project examples/soft-body generate-c
 ```
 
 `rohr_object_create(project.car)` creates independent entities on each call.
-`car_instance_bind()` provides a typed view of that root's handles for gameplay.
+The game-owned `Car` record retains typed IDs resolved by runtime name after
+creation. It is gameplay state, separate from the generated creation recipe.
 Deleting the owning root deletes its members and remaining sources. Stored
 appearance supplies the car's drawing, and `rohr_graphics_viewport_show()` renders
 the scene automatically; no application camera callback is needed.

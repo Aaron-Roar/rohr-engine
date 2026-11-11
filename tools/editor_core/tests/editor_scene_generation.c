@@ -15,7 +15,13 @@ static size_t occurrences(const char *text, const char *needle) {
 }
 static void check_generated(const EditorWorkspace *workspace, size_t objects, size_t screens, size_t viewports) {
     char *text = read_file(workspace, "src/generated/scene/project_objects.c");
-    assert(occurrences(text, "rohr_object_create(objects.") == objects); SDL_free(text);
+    char *children = strstr(text, "Object_children_1[] = {");
+    if(objects) {
+        assert(children);
+        char *end = strchr(children, ';'); assert(end); *end = '\0';
+        assert(occurrences(children, "&objects.") == objects);
+    } else assert(!children);
+    SDL_free(text);
     text = read_file(workspace, "src/generated/scene/project_objects.c");
     /* Each immutable screen recipe appears in the ordered runtime list and
      * its named catalog field; runtime creation still visits the list once. */

@@ -13,6 +13,7 @@ if(NOT result EQUAL 0)
 endif()
 # The fixture's developer entry point is preserved; the probe has its own source.
 configure_file("${CMAKE_CURRENT_LIST_DIR}/joint_authoring_generated_consumer.c" "${FIXTURE}/src/joint_authoring_probe.c" COPYONLY)
+configure_file("${CMAKE_CURRENT_LIST_DIR}/../../editor_core/tests/runtime_fixture.h" "${FIXTURE}/src/runtime_fixture.h" COPYONLY)
 file(WRITE "${FIXTURE}/joint_authoring_probe.cmake" [=[
 add_executable(joint_authoring_probe src/joint_authoring_probe.c src/generated/project_objects.c)
 target_link_libraries(joint_authoring_probe PRIVATE Rohr::Engine)

@@ -2,6 +2,7 @@
  * SPDX-License-Identifier: LGPL-3.0-only
  */
 #include "rohr.h"
+#include "../src/entity/entity_internal.h"
 #include "entity/object_internal.h"
 #include "graphics/texture_assets.h"
 #include "test_png.h"
@@ -48,7 +49,7 @@ static const Project project = {.water = {
 }};
 
 static Entity value(EntityResult result) { OK(result); return result.result.value; }
-static Entity member(Entity root, const char *name) { return value(rohr_object_member_get(root, name)); }
+static Entity member(Entity root, const char *name) { return value(object_member_get(root, name)); }
 static void clean(Entity entity) { OK(rohr_entity_delete(entity)); }
 
 static EntityCreateOptions counted_entity_options(unsigned *calls) {
@@ -104,8 +105,8 @@ static void instances(void) {
     assert(rohr_error_check(rohr_object_create(project.water.particle)));
     assert(rohr_error_check(rohr_internal_entity_create(NULL, entity_create_options_default_get())));
     assert(rohr_error_check(rohr_internal_object_create(NULL, object_create_options_default_get())));
-    assert(rohr_error_check(rohr_object_member_get(a, "missing")));
-    assert(rohr_error_check(rohr_object_member_get(a, NULL)));
+    assert(rohr_error_check(object_member_get(a, "missing")));
+    assert(rohr_error_check(object_member_get(a, NULL)));
     EntityCreateDescription parent = project.water.particle;
     parent.parent = NULL;
     ObjectDescription child = {.id=3,.name="anchor",.kind=OBJECT_ANCHOR,
@@ -123,7 +124,7 @@ static void instances(void) {
     assert(rohr_physics_mass_get(member(copied, "particle")).result.value == 2);
     clean(copied); clean(a);
     assert(rohr_entity_alive_check(pb));
-    assert(rohr_error_check(rohr_object_member_get(a, "particle")));
+    assert(rohr_error_check(object_member_get(a, "particle")));
     clean(b); clean(p);
     assert(rohr_entity_alive_count_get() == initial);
 }
@@ -139,11 +140,11 @@ static void owners_and_names(void) {
     assert(position.x == 15 && position.y == 19);
     Entity repeated = value(rohr_entity_create_with_options(project.water.particle, options));
     assert(!strcmp(rohr_entity_name_get(repeated).result.value.value, "particle_1"));
-    assert(rohr_error_check(rohr_object_member_get(owner, "particle")));
+    assert(rohr_error_check(object_member_get(owner, "particle")));
     clean(repeated);
     OK(rohr_entity_name_set(p, "renamed_particle"));
     Entity ambiguous = value(rohr_entity_description_add((EntityDescription){.name="particle",.owner=owner}));
-    assert(rohr_error_check(rohr_object_member_get(owner, "particle")));
+    assert(rohr_error_check(object_member_get(owner, "particle")));
     uint32_t before = rohr_entity_alive_count_get();
     repeated = value(rohr_entity_create_with_options(project.water.particle, options));
     assert(rohr_entity_alive_count_get() == before + 1);
@@ -155,10 +156,10 @@ static void owners_and_names(void) {
     Entity nested = value(rohr_object_create_with_options(project.water.description, object_options));
     assert(member(owner, "particle") == p);
     assert(member(owner, "water") == nested);
-    assert(rohr_error_check(rohr_entity_object_member_by_name_get(owner, "particle")));
+    assert(rohr_error_check(entity_object_member_by_name_get(owner, "particle")));
     clean(p);
-    assert(rohr_error_check(rohr_object_member_get(owner, "particle")));
-    assert(!rohr_error_check(rohr_entity_object_member_by_name_get(owner, "particle")));
+    assert(rohr_error_check(object_member_get(owner, "particle")));
+    assert(!rohr_error_check(entity_object_member_by_name_get(owner, "particle")));
     clean(owner);
     assert(!rohr_entity_alive_check(nested));
     assert(rohr_error_check(rohr_entity_create_with_options(project.water.particle, options)));

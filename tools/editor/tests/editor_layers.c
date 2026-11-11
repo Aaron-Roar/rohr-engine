@@ -1,7 +1,7 @@
-#include "graphics/scene_image.h"
 /* Copyright 2026 Aaron Rohrer
  * SPDX-License-Identifier: LGPL-3.0-only
  */
+#include "graphics/scene_image.h"
 #include "editor_viewport.h"
 #include "editor_layout.h"
 #include "editor_command.h"

@@ -1,6 +1,7 @@
 /* Copyright 2026 Aaron Rohrer
  * SPDX-License-Identifier: LGPL-3.0-only
  */
+#include "runtime_fixture.h"
 #ifndef ROHR_CONFIGURATION_DIRECT_CHECKS_H
 #define ROHR_CONFIGURATION_DIRECT_CHECKS_H
 /* These literal recipes are deliberately independent of generated descriptions. */
@@ -130,7 +131,7 @@ static void direct_assets(const Parity *instance) {
     EntityResult animated=rohr_entity_add(); OK(animated);
     OK(rohr_graphics_animated_sprite_add(animated.result.value,description.result.value));
     OK(rohr_graphics_animation_release(&animation.result.value));
-    EntityResult member=rohr_entity_object_member_by_name_get(instance->source_instance,"moving"); OK(member);
+    EntityResult member=fixture_entity_get(instance->source_instance,"moving"); OK(member);
     {
         AnimatedSpriteDescription a=rohr_graphics_animated_sprite_description_get(animated.result.value).result.value;
         AnimatedSpriteDescription b=rohr_graphics_animated_sprite_description_get(member.result.value).result.value;
@@ -150,7 +151,7 @@ static void direct_assets(const Parity *instance) {
     assert(rohr_graphics_animated_sprite_frame_offset_get(member.result.value,0).result.value.x==1);
     EntityResult blank=rohr_entity_add(); OK(blank);
     OK(rohr_graphics_animated_sprite_add(blank.result.value,(AnimatedSpriteDescription){0}));
-    member=rohr_entity_object_member_by_name_get(instance->source_instance,"blank"); OK(member);
+    member=fixture_entity_get(instance->source_instance,"blank"); OK(member);
     assert(rohr_graphics_animated_sprite_description_get(blank.result.value).result.value.frame_count==
         rohr_graphics_animated_sprite_description_get(member.result.value).result.value.frame_count);
     OK(rohr_entity_delete(blank.result.value)); OK(rohr_entity_delete(animated.result.value)); OK(rohr_entity_delete(entity.result.value));

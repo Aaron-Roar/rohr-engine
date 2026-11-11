@@ -359,11 +359,8 @@ EngineResult rohr_entity_group_name_set(GroupId group, const char *name) { retur
 GroupIdResult rohr_entity_group_by_name_get(const char *name) { return entity_group_by_name_get(name); }
 GroupNameResult rohr_entity_group_name_get(GroupId group) { return entity_group_name_get(group); }
 EngineResult rohr_entity_group_destroy(GroupId group) { return entity_group_destroy(group); }
-GroupIdResult rohr_entity_object_members_get(Entity object) { return entity_object_members_get(object); }
 EntityResult rohr_entity_owner_get(Entity entity) { return entity_owner_get(entity); }
 EngineResult rohr_entity_owner_set(Entity entity, Entity owner) { return entity_owner_set(entity, owner); }
-EntityResult rohr_entity_object_member_by_name_get(Entity object, const char *name) { return entity_object_member_by_name_get(object, name); }
-EntityNameResult rohr_entity_object_member_name_get(Entity member) { return entity_object_member_name_get(member); }
 EngineResult rohr_entity_group_add(GroupId group, Entity entity) { return entity_group_add(group, entity); }
 EngineResult rohr_entity_group_remove(GroupId group, Entity entity) { return entity_group_remove(group, entity); }
 bool rohr_entity_group_entity_check(GroupId group, Entity entity) { return entity_group_entity_check(group, entity); }

@@ -704,14 +704,6 @@ Destroys a generic entity group and clears member group references.
 
 **Returns:** EngineResult describing success or failure.
 
-### `rohr_entity_object_members_get`
-
-```c
-GroupIdResult rohr_entity_object_members_get(Entity object);
-```
-
- Get protected directly owned members.
-
 ### `rohr_entity_owner_get`
 
 ```c

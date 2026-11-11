@@ -2,6 +2,7 @@
  * SPDX-License-Identifier: LGPL-3.0-only
  */
 #include "rohr.h"
+#include "../src/entity/entity_internal.h"
 #include "entity/entity_internal.h"
 #include "entity/object_internal.h"
 #include "graphics/texture_assets.h"
@@ -45,12 +46,12 @@ static void ownership(void) {
     OK(entity_parent_set(node, other));
     GroupIdResult generic = entity_group_create(); OK(generic);
     OK(entity_group_add(generic.result.value, node));
-    GroupIdResult owned = rohr_entity_object_members_get(wheel); OK(owned);
+    GroupIdResult owned = entity_object_members_get(wheel); OK(owned);
     assert(error_check(entity_group_add(owned.result.value, other)));
     assert(error_check(entity_group_remove(owned.result.value, node)));
     assert(error_check(entity_group_destroy(owned.result.value)));
     OK(entity_name_set(node, "renamed"));
-    EntityResult lookup = rohr_entity_object_member_by_name_get(car, "node 45");
+    EntityResult lookup = entity_object_member_by_name_get(car, "node 45");
     OK(lookup); assert(lookup.result.value == node);
     assert(!strcmp(entity_object_member_name_get(node).result.value.value, "node 45"));
     OK(entity_delete(car));

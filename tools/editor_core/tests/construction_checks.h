@@ -2,6 +2,7 @@
  * SPDX-License-Identifier: LGPL-3.0-only
  * Independent individual-API construction shared by native and installed-SDK tests.
  */
+#include "runtime_fixture.h"
 #ifndef ROHR_CONSTRUCTION_CHECKS_H
 #define ROHR_CONSTRUCTION_CHECKS_H
 #include "rohr.h"
@@ -18,7 +19,7 @@ typedef struct ConstructionScene { Entity e[C_COUNT]; } ConstructionScene;
 typedef struct ConstructionSnapshot { double values[4096]; const char *labels[4096]; bool exact[4096]; size_t count; } ConstructionSnapshot;
 static Entity construction_take(EntityResult r) { REQUIRE(r); return r.result.value; }
 static Entity construction_member(Entity owner,const char *name) {
-    return construction_take(rohr_entity_object_member_by_name_get(owner,name));
+    return construction_take(fixture_entity_get(owner,name));
 }
 static ConstructionScene construction_members(Entity root) {
     ConstructionScene s={0}; s.e[C_ROOT]=root;

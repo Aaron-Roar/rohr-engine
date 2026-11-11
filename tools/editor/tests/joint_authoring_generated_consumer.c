@@ -1,12 +1,13 @@
 /* Copyright 2026 Aaron Rohrer
  * SPDX-License-Identifier: LGPL-3.0-only
  */
-#include "generated/project_objects.h"
+#include "runtime_fixture.h"
+#include "generated/project.h"
 #include <assert.h>
 #include <math.h>
 #define OK(x) do {assert(!rohr_error_check(x));} while(0)
 static Entity member(Entity owner,const char *name) {
-    EntityResult e=rohr_entity_object_member_by_name_get(owner,name);OK(e);return e.result.value;
+    EntityResult e=fixture_entity_get(owner,name);OK(e);return e.result.value;
 }
 static void physics_check(Entity a,Entity b) {
     PositionResult pa=rohr_physics_position_get(a),pb=rohr_physics_position_get(b);OK(pa);OK(pb);
@@ -22,8 +23,9 @@ int main(void) {
     for(unsigned path=0;path<3;++path) {
         OK(rohr_engine_start());
         if(path==0) {
-            JointLockedSpring object={0};OK(joint_locked_spring_create(&object,(Position){0}));
-            physics_check(object.first,object.second);joint_locked_spring_destroy(&object);
+            EntityResult object = rohr_object_create(project.joint_locked_spring); OK(object);
+            physics_check(member(object.result.value,"first"),member(object.result.value,"second"));
+            OK(rohr_entity_delete(object.result.value));
         } else {
             ObjectDescriptionResult file={0};const ObjectDescription *description=rohr_object_get(objects.joint_locked_spring);
             if(path==2) {file=rohr_object_load("objects/project.rohr.json");OK(file);

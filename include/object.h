@@ -262,9 +262,6 @@ EntityResult rohr_internal_entity_create(const EntityCreateDescription *descript
  * bindings; required physics dependencies must resolve. */
 EntityResult rohr_internal_object_create(const ObjectDescription *description,
     ObjectCreateOptions options);
-/** Get a borrowed direct member by authored name. Does not search descendants;
- * missing/ambiguous names fail. Visual aliases may name the same body entity. */
-EntityResult object_member_get(Entity object, const char *name);
 
 /* Implementation hooks, populated by generated headers with typed adapters.
  * No default association: pointers and unrelated structs are compile errors.

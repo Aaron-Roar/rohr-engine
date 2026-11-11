@@ -101,11 +101,10 @@ loaded assets through their existing typed handles. Named layers continue to
 share names and values; they do not receive instance suffixes.
 
 Authored connections resolve through creation-local identity mappings and bound
-instance membership, independently of runtime names or temporary legacy member
-aliases. Explicit bindings remain required for dependencies outside a creation
-operation. Multiple copies may share an owner; legacy authored-name lookup
-reports ambiguity when more than one member matches. Hierarchy access APIs
-remain temporarily available until Milestone 18 Goal 3 migrates their callers.
+instance membership, independently of runtime names. Explicit bindings remain
+required for dependencies outside a creation operation. Public project/member
+hierarchy lookup APIs have been removed. Use retained typed IDs, runtime-name
+lookups and caller-owned lists; see [manual migration](runtime_access_migration.md).
 
 Projects retain their resource IDs solely for ownership and grouped cleanup.
 Individual deletion is allowed: later project cleanup skips stale IDs and

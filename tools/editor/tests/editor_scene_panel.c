@@ -1,7 +1,7 @@
-#include "graphics/scene_image.h"
 /* Copyright 2026 Aaron Rohrer
  * SPDX-License-Identifier: LGPL-3.0-only
  */
+#include "graphics/scene_image.h"
 #include "panels/editor_scene_panel.h"
 #include "input/input_internal.h"
 #include <assert.h>

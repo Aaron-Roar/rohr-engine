@@ -12,25 +12,25 @@ static bool point_equal(Position a, Position b) {
     return fabsf(a.x-b.x) < 0.002f && fabsf(a.y-b.y) < 0.002f;
 }
 static bool scenario(bool generated, Snapshot *snapshot) {
-    Fleet fleet = {0};
+    Entity root = ENTITY_INVALID;
     Entity body;
     OK(rohr_engine_start());
     if(generated) {
-        EngineResult result = fleet_create(&fleet, (Position){0});
-        if(rohr_error_check(result)) fprintf(stderr, "fleet_create: %s\n",
-            rohr_error_message_get(result));
-        OK(result);
-        body = fleet.offset_body;
-        CHECK(rohr_physics_center_of_mass_automatic_check(fleet.auto_body).result.value);
-        CHECK(point_equal(rohr_physics_center_of_mass_local_position_get(fleet.auto_body).result.value,
+        EntityResult result = rohr_object_create(objects.fleet); OK(result); root = result.result.value;
+        EntityResult offset = rohr_entity_by_name_get("offset_body"); OK(offset); body = offset.result.value;
+        EntityResult automatic = rohr_entity_by_name_get("auto_body"); OK(automatic);
+        EntityResult empty = rohr_entity_by_name_get("empty_body"); OK(empty);
+        EntityResult particle = rohr_entity_by_name_get("pure_particle"); OK(particle);
+        CHECK(rohr_physics_center_of_mass_automatic_check(automatic.result.value).result.value);
+        CHECK(point_equal(rohr_physics_center_of_mass_local_position_get(automatic.result.value).result.value,
             (Position){4,4}));
-        CHECK(point_equal(rohr_physics_center_of_mass_local_position_get(fleet.empty_body).result.value,
+        CHECK(point_equal(rohr_physics_center_of_mass_local_position_get(empty.result.value).result.value,
             (Position){7,-3}));
-        CHECK(!rohr_entity_components_check(fleet.empty_body, ROHR_HIT_BOX));
-        CHECK(rohr_error_check(rohr_physics_moment_of_inertia_get(fleet.empty_body)));
-        CHECK(rohr_error_check(rohr_physics_center_of_mass_local_position_set(fleet.pure_particle,
+        CHECK(!rohr_entity_components_check(empty.result.value, ROHR_HIT_BOX));
+        CHECK(rohr_error_check(rohr_physics_moment_of_inertia_get(empty.result.value)));
+        CHECK(rohr_error_check(rohr_physics_center_of_mass_local_position_set(particle.result.value,
             (Position){1,2})));
-        CHECK(point_equal(rohr_physics_center_of_mass_local_position_get(fleet.pure_particle).result.value,
+        CHECK(point_equal(rohr_physics_center_of_mass_local_position_get(particle.result.value).result.value,
             (Position){4,2}));
     } else {
         EntityResult created = rohr_entity_add(); OK(created);
@@ -58,7 +58,7 @@ static bool scenario(bool generated, Snapshot *snapshot) {
     CHECK(point_equal(snapshot->com, (Position){initial.x+2,initial.y-1}));
     CHECK(fabsf(snapshot->angle - 360.0f) < 0.01f);
     CHECK(fabsf(snapshot->inertia-464) < 0.002f);
-    if(generated) fleet_destroy(&fleet);
+    if(generated) OK(rohr_entity_delete(root));
     rohr_engine_stop();
     return true;
 }

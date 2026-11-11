@@ -1256,6 +1256,11 @@ if(ROHR_BUILD_TESTS)
         COMMAND ${CMAKE_COMMAND} -E copy_directory
             ${CMAKE_CURRENT_SOURCE_DIR}/examples/flies-in-pit/assets
             ${ROHR_BUILD_OUTPUT_DIRECTORY}/tests/assets/flies-in-pit)
+    if(MSVC)
+        target_compile_options(example_soft_body_angles_test PRIVATE /UNDEBUG)
+    else()
+        target_compile_options(example_soft_body_angles_test PRIVATE -UNDEBUG)
+    endif()
     target_sources(example_soft_body_angles_test PRIVATE
         examples/soft-body/src/car_controls.c examples/soft-body/src/generated/project_objects.c)
     target_include_directories(example_soft_body_angles_test PRIVATE

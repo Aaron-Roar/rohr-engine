@@ -1,6 +1,7 @@
 /* Copyright 2026 Aaron Rohrer
  * SPDX-License-Identifier: LGPL-3.0-only
  */
+#include "runtime_fixture.h"
 #include "project.h"
 #include <assert.h>
 #include <string.h>
@@ -14,7 +15,7 @@ int main(int argc, char **argv) {
     Entity root = ENTITY_INVALID, example = ENTITY_INVALID, tug = ENTITY_INVALID;
     if(full) {
         root = take(rohr_object_create(project));
-        example = take(rohr_object_member_get(root, project.example.name));
+        example = take(fixture_entity_get(root, project.example.name));
     } else if(!missing) example = take(rohr_object_create(project.example));
     else tug = take(rohr_object_create(project.tug));
     ViewportObjectBinding binding = {&project.example._description, example};

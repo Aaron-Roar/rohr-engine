@@ -1,6 +1,7 @@
 /* Copyright 2026 Aaron Rohrer
  * SPDX-License-Identifier: LGPL-3.0-only
  */
+#include "entity/entity_internal.h"
 #include "editor_command.h"
 #include "editor_history.h"
 #include "editor_workspace.h"

@@ -1,5 +1,9 @@
 # Scoped creation and the teaching example
 
+> Historical creation design: Milestone 18 replaces the runtime hierarchy lookup
+> APIs described below. Current code uses typed IDs, runtime names and explicit
+> entity lists; see [runtime access migration](runtime_access_migration.md).
+
 Milestone 16 Goal 1 design contract, 2026-11-07. This document defines the target
 behavior approved for the new milestone. Goal 2 implements optional external-link
 omission and background-only unbound viewport screens. Goal 3 implements the

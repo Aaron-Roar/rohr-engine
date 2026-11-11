@@ -1,6 +1,7 @@
 /* Copyright 2026 Aaron Rohrer
  * SPDX-License-Identifier: LGPL-3.0-only
  */
+#include "../../tools/editor_core/tests/runtime_fixture.h"
 #include "project_objects.h"
 #include <assert.h>
 #include <stdio.h>
@@ -52,8 +53,8 @@ int main(void) {
     assert(rohr_physics_position_get(standalone_follower.result.value).result.value.x==5);
     assert(rohr_error_check(rohr_entity_create(authored_force)));
     EntityResult complete_object=rohr_object_create(source_object); OK(complete_object);
-    EntityResult created_follower=rohr_object_member_get(complete_object.result.value,"follower"); OK(created_follower);
-    EntityResult created_target=rohr_object_member_get(complete_object.result.value,"receiver"); OK(created_target);
+    EntityResult created_follower=fixture_entity_get(complete_object.result.value,"follower"); OK(created_follower);
+    EntityResult created_target=fixture_entity_get(complete_object.result.value,"receiver"); OK(created_target);
     assert(rohr_physics_transform_lock_description_get(created_follower.result.value).result.value.driver==created_target.result.value);
     OK(rohr_entity_delete(complete_object.result.value)); OK(rohr_entity_delete(standalone_follower.result.value));
     ObjectDescriptionResult source_copy=rohr_object_copy(source_object);OK(source_copy);
@@ -145,7 +146,7 @@ int main(void) {
     assert(!rohr_entity_alive_check(local.result.value) && !rohr_entity_alive_check(beam.result.value));
     assert(objects.mass_demo.automatic_body.mass > 0);
     EntityResult generic = rohr_object_create(objects.mass_demo); OK(generic);
-    EntityResult generic_body = rohr_object_member_get(generic.result.value, "automatic_body"); OK(generic_body);
+    EntityResult generic_body = fixture_entity_get(generic.result.value, "automatic_body"); OK(generic_body);
     EntityResult independent = rohr_entity_create(objects.mass_demo.automatic_body); OK(independent);
     assert(generic_body.result.value != independent.result.value);
     assert(rohr_physics_joint_anchors_get(generic_body.result.value).result.value.count == 1);
@@ -184,16 +185,16 @@ int main(void) {
     OK(rohr_object_color_description_set(body.result.value, color.result.value));
     EntityResult whole=rohr_entity_object_add(copy.result.value); OK(whole);
     OK(rohr_object_destroy(copy.result.value));
-    EntityResult member=rohr_entity_object_member_by_name_get(whole.result.value,"automatic_body"); OK(member);
+    EntityResult member=fixture_entity_get(whole.result.value,"automatic_body"); OK(member);
     assert(rohr_physics_mass_get(member.result.value).result.value==7);
-    EntityResult camera=rohr_entity_object_member_by_name_get(whole.result.value,"main_camera"); OK(camera);
+    EntityResult camera=fixture_entity_get(whole.result.value,"main_camera"); OK(camera);
     OK(rohr_entity_object_camera_get(camera.result.value));
     EntityNameResult name=rohr_entity_name_get(whole.result.value); OK(name);
     OK(rohr_game_state_file_save("sdk_objects.json"));
     OK(rohr_entity_delete(whole.result.value)); OK(rohr_entity_delete(direct.result.value)); OK(rohr_entity_delete(named.result.value));
     OK(rohr_game_state_file_load("sdk_objects.json"));
     whole=rohr_entity_by_name_get(name.result.value.value); OK(whole);
-    member=rohr_entity_object_member_by_name_get(whole.result.value,"automatic_body"); OK(member);
+    member=fixture_entity_get(whole.result.value,"automatic_body"); OK(member);
     assert(rohr_physics_mass_get(member.result.value).result.value==7);
     rohr_engine_stop();
     assert(remove("sdk_objects.json")==0);

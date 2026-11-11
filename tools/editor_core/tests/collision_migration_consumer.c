@@ -1,6 +1,7 @@
 /* Copyright 2026 Aaron Rohrer
  * SPDX-License-Identifier: LGPL-3.0-only
  */
+#include "runtime_fixture.h"
 #include "generated/project_objects.h"
 #include <assert.h>
 #include <stdio.h>
@@ -10,7 +11,7 @@ static void check(Entity root) {
     const uint64_t cats[] = {1,1,2}, masks[] = {2,0,1};
     for(unsigned i = 0; i < 3; ++i) {
         char name[32]; snprintf(name, sizeof(name), "body%u", i);
-        EntityResult body = rohr_entity_object_member_by_name_get(root, name); OK(body);
+        EntityResult body = fixture_entity_get(root, name); OK(body);
         bodies[i] = body.result.value;
     }
     for(unsigned i = 0; i < 3; ++i) for(unsigned j = 0; j < 3; ++j) if(i != j)

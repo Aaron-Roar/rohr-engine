@@ -89,7 +89,7 @@ int main(void) {
     EntityResult created = rohr_object_create(project.player_world);
     if(rohr_error_check(created)) goto fail;
     root = created.result.value;
-    EntityResult member = rohr_object_member_get(root, project.player_world.player.name);
+    EntityResult member = rohr_entity_by_name_get("player");
     if(rohr_error_check(member)) goto fail;
     player = member.result.value;
     ViewportObjectBinding binding = {&project.player_world._description,root};

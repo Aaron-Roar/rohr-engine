@@ -45,11 +45,6 @@ typedef struct ProjectDescription {
     const ProjectMusicDescription *music;
     size_t music_count;
 } ProjectDescription;
-typedef struct ViewportList {
-    ViewportId values[MAX_VIEWPORTS];
-    size_t count;
-} ViewportList;
-ERROR_DECLARE_RESULT_TYPE(ViewportListResult, ViewportList);
 
 /** Allocate one owner, create its hierarchy and viewports, create independent
  * input state, and load all audio stopped. Services must already be started.
@@ -61,12 +56,6 @@ ProjectIdResult rohr_internal_project_create(const ProjectDescription *descripti
  * Individual resources may be deleted normally. Grouped cleanup skips deleted
  * IDs and never destroys a replacement that reused their storage slot. */
 EngineResult project_destroy(ProjectId project);
-EntityResult project_root_get(ProjectId project);
-ViewportIdResult project_viewport_by_name_get(ProjectId project, const char *name);
-ViewportListResult project_viewports_get(ProjectId project);
-InputControllerIdResult project_controller_by_name_get(ProjectId project, const char *name);
-SoundResult project_sound_by_name_get(ProjectId project, const char *name);
-MusicResult project_music_by_name_get(ProjectId project, const char *name);
 
 /* Same typed, address-preserving convention as entity/object creation. */
 static inline const ObjectDescription *rohr_internal_project_root_ref(

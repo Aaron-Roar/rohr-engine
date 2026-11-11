@@ -61,17 +61,20 @@ static bool authoring_check(void) {
 typedef struct Snapshot { Position origin, com, anchor; float angle; } Snapshot;
 
 static bool simulation_check(bool generated, Snapshot *snapshot) {
-    MassDemo demo = {0};
+    Entity root = ENTITY_INVALID;
     Entity body;
     JointAnchorId anchor;
     Shape shape = {.amount_of_vertices = 4, .vertices = {{100,50},{100,10},{20,10},{20,50}}};
     OK(rohr_engine_start());
     if(generated) {
-        OK(mass_demo_create(&demo, (Position){0}));
-        body = demo.explicit_body;
-        anchor = demo.anchor_explicit_tip;
-        CHECK(rohr_physics_center_of_mass_automatic_check(demo.automatic_body).result.value);
-        CHECK(near(rohr_physics_center_of_mass_local_position_get(demo.automatic_body).result.value,
+        EntityResult created = rohr_object_create(objects.mass_demo); OK(created); root = created.result.value;
+        EntityResult explicit_body = rohr_entity_by_name_get("explicit_body"); OK(explicit_body);
+        body = explicit_body.result.value;
+        EntityResult tip = rohr_entity_by_name_get("explicit_tip"); OK(tip);
+        JointAnchorIdResult handle = rohr_entity_object_anchor_get(tip.result.value); OK(handle); anchor = handle.result.value;
+        EntityResult automatic = rohr_entity_by_name_get("automatic_body"); OK(automatic);
+        CHECK(rohr_physics_center_of_mass_automatic_check(automatic.result.value).result.value);
+        CHECK(near(rohr_physics_center_of_mass_local_position_get(automatic.result.value).result.value,
             (Position){60,30}));
     } else {
         EntityResult created = rohr_entity_add(); OK(created); body = created.result.value;
@@ -114,7 +117,7 @@ static bool simulation_check(bool generated, Snapshot *snapshot) {
     CHECK(near(rohr_physics_position_get(body).result.value, moved));
     CHECK(near(rohr_physics_center_of_mass_world_position_get(body).result.value,
         (Position){moved.x + 30, moved.y + 15}));
-    if(generated) mass_demo_destroy(&demo);
+    if(generated) OK(rohr_entity_delete(root));
     rohr_engine_stop();
     return true;
 }

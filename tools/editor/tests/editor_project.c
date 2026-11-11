@@ -11,6 +11,7 @@
 #include "editor_main_previous.h"
 #include "editor_example_main.h"
 #include "editor_main_m17_previous.h"
+#include "editor_main_m18_previous.h"
 
 #include <math.h>
 #include <stdio.h>
@@ -276,7 +277,8 @@ static bool scene_scaffold_check(const EditorWorkspace *workspace,
     SDL_free(loaded); loaded = SDL_LoadFile(main_path, NULL);
     if(!loaded || strcmp(loaded, editor_project_main_source)) goto done;
     const char *previous[] = {editor_main_previous_source, editor_main_previous_example_source,
-        editor_main_m17_previous_source, editor_main_m17_previous_example_source};
+        editor_main_m17_previous_source, editor_main_m17_previous_example_source,
+        editor_main_m18_previous_source, editor_main_m18_previous_example_source};
     for(size_t i = 0; i < sizeof(previous) / sizeof(previous[0]); ++i) {
         if(!file_replace(main_path, previous[i]) || !editor_workspace_c_generate(workspace, project)) goto done;
         SDL_free(loaded); loaded = SDL_LoadFile(main_path, NULL);
@@ -699,10 +701,9 @@ int main(void) {
             return 1;
         }
         snprintf(path, sizeof(path), "%s/src/generated/project_objects.h", fixture);
-        if(!file_contains(path, "typedef struct ProjectControllers") ||
-                !file_contains(path, "typedef struct ProjectObjects") ||
-                file_occurrence_count(path,
-                    "ProjectControllers controllers;") != 1) {
+        if(file_contains(path, "typedef struct ProjectControllers") ||
+                file_contains(path, "typedef struct ProjectObjects") ||
+                !file_contains(path, "EngineResult project_settings_apply(void)")) {
             workspace_fixture_remove(fixture);
             return 1;
         }
@@ -713,16 +714,16 @@ int main(void) {
                 !file_contains(path,
                     "rohr_physics_gravity_set((Acceleration){12.000000000f, 345.000000000f})") ||
                 !file_contains(path, "rohr_physics_solver_iterations_set(16)") ||
-                !file_contains(path, "project_controllers_create") ||
-                !file_contains(path,
+                file_contains(path, "project_controllers_create") ||
+                file_contains(path,
                     "rohr_controller_create(project.gameplay)") ||
                 !file_contains(path,
                     ".enabled=0") ||
-                !file_contains(path,
+                file_contains(path,
                     "rohr_input_action_by_name_get(controllers->controller_gameplay_") ||
                 !file_contains(path,
                     ".button_initial_state=1") ||
-                !file_contains(path, "controllers->created = true") ||
+                file_contains(path, "controllers->created = true") ||
                 !file_contains(path,
                     ".bindings_default={.count=") ||
                 !file_contains(path, ".name = \"move_up\"") ||
@@ -782,11 +783,11 @@ int main(void) {
         }
         snprintf(path, sizeof(path), "%s/src/generated/project_objects.c", fixture);
         if(!SDL_GetPathInfo(path, &info) || info.type != SDL_PATHTYPE_FILE ||
-                !file_contains(path, "EngineResult example_create") ||
-                !file_contains(path, "rohr_object_create_with_options(*description,") ||
-                !file_contains(path, "const ParticleDescription example_particle_body_config") ||
-                !file_contains(path, ".rigid_vertices = UINT32_C(16)") ||
-                !file_contains(path, ".radius = 28.0000000f") ||
+                file_contains(path, "EngineResult example_create") ||
+                file_contains(path, "rohr_object_create_with_options(*description,") ||
+                file_contains(path, "const ParticleDescription example_particle_body_config") ||
+                !file_contains(path, ".particle_vertices=UINT64_C(16)") ||
+                !file_contains(path, ".radius=28.0000000f") ||
                 file_contains(path, "generated_body_create(")) {
             workspace_fixture_remove(fixture);
             return 1;
@@ -979,10 +980,10 @@ int main(void) {
                 !file_contains(path,
                     "This generated file is not covered by Rohr Engine's "
                     "LGPL-3.0-only license.") ||
-                !file_contains(path, ".local_origin = {3.00000000f, -4.00000000f}") ||
-                !file_contains(path, ".radius = 9.00000000f") ||
-                !file_contains(path, ".rigid_vertices = UINT32_C(12)") ||
-                !file_contains(path, ".static_body = true") ||
+                !file_contains(path, ".particle_origin={3.00000000f,-4.00000000f}") ||
+                !file_contains(path, ".radius=9.00000000f") ||
+                !file_contains(path, ".particle_vertices=UINT64_C(12)") ||
+                !file_contains(path, ".static_body=UINT64_C(1)") ||
                 !file_contains(path, ".color={17,34,51,68}") ||
                 !file_contains(path, ".border_color={85,102,119,136}") ||
                 !file_contains(path, ".velocity={11.0000000f,12.0000000f}") ||
@@ -1002,11 +1003,11 @@ int main(void) {
                 !file_contains(path, ".size={32.0000000f,24.0000000f}") ||
                 !file_contains(path, ".orientation=810.000000f") ||
                 !file_contains(path, ".scale={2.00000000f,3.00000000f}") ||
-                !file_contains(path, "void example_draw") ||
-                !file_contains(path, "EngineResult project_objects_create_all") ||
-                !file_contains(path, "void project_objects_draw_all") ||
-                !file_contains(path, "rohr_entity_object_draw(object->source_instance)") ||
-                !file_contains(path, "void project_objects_destroy_all")) {
+                file_contains(path, "void example_draw") ||
+                file_contains(path, "EngineResult project_objects_create_all") ||
+                file_contains(path, "void project_objects_draw_all") ||
+                file_contains(path, "rohr_entity_object_draw(object->source_instance)") ||
+                file_contains(path, "void project_objects_destroy_all")) {
             workspace_fixture_remove(fixture);
             return 1;
         }
@@ -1019,12 +1020,12 @@ int main(void) {
         if(!file_contains(path,
                     "This generated file is not covered by Rohr Engine's "
                     "LGPL-3.0-only license.") ||
-                !file_contains(path,
+                file_contains(path,
                     "extern const ParticleDescription example_particle_body_config;") ||
-                !file_contains(path, "Entity soft_body;") ||
+                file_contains(path, "Entity soft_body;") ||
                 file_contains(path, "Entity soft_body_soft_body_1;") ||
-                !file_contains(path, "typedef struct ProjectObjects") ||
-                !file_contains(path, "EngineResult project_objects_create_all")) {
+                file_contains(path, "typedef struct ProjectObjects") ||
+                file_contains(path, "EngineResult project_objects_create_all")) {
             workspace_fixture_remove(fixture);
             return 1;
         }
@@ -1703,7 +1704,7 @@ int main(void) {
             return 1;
         }
         snprintf(path, sizeof(path), "%s/src/generated/project_objects.h", fixture);
-        if(!file_contains(path, "Entity animation_free_animation;")) {
+        if(file_contains(path, "Entity animation_free_animation;")) {
             workspace_fixture_remove(fixture);
             return 1;
         }
@@ -1723,8 +1724,8 @@ int main(void) {
             snprintf(path, sizeof(path), "%s/src/generated/project_objects.c", fixture);
             /* Reference application is covered by the compiled joint consumer;
              * generation must use shared creation and retain its member binding. */
-            if(!file_contains(path, "rohr_object_create_with_options(*description,") ||
-                    !file_contains(path, "rohr_entity_object_anchor_get")) return 1;
+            if(file_contains(path, "rohr_object_create_with_options(*description,") ||
+                    !file_contains(path, ".target=UINT64_C(")) return 1;
         }
         result = editor_workspace_load(&reloaded_workspace, &reloaded_project, fixture);
         if(editor_result_check(result) || reloaded_project.object_count != 2 ||

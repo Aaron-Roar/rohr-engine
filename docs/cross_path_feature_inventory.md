@@ -1349,7 +1349,8 @@ mirror reusable definitions; those caches are not separate stored settings.
 
 ## Exact callable reconciliation
 
-All **1,602** `(header, symbol)` occurrences below map to one primary feature
+The historical ledger below retains **1,596** `(header, symbol)` occurrences
+after Milestone 18 removes six public hierarchy queries. These entries map to one primary feature
 group or an explicit X exclusion. Shared operations (for example full object
 configuration) also use the field ledger above; a primary group does not erase
 their property-specific obligations. The existing API checker independently
@@ -1361,7 +1362,7 @@ checked against that inventory, including duplicate/missing entries and totals.
 | [audio.h](../include/audio.h) | 41 |
 | [console.h](../include/console.h) | 8 |
 | [engine.h](../include/engine.h) | 16 |
-| [entity_components.h](../include/entity_components.h) | 42 |
+| [entity_components.h](../include/entity_components.h) | 39 |
 | [entity_info.h](../include/entity_info.h) | 6 |
 | [error.h](../include/error.h) | 10 |
 | [game_state.h](../include/game_state.h) | 8 |
@@ -1372,7 +1373,7 @@ checked against that inventory, including duplicate/missing entries and totals.
 | [object.h](../include/object.h) | 37 |
 | [physics.h](../include/physics.h) | 231 |
 | [report.h](../include/report.h) | 12 |
-| [rohr.h](../include/rohr.h) | 789 |
+| [rohr.h](../include/rohr.h) | 786 |
 | [rohr_tools.h](../include/rohr_tools.h) | 4 |
 | [scene.h](../include/scene.h) | 2 |
 | [systems.h](../include/systems.h) | 1 |
@@ -1428,7 +1429,7 @@ checked against that inventory, including duplicate/missing entries and totals.
 </details>
 
 <details>
-<summary>entity_components.h: 42 mapped entries</summary>
+<summary>entity_components.h: 39 mapped entries</summary>
 
 [F01](#f01) (21):
 
@@ -1449,10 +1450,6 @@ checked against that inventory, including duplicate/missing entries and totals.
 [F03](#f03) (3):
 
 - `entity_life_time_remove`, `entity_lifetime_description_get`, `entity_lifetime_description_set`.
-
-[F51](#f51) (3):
-
-- `entity_object_member_by_name_get`, `entity_object_member_name_get`, `entity_object_members_get`.
 
 </details>
 
@@ -1862,7 +1859,7 @@ checked against that inventory, including duplicate/missing entries and totals.
 </details>
 
 <details>
-<summary>rohr.h: 789 mapped entries</summary>
+<summary>rohr.h: 786 mapped entries</summary>
 
 [F01](#f01) (21):
 
@@ -2138,11 +2135,11 @@ checked against that inventory, including duplicate/missing entries and totals.
 - `rohr_graphics_aspect_ratio_auto_set`, `rohr_graphics_aspect_ratio_set`, `rohr_graphics_logical_size_set`, `rohr_graphics_window_presentation_description_default_get`.
 - `rohr_graphics_window_presentation_description_get`, `rohr_graphics_window_presentation_description_set`.
 
-[F51](#f51) (36):
+[F51](#f51) (33):
 
 - `rohr_entity_object_add`, `rohr_entity_object_add_with_options`, `rohr_entity_object_anchor_get`, `rohr_entity_object_by_name_add`.
 - `rohr_entity_object_by_name_add_with_options`, `rohr_entity_object_camera_get`, `rohr_entity_object_description_add`, `rohr_entity_object_description_by_name_add`.
-- `rohr_entity_object_draw`, `rohr_entity_object_member_by_name_get`, `rohr_entity_object_member_name_get`, `rohr_entity_object_members_get`.
+- `rohr_entity_object_draw`.
 - `rohr_object_acceleration_set`, `rohr_object_angular_velocity_set`, `rohr_object_collision_description_get`, `rohr_object_collision_description_set`.
 - `rohr_object_color_description_get`, `rohr_object_color_description_set`, `rohr_object_copy`, `rohr_object_copy_with_options`.
 - `rohr_object_description_by_name_get`, `rohr_object_destroy`, `rohr_object_force_description_set`, `rohr_object_get`.

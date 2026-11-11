@@ -6,6 +6,7 @@
 #include "editor_workspace.h"
 #include "editor_object_catalog.h"
 #include "entity/object_internal.h"
+#include "entity/entity_internal.h"
 #include "rohr.h"
 #include <assert.h>
 #include <math.h>
@@ -14,7 +15,7 @@
 
 #define OK(value) assert((value).kind == ERROR_RESULT_VALUE)
 static Entity member(Entity owner, const char *name) {
-    EntityResult result = rohr_entity_object_member_by_name_get(owner, name);
+    EntityResult result = entity_object_member_by_name_get(owner, name);
     OK(result); return result.result.value;
 }
 static void settings_round_trip(void) {

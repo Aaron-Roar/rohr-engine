@@ -21,6 +21,7 @@ if(NOT DEFINED TOOLCHAIN)
     endforeach()
 endif()
 configure_file("${CMAKE_CURRENT_LIST_DIR}/incomplete_joints_consumer.c" "${FIXTURE}/src/main.c" COPYONLY)
+configure_file("${CMAKE_CURRENT_LIST_DIR}/runtime_fixture.h" "${FIXTURE}/src/runtime_fixture.h" COPYONLY)
 configure_file("${CMAKE_CURRENT_LIST_DIR}/incomplete_joint_checks.h" "${FIXTURE}/src/incomplete_joint_checks.h" COPYONLY)
 file(WRITE "${FIXTURE}/CMakeLists.txt" [=[
 cmake_minimum_required(VERSION 3.20)

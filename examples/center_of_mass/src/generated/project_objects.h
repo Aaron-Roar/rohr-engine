@@ -9,52 +9,6 @@
 
 #include "rohr.h"
 
-
-typedef struct MassDemo {
-    Entity source_instance;
-    Entity automatic_body;
-    Entity explicit_body;
-    JointAnchorId anchor_automatic_tip;
-    JointAnchorId anchor_explicit_tip;
-    CameraId camera_main_camera;
-} MassDemo;
-
-EngineResult mass_demo_create(MassDemo *object, Position position);
-void mass_demo_draw(const MassDemo *object);
-void mass_demo_destroy(MassDemo *object);
-
-/* Bind a complete owned instance; failure leaves output unchanged.
- * On success, mass_demo_destroy owns its destruction. Do not bind twice. */
-EngineResult mass_demo_instance_bind(MassDemo *output, Entity instance);
-
-typedef struct ProjectControllers {
-    bool created;
-} ProjectControllers;
-
-EngineResult project_controllers_create(ProjectControllers *controllers);
-void project_controllers_destroy(ProjectControllers *controllers);
-
-typedef struct ProjectObjects {
-    MassDemo mass_demo;
-    ProjectControllers controllers;
-    bool created;
-} ProjectObjects;
-
-EngineResult project_objects_create_all(ProjectObjects *objects);
-void project_objects_draw_all(const ProjectObjects *objects);
-void project_objects_destroy_all(ProjectObjects *objects);
-
-/* Recipes only; the game creates, controls, and destroys players. */
-typedef struct ProjectAudio {
-    struct {
-        unsigned char unused;
-    } sounds;
-    struct {
-        unsigned char unused;
-    } music;
-} ProjectAudio;
-extern const ProjectAudio project_audio;
-
 EngineResult project_settings_apply(void);
 
 typedef struct ObjectDescriptionView_5 {

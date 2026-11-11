@@ -14,6 +14,7 @@ endif()
 # The fixture's developer entry point is preserved; the probe has its own source.
 configure_file("${CMAKE_CURRENT_LIST_DIR}/motion_generated_consumer.c" "${FIXTURE}/src/motion_probe.c" COPYONLY)
 configure_file("${CMAKE_CURRENT_LIST_DIR}/motion_checks.h" "${FIXTURE}/src/motion_checks.h" COPYONLY)
+configure_file("${CMAKE_CURRENT_LIST_DIR}/../../editor_core/tests/runtime_fixture.h" "${FIXTURE}/src/runtime_fixture.h" COPYONLY)
 file(WRITE "${FIXTURE}/motion_probe.cmake" [=[
 add_executable(motion_probe src/motion_probe.c src/generated/project_objects.c)
 target_link_libraries(motion_probe PRIVATE Rohr::Engine)

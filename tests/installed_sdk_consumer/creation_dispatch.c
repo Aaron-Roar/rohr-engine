@@ -1,6 +1,7 @@
 /* Copyright 2026 Aaron Rohrer
  * SPDX-License-Identifier: LGPL-3.0-only
  */
+#include "../../tools/editor_core/tests/runtime_fixture.h"
 #include "project.h"
 #include <assert.h>
 
@@ -16,7 +17,7 @@ int main(void) {
         (&project.mass_demo)[calls++],
         (options_calls++, rohr_object_create_options_default_get()));
     OK(object); assert(calls == 1 && options_calls == 1);
-    EntityResult camera = rohr_object_member_get(object.result.value, "main_camera"); OK(camera);
+    EntityResult camera = fixture_entity_get(object.result.value, "main_camera"); OK(camera);
     OK(rohr_entity_object_camera_get(camera.result.value));
     OK(rohr_entity_delete(object.result.value));
     calls = 0;

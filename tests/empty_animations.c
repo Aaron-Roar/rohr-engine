@@ -2,6 +2,7 @@
  * SPDX-License-Identifier: LGPL-3.0-only
  */
 #include "rohr.h"
+#include "../src/entity/entity_internal.h"
 #include "graphics/animation_assets.h"
 #include "graphics/texture_assets.h"
 #include "test_png.h"
@@ -11,7 +12,7 @@
 
 #define OK(value) assert(!rohr_error_check(value))
 static Entity member(Entity root, const char *name) {
-    EntityResult result = rohr_entity_object_member_by_name_get(root, name);
+    EntityResult result = entity_object_member_by_name_get(root, name);
     OK(result); return result.result.value;
 }
 static EntityInfo empty_info(Entity entity) {

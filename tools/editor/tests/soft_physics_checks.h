@@ -1,6 +1,7 @@
 /* Copyright 2026 Aaron Rohrer
  * SPDX-License-Identifier: LGPL-3.0-only
  */
+#include "runtime_fixture.h"
 #ifndef SOFT_PHYSICS_CHECKS_H
 #define SOFT_PHYSICS_CHECKS_H
 #include "rohr.h"
@@ -9,7 +10,7 @@
 #include <stdio.h>
 #define OK(call) assert((call).kind == ERROR_RESULT_VALUE)
 static Entity soft_member(Entity parent, const char *name) {
-    EntityResult e=rohr_entity_object_member_by_name_get(parent,name); OK(e); return e.result.value;
+    EntityResult e=fixture_entity_get(parent,name); OK(e); return e.result.value;
 }
 static void soft_node_check(Entity entity, unsigned i) {
     const uint64_t categories[]={5,6,4,5}, responses[]={0,2,4,0};

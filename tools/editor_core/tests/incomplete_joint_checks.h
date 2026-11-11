@@ -1,6 +1,7 @@
 /* Copyright 2026 Aaron Rohrer
  * SPDX-License-Identifier: LGPL-3.0-only
  */
+#include "runtime_fixture.h"
 #ifndef ROHR_INCOMPLETE_JOINT_CHECKS_H
 #define ROHR_INCOMPLETE_JOINT_CHECKS_H
 #include "rohr.h"
@@ -14,7 +15,7 @@ static const char *joint_names[] = {"pin", "weld", "spring"};
 typedef struct DraftJoints { Entity handles[3][4]; } DraftJoints;
 
 static Entity draft_member(Entity root, const char *name) {
-    EntityResult result = rohr_entity_object_member_by_name_get(root, name); OK(result);
+    EntityResult result = fixture_entity_get(root, name); OK(result);
     return result.result.value;
 }
 static DraftJoints draft_members(Entity root) {

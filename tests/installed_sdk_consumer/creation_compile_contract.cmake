@@ -133,6 +133,22 @@ creation_compile_case(graphics_ui_slider_create_pointer FALSE "ViewportUiSliderD
 creation_compile_case(graphics_ui_slider_create_recipe_pointer FALSE "rohr_graphics_ui_slider_create(&project.game_viewport.main_screen)")
 creation_compile_case(graphics_ui_slider_create_unrelated FALSE "rohr_graphics_ui_slider_create(unrelated)")
 creation_compile_case(graphics_ui_slider_create_wrong_family FALSE "rohr_graphics_ui_slider_create(project.player)")
+
+# Removed runtime hierarchy helpers must not leak through installed headers.
+# Taking an address diagnoses an undeclared name even without -Werror.
+creation_compile_case(runtime_access_supported TRUE "
+    (void)&rohr_entity_by_name_get; (void)&rohr_entity_name_get;
+    (void)&rohr_entity_list_get; (void)&rohr_entity_name_list_get;
+    (void)&rohr_viewport_by_name_get; (void)&rohr_input_controller_by_name_get;
+    (void)&rohr_audio_sound_by_name_get; (void)&rohr_audio_music_by_name_get")
+foreach(removed project_root_get project_viewport_by_name_get project_viewports_get
+        project_controller_by_name_get project_sound_by_name_get project_music_by_name_get
+        object_member_get entity_object_member_by_name_get entity_object_members_get
+        entity_object_member_name_get)
+    creation_compile_case(removed_${removed} FALSE "(void)&${removed}")
+    creation_compile_case(removed_rohr_${removed} FALSE "(void)&rohr_${removed}")
+endforeach()
+
 unset(CMAKE_REQUIRED_LIBRARIES)
 unset(CMAKE_REQUIRED_INCLUDES)
 unset(CMAKE_TRY_COMPILE_TARGET_TYPE)

@@ -203,7 +203,8 @@ submission. These edits use normal editor commands and participate in undo/redo.
 Project JSON stores stable controller, action, and binding IDs plus readable
 names. Generated `InputBinding` initializers retain those binding names.
 Generated `ProjectControllers` state creates runtime controllers before generated
-scene objects and is destroyed with `ProjectObjects`.
+scene objects. Whole-project creation owns its controllers; separately created
+controllers are destroyed explicitly by ID.
 
 The selector-first CLI supports the same authored state. Bindings can be
 selected by `--binding`, `--binding-id`, or the legacy `--binding-index`.

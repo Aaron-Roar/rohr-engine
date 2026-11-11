@@ -17,7 +17,7 @@ priority order.
 | 15 | [Descriptor-based creation and automatic viewport rendering](#15-descriptor-based-creation-and-automatic-viewport-rendering) | Complete; all six goals verified, final generated workflow accepted |
 | 16 | [Scoped creation and a teaching example](#16-scoped-creation-and-a-teaching-example) | Complete; all three creation paths and SDK workflows verified, final preview accepted |
 | 17 | [Consistent creation APIs and report checks](#17-consistent-creation-apis-and-report-checks) | Complete; all six goal results recorded below |
-| 18 | [Explicit runtime lists and ID/name access](#18-explicit-runtime-lists-and-idname-access) | Goals 1–2 complete; Goal 3 awaits user instruction |
+| 18 | [Explicit runtime lists and ID/name access](#18-explicit-runtime-lists-and-idname-access) | Complete; Goals 1–3 verified and Linux preview accepted |
 | — | [C game experiment](#c-game-experiment) | Follows the current API work; agree concept and completion criteria with the user |
 | 13 | Physics rebuild from the simpler baseline | Paused by user direction for frame pacing and game development; goals 1, 2a, 2b and 4a complete; goals 2 and 3 failed; goal 4 blocking remains incomplete; goals 5–8 not started |
 | 12 | Real-time physics pipeline rework | Closed by user direction; superseded by milestone 13, not complete; goals 1–13 complete, goal 14 unfinished, goals 15–19 not started; evidence preserved |
@@ -29,12 +29,12 @@ priority order.
 | 7 | Editor implementation scalability | Deferred until after Python unless game development makes it necessary sooner |
 | 10 | End-to-end game | Pending; separate larger game directed by the user |
 
-**Current priority:** Milestone 18 Goal 2 is complete for review and commit;
-Goal 3 awaits explicit user instruction. Milestone 17's six completed goals
-remain recorded below. Milestone 18 keeps authored structures as creation
-recipes and establishes runtime ID/name access. Preserve developer-owned mains,
-physics settings, frame pacing, and known failure records; neither later goals
-nor game implementation starts automatically.
+**Current priority:** Milestone 18 is complete for review and commit. All three
+goals are verified, including real Linux preview acceptance. Milestone 17's six
+completed goals remain recorded below. Authored structures remain creation
+recipes; runtime access uses typed IDs, names and explicit lists. Preserve
+physics settings, frame pacing and known failure records. Stop for review;
+no later milestone or game implementation starts automatically.
 
 Milestone 15 is complete. Its Goal 1 defines the
 [creation and viewport contract](docs/creation_and_viewport_contract.md).
@@ -1160,7 +1160,7 @@ unfinished milestones.
    execution and Goal 3's preview acceptance remain unverified. See
    [verification](docs/entity_ids.md#milestone-18-goal-2-verification) and
    `sandbox/milestone_18/goal_2/`. Stop for review and commit.
-3. [ ] **Migrate examples and generated mains, then remove obsolete access
+3. [x] **Migrate examples and generated mains, then remove obsolete access
    APIs.** Migrate all examples and generated creation paths to typed IDs,
    runtime names and useful entity enumeration. Keep whole-project creation
    active and object/individual alternatives commented out with clear dividers.
@@ -1172,6 +1172,23 @@ unfinished milestones.
    Compile/run all examples and all three generated paths; verify deterministic
    generation, edited-main preservation, Release, ASan/UBSan, Nix/generic Linux
    SDK consumers and Windows cross-builds. Obtain real Linux preview acceptance.
+   **Result: complete for review.** Examples and generated mains retain typed
+   runtime IDs and use global names/caller-owned snapshots; immutable generated
+   recipes replace mutable access wrappers. Public hierarchy lookup helpers are
+   removed while private ownership, wiring and grouped destruction remain.
+   Starter and exact-legacy-upgrade mains retain all three explicit creation
+   alternatives; customized mains are preserved with manual migration guidance.
+   Release runtime/generator checks and 18 installed consumers pass on Nix and
+   generic Linux. All 13 examples compile/run on Linux and cross-build for
+   Windows. Focused tests, six SDK consumers, the three migrated examples and
+   all generated main alternatives pass ASan/UBSan with leak detection.
+   CLI/editor tools are refreshed in all verification SDKs. Deterministic
+   generation, exact migration, edited-main preservation and all scene selections
+   pass. The user accepted the native Linux preview. No final compiler warnings
+   or sanitizer findings remain. Native Windows execution is unverified; the
+   API-inventory audit retains 77 pre-existing diagnostics, with none added.
+   See [migration and verification](docs/runtime_access_migration.md) and
+   `sandbox/milestone_18/goal_3/`. Stop for review and commit.
 
 Boundaries: no generic `RohrType`/`RohrList`, hidden list allocation, sorting
 guarantee, or physics changes. IDs are the durable access mechanism; names may

@@ -20,7 +20,8 @@ EntityResult created = rohr_object_create(project.player_world);
 if (rohr_error_check(created)) goto fail;
 Entity world = created.result.value;
 
-EntityResult member = rohr_object_member_get(world, project.player_world.player.name);
+// The initial world is empty, so this authored name is available.
+EntityResult member = rohr_entity_by_name_get("player");
 if (rohr_error_check(member)) goto fail;
 Entity player = member.result.value;
 
@@ -107,7 +108,8 @@ or the editor, then rebuild against the same SDK version. Legacy generated
 `project_viewports.h/.c` support has been removed. Customized older entry points
 must adopt `project.h` and explicit viewport creation; regeneration deliberately
 does not replace developer gameplay. The [migration guide](../docs/shared_creation.md#unified-generated-project)
-explains that transition.
+explains that transition. The [runtime access guide](../docs/runtime_access_migration.md)
+covers typed IDs, names, snapshots and removal of generated runtime wrappers.
 
 The [integrated SDK verification](../docs/creation_rendering_verification.md)
 records generic Linux packaging, Windows cross-builds, lifecycle checks and

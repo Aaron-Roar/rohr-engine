@@ -2,6 +2,7 @@
  * SPDX-License-Identifier: LGPL-3.0-only
  */
 #include "rohr.h"
+#include "../tools/editor_core/tests/runtime_fixture.h"
 #include "test_png.h"
 #include "example_viewport.h"
 #include <math.h>
@@ -64,7 +65,7 @@ static const ObjectDescription camera_template={.id=101,.name="camera",.kind=OBJ
 static const ObjectDescription particle_template={.id=102,.name="particle",.kind=OBJECT_PARTICLE,
     .parent=&catalog,.categories=ROHR_ENTITY_OBJECT_ALL,.visible=true,.radius=15,.mass=1,
     .particle_vertices=12,.color={201,70,40,255},.border_color={255,255,255,255}};
-static Entity member(Entity root,const char *name) { return entity_value(rohr_object_member_get(root,name)); }
+static Entity member(Entity root,const char *name) { return entity_value(fixture_entity_get(root,name)); }
 static ViewportCreateItemDescription screen_item(const char *name) {
     ViewportCreateItemDescription item={.name=name,.kind=VIEWPORT_CREATE_SCREEN,
         .placement=rohr_viewport_item_description_default_get(),.render_width=320,.render_height=240,

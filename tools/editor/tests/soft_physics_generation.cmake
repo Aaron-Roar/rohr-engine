@@ -14,6 +14,7 @@ endif()
 # The fixture's developer entry point is preserved; the probe has its own source.
 configure_file("${CMAKE_CURRENT_LIST_DIR}/soft_physics_generated_consumer.c" "${FIXTURE}/src/soft_physics_probe.c" COPYONLY)
 configure_file("${CMAKE_CURRENT_LIST_DIR}/soft_physics_checks.h" "${FIXTURE}/src/soft_physics_checks.h" COPYONLY)
+configure_file("${CMAKE_CURRENT_LIST_DIR}/../../editor_core/tests/runtime_fixture.h" "${FIXTURE}/src/runtime_fixture.h" COPYONLY)
 file(WRITE "${FIXTURE}/soft_physics_probe.cmake" [=[
 add_executable(soft_physics_probe src/soft_physics_probe.c src/generated/project_objects.c)
 target_link_libraries(soft_physics_probe PRIVATE Rohr::Engine)

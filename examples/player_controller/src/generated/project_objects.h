@@ -9,53 +9,6 @@
 
 #include "rohr.h"
 
-
-typedef struct PlayerWorld {
-    Entity source_instance;
-    Entity floor;
-    Entity player;
-    CameraId camera_main_camera;
-} PlayerWorld;
-
-EngineResult player_world_create(PlayerWorld *object, Position position);
-void player_world_draw(const PlayerWorld *object);
-void player_world_destroy(PlayerWorld *object);
-
-/* Bind a complete owned instance; failure leaves output unchanged.
- * On success, player_world_destroy owns its destruction. Do not bind twice. */
-EngineResult player_world_instance_bind(PlayerWorld *output, Entity instance);
-
-typedef struct ProjectControllers {
-    InputControllerId controller_player_1;
-    InputActionId action_player_move_1;
-    InputActionId action_player_jump_2;
-    bool created;
-} ProjectControllers;
-
-EngineResult project_controllers_create(ProjectControllers *controllers);
-void project_controllers_destroy(ProjectControllers *controllers);
-
-typedef struct ProjectObjects {
-    PlayerWorld player_world;
-    ProjectControllers controllers;
-    bool created;
-} ProjectObjects;
-
-EngineResult project_objects_create_all(ProjectObjects *objects);
-void project_objects_draw_all(const ProjectObjects *objects);
-void project_objects_destroy_all(ProjectObjects *objects);
-
-/* Recipes only; the game creates, controls, and destroys players. */
-typedef struct ProjectAudio {
-    struct {
-        unsigned char unused;
-    } sounds;
-    struct {
-        unsigned char unused;
-    } music;
-} ProjectAudio;
-extern const ProjectAudio project_audio;
-
 EngineResult project_settings_apply(void);
 
 typedef struct ObjectDescriptionView_3 {

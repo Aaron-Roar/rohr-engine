@@ -1,6 +1,7 @@
 /* Copyright 2026 Aaron Rohrer
  * SPDX-License-Identifier: LGPL-3.0-only
  */
+#include "runtime_fixture.h"
 #ifndef MOTION_CHECKS_H
 #define MOTION_CHECKS_H
 #include "rohr.h"
@@ -9,7 +10,7 @@
 #include <stdio.h>
 #define MOTION_OK(value) assert((value).kind == ERROR_RESULT_VALUE)
 static Entity motion_member(Entity owner, const char *name) {
-    EntityResult e = rohr_entity_object_member_by_name_get(owner, name);
+    EntityResult e = fixture_entity_get(owner, name);
     MOTION_OK(e); return e.result.value;
 }
 static void motion_entity_check(Entity e, unsigned kind, unsigned mode) {

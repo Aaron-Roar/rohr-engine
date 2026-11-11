@@ -188,9 +188,9 @@ static const Time camera_collision_zoom_out_duration = 3.0;
 static const float camera_collision_physics_scale = 0.2f;
 
 /* Store visual choices once; automatic screens discover current entity state. */
-static bool car_appearance_set(const Car *car) {
-    for(uint32_t n=0;n<rohr_entity_alive_count_get();++n) {
-        Entity entity=rohr_entity_alive_at_get(n).result.value;
+static bool car_appearance_set(const Car *car, const EntityList *entities) {
+    for(size_t n=0;n<entities->count;++n) {
+        Entity entity=entities->data[n];
         Entity owner=entity;
         while(owner && owner!=car->source_instance) {
             EntityResult parent=rohr_entity_owner_get(owner);
@@ -320,9 +320,15 @@ int main(int argc, char **argv) {
     }
     EntityResult created = rohr_object_create(project.car);
     if(rohr_error_check(created)) goto fail;
-    if(!result_ok(car_instance_bind(&car,created.result.value))) {
-        (void)rohr_entity_delete(created.result.value);
-        goto fail;
+    car.source_instance = created.result.value;
+    const char *car_names[] = {"chassis", "cabin", "rear_hub", "rear_disk", "front_hub",
+        "front_disk", "rear_tire", "front_tire", "rear_drive"};
+    Entity *car_ids[] = {&car.chassis, &car.cabin, &car.rear_hub, &car.rear_disk, &car.front_hub,
+        &car.front_disk, &car.rear_tire, &car.front_tire, &car.torque_rear_drive};
+    for(size_t i = 0; i < sizeof(car_ids) / sizeof(car_ids[0]); ++i) {
+        EntityResult named = rohr_entity_by_name_get(car_names[i]);
+        if(rohr_error_check(named)) { fprintf(stderr, "%s\n", rohr_error_message_get(named)); goto fail; }
+        *car_ids[i] = named.result.value;
     }
     chassis = car.chassis;
     wheels[0] = (Wheel){.hub=car.rear_hub,.disk=car.rear_disk,.soft_body=car.rear_tire};
@@ -344,7 +350,11 @@ int main(int argc, char **argv) {
     if(graphics_enabled && !result_ok(rohr_camera_zoom_set(
                 rohr_camera_active_get(), camera_default_zoom, 0.0))) goto fail;
     if(graphics_enabled) {
-        if(!car_appearance_set(&car)) goto fail;
+        Entity storage[MAX_ENTITIES];
+        EntityList entities = {.data = storage, .capacity = rohr_entity_alive_count_get()};
+        EngineResult listed = rohr_entity_list_get(&entities);
+        if(rohr_error_check(listed)) { fprintf(stderr, "%s\n", rohr_error_message_get(listed)); goto fail; }
+        if(!car_appearance_set(&car, &entities)) goto fail;
         for(size_t i=0;i<LEVEL_WALL_COUNT;++i)
             if(!example_body_appearance_set(walls[i],wall_color,(Color){0},0)) goto fail;
         for(size_t i=0;i<RAMP_TRIANGLE_COUNT;++i)

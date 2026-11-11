@@ -17,6 +17,7 @@ configure_file("${CMAKE_CURRENT_LIST_DIR}/../../../examples/audio/assets/ogg/tug
     "${FIXTURE}/assets/theme.ogg" COPYONLY)
 configure_file("${CONSUMER_SOURCE}" "${FIXTURE}/src/main.c" COPYONLY)
 configure_file("${CMAKE_CURRENT_LIST_DIR}/project_generated_consumer.c" "${FIXTURE}/src/project_consumer.c" COPYONLY)
+configure_file("${CMAKE_CURRENT_LIST_DIR}/runtime_fixture.h" "${FIXTURE}/src/runtime_fixture.h" COPYONLY)
 configure_file("${CMAKE_CURRENT_LIST_DIR}/configuration_direct_checks.h" "${FIXTURE}/src/configuration_direct_checks.h" COPYONLY)
 file(WRITE "${FIXTURE}/CMakeLists.txt" [=[
 cmake_minimum_required(VERSION 3.20)

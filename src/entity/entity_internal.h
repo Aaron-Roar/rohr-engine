@@ -25,4 +25,9 @@ typedef struct ObjectMemberAlias {
 EngineResult entity_object_alias_restore(Entity object, Entity member, const char *name);
 const ObjectMemberAlias *entity_object_aliases_get(Entity object, size_t *count);
 
+/* Private ownership/persistence inspection; game access uses IDs and runtime names. */
+GroupIdResult entity_object_members_get(Entity object);
+EntityResult entity_object_member_by_name_get(Entity object, const char *name);
+EntityNameResult entity_object_member_name_get(Entity member);
+EntityResult object_member_get(Entity object, const char *name);
 #endif

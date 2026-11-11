@@ -14,6 +14,7 @@ endfunction()
 file(REMOVE_RECURSE "${FIXTURE}")
 run("${CLI}" --project "${FIXTURE}" create)
 configure_file("${CMAKE_CURRENT_LIST_DIR}/partial_spawning_consumer.c" "${FIXTURE}/src/main.c" COPYONLY)
+configure_file("${CMAKE_CURRENT_LIST_DIR}/runtime_fixture.h" "${FIXTURE}/src/runtime_fixture.h" COPYONLY)
 file(SHA256 "${FIXTURE}/src/main.c" before)
 file(WRITE "${FIXTURE}/editor.lua"
     "return {build={project={configure={'cmake','-S','{project}','-B','{build}','-DCMAKE_BUILD_TYPE=Debug','-DCMAKE_PREFIX_PATH=${SDK_PREFIX}','-DCMAKE_C_FLAGS=-Wall -Wextra -Wpedantic -UNDEBUG'}}}}\n")

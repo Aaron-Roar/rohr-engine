@@ -130,7 +130,7 @@ node in B: deleting A deletes the beam, while B survives. An independently owned
 bridge instead survives and clears its deleted endpoint.
 
 Use `entity_owner_get()`, `entity_object_member_by_name_get()`, and
-`entity_object_members_get()` to inspect ownership. The former
+caller-owned `EntityList` snapshots and `entity_owner_get()` to inspect ownership. The former
 `entity_object_owner_get()`, `entity_object_member_release()`, and
 `physics_soft_body_node_owner_set()` APIs have been replaced by the generic
 owner getter/setter (including public `rohr_` wrappers).

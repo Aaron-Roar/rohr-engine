@@ -5,8 +5,7 @@ project(rohr_scene_selection LANGUAGES C)
 find_package(Rohr CONFIG REQUIRED)
 set(SCENE_PROJECT_DIR "" CACHE PATH "Generated simulation project")
 add_executable(scene_selection probe.c
-    "${SCENE_PROJECT_DIR}/src/generated/scene/project_objects.c"
-    "${SCENE_PROJECT_DIR}/src/generated/scene/project_viewports.c")
+    "${SCENE_PROJECT_DIR}/src/generated/scene/project_objects.c")
 target_include_directories(scene_selection PRIVATE "${SCENE_PROJECT_DIR}/src/generated"
     "${SCENE_PROJECT_DIR}/src/generated/scene")
 target_link_libraries(scene_selection PRIVATE Rohr::Engine)

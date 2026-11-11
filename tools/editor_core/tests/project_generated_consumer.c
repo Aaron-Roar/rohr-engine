@@ -1,6 +1,7 @@
 /* Copyright 2026 Aaron Rohrer
  * SPDX-License-Identifier: LGPL-3.0-only
  */
+#include "runtime_fixture.h"
 #include "generated/project.h"
 #include <assert.h>
 #include <stdio.h>
@@ -9,7 +10,7 @@
     __FILE__, __LINE__, #call); assert(false); } } while(0)
 
 static Entity member(Entity root, const char *name) {
-    EntityResult result = rohr_object_member_get(root, name); OK(result);
+    EntityResult result = fixture_entity_get(root, name); OK(result);
     return result.result.value;
 }
 static ViewportItemDescription item(ViewportId viewport, const char *name) {
@@ -247,16 +248,16 @@ int main(void) {
     Entity instances[2];
     InputControllerId inputs[2];
     for(size_t i = 0; i < 2; ++i) {
-        EntityResult root = rohr_project_root_get(ids[i]); OK(root);
-        instances[i] = member(root.result.value, "Parity");
-        ViewportIdResult view = rohr_project_viewport_by_name_get(ids[i], "Play"); OK(view);
+        EntityResult object = rohr_entity_by_name_get(i ? "Parity_1" : "Parity"); OK(object);
+        instances[i] = object.result.value;
+        ViewportIdResult view = rohr_viewport_by_name_get(i ? "Play_1" : "Play"); OK(view);
         const char *viewport_name = i ? "Play_1" : "Play";
         assert(rohr_viewport_by_name_get(viewport_name).result.value == view.result.value);
         assert(!strcmp(rohr_viewport_name_get(view.result.value).result.value.value, viewport_name));
         verify(instances[i], view.result.value);
-        ViewportListResult views = rohr_project_viewports_get(ids[i]); OK(views);
-        assert(views.result.value.count == 3);
-        InputControllerIdResult controller = rohr_project_controller_by_name_get(ids[i], "player"); OK(controller);
+        OK(rohr_viewport_by_name_get(i ? "Overlay_1" : "Overlay"));
+        OK(rohr_viewport_by_name_get(i ? "EmptyView_1" : "EmptyView"));
+        InputControllerIdResult controller = rohr_input_controller_by_name_get(i ? "player_2" : "player_1"); OK(controller);
         inputs[i] = controller.result.value;
         InputActionIdResult action = rohr_input_action_by_name_get(inputs[i], "toggle"); OK(action);
         assert(rohr_input_action_button_down_check(action.result.value));
@@ -266,15 +267,15 @@ int main(void) {
         assert(description.result.value.button_initial_state);
         assert(description.result.value.bindings_default.count == 1);
         assert(description.result.value.bindings_default.values[0].input.key == SDL_SCANCODE_SPACE);
-        controller = rohr_project_controller_by_name_get(ids[i], "disabled"); OK(controller);
+        controller = rohr_input_controller_by_name_get(i ? "disabled_1" : "disabled"); OK(controller);
         InputControllerDescriptionResult disabled = rohr_input_controller_description_get(controller.result.value); OK(disabled);
         assert(!disabled.result.value.enabled);
-        SoundResult sound = rohr_project_sound_by_name_get(ids[i], "impact"); OK(sound);
+        SoundResult sound = rohr_audio_sound_by_name_get(i ? "impact_1" : "impact"); OK(sound);
         SoundDescriptionResult audio = rohr_audio_sound_description_get(sound.result.value); OK(audio);
         assert(audio.result.value.volume == .75f && audio.result.value.pan == -.5f);
         assert(audio.result.value.loop && audio.result.value.playback_rate == 1.5f);
         assert(!rohr_audio_sound_playing_check(sound.result.value));
-        MusicResult music = rohr_project_music_by_name_get(ids[i], "theme"); OK(music);
+        MusicResult music = rohr_audio_music_by_name_get(i ? "theme_1" : "theme"); OK(music);
         assert(!rohr_audio_music_playing_check(music.result.value));
     }
     assert(instances[0] != instances[1] && inputs[0] != inputs[1]);

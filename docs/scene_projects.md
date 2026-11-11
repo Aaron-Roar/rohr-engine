@@ -274,7 +274,7 @@ Customized CMake files are preserved. Generation logs the integration step when
 that include is absent. Define `ROHR_ENGINE_TARGET` and `ROHR_GENERATED_SOURCES`
 before including the module, as in the default scaffold. Projects with an
 external build system can compile `src/generated/project_scene.c` together with
-`src/generated/scene/project_objects.c` and `project_viewports.c`, include the
+`src/generated/scene/project_objects.c`, include the
 private scene directory, and link the engine. The generated CMake module excludes
 `project_scene.c` from application sources collected by older wildcard scaffolds. Only an exact recognized old tick-loop template
 is automatically migrated in `main.c`; marker comments alone are insufficient.
@@ -284,14 +284,11 @@ is automatically migrated in `main.c`; marker comments alone are insufficient.
 `project_settings_apply()` applies the generated timestep, gravity, substeps,
 and solver settings without spawning objects or controllers.
 
-Each generated object type exposes `<object>_instance_bind(output, instance)`.
-It resolves typed aliases within an already-created ownership tree; it does not
-spawn entities, connect separate bodies, or search unrelated entities by name.
-Failure leaves the output unchanged and the input instance alive. On success,
-the generated `<object>_destroy` helper owns destruction of that instance. Bind
-each instance to one owning output, and destroy the previous output before
-replacing it. Keep it alive while generated viewports borrow its camera and
-entity handles.
+Generated catalogs contain immutable recipes. The old generated runtime structs,
+`<object>_instance_bind`, per-object create/draw/destroy wrappers and
+`project_objects_create_all` have been removed. Game code retains creator IDs,
+uses runtime-name lookups and copies entity snapshots into caller-owned storage.
+See [manual migration](runtime_access_migration.md); edited mains are preserved.
 
 The tutorial records ownership immediately after every creation so partial
 initialization is safe to destroy. Soft-body topology remains inside its spawn.
@@ -301,10 +298,8 @@ Unset joint endpoints remain zero in generated descriptions and individual API
 constructors. These joints still spawn; their unavailable physics contributions
 produce report warnings until their endpoints are completed. Missing nonzero
 authored anchor references and invalid joint numbers fail generation.
-`project_objects_create_all` uses the same catalog path, including authored
-appearance and placement. Existing individual generated constructors remain
-available. Drawing visits each object's own visuals without an additional global
-sprite pass.
+Automatic viewport rendering discovers live visuals; no per-object draw wrapper
+or additional global sprite pass is needed.
 
 ## Verification
 
@@ -315,7 +310,7 @@ installed-SDK check that compiles the actual new tutorial main and generated
 modules. Create a fresh project first, then configure it with
 `SCENE_PROJECT_DIR` and `CMAKE_PREFIX_PATH`. It checks both tutorial and generic
 scene creation, joint/force bindings, independent instances, viewport setup,
-force-driven spring motion, failed binding/asset-load cleanup, and teardown.
+force-driven spring motion, stale-ID validation and failed asset-load cleanup, and teardown.
 
 ## Scene runner and lifecycle
 

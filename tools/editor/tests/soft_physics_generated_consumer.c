@@ -1,17 +1,16 @@
 /* Copyright 2026 Aaron Rohrer
  * SPDX-License-Identifier: LGPL-3.0-only
  */
-#include "generated/project_objects.h"
+#include "generated/project.h"
 #include "soft_physics_checks.h"
 int main(void) {
     OK(rohr_directory_working_set(rohr_directory_base_get()));
     for(unsigned path=0;path<3;++path) {
         OK(rohr_engine_start());
         if(path==0) {
-            SoftPhysics instance={0}; OK(soft_physics_create(&instance,(Position){0}));
-            Entity nodes[]={instance.node_0,instance.node_1,instance.node_2,instance.node_3};
-            for(unsigned i=0;i<4;++i) soft_node_check(nodes[i],i);
-            soft_physics_destroy(&instance);
+            EntityResult instance = rohr_object_create(project.soft_physics); OK(instance);
+            soft_instance_check(instance.result.value);
+            OK(rohr_entity_delete(instance.result.value));
         } else {
             ObjectDescriptionResult file={0};
             const ObjectDescription *description=rohr_object_get(objects.soft_physics);

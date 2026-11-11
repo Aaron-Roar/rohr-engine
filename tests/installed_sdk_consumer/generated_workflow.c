@@ -1,6 +1,7 @@
 /* Copyright 2026 Aaron Rohrer
  * SPDX-License-Identifier: LGPL-3.0-only
  */
+#include "../../tools/editor_core/tests/runtime_fixture.h"
 #include "project.h"
 #include "example_viewport.h"
 #include <assert.h>
@@ -24,13 +25,12 @@ static bool create(Workflow *w, bool whole_project) {
         if(whole_project) {
             ProjectIdResult instance=rohr_project_create(project); OK(instance);
             w->projects[i]=instance.result.value;
-            EntityResult root=rohr_project_root_get(w->projects[i]); OK(root);
-            EntityResult object=rohr_object_member_get(root.result.value,project.mass_demo.name); OK(object);
+            EntityResult object=rohr_entity_by_name_get(i ? "MassDemo_1" : "MassDemo"); OK(object);
             w->roots[i]=object.result.value;
             /* Move runtime instances without modifying their immutable recipes. */
             const char *names[]={project.mass_demo.automatic_body.name,project.mass_demo.explicit_body.name};
             for(unsigned j=0;j<2;++j) {
-                EntityResult member=rohr_object_member_get(w->roots[i],names[j]); OK(member);
+                EntityResult member=fixture_entity_get(w->roots[i],names[j]); OK(member);
                 PositionResult position=rohr_physics_position_get(member.result.value); OK(position);
                 position.result.value.x+=i*1800.0f;
                 OK(rohr_physics_position_set(member.result.value,position.result.value));
@@ -41,16 +41,18 @@ static bool create(Workflow *w, bool whole_project) {
             EntityResult root=rohr_object_create_with_options(project.mass_demo,options); OK(root);
             w->roots[i]=root.result.value;
         }
-        EntityResult body=rohr_object_member_get(w->roots[i],project.mass_demo.automatic_body.name); OK(body);
+        EntityResult body=fixture_entity_get(w->roots[i],project.mass_demo.automatic_body.name); OK(body);
         w->bodies[i]=body.result.value;
-        EntityResult camera=rohr_object_member_get(w->roots[i],project.mass_demo.main_camera.name); OK(camera);
+        EntityResult camera=fixture_entity_get(w->roots[i],project.mass_demo.main_camera.name); OK(camera);
         CameraIdResult camera_id=rohr_entity_object_camera_get(camera.result.value); OK(camera_id);
         w->cameras[i]=camera_id.result.value;
         if(whole_project) {
             CameraDescriptionResult camera_description=rohr_camera_description_get(w->cameras[i]); OK(camera_description);
             camera_description.result.value.position.x+=i*1800.0f;
             OK(rohr_camera_position_set(w->cameras[i],camera_description.result.value.position,0));
-            ViewportIdResult view=rohr_project_viewport_by_name_get(w->projects[i],project._project.viewports[0].name); OK(view);
+            char name[ENTITY_NAME_MAX];
+            snprintf(name,sizeof(name),i ? "%s_1" : "%s",project._project.viewports[0].name);
+            ViewportIdResult view=rohr_viewport_by_name_get(name); OK(view);
             w->views[i]=view.result.value;
         } else {
             ViewportObjectBinding binding={&project.mass_demo._description,w->roots[i]};
@@ -147,7 +149,7 @@ static bool destroy(Workflow *w) {
         if(!w->projects[i]) {
             OK(rohr_camera_get(w->cameras[i]));
             OK(rohr_entity_delete(w->roots[i]));
-        } else { assert(rohr_error_check(rohr_project_root_get(w->projects[i]))); }
+        } else { assert(!rohr_entity_alive_check(w->roots[i])); }
         assert(!rohr_entity_alive_check(w->bodies[i]));
         assert(rohr_error_check(rohr_camera_get(w->cameras[i])));
     }

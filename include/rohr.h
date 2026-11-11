@@ -29,12 +29,6 @@
 #define rohr_controller_description_default_get controller_description_default_get
 #define rohr_project_create project_create
 #define rohr_project_destroy project_destroy
-#define rohr_project_root_get project_root_get
-#define rohr_project_viewport_by_name_get project_viewport_by_name_get
-#define rohr_project_viewports_get project_viewports_get
-#define rohr_project_controller_by_name_get project_controller_by_name_get
-#define rohr_project_sound_by_name_get project_sound_by_name_get
-#define rohr_project_music_by_name_get project_music_by_name_get
 #define rohr_entity_appearance_get entity_appearance_get
 #define rohr_entity_appearance_set entity_appearance_set
 #define rohr_graphics_hit_boxes_debug_set graphics_hit_boxes_debug_set
@@ -55,7 +49,6 @@
 #define rohr_object_create object_create
 #define rohr_object_create_with_options object_create_with_options
 #define rohr_object_create_options_default_get object_create_options_default_get
-#define rohr_object_member_get object_member_get
 #define rohr_object_get object_get
 #define rohr_object_load object_load
 #define rohr_object_copy object_copy
@@ -769,8 +762,6 @@ GroupNameResult rohr_entity_group_name_get(GroupId group);
  */
 EngineResult rohr_entity_group_destroy(GroupId group);
 
-/** Get protected directly owned members. */
-GroupIdResult rohr_entity_object_members_get(Entity object);
 /** Get the immediate lifetime owner; ENTITY_INVALID means independent. */
 EntityResult rohr_entity_owner_get(Entity entity);
 /**
@@ -779,8 +770,6 @@ EntityResult rohr_entity_owner_get(Entity entity);
  * entity types. May allocate ownership storage; failure leaves ownership intact.
  */
 EngineResult rohr_entity_owner_set(Entity entity, Entity owner);
-EntityResult rohr_entity_object_member_by_name_get(Entity object, const char *name);
-EntityNameResult rohr_entity_object_member_name_get(Entity member);
 
 /**
  * @brief Adds an entity to a generic group.

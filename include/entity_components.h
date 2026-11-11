@@ -470,8 +470,6 @@ GroupNameResult entity_group_name_get(GroupId group);
  */
 EngineResult entity_group_destroy(GroupId group);
 
-/** Get an object's protected group of directly owned members. */
-GroupIdResult entity_object_members_get(Entity object);
 /** Get the immediate lifetime owner, or ENTITY_INVALID for an independent entity. */
 EntityResult entity_owner_get(Entity entity);
 /**
@@ -481,10 +479,6 @@ EntityResult entity_owner_get(Entity entity);
  * allocate; a failed transfer leaves the original ownership intact.
  */
 EngineResult entity_owner_set(Entity entity, Entity owner);
-/** Recursively find a member by its description name; ambiguous names fail. */
-EntityResult entity_object_member_by_name_get(Entity object, const char *name);
-/** Get the stable description name assigned when a member was spawned. */
-EntityNameResult entity_object_member_name_get(Entity member);
 
 /**
  * Add an entity to a generic group.

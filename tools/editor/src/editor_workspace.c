@@ -6,6 +6,7 @@
 #include "editor_example_main.h"
 #include "editor_main_previous.h"
 #include "editor_main_m17_previous.h"
+#include "editor_main_m18_previous.h"
 #include "editor_starter_main_legacy.h"
 #include "editor_scene_source.h"
 #include "editor_log.h"
@@ -22,14 +23,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-
-static const EditorSprite *editor_workspace_sprite_get(const EditorObject *object,
-        EditorSpriteId id) {
-    if(object == NULL || id == 0) return NULL;
-    for(size_t i = 0; i < object->sprite_count; i += 1)
-        if(object->sprites[i].id == id) return &object->sprites[i];
-    return NULL;
-}
 
 static void editor_workspace_c_string_write(FILE *file, const char *value) {
     fputc('"', file);
@@ -160,14 +153,6 @@ static EditorResult editor_workspace_root_find(char *root, size_t capacity,
         "Could not find a valid project manifest at or above: %s", selection);
 }
 
-static const EditorRigidBody *editor_workspace_body_get(
-    const EditorObject *object, EditorRigidBodyId id) {
-    if(object == NULL || id == 0) return NULL;
-    for(size_t i = 0; i < object->rigid_body_count; i += 1)
-        if(object->rigid_bodies[i].id == id) return &object->rigid_bodies[i];
-    return NULL;
-}
-
 static const EditorAnchor *editor_workspace_anchor_get(
     const EditorObject *object, EditorAnchorId id) {
     if(object == NULL || id == 0) return NULL;
@@ -181,14 +166,6 @@ static const EditorSoftNode *editor_workspace_soft_node_get(
     if(body == NULL || id == 0) return NULL;
     for(size_t i = 0; i < body->node_count; i += 1)
         if(body->nodes[i].id == id) return &body->nodes[i];
-    return NULL;
-}
-
-static const EditorSoftBody *editor_workspace_soft_body_get(
-        const EditorObject *object, EditorSoftBodyId id) {
-    if(object == NULL || id == 0) return NULL;
-    for(size_t i = 0; i < object->soft_body_count; i += 1)
-        if(object->soft_body_items[i].id == id) return &object->soft_body_items[i];
     return NULL;
 }
 
@@ -651,210 +628,16 @@ done:
     return result;
 }
 
-static void editor_workspace_input_controller_variable(char *output, size_t capacity,
-        const EditorInputController *controller) {
-    char name[ROHR_INPUT_NAME_MAX];
-    editor_project_property_name_format(name, sizeof(name), controller->name);
-    snprintf(output, capacity, "controller_%s_%u", name, controller->id);
-}
-
-static void editor_workspace_input_action_variable(char *output, size_t capacity,
-        const EditorInputController *controller, const EditorInputAction *action) {
-    char controller_name[ROHR_INPUT_NAME_MAX];
-    char action_name[ROHR_INPUT_NAME_MAX];
-    editor_project_property_name_format(controller_name, sizeof(controller_name), controller->name);
-    editor_project_property_name_format(action_name, sizeof(action_name),
-        action->name);
-    snprintf(output, capacity, "action_%s_%s_%u", controller_name, action_name,
-        action->id);
-}
-
-static void editor_workspace_particle_config_name(char *output, size_t capacity,
-        const char *object_name, const EditorRigidBody *body) {
-    snprintf(output, capacity, "%s_%s_config", object_name, body->name);
-}
-
-static void editor_workspace_particle_config_write(FILE *source,
-        const char *name, const EditorRigidBody *body) {
-    float radius = body->particle_auto_fit ?
-        editor_project_particle_auto_radius_get(body) : body->particle_radius;
-
-    fprintf(source,
-        "const ParticleDescription %s = {\n"
-        "    .position = {%#.9gf, %#.9gf},\n"
-        "    .local_origin = {%#.9gf, %#.9gf},\n"
-        "    .velocity = {%#.9gf, %#.9gf},\n"
-        "    .acceleration = {%#.9gf, %#.9gf},\n"
-        "    .radius = %#.9gf,\n"
-        "    .rigid_vertices = UINT32_C(%u),\n"
-        "    .mass_value = %#.9gf,\n"
-        "    .friction = %#.9gf,\n"
-        "    .restitution = %#.9gf,\n"
-        "    .collision_filter = {.category = UINT64_C(%llu), "
-            ".responds_to = UINT64_C(%llu)},\n"
-        "    .static_body = %s,\n"
-        "    .kinematic_driven = %s,\n"
-        "    .gravity_enabled = %s,\n"
-        "    .collision_enabled = %s\n"
-        "};\n\n",
-        name, body->position.x, body->position.y,
-        body->particle_origin.x, body->particle_origin.y,
-        body->initial_velocity.x, body->initial_velocity.y,
-        body->initial_acceleration.x, body->initial_acceleration.y,
-        radius, body->particle_rigid_vertices, body->mass_value,
-        body->friction, body->restitution,
-        (unsigned long long)body->collision_category,
-        (unsigned long long)body->responds_to,
-        body->static_body ? "true" : "false",
-        body->kinematic_driven ? "true" : "false",
-        body->gravity_enabled ? "true" : "false",
-        body->collision_enabled ? "true" : "false");
-}
-
-static void catalog_binding_write(FILE *f, const char *field, const char *name,
-        const char *resource, const char *scope) {
-    fprintf(f, "    { EntityResult member = rohr_entity_object_member_by_name_get(%s, ", scope);
-    editor_workspace_c_string_write(f, name);
-    fputs(");\n      if(rohr_error_check(member)) { result = rohr_error_result_error(member.result.error); goto fail; }\n", f);
-    if(resource) {
-        fprintf(f, "      %sIdResult handle = rohr_entity_object_%s_get(member.result.value);\n"
-            "      if(rohr_error_check(handle)) { result = rohr_error_result_error(handle.result.error); goto fail; }\n"
-            "      object->%s = handle.result.value; }\n", !strcmp(resource,"camera") ? "Camera" : "JointAnchor", resource, field);
-    } else fprintf(f, "      object->%s = member.result.value; }\n", field);
-}
-static void catalog_instance_binding_write(FILE *f, const EditorObject *o,
-        const char *variable) {
-    fprintf(f, "EngineResult %s_instance_bind(%s *output, Entity instance) {\n"
-        "    if(output == NULL) return rohr_error_result_error(ERROR_MEMORY_POOL_NULL_POINTER);\n"
-        "    if(!rohr_entity_alive_check(instance)) return rohr_error_result_error(ERROR_ENGINE_ENTITY_NOT_FOUND);\n"
-        "    %s bound = {.source_instance = instance};\n"
-        "    %s *object = &bound;\n"
-        "    EngineResult result = rohr_error_result_value(true);\n",
-        variable, o->name, o->name, o->name);
-    char field[160], scope[160];
-    for(size_t i=0;i<o->rigid_body_count;++i)
-        catalog_binding_write(f,o->rigid_bodies[i].name,o->rigid_bodies[i].name,NULL,"object->source_instance");
-    for(size_t i=0;i<o->soft_body_count;++i) {
-        const EditorSoftBody *b=&o->soft_body_items[i];
-        catalog_binding_write(f,b->name,b->name,NULL,"object->source_instance");
-        snprintf(scope,sizeof(scope),"object->%s",b->name);
-        for(size_t n=0;n<b->node_count;++n) catalog_binding_write(f,b->nodes[n].name,b->nodes[n].name,NULL,scope);
-        for(size_t n=0;n<b->beam_count;++n) catalog_binding_write(f,b->beams[n].name,b->beams[n].name,NULL,scope);
-        for(size_t n=0;n<b->area_count;++n) {
-            snprintf(field,sizeof(field),"%s_areas[%zu]",b->name,n);
-            catalog_binding_write(f,field,b->areas[n].name,NULL,scope);
-        }
-    }
-    for(size_t i=0;i<o->anchor_count;++i) {
-        const EditorAnchor *a=&o->anchors[i];
-        snprintf(field,sizeof(field),"anchor_%s",a->name);
-        catalog_binding_write(f,field,a->name,"anchor","object->source_instance");
-        if(a->attachment_kind==EDITOR_ANCHOR_ATTACHMENT_NONE || !a->position_follows_body) {
-            snprintf(field,sizeof(field),"anchor_%s_owner",a->name);
-            catalog_binding_write(f,field,a->name,NULL,"object->source_instance");
-        }
-    }
-    for(size_t i=0;i<o->joint_count;++i) {
-        snprintf(field,sizeof(field),"joint_%s",o->joint_items[i].name);
-        catalog_binding_write(f,field,o->joint_items[i].name,NULL,"object->source_instance");
-    }
-    for(size_t i=0;i<o->sprite_count;++i) {
-        snprintf(field,sizeof(field),"sprite_%s",o->sprites[i].name);
-        catalog_binding_write(f,field,o->sprites[i].name,NULL,"object->source_instance");
-    }
-    for(size_t i=0;i<o->animated_sprite_count;++i) {
-        const EditorAnimatedSprite *a=&o->animated_sprite_items[i];
-        if(editor_workspace_body_get(o,a->rigid_body)) continue;
-        snprintf(field,sizeof(field),"animation_%s",a->name);
-        catalog_binding_write(f,field,a->name,NULL,"object->source_instance");
-    }
-    for(size_t i=0;i<o->camera_count;++i) {
-        snprintf(field,sizeof(field),"camera_%s",o->cameras[i].name);
-        catalog_binding_write(f,field,o->cameras[i].name,"camera","object->source_instance");
-    }
-    for(size_t i=0;i<o->force_count;++i) if(o->force_items[i].description.mode==OBJECT_SOURCE_PERSISTENT) {
-        snprintf(field,sizeof(field),"force_%s",o->force_items[i].name);
-        catalog_binding_write(f,field,o->force_items[i].name,NULL,"object->source_instance");
-    }
-    for(size_t i=0;i<o->torque_count;++i) if(o->torque_items[i].description.mode==OBJECT_SOURCE_PERSISTENT) {
-        snprintf(field,sizeof(field),"torque_%s",o->torque_items[i].name);
-        catalog_binding_write(f,field,o->torque_items[i].name,NULL,"object->source_instance");
-    }
-    fprintf(f, "    (void)object;\n    if(rohr_error_check(result)) goto fail;\n    *output = bound;\n    return result;\nfail:\n    return result;\n}\n\n");
-}
-
-static void catalog_constructor_write(FILE *f, const EditorObject *o, const char *variable) {
-    fprintf(f, "EngineResult %s_create(%s *object, Position position) {\n"
-        "    if(!object) return rohr_error_result_error(ERROR_MEMORY_POOL_NULL_POINTER);\n"
-        "    *object = (%s){0};\n"
-        "    const ObjectDescription *description = rohr_object_get(objects.%s);\n"
-        "    EntityResult added = rohr_object_create_with_options(*description,\n"
-        "        ((ObjectCreateOptions){.flags=ROHR_ENTITY_OBJECT_ALL,\n"
-        "            .offset={position.x - description->position.x, position.y - description->position.y}}));\n"
-        "    if(rohr_error_check(added)) return rohr_error_result_error(added.result.error);\n"
-        "    object->source_instance = added.result.value;\n"
-        "    EngineResult result = rohr_error_result_value(true);\n", variable,o->name,o->name,variable);
-    fprintf(f, "    result = %s_instance_bind(object, added.result.value);\n"
-        "    if(rohr_error_check(result)) goto fail;\n", variable);
-    fprintf(f,"    return result;\nfail:\n    %s_destroy(object);\n    return result;\n}\n\n"
-        "void %s_draw(const %s *object) {\n    if(object && object->source_instance != ENTITY_INVALID) (void)rohr_entity_object_draw(object->source_instance);\n}\n\n"
-        "void %s_destroy(%s *object) {\n    if(!object) return;\n"
-        "    if(rohr_entity_alive_check(object->source_instance)) (void)rohr_entity_delete(object->source_instance);\n"
-        "    *object = (%s){0};\n}\n\n",variable,variable,o->name,variable,o->name,o->name);
-}
-
-static void editor_workspace_audio_write(FILE *header, FILE *source,
-        const EditorProject *project) {
-    fprintf(header, "/* Recipes only; the game creates, controls, and destroys players. */\n"
-        "typedef struct ProjectAudio {\n");
-    for(int music = 0; music < 2; ++music) {
-        size_t count = 0;
-        fprintf(header, "    struct {\n");
-        for(size_t i = 0; i < project->audio_definition_count; ++i) {
-            const EditorAudioDefinition *a = &project->audio_definitions[i];
-            if(a->music != (bool)music) continue;
-            fprintf(header, "        %sDescription %s;\n", music ? "Music" : "Sound", a->name);
-            ++count;
-        }
-        if(!count) fprintf(header, "        unsigned char unused;\n");
-        fprintf(header, "    } %s;\n", music ? "music" : "sounds");
-    }
-    fprintf(header, "} ProjectAudio;\nextern const ProjectAudio project_audio;\n\n");
-    fprintf(source, "const ProjectAudio project_audio = {\n");
-    for(int music = 0; music < 2; ++music) {
-        size_t count = 0;
-        fprintf(source, "    .%s = {\n", music ? "music" : "sounds");
-        for(size_t i = 0; i < project->audio_definition_count; ++i) {
-            const EditorAudioDefinition *a = &project->audio_definitions[i];
-            if(a->music != (bool)music) continue;
-            fprintf(source, "        .%s = {.path = ", a->name);
-            editor_workspace_c_string_write(source, a->path);
-            fprintf(source, ", .volume = %.9ef, .loop = %s, .playback_rate = %.9ef",
-                a->volume, a->loop ? "true" : "false", a->playback_rate);
-            if(!music) fprintf(source, ", .pan = %.9ef", a->pan);
-            fprintf(source, "},\n");
-            ++count;
-        }
-        if(!count) fprintf(source, "        .unused = 0,\n");
-        fprintf(source, "    },\n");
-    }
-    fprintf(source, "};\n\n");
-}
-
 static bool editor_workspace_generated_objects_write(const EditorWorkspace *workspace,
     const EditorProject *project, bool scene) {
     char header_path[EDITOR_WORKSPACE_PATH_MAX * 2];
     char source_path[EDITOR_WORKSPACE_PATH_MAX * 2];
     FILE *header;
     FILE *source;
-    bool generated_has_input_actions = false;
 
     if(workspace == NULL || project == NULL ||
             !editor_workspace_file_path(workspace, header_path, sizeof(header_path), scene ? "src/generated/scene/project_objects.h" : "src/generated/project_objects.h") ||
             !editor_workspace_file_path(workspace, source_path, sizeof(source_path), scene ? "src/generated/scene/project_objects.c" : "src/generated/project_objects.c")) return false;
-    for(size_t i = 0; i < project->input_controller_count; i += 1)
-        if(project->input_controllers[i].action_count > 0)
-            generated_has_input_actions = true;
     header = fopen(header_path, "wb");
     if(header == NULL) return false;
     source = fopen(source_path, "wb");
@@ -878,191 +661,7 @@ static bool editor_workspace_generated_objects_write(const EditorWorkspace *work
         " * The project's developer may use, modify, and distribute it without restriction.\n"
         " */\n\n"
         "#include \"project.h\"\n\n"
-        "/* Legacy instance wrappers use the shared descriptor creators. */\n");
-    for(size_t object_index = 0; object_index < project->object_count; object_index += 1) {
-        const EditorObject *object = &project->objects[object_index];
-        char function_name[EDITOR_OBJECT_NAME_MAX];
-
-        editor_project_property_name_format(function_name, sizeof(function_name),
-            object->name);
-        for(size_t body_index = 0; body_index < object->rigid_body_count;
-                body_index += 1) {
-            const EditorRigidBody *body = &object->rigid_bodies[body_index];
-            char config_name[EDITOR_OBJECT_NAME_MAX * 2 + 32];
-            if(!body->particle || !body->standalone_particle) continue;
-            editor_workspace_particle_config_name(config_name,
-                sizeof(config_name), function_name, body);
-            fprintf(header, "extern const ParticleDescription %s;\n", config_name);
-            editor_workspace_particle_config_write(source, config_name, body);
-        }
-        fprintf(header, "\n");
-        fprintf(header, "typedef struct %s {\n", object->name);
-        fprintf(header, "    Entity source_instance;\n");
-        if(object->force_count || object->torque_count) {
-            for(size_t s=0;s<object->force_count;++s)
-                if(object->force_items[s].description.mode==OBJECT_SOURCE_PERSISTENT)
-                    fprintf(header,"    Entity force_%s;\n",object->force_items[s].name);
-            for(size_t s=0;s<object->torque_count;++s)
-                if(object->torque_items[s].description.mode==OBJECT_SOURCE_PERSISTENT)
-                    fprintf(header,"    Entity torque_%s;\n",object->torque_items[s].name);
-        }
-        for(size_t body_index = 0; body_index < object->rigid_body_count; body_index += 1) {
-            fprintf(header, "    Entity %s;\n", object->rigid_bodies[body_index].name);
-        }
-        for(size_t anchor_index = 0; anchor_index < object->anchor_count; anchor_index += 1) {
-            const EditorAnchor *anchor = &object->anchors[anchor_index];
-            fprintf(header, "    JointAnchorId anchor_%s;\n", anchor->name);
-            if(anchor->attachment_kind == EDITOR_ANCHOR_ATTACHMENT_NONE ||
-                    !anchor->position_follows_body)
-                fprintf(header, "    Entity anchor_%s_owner;\n", anchor->name);
-        }
-        for(size_t joint_index = 0; joint_index < object->joint_count; joint_index += 1)
-            fprintf(header, "    Entity joint_%s;\n", object->joint_items[joint_index].name);
-        for(size_t soft_body_index = 0; soft_body_index < object->soft_body_count;
-                soft_body_index += 1) {
-            const EditorSoftBody *body = &object->soft_body_items[soft_body_index];
-            fprintf(header, "    Entity %s;\n", body->name);
-            if(body->area_count > 0)
-                fprintf(header, "    Entity %s_areas[%zu];\n", body->name, body->area_count);
-            for(size_t node_index = 0; node_index < body->node_count; node_index += 1)
-                fprintf(header, "    Entity %s;\n", body->nodes[node_index].name);
-            for(size_t beam_index = 0; beam_index < body->beam_count; beam_index += 1)
-                fprintf(header, "    Entity %s;\n", body->beams[beam_index].name);
-        }
-        for(size_t sprite_index = 0; sprite_index < object->sprite_count;
-                sprite_index += 1)
-            fprintf(header, "    Entity sprite_%s;\n",
-                object->sprites[sprite_index].name);
-        for(size_t sprite_index = 0; sprite_index < object->animated_sprite_count;
-                sprite_index += 1)
-            if(editor_workspace_body_get(object,
-                    object->animated_sprite_items[sprite_index].rigid_body) == NULL)
-                fprintf(header, "    Entity animation_%s;\n",
-                    object->animated_sprite_items[sprite_index].name);
-        for(size_t camera_index = 0; camera_index < object->camera_count;
-                camera_index += 1)
-            fprintf(header, "    CameraId camera_%s;\n",
-                object->cameras[camera_index].name);
-        fprintf(header,
-            "} %s;\n\n"
-            "EngineResult %s_create(%s *object, Position position);\n"
-            "void %s_draw(const %s *object);\n"
-            "void %s_destroy(%s *object);\n\n",
-            object->name, function_name, object->name, function_name, object->name,
-            function_name, object->name);
-        fprintf(header, "/* Bind a complete owned instance; failure leaves output unchanged.\n"
-            " * On success, %s_destroy owns its destruction. Do not bind twice. */\n"
-            "EngineResult %s_instance_bind(%s *output, Entity instance);\n\n",
-            function_name, function_name, object->name);
-        catalog_instance_binding_write(source, object, function_name);
-        catalog_constructor_write(source,object,function_name);
-    }
-    fprintf(header, "typedef struct ProjectControllers {\n");
-    for(size_t controller_index = 0;
-            controller_index < project->input_controller_count;
-            controller_index += 1) {
-        const EditorInputController *controller =
-            &project->input_controllers[controller_index];
-        char controller_variable[ROHR_INPUT_NAME_MAX * 2];
-        editor_workspace_input_controller_variable(controller_variable,
-            sizeof(controller_variable), controller);
-        fprintf(header, "    InputControllerId %s;\n", controller_variable);
-        for(size_t action_index = 0; action_index < controller->action_count;
-                action_index += 1) {
-            char action_variable[ROHR_INPUT_NAME_MAX * 3];
-            editor_workspace_input_action_variable(action_variable,
-                sizeof(action_variable), controller,
-                &controller->actions[action_index]);
-            fprintf(header, "    InputActionId %s;\n", action_variable);
-        }
-    }
-    fprintf(header,
-        "    bool created;\n"
-        "} ProjectControllers;\n\n"
-        "EngineResult project_controllers_create(ProjectControllers *controllers);\n"
-        "void project_controllers_destroy(ProjectControllers *controllers);\n\n");
-    fprintf(source,
-        "EngineResult project_controllers_create(ProjectControllers *controllers) {\n");
-    if(project->input_controller_count > 0)
-        fprintf(source, "    InputControllerIdResult controller_result;\n");
-    if(generated_has_input_actions)
-        fprintf(source, "    InputActionIdResult action_result;\n");
-    if(project->input_controller_count > 0)
-        fprintf(source, "    EngineResult result;\n");
-    fprintf(source,
-        "    if(controllers == NULL) return rohr_error_result_error("
-            "ERROR_MEMORY_POOL_NULL_POINTER);\n"
-        "    *controllers = (ProjectControllers){0};\n");
-    for(size_t controller_index = 0;
-            controller_index < project->input_controller_count;
-            controller_index += 1) {
-        const EditorInputController *controller =
-            &project->input_controllers[controller_index];
-        char controller_variable[ROHR_INPUT_NAME_MAX * 2];
-        editor_workspace_input_controller_variable(controller_variable,
-            sizeof(controller_variable), controller);
-        char controller_field[EDITOR_OBJECT_NAME_MAX];
-        editor_project_property_name_format(controller_field, sizeof(controller_field), controller->name);
-        fprintf(source,
-            "    controller_result = rohr_controller_create(project.%s);\n"
-            "    if(rohr_error_check(controller_result)) { result = "
-                "rohr_error_result_error(controller_result.result.error); goto fail; }\n"
-            "    controllers->%s = controller_result.result.value;\n",
-            controller_field, controller_variable);
-        for(size_t action_index = 0; action_index < controller->action_count; ++action_index) {
-            const EditorInputAction *action = &controller->actions[action_index];
-            char action_variable[ROHR_INPUT_NAME_MAX * 3], action_field[EDITOR_OBJECT_NAME_MAX];
-            editor_workspace_input_action_variable(action_variable, sizeof(action_variable), controller, action);
-            editor_project_property_name_format(action_field, sizeof(action_field), action->name);
-            fprintf(source,
-                "    action_result = rohr_input_action_by_name_get(controllers->%s, project.%s.%s.name);\n"
-                "    if(rohr_error_check(action_result)) { result = "
-                    "rohr_error_result_error(action_result.result.error); goto fail; }\n"
-                "    controllers->%s = action_result.result.value;\n",
-                controller_variable, controller_field, action_field, action_variable);
-        }
-    }
-    fprintf(source,
-        "    controllers->created = true;\n"
-        "    return rohr_error_result_value(true);\n");
-    if(project->input_controller_count > 0) fprintf(source,
-        "fail:\n"
-        "    project_controllers_destroy(controllers);\n"
-        "    return result;\n");
-    fprintf(source,
-        "}\n\n"
-        "void project_controllers_destroy(ProjectControllers *controllers) {\n"
-        "    if(controllers == NULL) return;\n");
-    for(size_t controller_index = project->input_controller_count;
-            controller_index > 0; controller_index -= 1) {
-        const EditorInputController *controller =
-            &project->input_controllers[controller_index - 1];
-        char controller_variable[ROHR_INPUT_NAME_MAX * 2];
-        editor_workspace_input_controller_variable(controller_variable,
-            sizeof(controller_variable), controller);
-        fprintf(source,
-            "    if(controllers->%s != INPUT_CONTROLLER_INVALID) "
-                "(void)rohr_input_controller_destroy(controllers->%s);\n",
-            controller_variable, controller_variable);
-    }
-    fprintf(source,
-        "    *controllers = (ProjectControllers){0};\n}\n\n");
-
-    fprintf(header, "typedef struct ProjectObjects {\n");
-    for(size_t object_index = 0; object_index < project->object_count; object_index += 1) {
-        char variable[EDITOR_OBJECT_NAME_MAX];
-        editor_project_property_name_format(variable, sizeof(variable),
-            project->objects[object_index].name);
-        fprintf(header, "    %s %s;\n", project->objects[object_index].name, variable);
-    }
-    fprintf(header,
-        "    ProjectControllers controllers;\n"
-        "    bool created;\n"
-        "} ProjectObjects;\n\n"
-        "EngineResult project_objects_create_all(ProjectObjects *objects);\n"
-        "void project_objects_draw_all(const ProjectObjects *objects);\n"
-        "void project_objects_destroy_all(ProjectObjects *objects);\n\n");
-    editor_workspace_audio_write(header, source, project);
+        "/* Immutable creation recipes and explicit global settings. */\n");
     fprintf(header, "EngineResult project_settings_apply(void);\n\n");
     fprintf(source, "EngineResult project_settings_apply(void) {\n    EngineResult result;\n");
     fprintf(source,
@@ -1095,56 +694,6 @@ static bool editor_workspace_generated_objects_write(const EditorWorkspace *work
     else
         fprintf(source, "    rohr_physics_engine_time_per_tick_use();\n");
     fprintf(source, "    return rohr_error_result_value(true);\nfail:\n    return result;\n}\n\n");
-    fprintf(source,
-        "EngineResult project_objects_create_all(ProjectObjects *instances) {\n"
-        "    EngineResult result;\n"
-        "    if(instances == NULL) return rohr_error_result_error("
-            "ERROR_MEMORY_POOL_NULL_POINTER);\n"
-        "    *instances = (ProjectObjects){0};\n"
-        "    result = project_controllers_create(&instances->controllers);\n"
-        "    if(rohr_error_check(result)) goto fail;\n");
-    fprintf(source, "    result = project_settings_apply();\n"
-        "    if(rohr_error_check(result)) goto fail;\n");
-    for(size_t object_index = 0; object_index < project->object_count; object_index += 1) {
-        const EditorObject *object = &project->objects[object_index];
-        char variable[EDITOR_OBJECT_NAME_MAX];
-        editor_project_property_name_format(variable, sizeof(variable), object->name);
-        fprintf(source,
-            "    { EntityResult added = rohr_object_create(objects.%s);\n"
-            "      if(rohr_error_check(added)) { result = rohr_error_result_error(added.result.error); goto fail; }\n"
-            "      instances->%s.source_instance = added.result.value;\n"
-            "      result = %s_instance_bind(&instances->%s, added.result.value);\n"
-            "      if(rohr_error_check(result)) goto fail; }\n",
-            variable, variable, variable, variable);
-    }
-    fprintf(source,
-        "    instances->created = true;\n"
-        "    return rohr_error_result_value(true);\n"
-        "fail:\n"
-        "    project_objects_destroy_all(instances);\n"
-        "    return result;\n"
-        "}\n\n"
-        "void project_objects_draw_all(const ProjectObjects *objects) {\n"
-        "    if(objects == NULL) return;\n");
-    for(size_t object_index = 0; object_index < project->object_count; object_index += 1) {
-        char variable[EDITOR_OBJECT_NAME_MAX];
-        editor_project_property_name_format(variable, sizeof(variable),
-            project->objects[object_index].name);
-        fprintf(source, "    %s_draw(&objects->%s);\n", variable, variable);
-    }
-    fprintf(source,
-        "}\n\n"
-        "void project_objects_destroy_all(ProjectObjects *objects) {\n"
-        "    if(objects == NULL) return;\n");
-    for(size_t object_index = project->object_count; object_index > 0; object_index -= 1) {
-        char variable[EDITOR_OBJECT_NAME_MAX];
-        editor_project_property_name_format(variable, sizeof(variable),
-            project->objects[object_index - 1].name);
-        fprintf(source, "    %s_destroy(&objects->%s);\n", variable, variable);
-    }
-    fprintf(source,
-        "    project_controllers_destroy(&objects->controllers);\n"
-        "    *objects = (ProjectObjects){0};\n}\n\n");
     bool catalog_written = editor_object_catalog_write(header, source, project);
     char project_header_path[EDITOR_WORKSPACE_PATH_MAX * 2];
     FILE *project_header = NULL;
@@ -1715,14 +1264,20 @@ static bool editor_workspace_legacy_main_upgrade(const EditorWorkspace *workspac
     if(contents == NULL) return false;
     bool legacy_joints = strcmp(contents, editor_starter_main_legacy_joint_source) == 0;
     bool legacy_viewport = !strcmp(contents, editor_starter_main_legacy_viewport_source);
-    legacy = !strcmp(contents, editor_main_m17_previous_example_source) ||
+    legacy = !strcmp(contents, editor_main_m18_previous_example_source) ||
+        !strcmp(contents, editor_main_m18_previous_source) ||
+        !strcmp(contents, editor_main_m17_previous_example_source) ||
         !strcmp(contents, editor_main_m17_previous_source) ||
         !strcmp(contents, editor_main_previous_example_source) ||
         !strcmp(contents, editor_main_previous_source) || legacy_joints || legacy_viewport || !strcmp(contents, editor_workspace_main_legacy_viewport_source) ||
         editor_workspace_tick_main_check(contents);
-    if(!legacy && (strstr(contents, "project_viewports.h") || strstr(contents, "project_viewports_create(")))
-        console_write(LOG_ENGINE, "Preserved developer-owned %s. Generated viewport helpers were removed; "
-            "migrate to project.h, rohr_viewport_create and rohr_graphics_viewports_show.\n", path);
+    if(!legacy && (strstr(contents, "project_viewports.h") || strstr(contents, "project_viewports_create(") ||
+            strstr(contents, "rohr_project_root_get(") || strstr(contents, "rohr_project_viewports_get(") ||
+            strstr(contents, "rohr_object_member_get(") || strstr(contents, "_instance_bind(") || strstr(contents, "ProjectObjects") ||
+            strstr(contents, "ProjectControllers")))
+        console_write(LOG_ENGINE, "Preserved developer-owned %s. Generated runtime access wrappers were removed; "
+            "migrate to project.h, retained typed IDs, runtime-name lookups and caller-owned entity lists. "
+            "See docs/runtime_access_migration.md.\n", path);
     SDL_free(contents);
     return !legacy || editor_workspace_main_write(workspace, project, false);
 }

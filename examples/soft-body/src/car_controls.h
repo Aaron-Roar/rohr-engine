@@ -5,6 +5,13 @@
 #define CAR_CONTROLS_H
 #include "project.h"
 
+/* Game-owned typed handles, independent of the authored creation recipe. */
+typedef struct Car {
+    Entity source_instance;
+    Entity chassis, cabin, rear_hub, rear_disk, front_hub, front_disk;
+    Entity rear_tire, front_tire, torque_rear_drive;
+} Car;
+
 /* A press accepted on the ground may wait for the next physics tick only. */
 typedef struct CarControls {
     bool jump_pending, scripted;

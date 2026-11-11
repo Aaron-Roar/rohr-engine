@@ -5,11 +5,12 @@
 #include "../examples/soft-body/src/main.c"
 #undef main
 #include <assert.h>
+#include "../src/entity/entity_internal.h"
 #include <math.h>
 #include <stdio.h>
 #define OK(c) assert(!rohr_error_check(c))
 static Entity take(EntityResult r) { OK(r);return r.result.value; }
-static Entity member(Entity root,const char *name) { return take(rohr_entity_object_member_by_name_get(root,name)); }
+static Entity member(Entity root,const char *name) { return take(entity_object_member_by_name_get(root,name)); }
 static void collision_disable(Entity root) {
     OK(rohr_entity_components_delete(root,ROHR_COLLISION));
     GroupIdResult id=entity_object_members_get(root);
@@ -79,11 +80,21 @@ static void contact_case(unsigned kind,bool two,bool scripted) {
         OK(rohr_physics_position_set(car.rear_disk,(Position){50,50}));
         car_jump_request(&controls,&car,false);assert(!controls.jump_pending);
     }
-    car_destroy(&car);rohr_engine_stop();
+    OK(rohr_entity_delete(car.source_instance));rohr_engine_stop();
 }
 static void catalog_parity(void) {
     OK(rohr_engine_start());
-    Car generated={0};OK(car_create(&generated,(Position){0}));
+    Car generated={0};    generated.source_instance = take(rohr_object_create(project.car));
+    const char *car_names[] = {"chassis", "cabin", "rear_hub", "rear_disk", "front_hub",
+        "front_disk", "rear_tire", "front_tire", "rear_drive"};
+    Entity *car_ids[] = {&generated.chassis, &generated.cabin, &generated.rear_hub, &generated.rear_disk, &generated.front_hub,
+        &generated.front_disk, &generated.rear_tire, &generated.front_tire, &generated.torque_rear_drive};
+    for(size_t i = 0; i < sizeof(car_ids) / sizeof(car_ids[0]); ++i) {
+        EntityResult named = rohr_entity_by_name_get(car_names[i]);
+        if(rohr_error_check(named)) { fprintf(stderr, "%s\n", rohr_error_message_get(named)); assert(false); }
+        *car_ids[i] = named.result.value;
+    }
+
     /* The bundled fixture retains its old allowed/excluded pairs explicitly.
      * Hubs formerly shared the chassis category but accepted only particles. */
     Entity floor=wall_create((Position){0,-1000},(Vec2D){100,1});
@@ -92,7 +103,7 @@ static void catalog_parity(void) {
     particle_config.collision_filter=(CollisionFilterDescription){32,UINT64_MAX};
     Entity particle=take(rohr_physics_particle_add(particle_config));
     Entity profiles[]={generated.chassis,generated.rear_hub,generated.rear_disk,
-        generated.rear_node_1,floor,particle};
+        rohr_entity_by_name_get("rear_node_1").result.value,floor,particle};
     const CollisionFilterDescription old[]={
         {16,50},{16,32},{8,38},{4,42},{2,UINT64_MAX},{32,UINT64_MAX}};
     for(size_t i=0;i<6;++i) for(size_t j=0;j<6;++j) {
@@ -136,7 +147,7 @@ static void catalog_parity(void) {
     Entity initial=member(generated.source_instance,"initial_load");
     Entity transferred=generated.torque_rear_drive;
     OK(rohr_entity_owner_set(transferred,other));
-    car_destroy(&generated);assert(!rohr_entity_alive_check(initial));
+    OK(rohr_entity_delete(generated.source_instance));assert(!rohr_entity_alive_check(initial));
     assert(rohr_entity_alive_check(other_torque) && rohr_entity_alive_check(transferred));
     OK(rohr_entity_delete(runtime));OK(rohr_entity_delete(other));
     OK(rohr_object_destroy(loaded.result.value));assert(entity_alive_count_get()==0);
@@ -144,7 +155,17 @@ static void catalog_parity(void) {
 }
 static void starting_platform(void) {
     OK(rohr_engine_start());OK(rohr_physics_substeps_set(4));
-    Car car={0};CarControls controls={0};OK(car_create(&car,(Position){0}));
+    Car car={0};CarControls controls={0};    car.source_instance = take(rohr_object_create(project.car));
+    const char *car_names[] = {"chassis", "cabin", "rear_hub", "rear_disk", "front_hub",
+        "front_disk", "rear_tire", "front_tire", "rear_drive"};
+    Entity *car_ids[] = {&car.chassis, &car.cabin, &car.rear_hub, &car.rear_disk, &car.front_hub,
+        &car.front_disk, &car.rear_tire, &car.front_tire, &car.torque_rear_drive};
+    for(size_t i = 0; i < sizeof(car_ids) / sizeof(car_ids[0]); ++i) {
+        EntityResult named = rohr_entity_by_name_get(car_names[i]);
+        if(rohr_error_check(named)) { fprintf(stderr, "%s\n", rohr_error_message_get(named)); assert(false); }
+        *car_ids[i] = named.result.value;
+    }
+
     Entity platform=wall_create(level_wall_positions[0],level_wall_dimensions[0]);
     assert(platform && rohr_entity_components_check(platform,ROHR_COLLISION));
     bool grounded=false;
@@ -158,7 +179,7 @@ static void starting_platform(void) {
     assert(rohr_physics_dt_update(physics_tick_time).header.status!=ROHR_REPORT_FAILED);
     EntityIndexResult index=rohr_entity_index_get(car.chassis);OK(index);
     assert(velocities[index.result.value].y>0);
-    car_destroy(&car);OK(rohr_entity_delete(platform));rohr_engine_stop();
+    OK(rohr_entity_delete(car.source_instance));OK(rohr_entity_delete(platform));rohr_engine_stop();
 }
 int main(void) {
     starting_platform();catalog_parity();contact_case(0,true,false);contact_case(0,false,false);

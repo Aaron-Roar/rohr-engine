@@ -1,6 +1,7 @@
 /* Copyright 2026 Aaron Rohrer
  * SPDX-License-Identifier: LGPL-3.0-only
  */
+#include "runtime_fixture.h"
 #include "editor_navigation.h"
 #include <editor_soft_area.h>
 #include "editors/render/editor_camera.h"
@@ -31,10 +32,10 @@ static void runtime_check(EditorProject *p, bool draws) {
     assert(object->children[0]->visible == !p->objects[0].rigid_bodies[0].app_hidden);
     EntityResult instance=rohr_entity_object_description_add(object,(ObjectSpawnDescription){.flags=ROHR_ENTITY_OBJECT_ALL});
     assert(!rohr_error_check(instance));
-    EntityResult body=rohr_entity_object_member_by_name_get(instance.result.value,"body");
+    EntityResult body=fixture_entity_get(instance.result.value,"body");
     assert(!rohr_error_check(body));
     assert(rohr_entity_components_check(body.result.value,ROHR_MASS));
-    EntityResult camera_entity=rohr_entity_object_member_by_name_get(instance.result.value,"camera");
+    EntityResult camera_entity=fixture_entity_get(instance.result.value,"camera");
     assert(!rohr_error_check(camera_entity));
     CameraIdResult camera=rohr_entity_object_camera_get(camera_entity.result.value);
     assert(!rohr_error_check(camera));
@@ -194,11 +195,11 @@ static void source_runtime_check(void) {
     ObjectDescriptionResult d=object_description_project_read(&p,""); assert(!rohr_error_check(d));
     EntityResult root=rohr_entity_object_description_add(d.result.value->children[0],
         (ObjectSpawnDescription){.flags=ROHR_ENTITY_OBJECT_ALL}); assert(!rohr_error_check(root));
-    Entity body=rohr_entity_object_member_by_name_get(root.result.value,"target").result.value;
+    Entity body=fixture_entity_get(root.result.value,"target").result.value;
     const char *names[]={"force","torque","joint"}; Entity entities[3];
     uint64_t total=0;
     for(size_t i=0;i<3;++i) {
-        EntityResult e=rohr_entity_object_member_by_name_get(root.result.value,names[i]); assert(!rohr_error_check(e));
+        EntityResult e=fixture_entity_get(root.result.value,names[i]); assert(!rohr_error_check(e));
         entities[i]=e.result.value;
         ObjectAppearance appearance; assert(object_instance_appearance_get(e.result.value,&appearance));
         assert(appearance.enabled && appearance.visible && appearance.color.alpha);
@@ -225,7 +226,7 @@ static void source_runtime_check(void) {
     assert(!rohr_error_check(rohr_entity_delete(root.result.value)));
     assert(!rohr_error_check(rohr_game_state_file_load("/tmp/rohr_source_visibility_runtime.json")));
     root=rohr_entity_by_name_get(root_name.result.value.value); assert(!rohr_error_check(root));
-    for(size_t i=0;i<3;++i) entities[i]=rohr_entity_object_member_by_name_get(root.result.value,names[i]).result.value;
+    for(size_t i=0;i<3;++i) entities[i]=fixture_entity_get(root.result.value,names[i]).result.value;
     assert(drawn(root.result.value)==0 && drawn(entities[0])>0 && drawn(entities[1])>0);
     ObjectAppearance restored; assert(object_instance_appearance_get(entities[0],&restored));
     assert(restored.visuals.main.scale.x==2 && restored.visuals.main.offset.y==9);
