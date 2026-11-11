@@ -27,7 +27,9 @@ static void creation_and_copy(void) {
     unsigned calls=0;
     InputControllerIdResult result=controller_create((&description)[calls++]); OK(result); assert(calls==1);
     InputControllerId first=result.result.value; InputActionId toggle=action(first,"toggle");
-    BAD(rohr_controller_create(description)); /* Duplicate names preserve the survivor. */
+    InputControllerId duplicate=create(description);
+    assert(!strcmp(rohr_input_controller_name_get(duplicate).result.value.value,"player_1"));
+    OK(rohr_input_controller_destroy(duplicate));
     strcpy(description.controller.name,"second"); InputControllerId second=create(description);
     OK(rohr_input_action_button_state_set(toggle,false));
     assert(rohr_input_action_button_down_check(action(second,"toggle")));

@@ -17,6 +17,7 @@
 #include "graphics/triangle_draw.h"
 #include "physics/collision/shape_decomposition.h"
 #include "core/engine_internal.h"
+#include "core/runtime_name.h"
 #include "console.h"
 #include "engine.h"
 #include "systems.h"
@@ -362,6 +363,7 @@ typedef struct GraphicsUiElement {
 } GraphicsUiElement;
 
 typedef struct GraphicsViewport {
+    ViewportName name;
     ViewportRectangle rectangle;
     ScreenFit fit;
     Color background_color;
@@ -2051,15 +2053,38 @@ ViewportDescriptionResult graphics_viewport_description_get(ViewportId id) {
     size_t slot;
     if(!graphics_viewport_slot(id, &slot))
         return ERROR_RESULT_MAKE_ERROR(ViewportDescriptionResult, ERROR_ENGINE_COMPONENT_MISSING);
-    return ERROR_RESULT_MAKE_VALUE(ViewportDescriptionResult,
-        ((ViewportDescription){.rectangle = viewports[slot].rectangle, .fit = viewports[slot].fit,
-            .background_color = viewports[slot].background_color, .enabled = viewports[slot].enabled}));
+    ViewportDescription description = {.rectangle = viewports[slot].rectangle, .fit = viewports[slot].fit,
+        .background_color = viewports[slot].background_color, .enabled = viewports[slot].enabled};
+    memcpy(description.name, viewports[slot].name.value, sizeof(description.name));
+    return ERROR_RESULT_MAKE_VALUE(ViewportDescriptionResult, description);
+}
+
+ViewportIdResult graphics_viewport_by_name_get(const char *name) {
+    if(!name || !name[0] || !memchr(name, '\0', ENTITY_NAME_MAX))
+        return ERROR_RESULT_MAKE_ERROR(ViewportIdResult, ERROR_ENGINE_STATE_INVALID);
+    for(size_t i = 0; i < MAX_VIEWPORTS; ++i)
+        if(viewports_used[i] && !strcmp(viewports[i].name.value, name))
+            return ERROR_RESULT_MAKE_VALUE(ViewportIdResult, graphics_resource_id(viewport_generations[i], i));
+    return ERROR_RESULT_MAKE_ERROR(ViewportIdResult, ERROR_ENGINE_STATE_REFERENCE_NOT_FOUND);
+}
+
+ViewportNameResult graphics_viewport_name_get(ViewportId id) {
+    size_t slot;
+    if(!graphics_viewport_slot(id, &slot))
+        return ERROR_RESULT_MAKE_ERROR(ViewportNameResult, ERROR_ENGINE_COMPONENT_MISSING);
+    return ERROR_RESULT_MAKE_VALUE(ViewportNameResult, viewports[slot].name);
 }
 
 EngineResult graphics_viewport_description_set(ViewportId id, ViewportDescription description) {
     size_t slot;
     if(!graphics_viewport_slot(id, &slot)) return error_result_error(ERROR_ENGINE_COMPONENT_MISSING);
     if(!graphics_viewport_description_prepare(&description)) return error_result_error(ERROR_ENGINE_STATE_INVALID);
+    if(!memchr(description.name, '\0', sizeof(description.name))) return error_result_error(ERROR_ENGINE_STATE_INVALID);
+    if(description.name[0]) {
+        ViewportIdResult existing = graphics_viewport_by_name_get(description.name);
+        if(!error_check(existing) && existing.result.value != id) return error_result_error(ERROR_ENGINE_STATE_INVALID);
+        memcpy(viewports[slot].name.value, description.name, sizeof(description.name));
+    }
     viewports[slot].rectangle = description.rectangle;
     viewports[slot].fit = description.fit;
     viewports[slot].background_color = description.background_color;
@@ -2074,12 +2099,19 @@ ViewportIdResult (graphics_viewport_create)(ViewportDescription config) {
     size_t slot;
     if(!graphics_viewport_description_prepare(&config))
         return ERROR_RESULT_MAKE_ERROR(ViewportIdResult, ERROR_ENGINE_STATE_INVALID);
+    ViewportName name = {0};
+    for(uint32_t suffix = 0; suffix <= MAX_VIEWPORTS; ++suffix) {
+        if(!runtime_name_candidate_get(name.value, sizeof(name.value), config.name[0] ? config.name : "viewport", suffix))
+            return ERROR_RESULT_MAKE_ERROR(ViewportIdResult, ERROR_ENGINE_STATE_INVALID);
+        if(error_check(graphics_viewport_by_name_get(name.value))) break;
+    }
     for(slot = 0; slot < MAX_VIEWPORTS; slot += 1) {
-        if(viewports_used[slot]) continue;
+        if(viewports_used[slot] || viewport_generations[slot] >= (UINT32_MAX >> 8)) continue;
         viewport_generations[slot] += 1;
         if(viewport_generations[slot] == 0) viewport_generations[slot] = 1;
         viewports_used[slot] = true;
         viewports[slot] = (GraphicsViewport){
+            .name = name,
             .rectangle = config.rectangle,
             .fit = config.fit,
             .background_color = config.background_color,

@@ -97,30 +97,6 @@ static bool camera_member_check(const ObjectDescription *object, const ObjectDes
     }
     return false;
 }
-static EntityResult member_resolve(Entity instance, const ObjectDescription *object,
-        const ObjectDescription *member) {
-    const ObjectDescription *path[OBJECT_DEPTH_MAX];
-    size_t count = 0;
-    const ObjectDescription *step = member;
-    if(!object_instance_description_check(instance, object)) goto invalid;
-    while(step && step != object && count < OBJECT_DEPTH_MAX) {
-        if(!name_check(step->name)) goto invalid;
-        path[count++] = step;
-        step = step->parent;
-    }
-    if(step != object) goto invalid;
-    while(count) {
-        step = path[--count];
-        EntityResult found = object_member_get(instance, step->name);
-        if(error_check(found)) return found;
-        instance = found.result.value;
-        if(!object_instance_description_check(instance, step)) goto invalid;
-    }
-    return ERROR_RESULT_MAKE_VALUE(EntityResult, instance);
-invalid:
-    return ERROR_RESULT_MAKE_ERROR(EntityResult, ERROR_ENGINE_STATE_REFERENCE_NOT_FOUND);
-}
-
 /* Standalone resource recipes never resolve or create entity owners. Placement
  * is applied by mounting; immutable recipes cannot contain live resource handles. */
 static bool item_recipe_check(const ViewportCreateItemDescription *d) {
@@ -241,7 +217,7 @@ ViewportIdResult rohr_internal_viewport_recipe_create(const ViewportCreateDescri
             entity = override->entity;
             screens[i].camera = override->camera;
         } else if(item->camera_member && object) {
-            EntityResult member = member_resolve(object->instance, item->camera_object, item->camera_member);
+            EntityResult member = object_instance_member_description_get(object->instance, item->camera_object, item->camera_member);
             if(error_check(member)) { failure = member.result.error; goto invalid; }
             entity = member.result.value;
         }

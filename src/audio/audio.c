@@ -7,6 +7,7 @@
 #include "scene/scene_runtime.h"
 #include "core/report_internal.h"
 #include "graphics/asset_path.h"
+#include "core/runtime_name.h"
 
 #include <SDL3/SDL.h>
 #include <SDL3/SDL_main.h>
@@ -79,8 +80,11 @@ static bool audio_scene_paused;
 static AudioSound audio_sounds[ROHR_AUDIO_SOUND_LIMIT];
 static AudioSoundResource audio_sound_resources[AUDIO_SOUND_RESOURCE_LIMIT];
 static uint16_t audio_sound_generations[ROHR_AUDIO_SOUND_LIMIT];
+/* Names are application-owned metadata, independent of callback source replacement. */
+static SoundName audio_sound_names[ROHR_AUDIO_SOUND_LIMIT];
 static AudioMusic audio_music[ROHR_AUDIO_MUSIC_LIMIT];
 static uint16_t audio_music_generations[ROHR_AUDIO_MUSIC_LIMIT];
+static MusicName audio_music_names[ROHR_AUDIO_MUSIC_LIMIT];
 static Music audio_active_music = MUSIC_INVALID;
 static float audio_master_volume = 1.0f;
 static bool audio_started = false;
@@ -356,7 +360,7 @@ static void audio_sound_resource_destroy(AudioSoundResource *resource) {
 static size_t audio_sound_free_slot_get(void) {
     size_t slot;
     for(slot = 0; slot < ROHR_AUDIO_SOUND_LIMIT; slot += 1)
-        if(!audio_sounds[slot].used) break;
+        if(!audio_sounds[slot].used && audio_sound_generations[slot] < UINT16_MAX) break;
     return slot;
 }
 
@@ -401,6 +405,115 @@ static bool audio_lock(void) {
 
 static void audio_unlock(void) {
     if(audio_stream != NULL) (void)SDL_UnlockAudioStream(audio_stream);
+}
+
+
+static EngineResult audio_sound_name_prepare(const char *base, SoundName *name) {
+    if(!audio_lock()) return error_result_error(ERROR_ENGINE_AUDIO_OPERATION_FAILED);
+    EngineError error = ERROR_ENGINE_AUDIO_SOUND_CAPACITY_EXCEEDED;
+    for(uint32_t suffix = 0; suffix <= ROHR_AUDIO_SOUND_LIMIT; ++suffix) {
+        if(!runtime_name_candidate_get(name->value, sizeof(name->value), base[0] ? base : "sound", suffix)) {
+            error = ERROR_ENGINE_AUDIO_SOUND_CONFIG_INVALID;
+            break;
+        }
+        bool occupied = false;
+        for(size_t i = 0; i < ROHR_AUDIO_SOUND_LIMIT; ++i)
+            if(audio_sounds[i].used && !strcmp(audio_sound_names[i].value, name->value)) occupied = true;
+        if(!occupied) { error = ERROR_NONE; break; }
+    }
+    audio_unlock();
+    return error == ERROR_NONE ? error_result_value(true) : error_result_error(error);
+}
+
+SoundResult audio_sound_by_name_get(const char *name) {
+    if(!name || !name[0] || !memchr(name, '\0', ROHR_AUDIO_NAME_MAX))
+        return ERROR_RESULT_MAKE_ERROR(SoundResult, ERROR_ENGINE_AUDIO_SOUND_CONFIG_INVALID);
+    if(!audio_gate_lock()) return ERROR_RESULT_MAKE_ERROR(SoundResult, ERROR_ENGINE_AUDIO_OPERATION_FAILED);
+    SoundResult result = ERROR_RESULT_MAKE_ERROR(SoundResult, ERROR_ENGINE_AUDIO_NOT_STARTED);
+    if(audio_started) {
+        result = ERROR_RESULT_MAKE_ERROR(SoundResult, ERROR_ENGINE_AUDIO_OPERATION_FAILED);
+        if(audio_lock()) {
+            result = ERROR_RESULT_MAKE_ERROR(SoundResult, ERROR_ENGINE_AUDIO_SOUND_NOT_FOUND);
+            for(size_t i = 0; i < ROHR_AUDIO_SOUND_LIMIT; ++i)
+                if(audio_sounds[i].used && !strcmp(audio_sound_names[i].value, name)) {
+                    result = ERROR_RESULT_MAKE_VALUE(SoundResult, audio_sounds[i].id);
+                    break;
+                }
+            audio_unlock();
+        }
+    }
+    audio_gate_unlock();
+    return result;
+}
+
+SoundNameResult audio_sound_name_get(Sound id) {
+    if(!audio_gate_lock()) return ERROR_RESULT_MAKE_ERROR(SoundNameResult, ERROR_ENGINE_AUDIO_OPERATION_FAILED);
+    SoundNameResult result = ERROR_RESULT_MAKE_ERROR(SoundNameResult, ERROR_ENGINE_AUDIO_NOT_STARTED);
+    if(audio_started) {
+        result = ERROR_RESULT_MAKE_ERROR(SoundNameResult, ERROR_ENGINE_AUDIO_OPERATION_FAILED);
+        if(audio_lock()) {
+            AudioSound *value = audio_sound_get(id);
+            result = value ? ERROR_RESULT_MAKE_VALUE(SoundNameResult, audio_sound_names[(id & AUDIO_HANDLE_SLOT_MASK) - 1]) :
+                ERROR_RESULT_MAKE_ERROR(SoundNameResult, ERROR_ENGINE_AUDIO_SOUND_NOT_FOUND);
+            audio_unlock();
+        }
+    }
+    audio_gate_unlock();
+    return result;
+}
+
+static EngineResult audio_music_name_prepare(const char *base, MusicName *name) {
+    if(!audio_lock()) return error_result_error(ERROR_ENGINE_AUDIO_OPERATION_FAILED);
+    EngineError error = ERROR_ENGINE_AUDIO_MUSIC_CAPACITY_EXCEEDED;
+    for(uint32_t suffix = 0; suffix <= ROHR_AUDIO_MUSIC_LIMIT; ++suffix) {
+        if(!runtime_name_candidate_get(name->value, sizeof(name->value), base[0] ? base : "music", suffix)) {
+            error = ERROR_ENGINE_AUDIO_MUSIC_CONFIG_INVALID;
+            break;
+        }
+        bool occupied = false;
+        for(size_t i = 0; i < ROHR_AUDIO_MUSIC_LIMIT; ++i)
+            if(audio_music[i].used && !strcmp(audio_music_names[i].value, name->value)) occupied = true;
+        if(!occupied) { error = ERROR_NONE; break; }
+    }
+    audio_unlock();
+    return error == ERROR_NONE ? error_result_value(true) : error_result_error(error);
+}
+
+MusicResult audio_music_by_name_get(const char *name) {
+    if(!name || !name[0] || !memchr(name, '\0', ROHR_AUDIO_NAME_MAX))
+        return ERROR_RESULT_MAKE_ERROR(MusicResult, ERROR_ENGINE_AUDIO_MUSIC_CONFIG_INVALID);
+    if(!audio_gate_lock()) return ERROR_RESULT_MAKE_ERROR(MusicResult, ERROR_ENGINE_AUDIO_OPERATION_FAILED);
+    MusicResult result = ERROR_RESULT_MAKE_ERROR(MusicResult, ERROR_ENGINE_AUDIO_NOT_STARTED);
+    if(audio_started) {
+        result = ERROR_RESULT_MAKE_ERROR(MusicResult, ERROR_ENGINE_AUDIO_OPERATION_FAILED);
+        if(audio_lock()) {
+            result = ERROR_RESULT_MAKE_ERROR(MusicResult, ERROR_ENGINE_AUDIO_MUSIC_NOT_FOUND);
+            for(size_t i = 0; i < ROHR_AUDIO_MUSIC_LIMIT; ++i)
+                if(audio_music[i].used && !strcmp(audio_music_names[i].value, name)) {
+                    result = ERROR_RESULT_MAKE_VALUE(MusicResult, audio_music[i].id);
+                    break;
+                }
+            audio_unlock();
+        }
+    }
+    audio_gate_unlock();
+    return result;
+}
+
+MusicNameResult audio_music_name_get(Music id) {
+    if(!audio_gate_lock()) return ERROR_RESULT_MAKE_ERROR(MusicNameResult, ERROR_ENGINE_AUDIO_OPERATION_FAILED);
+    MusicNameResult result = ERROR_RESULT_MAKE_ERROR(MusicNameResult, ERROR_ENGINE_AUDIO_NOT_STARTED);
+    if(audio_started) {
+        result = ERROR_RESULT_MAKE_ERROR(MusicNameResult, ERROR_ENGINE_AUDIO_OPERATION_FAILED);
+        if(audio_lock()) {
+            AudioMusic *value = audio_music_get(id);
+            result = value ? ERROR_RESULT_MAKE_VALUE(MusicNameResult, audio_music_names[(id & AUDIO_HANDLE_SLOT_MASK) - 1]) :
+                ERROR_RESULT_MAKE_ERROR(MusicNameResult, ERROR_ENGINE_AUDIO_MUSIC_NOT_FOUND);
+            audio_unlock();
+        }
+    }
+    audio_gate_unlock();
+    return result;
 }
 
 static void audio_sound_cursor_resolve(AudioSound *sound) {
@@ -1032,6 +1145,9 @@ static EngineResult audio_sound_resource_acquire(char *path, AudioSoundResource 
 
 static SoundResult audio_sound_create_impl(SoundDescription config) {
     if(!audio_started) return ERROR_RESULT_MAKE_ERROR(SoundResult, ERROR_ENGINE_AUDIO_NOT_STARTED);
+    SoundName name = {0};
+    EngineResult named = audio_sound_name_prepare(config.name, &name);
+    if(error_check(named)) return ERROR_RESULT_MAKE_ERROR(SoundResult, named.result.error);
     if(config.path == NULL || config.path[0] == '\0')
         return ERROR_RESULT_MAKE_ERROR(SoundResult, ERROR_ENGINE_AUDIO_SOUND_CONFIG_INVALID);
     size_t slot = audio_sound_free_slot_get(); /* Only application calls alter player slots. */
@@ -1048,6 +1164,7 @@ static SoundResult audio_sound_create_impl(SoundDescription config) {
         return ERROR_RESULT_MAKE_ERROR(SoundResult, ERROR_ENGINE_AUDIO_OPERATION_FAILED);
     }
     Sound sound = audio_sound_publish(slot, resource, config);
+    audio_sound_names[slot] = name;
     audio_unlock();
     return ERROR_RESULT_MAKE_VALUE(SoundResult, sound);
 }
@@ -1217,12 +1334,15 @@ static EngineResult audio_music_prepare(char *path, AudioMusic *out) {
 
 static MusicResult audio_music_create_impl(MusicDescription config) {
     if(!audio_started) return ERROR_RESULT_MAKE_ERROR(MusicResult, ERROR_ENGINE_AUDIO_NOT_STARTED);
+    MusicName name = {0};
+    EngineResult named = audio_music_name_prepare(config.name, &name);
+    if(error_check(named)) return ERROR_RESULT_MAKE_ERROR(MusicResult, named.result.error);
     if(config.path == NULL || config.path[0] == '\0')
         return ERROR_RESULT_MAKE_ERROR(MusicResult, ERROR_ENGINE_AUDIO_MUSIC_CONFIG_INVALID);
     if(!audio_lock()) return ERROR_RESULT_MAKE_ERROR(MusicResult, ERROR_ENGINE_AUDIO_OPERATION_FAILED);
     size_t slot;
     for(slot = 0; slot < ROHR_AUDIO_MUSIC_LIMIT; slot += 1)
-        if(!audio_music[slot].used) break;
+        if(!audio_music[slot].used && audio_music_generations[slot] < UINT16_MAX) break;
     audio_unlock();
     if(slot == ROHR_AUDIO_MUSIC_LIMIT)
         return ERROR_RESULT_MAKE_ERROR(MusicResult, ERROR_ENGINE_AUDIO_MUSIC_CAPACITY_EXCEEDED);
@@ -1243,6 +1363,7 @@ static MusicResult audio_music_create_impl(MusicDescription config) {
     prepared.playback_rate = audio_playback_rate_value_get(config.playback_rate);
     prepared.loop = config.loop;
     audio_music[slot] = prepared;
+    audio_music_names[slot] = name;
     audio_unlock();
     return ERROR_RESULT_MAKE_VALUE(MusicResult, prepared.id);
 }
@@ -1438,6 +1559,15 @@ static EngineResult audio_description_enqueue(AudioCommandKind kind, uint32_t ha
 
 static EngineResult audio_sound_description_set_impl(Sound sound, SoundDescription description) {
     if(!audio_started) return error_result_error(ERROR_ENGINE_AUDIO_NOT_STARTED);
+    if(!memchr(description.name, '\0', sizeof(description.name)))
+        return error_result_error(ERROR_ENGINE_AUDIO_SOUND_CONFIG_INVALID);
+    if(!audio_lock()) return error_result_error(ERROR_ENGINE_AUDIO_OPERATION_FAILED);
+    AudioSound *named = audio_sound_get(sound);
+    EngineError name_error = !named ? ERROR_ENGINE_AUDIO_SOUND_NOT_FOUND :
+        description.name[0] && strcmp(description.name, audio_sound_names[(sound & AUDIO_HANDLE_SLOT_MASK) - 1].value) ?
+        ERROR_ENGINE_AUDIO_SOUND_CONFIG_INVALID : ERROR_NONE;
+    audio_unlock();
+    if(name_error != ERROR_NONE) return error_result_error(name_error);
     if(description.path == NULL || description.path[0] == '\0')
         return error_result_error(ERROR_ENGINE_AUDIO_SOUND_CONFIG_INVALID);
     char *path = graphics_asset_path_resolve(description.path);
@@ -1454,6 +1584,15 @@ static EngineResult audio_sound_description_set_impl(Sound sound, SoundDescripti
 
 static EngineResult audio_music_description_set_impl(Music music, MusicDescription description) {
     if(!audio_started) return error_result_error(ERROR_ENGINE_AUDIO_NOT_STARTED);
+    if(!memchr(description.name, '\0', sizeof(description.name)))
+        return error_result_error(ERROR_ENGINE_AUDIO_MUSIC_CONFIG_INVALID);
+    if(!audio_lock()) return error_result_error(ERROR_ENGINE_AUDIO_OPERATION_FAILED);
+    AudioMusic *named = audio_music_get(music);
+    EngineError name_error = !named ? ERROR_ENGINE_AUDIO_MUSIC_NOT_FOUND :
+        description.name[0] && strcmp(description.name, audio_music_names[(music & AUDIO_HANDLE_SLOT_MASK) - 1].value) ?
+        ERROR_ENGINE_AUDIO_MUSIC_CONFIG_INVALID : ERROR_NONE;
+    audio_unlock();
+    if(name_error != ERROR_NONE) return error_result_error(name_error);
     if(description.path == NULL || description.path[0] == '\0')
         return error_result_error(ERROR_ENGINE_AUDIO_MUSIC_CONFIG_INVALID);
     char *path = graphics_asset_path_resolve(description.path);
@@ -1480,6 +1619,8 @@ static SoundDescriptionResult audio_sound_description_get_impl(Sound sound) {
         ERROR_RESULT_MAKE_VALUE(SoundDescriptionResult, ((SoundDescription){
             .path = value->resource->path, .volume = value->volume, .pan = value->pan,
             .loop = value->loop, .playback_rate = value->playback_rate}));
+    if(value) memcpy(result.result.value.name, audio_sound_names[(sound & AUDIO_HANDLE_SLOT_MASK) - 1].value,
+        sizeof(result.result.value.name));
     audio_unlock();
     return result;
 }
@@ -1493,6 +1634,8 @@ static MusicDescriptionResult audio_music_description_get_impl(Music music) {
         ERROR_RESULT_MAKE_VALUE(MusicDescriptionResult, ((MusicDescription){
             .path = value->path, .volume = value->volume, .loop = value->loop,
             .playback_rate = value->playback_rate}));
+    if(value) memcpy(result.result.value.name, audio_music_names[(music & AUDIO_HANDLE_SLOT_MASK) - 1].value,
+        sizeof(result.result.value.name));
     audio_unlock();
     return result;
 }

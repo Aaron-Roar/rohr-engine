@@ -9,6 +9,7 @@
 #include <stdlib.h>
 #include <string.h>
 #ifdef ROHR_TEST_PROJECT_INTERNAL
+#include "entity/entity_internal.h"
 #include "audio/audio_internal.h"
 #include "graphics/texture_assets.h"
 #include "graphics/text_assets.h"
@@ -100,9 +101,9 @@ static void fixture_init(Fixture *f) {
     f->controller=(ProjectControllerDescription){.controller={.name="player",.enabled=true},
         .actions=f->actions,.action_count=2};
     f->project.controllers=&f->controller; f->project.controller_count=1;
-    f->sounds[0]=(ProjectSoundDescription){f->sound_name,{AUDIO_TEST_PATH,.3f,-.25f,true,1.2f}};
-    f->sounds[1]=(ProjectSoundDescription){"land",{AUDIO_TEST_PATH,.6f,.5f,false,.8f}};
-    f->music=(ProjectMusicDescription){f->music_name,{AUDIO_TEST_MUSIC_PATH,.4f,true,.9f}};
+    f->sounds[0]=(ProjectSoundDescription){f->sound_name,{.path=AUDIO_TEST_PATH,.volume=.3f,.pan=-.25f,.loop=true,.playback_rate=1.2f}};
+    f->sounds[1]=(ProjectSoundDescription){"land",{.path=AUDIO_TEST_PATH,.volume=.6f,.pan=.5f,.loop=false,.playback_rate=.8f}};
+    f->music=(ProjectMusicDescription){f->music_name,{.path=AUDIO_TEST_MUSIC_PATH,.volume=.4f,.loop=true,.playback_rate=.9f}};
     f->project.sounds=f->sounds; f->project.sound_count=2;
     f->project.music=&f->music; f->project.music_count=1;
 }
@@ -374,6 +375,75 @@ static void prerequisites(void) {
     OK(rohr_graphics_start()); BAD(rohr_project_create(f.project));
     assert(rohr_entity_alive_count_get()==0); OK(rohr_audio_start());
 }
+static void runtime_names_and_reuse(void) {
+    Fixture f; fixture_init(&f);
+    ProjectId first = create(&f), second = create(&f);
+    Entity old_root = root(first), old_body = body(first);
+    ViewportId old_viewport = viewport(first);
+    InputControllerId old_controller = controller(first);
+    Sound old_sound = sound(first); Music old_music = music(first);
+    assert(!strcmp(rohr_entity_name_get(old_root).result.value.value, "project"));
+    assert(!strcmp(rohr_entity_name_get(old_body).result.value.value, "body"));
+    assert(rohr_entity_by_name_get("body_1").result.value == body(second));
+    assert(rohr_viewport_by_name_get("play").result.value == old_viewport);
+    assert(rohr_viewport_by_name_get("play_1").result.value == viewport(second));
+    assert(rohr_input_controller_by_name_get("player").result.value == old_controller);
+    assert(rohr_input_controller_by_name_get("player_1").result.value == controller(second));
+    assert(rohr_audio_sound_by_name_get("jump").result.value == old_sound);
+    assert(rohr_audio_sound_by_name_get("jump_1").result.value == sound(second));
+    assert(rohr_audio_music_by_name_get("theme").result.value == old_music);
+    assert(rohr_audio_music_by_name_get("theme_1").result.value == music(second));
+    wiring(first); wiring(second);
+
+    Entity right = member(root(second), "right"), camera = member(right, "camera");
+    OK(rohr_entity_name_set(camera, "renamed_camera"));
+#ifdef ROHR_TEST_PROJECT_INTERNAL
+    /* Even the temporary legacy member alias is not an authored binding key. */
+    OK(entity_object_member_restore(right, camera, "changed_alias"));
+    BAD(rohr_object_member_get(right, "camera"));
+#endif
+    ViewportObjectBinding binding = {&f.right, right};
+    ViewportCreateDescription bound = {.template = &f.viewport[0], .objects = &binding, .object_count = 1};
+    ViewportIdResult extra = rohr_viewport_create(bound); OK(extra);
+    assert(screen(extra.result.value, "main").camera_entity == camera);
+    OK(rohr_viewport_destroy(extra.result.value));
+#ifdef ROHR_TEST_PROJECT_INTERNAL
+    OK(entity_object_member_restore(right, camera, "camera"));
+#endif
+
+    OK(rohr_entity_delete(old_root)); OK(rohr_viewport_destroy(old_viewport));
+    OK(rohr_input_controller_destroy(old_controller));
+    Sound removed_sound = old_sound; Music removed_music = old_music;
+    OK(rohr_audio_sound_destroy(&removed_sound)); OK(rohr_audio_music_destroy(&removed_music));
+    EntityResult replacement = rohr_entity_description_add((EntityDescription){.name = "project"}); OK(replacement);
+    ViewportIdResult replacement_viewport = rohr_viewport_create((ViewportDescription){.name = "play"}); OK(replacement_viewport);
+    InputControllerIdResult replacement_controller = rohr_controller_create(f.controller); OK(replacement_controller);
+    SoundDescription sd = f.sounds[0].description; strcpy(sd.name, "jump");
+    MusicDescription md = f.music.description; strcpy(md.name, "theme");
+    SoundResult replacement_sound = rohr_audio_sound_create(sd); OK(replacement_sound);
+    MusicResult replacement_music = rohr_audio_music_create(md); OK(replacement_music);
+    assert(replacement.result.value != old_root);
+    assert(replacement_viewport.result.value != old_viewport);
+    assert((replacement_viewport.result.value & 0xffu) == (old_viewport & 0xffu));
+    assert(replacement_controller.result.value != old_controller);
+    assert((replacement_controller.result.value & 0xffffu) == (old_controller & 0xffffu));
+    assert(replacement_sound.result.value != old_sound);
+    assert((replacement_sound.result.value & 0xffffu) == (old_sound & 0xffffu));
+    assert(replacement_music.result.value != old_music);
+    assert((replacement_music.result.value & 0xffffu) == (old_music & 0xffffu));
+    OK(rohr_project_destroy(first));
+    assert(rohr_entity_alive_check(replacement.result.value));
+    assert(rohr_viewport_by_name_get("play").result.value == replacement_viewport.result.value);
+    assert(rohr_input_controller_by_name_get("player").result.value == replacement_controller.result.value);
+    assert(rohr_audio_sound_by_name_get("jump").result.value == replacement_sound.result.value);
+    assert(rohr_audio_music_by_name_get("theme").result.value == replacement_music.result.value);
+    wiring(second); OK(rohr_project_destroy(second));
+    OK(rohr_entity_delete(replacement.result.value)); OK(rohr_viewport_destroy(replacement_viewport.result.value));
+    OK(rohr_input_controller_destroy(replacement_controller.result.value));
+    OK(rohr_audio_sound_destroy(&replacement_sound.result.value)); OK(rohr_audio_music_destroy(&replacement_music.result.value));
+    assert(rohr_entity_alive_count_get() == 0);
+}
+
 static void preview(void) {
     Fixture f; fixture_init(&f);
     WindowPresentationDescription window=rohr_graphics_window_presentation_description_get();
@@ -414,7 +484,7 @@ int main(int argc,char **argv) {
     assert(audio_test_wav_write() && audio_test_ogg_write());
     prerequisites(); OK(rohr_graphics_vsync_set(false)); OK(rohr_graphics_frame_limit_set(100000));
     if(argc>1 && !strcmp(argv[1],"--preview")) preview();
-    else { two_instances(); failures(); capacities(); expired_root(); lifecycle(); restart(); }
+    else { runtime_names_and_reuse(); two_instances(); failures(); capacities(); expired_root(); lifecycle(); restart(); }
     rohr_graphics_stop(); rohr_engine_stop();
     assert(remove(AUDIO_TEST_PATH)==0 && remove(AUDIO_TEST_MUSIC_PATH)==0);
     return 0;

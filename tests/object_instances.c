@@ -172,7 +172,8 @@ static void description_spawning(void) {
     assert(physics_position_get(child.result.value).result.value.x == 120);
     EntityResult another = entity_object_by_name_add(car, "box"); OK(another);
     assert(!strcmp(entity_name_get(direct.result.value).result.value.value, "box"));
-    assert(!strcmp(entity_name_get(another.result.value).result.value.value, "box_1"));
+    assert(!strcmp(entity_name_get(child.result.value).result.value.value, "box_1"));
+    assert(!strcmp(entity_name_get(another.result.value).result.value.value, "box_2"));
     assert(error_check(object_mass_set(&box, 9)));
     assert(error_check(object_copy_with_options(car, 0)));
     OK(object_destroy(copy.result.value));
@@ -333,7 +334,7 @@ static void names_and_release(void) {
     Entity nested=member(whole.result.value,"node_45");
     EntityNameResult saved_name=entity_name_get(nested);
     const char *name=saved_name.result.value.value;
-    assert(strlen(name)<ENTITY_NAME_MAX && strstr(name,"_node_45"));
+    assert(!strcmp(name,"node_45_3"));
     OK(entity_owner_set(nested, ENTITY_INVALID)); OK(entity_delete(whole.result.value));
     assert(entity_alive_check(nested));
     assert(physics_soft_body_node_get(nested).result.value.soft_body==ENTITY_INVALID);
@@ -1062,7 +1063,9 @@ static void metadata_descriptions(void) {
     description.name[0] = 'X';
     EntityDescriptionResult saved = rohr_entity_description_get(entity); OK(saved);
     assert(!strcmp(saved.result.value.name, "metadata member") && saved.result.value.owner == owner);
-    assert(error_check(entity_description_add(saved.result.value)));
+    EntityResult repeated = entity_description_add(saved.result.value); OK(repeated);
+    assert(!strcmp(entity_name_get(repeated.result.value).result.value.value, "metadata member_1"));
+    OK(entity_delete(repeated.result.value));
     OK(entity_parent_set(entity, parent));
     OK(physics_position_set(entity, (Position){12, 34}));
     EntityDescription replacement = {.name = "metadata renamed", .owner = next};

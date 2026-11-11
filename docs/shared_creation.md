@@ -81,16 +81,17 @@ remain aliases of these input-owned recipe types.
 Each call evaluates its argument once and copies the configured input state into
 fixed engine pools. No entity owner or heap allocation is introduced. Destroy a
 standalone controller and all its actions with `rohr_input_controller_destroy()`.
-Malformed actions, duplicate names, and exhausted controller/action capacity
+Malformed actions, duplicate action names, and exhausted controller/action capacity
 fail without leaving this attempt's resources or changing existing controllers.
 Names and bindings are copied; caller recipe storage need only survive creation.
 
-Standalone controller names remain globally unique. To create another named
-instance, copy `project.player._description` into a `ControllerDescription` and
-change its controller name before creation. Whole-project creation uses this same
-creator after supplying its existing private instance name; project-local lookup
-still uses the authored name, so independent project instances remain isolated.
-Deleting one project does not destroy independently created controllers.
+Controller creation preserves the requested name when available and otherwise
+appends the lowest available suffix (`player`, `player_1`, `player_2`). This
+applies equally to standalone and whole-project creation. Project-local lookup
+temporarily retains authored names; global lookup uses the assigned runtime
+name. Deleting one project does not destroy independently created controllers.
+See [runtime names](entity_ids.md#runtime-id-and-name-access) for all namespaces,
+length limits, and cleanup rules.
 
 Viewport fields include named screen/UI recipes while retaining ordered
 `items` and `item_count` access. Milestone 17 Goal 4 makes viewport creation use

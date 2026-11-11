@@ -14,6 +14,12 @@
 #define ROHR_AUDIO_REQUEST_CAPACITY 256u
 #define ROHR_AUDIO_SOUND_LIMIT 128
 #define ROHR_AUDIO_MUSIC_LIMIT 16
+#define ROHR_AUDIO_NAME_MAX 64
+
+typedef struct SoundName { char value[ROHR_AUDIO_NAME_MAX]; } SoundName;
+typedef struct MusicName { char value[ROHR_AUDIO_NAME_MAX]; } MusicName;
+ERROR_DECLARE_RESULT_TYPE(SoundNameResult, SoundName);
+ERROR_DECLARE_RESULT_TYPE(MusicNameResult, MusicName);
 
 /** Stable handle for one independently controlled sound playback instance. */
 typedef uint32_t Sound;
@@ -37,6 +43,8 @@ typedef struct SoundDescription {
     bool loop;
     /** Speed and pitch ratio. Non-positive values are stored as zero. */
     float playback_rate;
+    /** Creation name; empty uses "sound". Runtime name is immutable. */
+    char name[ROHR_AUDIO_NAME_MAX];
 } SoundDescription;
 
 /** Values used to open and initialize one streamed Ogg Vorbis track. */
@@ -49,6 +57,8 @@ typedef struct MusicDescription {
     bool loop;
     /** Speed and pitch ratio. Non-positive values are stored as zero. */
     float playback_rate;
+    /** Creation name; empty uses "music". Runtime name is immutable. */
+    char name[ROHR_AUDIO_NAME_MAX];
 } MusicDescription;
 
 ERROR_DECLARE_RESULT_TYPE(SoundResult, Sound);
@@ -84,9 +94,12 @@ float audio_volume_get(void);
 SoundDescription audio_sound_description_default_get(void);
 /** Load a WAV and create one independently controlled playback instance. */
 SoundResult audio_sound_create(SoundDescription config);
+SoundResult audio_sound_by_name_get(const char *name);
+SoundNameResult audio_sound_name_get(Sound sound);
 /** Prepare a complete replacement and enqueue one atomic update. Same-source
  * edits preserve progress; a changed source is installed stopped. Paths are
- * required and copied; failures leave existing state and queued work intact. */
+ * required and copied; failures leave existing state and queued work intact.
+ * Name must be empty (preserve) or equal to the current runtime name. */
 EngineResult audio_sound_description_set(Sound sound, SoundDescription description);
 /** Applied configuration, with a borrowed resolved path. The path remains valid
  * until a subsequent update, creation, destruction, full setter, or shutdown.
@@ -116,9 +129,12 @@ bool audio_sound_playing_check(Sound sound);
 MusicDescription audio_music_description_default_get(void);
 /** Open an Ogg Vorbis file for incremental decoding during playback. */
 MusicResult audio_music_create(MusicDescription config);
+MusicResult audio_music_by_name_get(const char *name);
+MusicNameResult audio_music_name_get(Music music);
 /** Prepare a complete replacement and enqueue one atomic update. Same-source
  * edits preserve progress; a changed source is installed stopped. Paths are
- * required and copied; failures leave existing state and queued work intact. */
+ * required and copied; failures leave existing state and queued work intact.
+ * Name must be empty (preserve) or equal to the current runtime name. */
 EngineResult audio_music_description_set(Music music, MusicDescription description);
 /** Applied configuration, with a borrowed resolved path. The path remains valid
  * until a subsequent update, creation, destruction, full setter, or shutdown.

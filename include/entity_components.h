@@ -400,7 +400,8 @@ EntityResult entity_from_index_get(EntityIndex index);
  */
 EntityResult entity_add(void);
 
-/** Create metadata and ownership atomically; an empty name generates a unique name. */
+/** Create metadata/ownership atomically. Empty uses "entity"; occupied names
+ * append the lowest available _N suffix. Names are never truncated. */
 EntityResult entity_description_add(EntityDescription description);
 /** Replace metadata atomically. Requires a nonempty, unique, terminated name. */
 EngineResult entity_description_set(Entity entity, EntityDescription description);

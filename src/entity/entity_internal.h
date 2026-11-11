@@ -9,6 +9,7 @@
 /* Naming helpers for creation; configuration setters preserve names unless explicitly replacing metadata. */
 EntityResult entity_named_create(const char *name);
 EntityResult entity_default_create(const char *kind, Entity owner);
+EntityNameResult entity_available_name_get(const char *base, Entity self);
 
 /* Loading a new child must not leave a new empty group on failure. */
 EngineResult entity_parent_restore(Entity child, Entity parent);

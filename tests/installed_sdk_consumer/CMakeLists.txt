@@ -78,6 +78,14 @@ else()
     target_compile_options(rohr_runtime_persistence PRIVATE -Wall -Wextra -Wpedantic -UNDEBUG)
 endif()
 
+add_executable(rohr_runtime_names ../runtime_names.c)
+target_link_libraries(rohr_runtime_names PRIVATE Rohr::Engine)
+if(MSVC)
+    target_compile_options(rohr_runtime_names PRIVATE /UNDEBUG)
+else()
+    target_compile_options(rohr_runtime_names PRIVATE -Wall -Wextra -Wpedantic -UNDEBUG)
+endif()
+
 add_executable(rohr_asset_descriptions asset_descriptions.c)
 target_link_libraries(rohr_asset_descriptions PRIVATE Rohr::Engine)
 if(MSVC)
@@ -168,7 +176,7 @@ if(BUILD_TESTING AND NOT CMAKE_CROSSCOMPILING)
     foreach(consumer
             rohr_installed_sdk_consumer rohr_object_descriptions rohr_creation_dispatch
             rohr_system_reports rohr_entity_info rohr_entity_info_adversarial
-            rohr_forces rohr_runtime_persistence rohr_asset_descriptions
+            rohr_forces rohr_runtime_persistence rohr_runtime_names rohr_asset_descriptions
             rohr_audio_descriptions rohr_input_descriptions rohr_controller_creation
             rohr_camera_descriptions rohr_viewport_descriptions rohr_automatic_viewports
             rohr_generated_workflow rohr_project_creation)

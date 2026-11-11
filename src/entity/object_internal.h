@@ -15,6 +15,9 @@ typedef struct ObjectInstanceOrigin {
 bool object_instance_origin_get(Entity entity, ObjectInstanceOrigin *origin);
 EngineResult object_instance_origin_set(Entity entity, ObjectInstanceOrigin origin);
 bool object_instance_description_check(Entity entity, const ObjectDescription *description);
+/* Resolve only within the bound instance using copied authored identities. */
+EntityResult object_instance_member_description_get(Entity instance,
+    const ObjectDescription *root, const ObjectDescription *member);
 void object_instance_resources_clear(EntityIndex index);
 EngineResult object_instance_camera_restore(Entity entity, CameraId camera);
 Entity object_instance_anchor_owner_get(Entity entity);

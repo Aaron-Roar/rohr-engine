@@ -154,6 +154,8 @@ int main(void) {
     assert(!strcmp(project.parity.body.layer_name,"world"));
     assert(!strcmp(project.parity.flipped.layer_name,"effects"));
     ViewportIdResult unbound = rohr_viewport_create(project.play); OK(unbound);
+    assert(!strcmp(rohr_viewport_name_get(unbound.result.value).result.value.value, "Play"));
+    assert(rohr_viewport_by_name_get("Play").result.value == unbound.result.value);
     assert(rohr_screen_description_get(item(unbound.result.value,"front").screen).result.value.camera==CAMERA_INVALID);
     assert(rohr_screen_description_get(item(unbound.result.value,"rear").screen).result.value.camera==CAMERA_INVALID);
     Report empty_frame = rohr_graphics_viewport_show(unbound.result.value);
@@ -227,6 +229,10 @@ int main(void) {
     OK(rohr_input_controller_destroy(disabled.result.value));
     SoundResult standalone_sound=rohr_audio_sound_create(project.impact); OK(standalone_sound);
     MusicResult standalone_music=rohr_audio_music_create(project.theme); OK(standalone_music);
+    assert(rohr_audio_sound_by_name_get("impact").result.value == standalone_sound.result.value);
+    assert(rohr_audio_music_by_name_get("theme").result.value == standalone_music.result.value);
+    assert(!strcmp(rohr_audio_sound_name_get(standalone_sound.result.value).result.value.value, "impact"));
+    assert(!strcmp(rohr_audio_music_name_get(standalone_music.result.value).result.value.value, "theme"));
     assert(!rohr_audio_sound_playing_check(standalone_sound.result.value));
     assert(!rohr_audio_music_playing_check(standalone_music.result.value));
     SoundDescriptionResult sound_description=rohr_audio_sound_description_get(standalone_sound.result.value); OK(sound_description);
@@ -244,6 +250,9 @@ int main(void) {
         EntityResult root = rohr_project_root_get(ids[i]); OK(root);
         instances[i] = member(root.result.value, "Parity");
         ViewportIdResult view = rohr_project_viewport_by_name_get(ids[i], "Play"); OK(view);
+        const char *viewport_name = i ? "Play_1" : "Play";
+        assert(rohr_viewport_by_name_get(viewport_name).result.value == view.result.value);
+        assert(!strcmp(rohr_viewport_name_get(view.result.value).result.value.value, viewport_name));
         verify(instances[i], view.result.value);
         ViewportListResult views = rohr_project_viewports_get(ids[i]); OK(views);
         assert(views.result.value.count == 3);

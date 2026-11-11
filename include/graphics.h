@@ -208,7 +208,12 @@ typedef struct ViewportDescription {
     /** Color drawn inside the viewport before its items are composed. */
     Color background_color;
     bool enabled;
+    /** Creation base name; empty uses "viewport". Empty setters preserve it. */
+    char name[ENTITY_NAME_MAX];
 } ViewportDescription;
+
+typedef struct ViewportName { char value[ENTITY_NAME_MAX]; } ViewportName;
+ERROR_DECLARE_RESULT_TYPE(ViewportNameResult, ViewportName);
 
 /** Mounted content and viewport-local placement. Exactly one content handle is required. */
 typedef struct ViewportItemDescription {
@@ -1063,6 +1068,8 @@ ScreenDescriptionResult graphics_screen_description_get(ScreenId screen);
 EngineResult graphics_screen_destroy(ScreenId screen);
 EngineResult graphics_screen_camera_set(ScreenId screen, CameraId camera);
 ViewportIdResult graphics_viewport_create(ViewportDescription config);
+ViewportIdResult graphics_viewport_by_name_get(const char *name);
+ViewportNameResult graphics_viewport_name_get(ViewportId viewport);
 EngineResult graphics_viewport_description_set(ViewportId viewport, ViewportDescription description);
 ViewportDescriptionResult graphics_viewport_description_get(ViewportId viewport);
 /** Mount exactly one existing screen or UI reference without transferring ownership.

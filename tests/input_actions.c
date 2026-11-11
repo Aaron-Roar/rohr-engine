@@ -215,8 +215,11 @@ static bool input_action_test(void) {
             !letter_binding.affects_x || !letter_binding.affects_y ||
             physical_binding.modifiers != SDL_KMOD_NONE) return false;
     gameplay = gameplay_result.result.value;
-    if(!rohr_error_check(rohr_input_controller_create((InputControllerDescription){.name = "gameplay", .enabled = true})) ||
-            !rohr_input_controller_enabled_check(gameplay)) return false;
+    InputControllerIdResult duplicate_controller = rohr_input_controller_create(
+        (InputControllerDescription){.name = "gameplay", .enabled = true});
+    if(rohr_error_check(duplicate_controller) || !rohr_input_controller_enabled_check(gameplay) ||
+            strcmp(rohr_input_controller_name_get(duplicate_controller.result.value).result.value.value, "gameplay_1") ||
+            rohr_error_check(rohr_input_controller_destroy(duplicate_controller.result.value))) return false;
     jump_result = rohr_input_action_create((InputActionDescription){.controller = gameplay, .name = "jump", .type = INPUT_ACTION_BUTTON});
     throttle_result = rohr_input_action_create((InputActionDescription){.controller = gameplay, .name = "throttle", .type = INPUT_ACTION_AXIS_1D});
     move_result = rohr_input_action_create((InputActionDescription){.controller = gameplay, .name = "move", .type = INPUT_ACTION_AXIS_2D});

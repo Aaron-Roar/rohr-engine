@@ -4,6 +4,7 @@
 
 #include "input.h"
 #include "input/input_internal.h"
+#include "core/runtime_name.h"
 
 #include <math.h>
 #include <stdio.h>
@@ -526,10 +527,16 @@ static EngineResult input_controller_description_validate(InputControllerId self
 
 InputControllerIdResult input_controller_create(
         InputControllerDescription description) {
-    EngineResult result = input_controller_description_validate(
-        INPUT_CONTROLLER_INVALID, description);
+    EngineResult result = input_description_name_validate(description.name);
     if(error_check(result)) return ERROR_RESULT_MAKE_ERROR(
         InputControllerIdResult, result.result.error);
+    char base[ROHR_INPUT_NAME_MAX];
+    memcpy(base, description.name, sizeof(base));
+    for(uint32_t suffix = 0; suffix <= ROHR_INPUT_CONTROLLER_LIMIT; ++suffix) {
+        if(!runtime_name_candidate_get(description.name, sizeof(description.name), base, suffix))
+            return ERROR_RESULT_MAKE_ERROR(InputControllerIdResult, ERROR_ENGINE_INPUT_NAME_TOO_LONG);
+        if(error_check(input_controller_by_name_get(description.name))) break;
+    }
     size_t slot;
     for(slot = 0; slot < ROHR_INPUT_CONTROLLER_LIMIT; slot += 1)
         if(!input_controllers[slot].used && input_controller_generations[slot] < UINT16_MAX) break;
@@ -587,6 +594,14 @@ InputControllerIdResult input_controller_by_name_get(const char *name) {
                 input_controllers[i].id);
     return ERROR_RESULT_MAKE_ERROR(InputControllerIdResult,
         ERROR_ENGINE_INPUT_NOT_FOUND);
+}
+
+InputControllerNameResult input_controller_name_get(InputControllerId controller) {
+    InputController *value = input_controller_get(controller);
+    if(!value) return ERROR_RESULT_MAKE_ERROR(InputControllerNameResult, ERROR_ENGINE_INPUT_NOT_FOUND);
+    InputControllerName name = {0};
+    memcpy(name.value, value->name, sizeof(name.value));
+    return ERROR_RESULT_MAKE_VALUE(InputControllerNameResult, name);
 }
 
 EngineResult input_controller_enabled_set(InputControllerId controller,

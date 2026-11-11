@@ -1316,6 +1316,21 @@ if(ROHR_BUILD_TESTS)
     set_target_properties(object_instances_test PROPERTIES RUNTIME_OUTPUT_DIRECTORY ${ROHR_BUILD_OUTPUT_DIRECTORY}/tests)
     add_test(NAME object_instances COMMAND object_instances_test)
 
+    add_executable(runtime_names_test tests/runtime_names.c)
+    target_link_libraries(runtime_names_test PRIVATE rohr_engine)
+    set_target_properties(runtime_names_test PROPERTIES RUNTIME_OUTPUT_DIRECTORY ${ROHR_BUILD_OUTPUT_DIRECTORY}/tests)
+    if(MSVC)
+        target_compile_options(runtime_names_test PRIVATE /UNDEBUG)
+    else()
+        target_compile_options(runtime_names_test PRIVATE -Wall -Wextra -Wpedantic -UNDEBUG)
+    endif()
+    if(ROHR_ENABLE_SANITIZERS)
+        target_compile_options(runtime_names_test PRIVATE ${ROHR_SANITIZER_COMPILE_OPTIONS})
+    endif()
+    add_test(NAME runtime_names COMMAND runtime_names_test)
+    set_tests_properties(runtime_names PROPERTIES
+        ENVIRONMENT "SDL_VIDEODRIVER=dummy;SDL_AUDIODRIVER=dummy;SDL_RENDER_DRIVER=software")
+
     add_executable(project_creation_test tests/project_creation.c)
     target_link_libraries(project_creation_test PRIVATE rohr_engine)
     target_include_directories(project_creation_test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
@@ -1643,6 +1658,7 @@ if(ROHR_BUILD_TESTS)
     add_dependencies(rohr_tests pin_stability_test weld_stability_test spring_stability_test)
     add_dependencies(
         rohr_tests
+        runtime_names_test
         entity_lists_test
         entity_info_test
         entity_info_adversarial_test

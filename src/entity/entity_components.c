@@ -8,6 +8,7 @@
 #include "physics/physics_internal.h"
 #include <stdio.h>
 #include "core/engine_internal.h"
+#include "core/runtime_name.h"
 #include <stdbool.h>
 #include <string.h>
 #include <stdlib.h>
@@ -617,25 +618,26 @@ EntityResult entity_named_create(const char *name) {
     return created;
 }
 
+EntityNameResult entity_available_name_get(const char *base, Entity self) {
+    if(!base || !base[0])
+        return ERROR_RESULT_MAKE_ERROR(EntityNameResult, ERROR_ENGINE_INVALID_ENTITY_NAME);
+    for(uint32_t suffix = 0; suffix <= MAX_ENTITIES; ++suffix) {
+        EntityName name = {0};
+        if(!runtime_name_candidate_get(name.value, sizeof(name.value), base, suffix))
+            return ERROR_RESULT_MAKE_ERROR(EntityNameResult, ERROR_ENGINE_ENTITY_NAME_TOO_LONG);
+        EntityResult existing = entity_by_name_get(name.value);
+        if(error_check(existing) || existing.result.value == self)
+            return ERROR_RESULT_MAKE_VALUE(EntityNameResult, name);
+    }
+    return ERROR_RESULT_MAKE_ERROR(EntityNameResult, ERROR_ENGINE_MAX_ENTITIES_EXCEEDED);
+}
+
 EntityResult entity_default_create(const char *kind, Entity owner) {
-    EntityNameResult owner_name = {0};
-    if(owner != ENTITY_INVALID) {
-        owner_name = entity_name_get(owner);
-        if(error_check(owner_name))
-            return ERROR_RESULT_MAKE_ERROR(EntityResult, owner_name.result.error);
-    }
-    for(uint32_t suffix = 1; suffix <= MAX_ENTITIES + 1; ++suffix) {
-        char name[ENTITY_NAME_MAX], tail[32];
-        if(owner == ENTITY_INVALID)
-            snprintf(name, sizeof(name), "%s_%u", kind, suffix);
-        else {
-            int length = snprintf(tail, sizeof(tail), "_%s_%u", kind, suffix);
-            snprintf(name, sizeof(name), "%.*s%s",
-                ENTITY_NAME_MAX - 1 - length, owner_name.result.value.value, tail);
-        }
-        if(error_check(entity_by_name_get(name))) return entity_named_create(name);
-    }
-    return ERROR_RESULT_MAKE_ERROR(EntityResult, ERROR_ENGINE_MAX_ENTITIES_EXCEEDED);
+    if(owner != ENTITY_INVALID && !entity_alive_check(owner))
+        return ERROR_RESULT_MAKE_ERROR(EntityResult, ERROR_ENGINE_INVALID_ENTITY);
+    EntityNameResult name = entity_available_name_get(kind, ENTITY_INVALID);
+    if(error_check(name)) return ERROR_RESULT_MAKE_ERROR(EntityResult, name.result.error);
+    return entity_named_create(name.result.value.value);
 }
 
 EntityResult entity_add(void) {
@@ -647,8 +649,8 @@ EntityResult entity_description_add(EntityDescription description) {
         return ERROR_RESULT_MAKE_ERROR(EntityResult, ERROR_ENGINE_ENTITY_NAME_TOO_LONG);
     if(description.owner != ENTITY_INVALID && !entity_alive_check(description.owner))
         return ERROR_RESULT_MAKE_ERROR(EntityResult, ERROR_ENGINE_INVALID_ENTITY);
-    EntityResult created = description.name[0] ? entity_named_create(description.name) :
-        entity_default_create("entity", description.owner);
+    EntityResult created = entity_default_create(description.name[0] ? description.name : "entity",
+        description.owner);
     if(error_check(created)) return created;
     EngineResult result = entity_owner_set(created.result.value, description.owner);
     if(error_check(result)) {
@@ -899,12 +901,9 @@ EngineResult entity_delete(Entity entity) {
     entity_alive_positions[slot] = 0;
     entity_to_index[slot] = 0;
     index_to_entity[index] = ENTITY_INVALID;
-    entity_generations[slot] += 1;
-    if(entity_generations[slot] == 0) {
-        entity_generations[slot] = 1;
-    }
-
-    if(entity_id_pool.free_count < MAX_ENTITIES) {
+    /* Retire exhausted ID slots; old owners must never match a later entity. */
+    if(entity_generations[slot] < UINT16_MAX && entity_id_pool.free_count < MAX_ENTITIES) {
+        entity_generations[slot] += 1;
         entity_id_pool.free_ids[entity_id_pool.free_count] = slot;
         entity_id_pool.free_count += 1;
     }

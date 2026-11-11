@@ -40,14 +40,14 @@ static char *read_text(const char *path) {
 }
 static void naming(void) {
     Entity a=take(entity_add()), b=take(rohr_entity_add());
-    expect_name(a,"entity_1"); expect_name(b,"entity_2");
-    OK(entity_name_set(a,"entity_3")); expect_name(take(entity_add()),"entity_1");
-    expect_name(take(entity_add()),"entity_4");
-    OK(physics_force_description_set(b,(ForceDescription){0})); expect_name(b,"entity_2");
-    expect_name(take(physics_force_add((ForceDescription){0})),"force_1");
-    expect_name(take(rohr_physics_torque_add((TorqueDescription){0})),"torque_1");
-    expect_name(take(rohr_physics_particle_add(physics_particle_description_default_get())),"particle_1");
-    Entity body=take(rohr_physics_soft_body_add((SoftBodyDescription){0})); expect_name(body,"soft_body_1");
+    expect_name(a,"entity"); expect_name(b,"entity_1");
+    OK(entity_name_set(a,"entity_3")); expect_name(take(entity_add()),"entity");
+    expect_name(take(entity_add()),"entity_2");
+    OK(physics_force_description_set(b,(ForceDescription){0})); expect_name(b,"entity_1");
+    expect_name(take(physics_force_add((ForceDescription){0})),"force");
+    expect_name(take(rohr_physics_torque_add((TorqueDescription){0})),"torque");
+    expect_name(take(rohr_physics_particle_add(physics_particle_description_default_get())),"particle");
+    Entity body=take(rohr_physics_soft_body_add((SoftBodyDescription){0})); expect_name(body,"soft_body");
     Entity node=take(physics_soft_body_node_add((SoftBodyNodeDescription){
         .restitution = 0.25f, .collision_enabled = true,
         .collision_filter = {.category = ROHR_COLLISION_CATEGORY_SOFT_BODY_NODE,
@@ -57,7 +57,7 @@ static void naming(void) {
         .mass = 1,
         .radius = 1
     }));
-    expect_name(node,"soft_body_1_node_1");
+    expect_name(node,"node");
     OK(entity_name_set(body,"renamed"));
     Entity node2=take(rohr_physics_soft_body_node_add((SoftBodyNodeDescription){
         .restitution = 0.25f, .collision_enabled = true,
@@ -68,7 +68,7 @@ static void naming(void) {
         .mass = 1,
         .radius = 1
     }));
-    expect_name(node2,"renamed_node_1"); expect_name(node,"soft_body_1_node_1");
+    expect_name(node2,"node_1"); expect_name(node,"node");
     expect_name(take(physics_soft_body_beam_add((SoftBodyBeamDescription){
         .restitution = 0.25f,
         .collision = {.thickness = ROHR_SOFT_BODY_BEAM_COLLISION_THICKNESS_MIN,
@@ -79,7 +79,7 @@ static void naming(void) {
         .node_b = node2,
         .stiffness = 1,
         .damping = 1
-    })),"renamed_beam_1");
+    })),"beam");
     char long_name[ENTITY_NAME_MAX]; memset(long_name,'x',sizeof(long_name)-1); long_name[sizeof(long_name)-1]=0;
     OK(entity_name_set(body,long_name));
     Entity first=take(physics_soft_body_node_add((SoftBodyNodeDescription){
@@ -92,7 +92,7 @@ static void naming(void) {
         .radius = 1
     }));
     EntityName n=entity_name_get(first).result.value;
-    assert(strlen(n.value)==ENTITY_NAME_MAX-1 && strcmp(n.value+strlen(n.value)-7,"_node_1")==0);
+    assert(strcmp(n.value,"node_2")==0);
     Entity other=take(physics_soft_body_add((SoftBodyDescription){0})); long_name[ENTITY_NAME_MAX-2]='y'; OK(entity_name_set(other,long_name));
     n=entity_name_get(take(physics_soft_body_node_add((SoftBodyNodeDescription){
         .restitution = 0.25f, .collision_enabled = true,
@@ -103,7 +103,7 @@ static void naming(void) {
         .mass = 1,
         .radius = 1
     }))).result.value;
-    assert(strcmp(n.value+strlen(n.value)-7,"_node_2")==0);
+    assert(strcmp(n.value,"node_3")==0);
     restart();
 }
 
@@ -142,7 +142,7 @@ static void fixture(void) {
     SoftBodyAreaGeometry geometry={.outer={.node_count=4},.hole_count=1,.holes={{.node_count=4}}};
     memcpy(geometry.outer.nodes,nodes,4*sizeof(Entity)); memcpy(geometry.holes[0].nodes,nodes+4,4*sizeof(Entity));
     Entity area=take(physics_soft_body_area_add((SoftBodyAreaDescription){.visible = true, .owner = body, .geometry = geometry}));
-    expect_name(area,"soft_body_1_area_1");
+    expect_name(area,"area");
     OK(graphics_soft_body_area_color_set(area,(Color){11,22,33,44}));
     OK(graphics_soft_body_area_visibility_set(area,false));
     OK(graphics_soft_body_node_color_set(body,nodes[0],(Color){1,2,3,4}));
@@ -162,7 +162,7 @@ static void fixture(void) {
     OK(physics_joint_anchor_add((JointAnchorDescription){.entity = nodes[0], .local_offset = (Vec2D){4,5}})); /* unused anchor */
     SoftBodyNodeAnchorPinResult pin=physics_soft_body_node_to_anchor_pin_add((SoftBodyNodeAnchorPinDescription){.node = nodes[3], .anchor = anchor.result.value}); OK(pin);
     pin=physics_soft_body_node_to_anchor_pin_add((SoftBodyNodeAnchorPinDescription){.node = nodes[4], .anchor = anchor.result.value}); OK(pin);
-    expect_name(pin.result.value.joint,"joint_2");
+    expect_name(pin.result.value.joint,"joint_1");
     for(int kind=ROHR_FORCE_WORLD_POSITION;kind<=ROHR_FORCE_BEAM_POSITION;++kind) {
         ForceLocation location={.offset={1,2},.reference={.kind=kind}};
         if(kind==ROHR_FORCE_COM_POSITION || kind==ROHR_FORCE_ORIGIN_POSITION) location.reference.entity=body;
@@ -201,24 +201,24 @@ static void round_trip(void) {
         Entity dummy=take(entity_add()); OK(entity_delete(dummy));
         OK(game_state_file_load("runtime_original.json")); assert(entity_alive_count_get()==count);
         OK(game_state_file_save("runtime_round_trip.json")); same_file("runtime_original.json","runtime_round_trip.json");
-        assert(angular_velocity_maximums_pool.used[idx(named("soft_body_1_node_1"))]);
-        assert(physics_angular_velocity_maximum_get(named("soft_body_1_node_1")).result.value==0);
-        assert(physics_angular_velocity_maximum_get(named("soft_body_1_node_2")).result.value==45);
-        assert(!angular_velocity_maximums_pool.used[idx(named("soft_body_1_node_3"))]);
+        assert(angular_velocity_maximums_pool.used[idx(named("node"))]);
+        assert(physics_angular_velocity_maximum_get(named("node")).result.value==0);
+        assert(physics_angular_velocity_maximum_get(named("node_1")).result.value==45);
+        assert(!angular_velocity_maximums_pool.used[idx(named("node_2"))]);
         assert(graphics_layer_name_get("unused").result.value==-17);
         GraphicsLayerId layer=graphics_layer_name_id_get("sources").result.value;
-        assert(graphics_layer_entity_id_get(named("force_1")).result.value==layer);
-        assert(graphics_layer_sprite_id_get(named("force_1")).result.value==layer);
-        assert(graphics_layer_animation_id_get(named("force_1")).result.value==layer);
-        Joint first=joints[idx(named("joint_1"))],second=joints[idx(named("joint_2"))];
+        assert(graphics_layer_entity_id_get(named("force")).result.value==layer);
+        assert(graphics_layer_sprite_id_get(named("force")).result.value==layer);
+        assert(graphics_layer_animation_id_get(named("force")).result.value==layer);
+        Joint first=joints[idx(named("joint"))],second=joints[idx(named("joint_1"))];
         assert(first.anchor_b==second.anchor_b);
-        assert(physics_joint_anchors_get(named("soft_body_1_node_1")).result.value.count==2);
-        SoftBodyBeam beam=physics_soft_body_beam_get(named("soft_body_1_beam_1")).result.value;
+        assert(physics_joint_anchors_get(named("node")).result.value.count==2);
+        SoftBodyBeam beam=physics_soft_body_beam_get(named("beam")).result.value;
         assert(beam.rest_length==20 && beam.friction==0.7f);
-        assert(entity_components_check(named("soft_body_1_node_1"),ROHR_STATIC));
-        assert(!entity_components_check(named("soft_body_1_node_1"),ROHR_DYNAMIC));
-        assert(entity_components_check(named("soft_body_1_node_3"),ROHR_HOLD));
-        EntityInfoResult info=entity_info_get(named("soft_body_1"),ROHR_ENTITY_INFO); OK(info);
+        assert(entity_components_check(named("node"),ROHR_STATIC));
+        assert(!entity_components_check(named("node"),ROHR_DYNAMIC));
+        assert(entity_components_check(named("node_2"),ROHR_HOLD));
+        EntityInfoResult info=entity_info_get(named("soft_body"),ROHR_ENTITY_INFO); OK(info);
         OK(entity_info_release(&info.result.value));
     }
     /* Compare continued simulation under exactly the same caller settings. */
@@ -230,7 +230,7 @@ static void round_trip(void) {
     physics_dt_update(0.01); OK(game_state_file_save("runtime_continued_again.json"));
     same_file("runtime_continued.json","runtime_continued_again.json");
     /* Geometry can be temporarily degenerate without losing topology. */
-    SoftBody body=physics_soft_body_get(named("soft_body_1")).result.value;
+    SoftBody body=physics_soft_body_get(named("soft_body")).result.value;
     for(uint32_t i=0;i<body.node_count;++i) OK(physics_position_set(body.nodes[i],(Position){0}));
     OK(game_state_file_save("runtime_degenerate.json")); restart();
     OK(game_state_file_load("runtime_degenerate.json"));
@@ -303,12 +303,12 @@ static void multiple_documents(void) {
     yyjson_doc_free(read);
     const char *paths[]={"runtime_part_b.json","runtime_part_a.json"};
     OK(rohr_game_state_files_load(paths,2));
-    assert(physics_soft_body_get(named("soft_body_1")).result.value.node_count==8);
-    Position authored=physics_position_get(named("soft_body_1_node_2")).result.value;
-    OK(physics_position_set(named("soft_body_1_node_2"),(Position){500,600}));
+    assert(physics_soft_body_get(named("soft_body")).result.value.node_count==8);
+    Position authored=physics_position_get(named("node_1")).result.value;
+    OK(physics_position_set(named("node_1"),(Position){500,600}));
     OK(game_state_template_file_save("runtime_template.json")); restart();
     OK(game_state_file_load("runtime_template.json"));
-    Position restored=physics_position_get(named("soft_body_1_node_2")).result.value;
+    Position restored=physics_position_get(named("node_1")).result.value;
     assert(restored.x==authored.x && restored.y==authored.y);
     restart();
     /* A clash in a later document must prevent creation from an earlier one. */
@@ -345,12 +345,12 @@ static void lifetime(void) {
         .expiry_time=engine_time_get()+10,.expiry_tick=engine_tick_get()+50,.time_enabled=true,.tick_enabled=true}));
     OK(game_state_file_save("runtime_source_lifetime.json")); restart();
     OK(game_state_file_load("runtime_source_lifetime.json"));
-    assert(life_times[idx(named("force_2"))].expirey_tick==1);
+    assert(life_times[idx(named("force_1"))].expirey_tick==1);
     assert(life_times[idx(named("timed"))].expirey_tick==50);
     assert(fabs(life_times[idx(named("timed"))].expirey_time-10)<0.0001);
-    engine_lifecycle_update(); named("force_2"); named("torque_1");
+    engine_lifecycle_update(); named("force_1"); named("torque");
     OK(engine_time_per_tick_set(0.001)); SDL_Delay(3); engine_tick_update(); engine_lifecycle_update();
-    BAD(entity_by_name_get("force_2")); BAD(entity_by_name_get("torque_1")); named("force_1");
+    BAD(entity_by_name_get("force_1")); BAD(entity_by_name_get("torque")); named("force");
     restart();
 }
 static void capacity(void) {
@@ -384,10 +384,10 @@ static void capacity(void) {
     }));
     OK(game_state_file_save("runtime_capacity.json")); restart();
     OK(game_state_file_load("runtime_capacity.json"));
-    SoftBody value=physics_soft_body_get(named("soft_body_1")).result.value;
+    SoftBody value=physics_soft_body_get(named("soft_body")).result.value;
     assert(value.node_count==SOFT_BODY_MAX_NODES && value.beam_count==SOFT_BODY_MAX_BEAMS && value.area_count==SOFT_BODY_MAX_AREAS);
     OK(game_state_file_save("runtime_capacity_again.json")); same_file("runtime_capacity.json","runtime_capacity_again.json");
-    Entity owner=named("soft_body_1");
+    Entity owner=named("soft_body");
     OK(entity_delete(value.nodes[0]));
     value=physics_soft_body_get(owner).result.value;
     assert(value.node_count==SOFT_BODY_MAX_NODES-1 && value.area_count==SOFT_BODY_MAX_AREAS);
@@ -417,7 +417,7 @@ static void capacity(void) {
     take(physics_soft_body_area_add((SoftBodyAreaDescription){.visible = true,
         .owner = owner,
         .geometry = (SoftBodyAreaGeometry){
-        .outer={.nodes={replacement,named("soft_body_1_node_2"),named("soft_body_1_node_9")},.node_count=3}}
+        .outer={.nodes={replacement,named("node_1"),named("node_8")},.node_count=3}}
     }));
     OK(game_state_file_save("runtime_changed.json")); restart();
     OK(game_state_file_load("runtime_changed.json"));

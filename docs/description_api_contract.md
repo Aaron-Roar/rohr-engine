@@ -715,16 +715,17 @@ below. Numeric constants, typedefs, struct fields, extern storage, and callback
 type declarations are not callable API entries; configuration types are covered
 in the family table and exemptions above.
 
-The current inventory contains **1606** classified declaration/macro entries.
+The current inventory contains **1620** classified declaration/macro entries.
 The additions after the milestone-4 inventory freeze are the direct and
 public-wrapper joint placement operations and directional response queries;
-the frozen baseline remains 1,602.
+the frozen baseline remains 1,602. Milestone 18 Goal 2 adds 14 direct/facade
+runtime-name query declarations.
 
 | Classification | Meaning | Owning goal | Entries |
 | --- | --- | --- | --- |
 | C: Compliant | Existing description interface | — | 342 |
 | EV: Intentionally exempt | Focused/basic-value mutation or lookup | — | 275 |
-| EQ: Intentionally exempt | Query, validation, snapshot, or result access | — | 402 |
+| EQ: Intentionally exempt | Query, validation, snapshot, or result access | — | 416 |
 | EO: Intentionally exempt | Operation, lifecycle, execution, or drawing | — | 458 |
 | EM: Intentionally exempt | Pure math or utility calculation | — | 77 |
 | ES: Intentionally exempt | Internal storage, reporting, or macro machinery | — | 48 |
@@ -733,7 +734,7 @@ the frozen baseline remains 1,602.
 The per-header lists are exhaustive. Every declaration/alias is classified once.
 
 <details>
-<summary>audio.h: 41 entries</summary>
+<summary>audio.h: 45 entries</summary>
 
 Source: [audio.h](../include/audio.h).
 
@@ -750,6 +751,8 @@ Source: [audio.h](../include/audio.h).
 - `audio_sound_volume_set`, `audio_volume_set`.
 
 **EQ — Query, validation, snapshot, or result access**
+
+- `audio_music_by_name_get`, `audio_music_name_get`, `audio_sound_by_name_get`, `audio_sound_name_get`.
 
 - `audio_music_loop_check`, `audio_music_paused_check`, `audio_music_playback_rate_get`.
 - `audio_music_playing_check`, `audio_music_valid_check`, `audio_music_volume_get`.
@@ -887,7 +890,7 @@ Source: [game_state.h](../include/game_state.h).
 </details>
 
 <details>
-<summary>graphics.h: 263 entries</summary>
+<summary>graphics.h: 265 entries</summary>
 
 Source: [graphics.h](../include/graphics.h).
 
@@ -945,6 +948,8 @@ Source: [graphics.h](../include/graphics.h).
 
 **EQ — Query, validation, snapshot, or result access**
 
+- `graphics_viewport_by_name_get`, `graphics_viewport_name_get`.
+
 - `graphics_aabb_tree_debug_check`, `graphics_animated_sprite_body_offset_get`, `graphics_animated_sprite_frame_index_get`.
 - `graphics_animated_sprite_frame_offset_get`, `graphics_animated_sprite_frame_rotation_get`, `graphics_animated_sprite_frame_rotation_radians_get`.
 - `graphics_animated_sprite_frame_scale_get`, `graphics_animated_sprite_orientation_offset_get`, `graphics_animated_sprite_orientation_offset_radians_get`.
@@ -998,7 +1003,7 @@ Source: [graphics.h](../include/graphics.h).
 </details>
 
 <details>
-<summary>input.h: 53 entries</summary>
+<summary>input.h: 54 entries</summary>
 
 Source: [input.h](../include/input.h).
 
@@ -1015,6 +1020,8 @@ Source: [input.h](../include/input.h).
 - `input_mouse_relative_mode_set`.
 
 **EQ — Query, validation, snapshot, or result access**
+
+- `input_controller_name_get`.
 
 - `input_action_axis_1d_get`, `input_action_axis_2d_get`, `input_action_bindings_default_get`.
 - `input_action_bindings_effective_get`, `input_action_bindings_override_check`, `input_action_bindings_override_get`.
@@ -1228,7 +1235,7 @@ Source: [report.h](../include/report.h).
 </details>
 
 <details>
-<summary>rohr.h: 791 entries</summary>
+<summary>rohr.h: 798 entries</summary>
 
 Source: [rohr.h](../include/rohr.h).
 
@@ -1342,6 +1349,8 @@ Source: [rohr.h](../include/rohr.h).
 - `rohr_viewport_disable_set`, `rohr_viewport_enable_set`, `rohr_viewport_item_drag_mode_set`.
 
 **EQ — Query, validation, snapshot, or result access**
+
+- `rohr_audio_music_by_name_get`, `rohr_audio_music_name_get`, `rohr_audio_sound_by_name_get`, `rohr_audio_sound_name_get`, `rohr_input_controller_name_get`, `rohr_viewport_by_name_get`, `rohr_viewport_name_get`.
 
 - `rohr_audio_music_loop_check`, `rohr_audio_music_paused_check`, `rohr_audio_music_playback_rate_get`.
 - `rohr_audio_music_playing_check`, `rohr_audio_music_valid_check`, `rohr_audio_music_volume_get`.

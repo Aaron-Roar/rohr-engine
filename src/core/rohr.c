@@ -214,6 +214,9 @@ EngineResult rohr_input_controller_destroy(InputControllerId controller) {
 InputControllerIdResult rohr_input_controller_by_name_get(const char *name) {
     return input_controller_by_name_get(name);
 }
+InputControllerNameResult rohr_input_controller_name_get(InputControllerId controller) {
+    return input_controller_name_get(controller);
+}
 EngineResult rohr_input_controller_enabled_set(InputControllerId controller,
         bool enabled) {
     return input_controller_enabled_set(controller, enabled);
@@ -807,6 +810,8 @@ ScreenIdResult (rohr_screen_create)(ScreenDescription config) { return graphics_
 EngineResult rohr_screen_destroy(ScreenId screen) { return graphics_screen_destroy(screen); }
 EngineResult rohr_screen_camera_set(ScreenId screen, CameraId camera) { return graphics_screen_camera_set(screen, camera); }
 ViewportIdResult (rohr_viewport_create)(ViewportDescription config) { return graphics_viewport_create(config); }
+ViewportIdResult rohr_viewport_by_name_get(const char *name) { return graphics_viewport_by_name_get(name); }
+ViewportNameResult rohr_viewport_name_get(ViewportId viewport) { return graphics_viewport_name_get(viewport); }
 EngineResult rohr_viewport_destroy(ViewportId viewport) { return graphics_viewport_destroy(viewport); }
 ViewportItemIdResult rohr_viewport_camera_add(ViewportId viewport, CameraId camera, ViewportItemDescription config) { return graphics_viewport_camera_add(viewport, camera, config); }
 ViewportItemIdResult rohr_viewport_screen_add(ViewportId viewport, ScreenId screen, ViewportItemDescription config) { return graphics_viewport_screen_add(viewport, screen, config); }
@@ -1151,3 +1156,8 @@ ViewportUiShapeDescription rohr_graphics_ui_shape_description_default_get(void) 
 ViewportUiTextDescription rohr_graphics_ui_text_description_default_get(void) { return graphics_ui_text_description_default_get(); }
 
 ViewportUiSliderDescription rohr_graphics_ui_slider_description_default_get(void) { return graphics_ui_slider_description_default_get(); }
+
+SoundResult rohr_audio_sound_by_name_get(const char *name) { return audio_sound_by_name_get(name); }
+SoundNameResult rohr_audio_sound_name_get(Sound sound) { return audio_sound_name_get(sound); }
+MusicResult rohr_audio_music_by_name_get(const char *name) { return audio_music_by_name_get(name); }
+MusicNameResult rohr_audio_music_name_get(Music music) { return audio_music_name_get(music); }

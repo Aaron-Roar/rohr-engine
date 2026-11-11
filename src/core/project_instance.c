@@ -7,7 +7,6 @@
 #include "entity/object_internal.h"
 #include "graphics/viewport_creation.h"
 #include "graphics/layer_state.h"
-#include <inttypes.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -120,31 +119,6 @@ static EngineResult resources_destroy(ProjectInstance *p) {
 #undef RELEASE
     return result;
 }
-/* Resolve by pointer membership and the new instance's local hierarchy only. */
-static EntityResult object_resolve(Entity instance, const ObjectDescription *root, const ObjectDescription *member) {
-    const ObjectDescription *path[OBJECT_DEPTH_MAX];
-    size_t count = 0;
-    const ObjectDescription *step = member;
-    while(step && step != root && count < OBJECT_DEPTH_MAX) {
-        const ObjectDescription *parent = step->parent;
-        if(!parent || parent->child_count > MAX_ENTITIES || (parent->child_count && !parent->children)) break;
-        bool found = false;
-        for(size_t i = 0; i < parent->child_count; ++i) found |= parent->children[i] == step;
-        if(!found) break;
-        path[count++] = step;
-        step = parent;
-    }
-    if(step != root) return ERROR_RESULT_MAKE_ERROR(EntityResult, ERROR_ENGINE_STATE_REFERENCE_NOT_FOUND);
-    while(count) {
-        step = path[--count];
-        EntityResult found = object_member_get(instance, step->name);
-        if(error_check(found)) return found;
-        instance = found.result.value;
-        if(!object_instance_description_check(instance, step))
-            return ERROR_RESULT_MAKE_ERROR(EntityResult, ERROR_ENGINE_STATE_REFERENCE_NOT_FOUND);
-    }
-    return ERROR_RESULT_MAKE_VALUE(EntityResult, instance);
-}
 static ViewportIdResult viewport_create(const ProjectDescription *d, Entity root, size_t index) {
     const ViewportCreateDescription *v = d->viewports[index].description;
     ViewportObjectBinding bindings[MAX_VIEWPORT_ITEMS];
@@ -155,24 +129,14 @@ static ViewportIdResult viewport_create(const ProjectDescription *d, Entity root
         size_t j = 0;
         while(j < count && bindings[j].description != object) ++j;
         if(j < count) continue;
-        EntityResult entity = object_resolve(root, &d->root, object);
+        EntityResult entity = object_instance_member_description_get(root, &d->root, object);
         if(error_check(entity)) return ERROR_RESULT_MAKE_ERROR(ViewportIdResult, entity.result.error);
         bindings[count++] = (ViewportObjectBinding){object, entity.result.value};
     }
-    ViewportCreateDescription input = {.template = v, .objects = bindings, .object_count = count};
+    ViewportCreateDescription recipe = *v;
+    snprintf(recipe.viewport.name, sizeof(recipe.viewport.name), "%s", d->viewports[index].name);
+    ViewportCreateDescription input = {.template = &recipe, .objects = bindings, .object_count = count};
     return graphics_viewport_create(input);
-}
-static InputControllerIdResult project_controller_create(ProjectId project, size_t index,
-        ControllerDescription description) {
-    /* At most LIMIT live names can collide; LIMIT+1 candidates guarantee a free
-     * name without reserving a public prefix or silently truncating authored names. */
-    for(unsigned attempt = 0; attempt <= ROHR_INPUT_CONTROLLER_LIMIT; ++attempt) {
-        int length = snprintf(description.controller.name, sizeof(description.controller.name),
-            "__rohr_project_%" PRIu64 "_%zu_%u", project, index, attempt);
-        if(length < 0 || (size_t)length >= sizeof(description.controller.name)) break;
-        if(error_check(input_controller_by_name_get(description.controller.name))) return controller_create(description);
-    }
-    return ERROR_RESULT_MAKE_ERROR(InputControllerIdResult, ERROR_ENGINE_INPUT_CAPACITY_EXCEEDED);
 }
 ProjectIdResult rohr_internal_project_create(const ProjectDescription *d) {
     EngineResult check = description_check(d);
@@ -199,19 +163,23 @@ ProjectIdResult rohr_internal_project_create(const ProjectDescription *d) {
     }
     for(size_t i = 0; i < d->controller_count; ++i) {
         const ProjectControllerDescription *c = &d->controllers[i];
-        ACQUIRE(InputControllerIdResult, controller, project_controller_create(p->id, i, *c));
+        ACQUIRE(InputControllerIdResult, controller, controller_create(*c));
         p->controllers[i].id = controller.result.value;
         strcpy(p->controllers[i].name, c->controller.name);
         ++p->controller_count;
     }
     for(size_t i = 0; i < d->sound_count; ++i) {
-        ACQUIRE(SoundResult, sound, audio_sound_create(d->sounds[i].description));
+        SoundDescription description = d->sounds[i].description;
+        snprintf(description.name, sizeof(description.name), "%s", d->sounds[i].name);
+        ACQUIRE(SoundResult, sound, audio_sound_create(description));
         p->sounds[i].id = sound.result.value;
         strcpy(p->sounds[i].name, d->sounds[i].name);
         ++p->sound_count;
     }
     for(size_t i = 0; i < d->music_count; ++i) {
-        ACQUIRE(MusicResult, music, audio_music_create(d->music[i].description));
+        MusicDescription description = d->music[i].description;
+        snprintf(description.name, sizeof(description.name), "%s", d->music[i].name);
+        ACQUIRE(MusicResult, music, audio_music_create(description));
         p->music[i].id = music.result.value;
         strcpy(p->music[i].name, d->music[i].name);
         ++p->music_count;

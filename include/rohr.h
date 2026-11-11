@@ -275,6 +275,8 @@ float rohr_audio_volume_get(void);
 SoundDescription rohr_audio_sound_description_default_get(void);
 /** Load a WAV and create one independently controlled playback instance. */
 SoundResult rohr_audio_sound_create(SoundDescription config);
+SoundResult rohr_audio_sound_by_name_get(const char *name);
+SoundNameResult rohr_audio_sound_name_get(Sound sound);
 /** Prepare a complete replacement and enqueue one atomic update. Same-source
  * edits preserve progress; a changed source is installed stopped. Paths are
  * required and copied; failures leave existing state and queued work intact. */
@@ -320,6 +322,8 @@ bool rohr_audio_sound_playing_check(Sound sound);
 MusicDescription rohr_audio_music_description_default_get(void);
 /** Open an Ogg Vorbis file for incremental decoding during playback. */
 MusicResult rohr_audio_music_create(MusicDescription config);
+MusicResult rohr_audio_music_by_name_get(const char *name);
+MusicNameResult rohr_audio_music_name_get(Music music);
 /** Prepare a complete replacement and enqueue one atomic update. Same-source
  * edits preserve progress; a changed source is installed stopped. Paths are
  * required and copied; failures leave existing state and queued work intact. */
@@ -444,6 +448,7 @@ InputControllerDescriptionResult rohr_input_controller_description_get(InputCont
 EngineResult rohr_input_controller_destroy(InputControllerId controller);
 /** Find a logical controller by its unique name. */
 InputControllerIdResult rohr_input_controller_by_name_get(const char *name);
+InputControllerNameResult rohr_input_controller_name_get(InputControllerId controller);
 /** Enable or disable a controller without changing its action state. */
 EngineResult rohr_input_controller_enabled_set(InputControllerId controller,
     bool enabled);
@@ -2349,6 +2354,8 @@ ScreenIdResult rohr_screen_create(ScreenDescription config);
 EngineResult rohr_screen_destroy(ScreenId screen);
 EngineResult rohr_screen_camera_set(ScreenId screen, CameraId camera);
 ViewportIdResult rohr_viewport_create(ViewportDescription config);
+ViewportIdResult rohr_viewport_by_name_get(const char *name);
+ViewportNameResult rohr_viewport_name_get(ViewportId viewport);
 EngineResult rohr_viewport_destroy(ViewportId viewport);
 ViewportItemIdResult rohr_viewport_camera_add(ViewportId viewport,
     CameraId camera, ViewportItemDescription config);

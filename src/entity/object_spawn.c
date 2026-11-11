@@ -106,6 +106,45 @@ bool object_instance_description_check(Entity entity, const ObjectDescription *d
         object_instance_appearance_get(entity, &appearance) && appearance.kind == description->kind;
 }
 
+EntityResult object_instance_member_description_get(Entity instance,
+        const ObjectDescription *root, const ObjectDescription *member) {
+    const ObjectDescription *path[OBJECT_DEPTH_MAX];
+    size_t count = 0;
+    const ObjectDescription *step = member;
+    if(!object_instance_description_check(instance, root)) goto invalid;
+    while(step && step != root && count < OBJECT_DEPTH_MAX) {
+        const ObjectDescription *parent = step->parent;
+        if(!parent || parent->child_count > MAX_ENTITIES || (parent->child_count && !parent->children))
+            goto invalid;
+        size_t matches = 0;
+        for(size_t i = 0; i < parent->child_count; ++i) matches += parent->children[i] == step;
+        if(matches != 1) goto invalid;
+        path[count++] = step;
+        step = parent;
+    }
+    if(step != root) goto invalid;
+    while(count) {
+        step = path[--count];
+        GroupIdResult members = entity_object_members_get(instance);
+        if(error_check(members)) goto invalid;
+        EntityGroupResult group = entity_group_get(members.result.value);
+        if(error_check(group)) goto invalid;
+        Entity found = ENTITY_INVALID;
+        for(size_t i = 0; i < group.result.value.entities.capacity; ++i) {
+            if(!group.result.value.entities.used[i]) continue;
+            Entity candidate = group.result.value.entities.objects[i];
+            if(!object_instance_description_check(candidate, step)) continue;
+            if(found) goto invalid;
+            found = candidate;
+        }
+        if(!found) goto invalid;
+        instance = found;
+    }
+    return ERROR_RESULT_MAKE_VALUE(EntityResult, instance);
+invalid:
+    return ERROR_RESULT_MAKE_ERROR(EntityResult, ERROR_ENGINE_STATE_REFERENCE_NOT_FOUND);
+}
+
 bool object_instance_appearance_get(Entity entity, ObjectAppearance *appearance) {
     EntityIndex index;
     if(!appearance || !entity_index_get(entity, &index) || !instance_appearance_used[index]) return false;
@@ -396,13 +435,6 @@ static EngineResult creation_validate(SpawnContext *c) {
         return error_result_error(ERROR_ENGINE_STATE_INVALID);
     if(c->creation.owner && !entity_alive_check(c->creation.owner))
         return error_result_error(ERROR_ENGINE_INVALID_ENTITY);
-    if(c->creation.owner) {
-        EntityResult existing = object_member_get(c->creation.owner, root->name);
-        if(!error_check(existing)) return error_result_error(ERROR_ENGINE_DUPLICATE_ENTITY_NAME);
-        if(existing.result.error != ERROR_ENGINE_ENTITY_NOT_FOUND &&
-                existing.result.error != ERROR_ENGINE_COMPONENT_MISSING)
-            return error_result_error(existing.result.error);
-    }
     if(c->single && (root->kind == OBJECT_NODE || root->kind == OBJECT_BEAM || root->kind == OBJECT_AREA) &&
             (!c->creation.owner || !entity_components_check(c->creation.owner, ROHR_SOFT_BODY)))
         return error_result_error(ERROR_ENGINE_STATE_INVALID);
@@ -488,21 +520,10 @@ static bool collect(SpawnContext *c, const ObjectDescription *d, unsigned depth)
     }
     return true;
 }
-static EngineResult name_set(Entity entity, const ObjectDescription *d, Entity parent) {
-    char name[ENTITY_NAME_MAX];
-    EntityNameResult owner = entity_name_get(parent);
-    for(uint32_t suffix = 0; suffix <= MAX_ENTITIES; ++suffix) {
-        char tail[24] = {0};
-        int n = suffix ? snprintf(tail, sizeof(tail), "_%u", suffix) : 0;
-        int available = ENTITY_NAME_MAX - 1 - n;
-        int prefix = available - (int)strlen(d->name) - 1;
-        if(!error_check(owner) && prefix > 0)
-            snprintf(name, sizeof(name), "%.*s_%s%s", prefix, owner.result.value.value, d->name, tail);
-        else snprintf(name, sizeof(name), "%.*s%s", available, d->name, tail);
-        EntityResult existing = entity_by_name_get(name);
-        if(error_check(existing) || existing.result.value == entity) return entity_name_set(entity, name);
-    }
-    return error_result_error(ERROR_ENGINE_DUPLICATE_ENTITY_NAME);
+static EngineResult name_set(Entity entity, const ObjectDescription *d) {
+    EntityNameResult name = entity_available_name_get(d->name, entity);
+    if(error_check(name)) return error_result_error(name.result.error);
+    return entity_name_set(entity, name.result.value.value);
 }
 static EngineResult body_apply(Entity entity, const ObjectDescription *d, bool node) {
 #define APPLY(call) do { EngineResult r = (call); if(error_check(r)) return r; } while(0)
@@ -651,7 +672,7 @@ static EngineResult spawn_entry(SpawnContext *c, size_t i, unsigned pass) {
     entry->entity = created.result.value;
     Entity e = entry->entity;
 #define APPLY(call) do { result = (call); if(error_check(result)) return result; } while(0)
-    APPLY(name_set(e, d, parent));
+    APPLY(name_set(e, d));
     APPLY(object_instance_appearance_set(e, (ObjectAppearance){.kind = d->kind, .visuals = d->visuals, .color = d->color,
         .border_color = d->border_color,
         .visible = c->single ? object_description_visible_check(d) : d->visible, .enabled = visual}));
@@ -790,7 +811,7 @@ static EngineResult source_spawn(SpawnContext *c, SpawnEntry *entry) {
         .enabled=(d->categories & c->options.flags & ROHR_ENTITY_OBJECT_VISUALS)!=0});
     if(!error_check(result) && (d->categories & c->options.flags & ROHR_ENTITY_OBJECT_VISUALS))
         result = description_layer_set(entry->entity, d, OBJECT_BODY);
-    if(!error_check(result)) result = name_set(entry->entity, d, parent);
+    if(!error_check(result)) result = name_set(entry->entity, d);
     if(!error_check(result) && parent) result = entity_object_member_restore(parent, entry->entity, d->name);
     if(!error_check(result) && mode == OBJECT_SOURCE_INITIAL)
         result = entity_lifetime_description_set(entry->entity, (EntityLifetimeDescription){

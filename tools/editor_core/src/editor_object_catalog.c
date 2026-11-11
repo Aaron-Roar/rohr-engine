@@ -378,7 +378,8 @@ static void controller_recipe_write(FILE *f, const EditorInputController *c, siz
     fputc('}', f);
 }
 static void audio_recipe_write(FILE *f, const EditorAudioDefinition *a) {
-    fputs("{.path=", f); string_write(f, a->path);
+    fputs("{.name=", f); string_write(f, a->name);
+    fputs(",.path=", f); string_write(f, a->path);
     fprintf(f, ",.volume=%.9ef,.loop=%u,.playback_rate=%.9ef", a->volume, a->loop, a->playback_rate);
     if(!a->music) fprintf(f, ",.pan=%.9ef", a->pan);
     fputc('}', f);
@@ -657,7 +658,10 @@ static void viewport_values_write(FILE *f, const EditorProject *p) {
         fprintf(f,",.%s={._description={.viewport={.rectangle={%.9ef,%.9ef,%.9ef,%.9ef},.fit=%u,.enabled=%u,.background_color=",
             name,(double)view->config.rectangle.x,(double)view->config.rectangle.y,
             (double)view->config.rectangle.width,(double)view->config.rectangle.height,view->config.fit,!view->app_hidden);
-        color_write(f,view->background_color); fputc('}',f);
+        color_write(f,view->background_color);
+        char authored[EDITOR_OBJECT_NAME_MAX];
+        editor_project_object_name_format(authored, sizeof(authored), view->name);
+        fputs(",.name=", f); string_write(f, authored); fputc('}',f);
         size_t count=view->camera_item_count+view->ui_item_count;
         if(count) fprintf(f,",.items=project_viewport_%zu_items,.item_count=%zu",v,count);
         if(p->graphics_layer_count) fprintf(f,",.layers=project_layers,.layer_count=%zu",p->graphics_layer_count);

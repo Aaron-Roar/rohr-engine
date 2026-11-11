@@ -58,8 +58,8 @@ ERROR_DECLARE_RESULT_TYPE(ViewportListResult, ViewportList);
 ProjectIdResult rohr_internal_project_create(const ProjectDescription *description);
 /** Destroy owned viewports before entities and release input/audio. Zero is a
  * no-op; stale nonzero IDs fail. Engine shutdown also destroys remaining owners.
- * Lookup results are borrowed: do not independently destroy these owners.
- * Individual entity members may be changed, extended, or deleted normally. */
+ * Individual resources may be deleted normally. Grouped cleanup skips deleted
+ * IDs and never destroys a replacement that reused their storage slot. */
 EngineResult project_destroy(ProjectId project);
 EntityResult project_root_get(ProjectId project);
 ViewportIdResult project_viewport_by_name_get(ProjectId project, const char *name);

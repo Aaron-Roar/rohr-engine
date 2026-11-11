@@ -17,7 +17,7 @@ priority order.
 | 15 | [Descriptor-based creation and automatic viewport rendering](#15-descriptor-based-creation-and-automatic-viewport-rendering) | Complete; all six goals verified, final generated workflow accepted |
 | 16 | [Scoped creation and a teaching example](#16-scoped-creation-and-a-teaching-example) | Complete; all three creation paths and SDK workflows verified, final preview accepted |
 | 17 | [Consistent creation APIs and report checks](#17-consistent-creation-apis-and-report-checks) | Complete; all six goal results recorded below |
-| 18 | [Explicit runtime lists and ID/name access](#18-explicit-runtime-lists-and-idname-access) | Goal 1 complete; Goals 2–3 await user instruction |
+| 18 | [Explicit runtime lists and ID/name access](#18-explicit-runtime-lists-and-idname-access) | Goals 1–2 complete; Goal 3 awaits user instruction |
 | — | [C game experiment](#c-game-experiment) | Follows the current API work; agree concept and completion criteria with the user |
 | 13 | Physics rebuild from the simpler baseline | Paused by user direction for frame pacing and game development; goals 1, 2a, 2b and 4a complete; goals 2 and 3 failed; goal 4 blocking remains incomplete; goals 5–8 not started |
 | 12 | Real-time physics pipeline rework | Closed by user direction; superseded by milestone 13, not complete; goals 1–13 complete, goal 14 unfinished, goals 15–19 not started; evidence preserved |
@@ -29,9 +29,9 @@ priority order.
 | 7 | Editor implementation scalability | Deferred until after Python unless game development makes it necessary sooner |
 | 10 | End-to-end game | Pending; separate larger game directed by the user |
 
-**Current priority:** Milestone 18 Goal 1 is complete for review and commit;
-Goal 2 requires a new user instruction. Milestone 17's six completed
-goals remain recorded below. Milestone 18 keeps authored structures as creation
+**Current priority:** Milestone 18 Goal 2 is complete for review and commit;
+Goal 3 awaits explicit user instruction. Milestone 17's six completed goals
+remain recorded below. Milestone 18 keeps authored structures as creation
 recipes and establishes runtime ID/name access. Preserve developer-owned mains,
 physics settings, frame pacing, and known failure records; neither later goals
 nor game implementation starts automatically.
@@ -1132,7 +1132,7 @@ unfinished milestones.
    real preview acceptance gates remain pending. See
    [verification](docs/entity_ids.md#milestone-18-goal-1-verification) and
    `sandbox/milestone_18/goal_1/`. Stop for review and commit.
-2. [ ] **Establish runtime ID/name access and consistent naming.** Remove
+2. [x] **Establish runtime ID/name access and consistent naming.** Remove
    project/object prefixes from created names. Preserve the authored name when
    available, otherwise append the lowest available suffix (`box`, `box_1`,
    `box_2`); skip occupied names and permit reuse after deletion. Add typed
@@ -1147,6 +1147,19 @@ unfinished milestones.
    resources so reused slots survive. Temporarily retain hierarchy access APIs.
    Verify duplicate/already-suffixed names, length limits, independent namespaces,
    repeated projects, instance wiring, rollback, and cleanup after slot reuse.
+   **Result: complete for review.** All five resource families use copied runtime
+   names, typed lookup/getters and lowest available suffixes without ownership
+   prefixes. Authored connections use instance-local identity; grouped cleanup
+   preserves replacement IDs. Exhausted generations retire, and hierarchy APIs
+   remain temporarily available. Twelve focused tests pass in Release and
+   ASan/UBSan with leak detection and cross-build for Windows. Installed-SDK
+   naming/persistence and regenerated configuration/project consumers pass;
+   all 13 examples compile, with three headless startup/interrupt checks.
+   No compiler warnings or sanitizer findings remain. The API-inventory audit
+   has exactly the committed baseline's pre-existing diagnostics; native Windows
+   execution and Goal 3's preview acceptance remain unverified. See
+   [verification](docs/entity_ids.md#milestone-18-goal-2-verification) and
+   `sandbox/milestone_18/goal_2/`. Stop for review and commit.
 3. [ ] **Migrate examples and generated mains, then remove obsolete access
    APIs.** Migrate all examples and generated creation paths to typed IDs,
    runtime names and useful entity enumeration. Keep whole-project creation

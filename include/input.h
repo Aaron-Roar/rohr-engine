@@ -117,6 +117,9 @@ typedef struct InputControllerDescription {
 } InputControllerDescription;
 ERROR_DECLARE_RESULT_TYPE(InputControllerDescriptionResult, InputControllerDescription);
 
+typedef struct InputControllerName { char value[ROHR_INPUT_NAME_MAX]; } InputControllerName;
+ERROR_DECLARE_RESULT_TYPE(InputControllerNameResult, InputControllerName);
+
 /** Authored action configuration. Runtime overrides and button state are separate.
  * All names and bindings are copied; no borrowed pointers or allocation.
  * Axis actions normalize unused button settings to momentary/false. */
@@ -230,6 +233,8 @@ EngineResult input_controller_description_set(InputControllerId controller,
 InputControllerDescriptionResult input_controller_description_get(InputControllerId controller);
 EngineResult input_controller_destroy(InputControllerId controller);
 InputControllerIdResult input_controller_by_name_get(const char *name);
+/** Copied runtime name; stale controller IDs fail. */
+InputControllerNameResult input_controller_name_get(InputControllerId controller);
 EngineResult input_controller_enabled_set(InputControllerId controller,
     bool enabled);
 bool input_controller_enabled_check(InputControllerId controller);
