@@ -70,6 +70,10 @@ const char *error_code_message_get(EngineError error) {
             return "output formatting failed";
         case ERROR_ENGINE_ENTITY_INFO_INVALID:
             return "Invalid entity inspection request or snapshot";
+        case ERROR_ENGINE_ENTITY_LIST_INVALID:
+            return "Invalid entity list or storage";
+        case ERROR_ENGINE_ENTITY_LIST_CAPACITY_EXCEEDED:
+            return "Entity list capacity is insufficient";
         case ERROR_ENGINE_REPORT_INVALID:
             return "invalid report fields or incompatible report aggregation";
         case ERROR_NONE:

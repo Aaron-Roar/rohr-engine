@@ -466,9 +466,30 @@ Checks whether an entity table index currently contains a live entity.
 uint32_t rohr_entity_alive_count_get(void);
 ```
 
-Returns the number of currently alive entities.
+Use this count to size caller-owned storage for `rohr_entity_list_get` and
+`rohr_entity_name_list_get`.
 
 **Returns:** Number of alive entities.
+
+### `rohr_entity_list_get` / `rohr_entity_name_list_get`
+
+```c
+EngineResult rohr_entity_list_get(EntityList *list);
+EngineResult rohr_entity_name_list_get(EntityNameList *list);
+```
+
+Copy all live IDs or fixed-size names into the list's typed `data` array, without
+allocation or sorting. `capacity` is in elements; `count` receives the required
+live count even on error. Insufficient capacity writes no elements and returns
+`ERROR_ENGINE_ENTITY_LIST_CAPACITY_EXCEEDED`. NULL list or NULL storage with
+nonzero capacity returns `ERROR_ENGINE_ENTITY_LIST_INVALID`. Empty, zero-capacity
+lists succeed when no entities live. Unnamed entities contribute empty names.
+
+Calls must be serialized between updates and entity mutations. Both lists follow
+the same discovery order if no entities are created/deleted between calls.
+Snapshots own no entities: deleted IDs become stale, and copied names do not
+change on renaming. The caller owns the storage. See the complete
+[entity list contract](entity_ids.md#caller-owned-entity-lists).
 
 ### `rohr_entity_alive_at_get`
 

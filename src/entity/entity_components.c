@@ -471,6 +471,32 @@ uint32_t entity_alive_count_get(void) {
     return (uint32_t)entity_id_pool.live_count;
 }
 
+EngineResult entity_list_get(EntityList *list) {
+    if(list == NULL) return error_result_error(ERROR_ENGINE_ENTITY_LIST_INVALID);
+    list->count = entity_alive_count_get();
+    if(list->data == NULL && list->capacity != 0)
+        return error_result_error(ERROR_ENGINE_ENTITY_LIST_INVALID);
+    if(list->capacity < list->count)
+        return error_result_error(ERROR_ENGINE_ENTITY_LIST_CAPACITY_EXCEEDED);
+    for(size_t i = 0; i < list->count; ++i)
+        list->data[i] = entity_alive_entities[i];
+    return error_result_value(true);
+}
+
+EngineResult entity_name_list_get(EntityNameList *list) {
+    if(list == NULL) return error_result_error(ERROR_ENGINE_ENTITY_LIST_INVALID);
+    list->count = entity_alive_count_get();
+    if(list->data == NULL && list->capacity != 0)
+        return error_result_error(ERROR_ENGINE_ENTITY_LIST_INVALID);
+    if(list->capacity < list->count)
+        return error_result_error(ERROR_ENGINE_ENTITY_LIST_CAPACITY_EXCEEDED);
+    for(size_t i = 0; i < list->count; ++i) {
+        EntityNameResult name = entity_name_get(entity_alive_entities[i]);
+        list->data[i] = name.kind == ERROR_RESULT_VALUE ? name.result.value : (EntityName){0};
+    }
+    return error_result_value(true);
+}
+
 EntityResult entity_alive_at_get(uint32_t position) {
     if(position >= entity_id_pool.live_count) {
         return ERROR_RESULT_MAKE_ERROR(EntityResult, ERROR_ENGINE_ENTITY_NOT_FOUND);

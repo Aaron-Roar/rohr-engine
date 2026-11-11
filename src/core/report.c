@@ -88,7 +88,7 @@ static bool report_diagnostic_check(const ReportDiagnostic *value) {
          value->severity == ROHR_REPORT_SEVERITY_INFORMATION) &&
         (value->code > ERROR_NONE || (value->code == ERROR_NONE &&
             value->severity == ROHR_REPORT_SEVERITY_INFORMATION)) &&
-        value->code <= ERROR_ENGINE_UI_SCOPE_UNBALANCED &&
+        value->code <= ERROR_ENGINE_ENTITY_LIST_CAPACITY_EXCEEDED &&
         value->recovery >= ROHR_REPORT_RECOVERY_NONE &&
         value->recovery <= ROHR_REPORT_UPDATE_ABORTED &&
         report_object_check(value->source) && report_object_check(value->target) &&

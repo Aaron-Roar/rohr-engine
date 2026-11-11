@@ -16,8 +16,9 @@ priority order.
 | 14 | Frame pacing before game development | Complete; corrected pacing verified and initial previews accepted |
 | 15 | [Descriptor-based creation and automatic viewport rendering](#15-descriptor-based-creation-and-automatic-viewport-rendering) | Complete; all six goals verified, final generated workflow accepted |
 | 16 | [Scoped creation and a teaching example](#16-scoped-creation-and-a-teaching-example) | Complete; all three creation paths and SDK workflows verified, final preview accepted |
-| 17 | [Consistent creation APIs and report checks](#17-consistent-creation-apis-and-report-checks) | Goal 1 complete; Goals 2–6 await user instruction |
-| — | [C game experiment](#c-game-experiment) | Follows milestone 17 by user direction; agree concept and completion criteria with the user |
+| 17 | [Consistent creation APIs and report checks](#17-consistent-creation-apis-and-report-checks) | Complete; all six goal results recorded below |
+| 18 | [Explicit runtime lists and ID/name access](#18-explicit-runtime-lists-and-idname-access) | Goal 1 complete; Goals 2–3 await user instruction |
+| — | [C game experiment](#c-game-experiment) | Follows the current API work; agree concept and completion criteria with the user |
 | 13 | Physics rebuild from the simpler baseline | Paused by user direction for frame pacing and game development; goals 1, 2a, 2b and 4a complete; goals 2 and 3 failed; goal 4 blocking remains incomplete; goals 5–8 not started |
 | 12 | Real-time physics pipeline rework | Closed by user direction; superseded by milestone 13, not complete; goals 1–13 complete, goal 14 unfinished, goals 15–19 not started; evidence preserved |
 | 11 | Soft-body correctness and real-time performance | Superseded by milestone 12; not complete; evidence preserved |
@@ -28,15 +29,12 @@ priority order.
 | 7 | Editor implementation scalability | Deferred until after Python unless game development makes it necessary sooner |
 | 10 | End-to-end game | Pending; separate larger game directed by the user |
 
-**Current priority:** By user direction, milestone 17 precedes the C game
-checkpoint. Goal 1 is complete: successful and strict report predicates plus
-explicit intentional-skip handling in generated game loops are verified. Stop
-for review and commit; Goal 2 requires a new user instruction.
-The remaining goals unify value-style creation from authored recipes and runtime
-descriptors, expose named resources, and migrate callers. Milestone 16 remains
-complete. Preserve developer-owned mains, physics settings, frame pacing, and
-known failure records; neither later goals nor game implementation starts
-automatically.
+**Current priority:** Milestone 18 Goal 1 is complete for review and commit;
+Goal 2 requires a new user instruction. Milestone 17's six completed
+goals remain recorded below. Milestone 18 keeps authored structures as creation
+recipes and establishes runtime ID/name access. Preserve developer-owned mains,
+physics settings, frame pacing, and known failure records; neither later goals
+nor game implementation starts automatically.
 
 Milestone 15 is complete. Its Goal 1 defines the
 [creation and viewport contract](docs/creation_and_viewport_contract.md).
@@ -1101,6 +1099,70 @@ factories and new physics, pacing, or world-isolation behavior are out of scope.
 
 Complete and review one goal at a time. After this milestone, agree the C game
 concept and completion criteria with the user; no later goal starts automatically.
+
+### 18. Explicit runtime lists and ID/name access
+
+Authored project/object structures remain creation recipes. Game code accesses
+created resources through typed IDs and runtime names. Internal ownership
+remains for safe grouped cleanup. This change is separate from existing
+unfinished milestones.
+
+1. [x] **Add typed entity lists with caller-owned storage.** Add `EntityList`
+   and `EntityNameList`, each with a typed data pointer, capacity, and count.
+   Provide `rohr_entity_list_get(&list)` and `rohr_entity_name_list_get(&list)`
+   plus direct-engine equivalents returning `EngineResult`. Use the existing
+   live count to size caller storage. Getters allocate nothing; insufficient
+   capacity writes no elements and reports the required count in `list.count`.
+   Enumerate all live entities in discovery order without sorting. Copy names
+   by value, using empty names for unnamed entities; ID/name entries correspond
+   without intervening creation/deletion. Document non-ownership, stale deleted
+   IDs, and name-copy independence. Verify empty/exact/insufficient capacity,
+   NULL storage, unnamed entities, correspondence, rename independence, and
+   deletion/slot reuse after capture.
+   **Result: complete for review.** Public/direct getters copy discovery-order
+   snapshots into caller-owned arrays with explicit validation/capacity errors
+   and required counts, without allocation or partial writes. Copied names and
+   stale-ID behavior are documented. Six focused tests and an installed-SDK
+   consumer pass in Release and ASan/UBSan with leak detection; all six tests
+   and the consumer cross-build for Windows. All 13 examples build independently
+   against the installed Linux SDK; center-of-mass, player-controller and
+   viewport examples pass headless startup/interrupt checks outside their source
+   directories. No compiler warnings or sanitizer findings remain. Native
+   Windows execution is unverified; Goal 3's generic SDK/generated-workflow and
+   real preview acceptance gates remain pending. See
+   [verification](docs/entity_ids.md#milestone-18-goal-1-verification) and
+   `sandbox/milestone_18/goal_1/`. Stop for review and commit.
+2. [ ] **Establish runtime ID/name access and consistent naming.** Remove
+   project/object prefixes from created names. Preserve the authored name when
+   available, otherwise append the lowest available suffix (`box`, `box_1`,
+   `box_2`); skip occupied names and permit reuse after deletion. Add typed
+   global name lookup and runtime-name getters for entities, viewports,
+   controllers, sound and music, with separate resource-family namespaces.
+   Keep actions scoped to controller IDs and viewport items to viewport IDs;
+   screens use placements, cameras use entities, assets retain typed handles,
+   and named layers retain shared-name semantics. Apply this consistently to
+   standalone/object/project creation; resolve authored connections with
+   operation-local identity mappings, never global name guesses. Preserve
+   ownership, rollback and grouped cleanup, validating IDs and skipping deleted
+   resources so reused slots survive. Temporarily retain hierarchy access APIs.
+   Verify duplicate/already-suffixed names, length limits, independent namespaces,
+   repeated projects, instance wiring, rollback, and cleanup after slot reuse.
+3. [ ] **Migrate examples and generated mains, then remove obsolete access
+   APIs.** Migrate all examples and generated creation paths to typed IDs,
+   runtime names and useful entity enumeration. Keep whole-project creation
+   active and object/individual alternatives commented out with clear dividers.
+   Keep initialization, checks, loops and cleanup directly in `main`, without
+   local utility functions or replacement helper macros. Remove public
+   project/member hierarchy lookup helpers after migrating callers; retain
+   creation, grouped destruction and operational relationship APIs. Update
+   documentation and manual migration guidance; preserve developer-edited mains.
+   Compile/run all examples and all three generated paths; verify deterministic
+   generation, edited-main preservation, Release, ASan/UBSan, Nix/generic Linux
+   SDK consumers and Windows cross-builds. Obtain real Linux preview acceptance.
+
+Boundaries: no generic `RohrType`/`RohrList`, hidden list allocation, sorting
+guarantee, or physics changes. IDs are the durable access mechanism; names may
+be reused. Complete and verify only one goal, then stop for review and commit.
 
 ### 13. Physics rebuild from the simpler baseline
 

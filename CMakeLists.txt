@@ -789,6 +789,27 @@ if(ROHR_BUILD_TESTS)
     add_test(NAME report_output COMMAND report_output_test)
 
     add_executable(system_reports_test tests/system_reports.c)
+    add_executable(entity_lists_test tests/entity_lists.c)
+    target_link_libraries(entity_lists_test PRIVATE rohr_engine)
+    set_target_properties(entity_lists_test PROPERTIES
+        RUNTIME_OUTPUT_DIRECTORY ${ROHR_BUILD_OUTPUT_DIRECTORY}/tests)
+    if(MSVC)
+        target_compile_options(entity_lists_test PRIVATE /UNDEBUG)
+    else()
+        target_compile_options(entity_lists_test PRIVATE -Wall -Wextra -Wpedantic -UNDEBUG)
+    endif()
+    if(CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_C_COMPILER_ID MATCHES "GNU|Clang")
+        target_compile_definitions(entity_lists_test PRIVATE ROHR_TEST_ALLOCATION_WRAP)
+        target_link_options(entity_lists_test PRIVATE
+            -Wl,--wrap=malloc -Wl,--wrap=calloc -Wl,--wrap=realloc)
+    endif()
+    if(ROHR_ENABLE_SANITIZERS)
+        target_compile_options(entity_lists_test PRIVATE ${ROHR_SANITIZER_COMPILE_OPTIONS})
+    endif()
+    add_test(NAME entity_lists COMMAND entity_lists_test)
+    set_tests_properties(entity_lists PROPERTIES
+        ENVIRONMENT "SDL_VIDEODRIVER=dummy;SDL_AUDIODRIVER=dummy;SDL_RENDER_DRIVER=software")
+
     add_executable(entity_info_test tests/entity_info.c)
     target_link_libraries(entity_info_test PRIVATE rohr_engine)
     target_include_directories(entity_info_test PRIVATE src)
@@ -1622,6 +1643,7 @@ if(ROHR_BUILD_TESTS)
     add_dependencies(rohr_tests pin_stability_test weld_stability_test spring_stability_test)
     add_dependencies(
         rohr_tests
+        entity_lists_test
         entity_info_test
         entity_info_adversarial_test
         report_test

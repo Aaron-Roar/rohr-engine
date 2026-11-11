@@ -152,6 +152,20 @@ typedef struct EntityName {
     char value[ENTITY_NAME_MAX];
 } EntityName;
 
+/** Caller-owned ID snapshot storage; owns no entities. */
+typedef struct EntityList {
+    Entity *data;
+    size_t capacity;
+    size_t count;
+} EntityList;
+
+/** Caller-owned copied-name snapshot storage; owns no entities. */
+typedef struct EntityNameList {
+    EntityName *data;
+    size_t capacity;
+    size_t count;
+} EntityNameList;
+
 /** Result type for functions that return an EntityName. */
 ERROR_DECLARE_RESULT_TYPE(EntityNameResult, EntityName);
 
@@ -326,6 +340,29 @@ bool entity_index_alive_check(EntityIndex index);
  * @return Number of alive entities.
  */
 uint32_t entity_alive_count_get(void);
+
+/**
+ * Copy all live IDs in discovery order, without allocation or sorting.
+ * Call between updates, serialized with entity creation, deletion and renaming.
+ * Size caller storage with entity_alive_count_get(). No ordering stability is
+ * promised across creation/deletion; deleted snapshot IDs become stale.
+ * For every non-NULL list, count receives the required live count, including
+ * on error. NULL list or NULL data with nonzero capacity returns
+ * ERROR_ENGINE_ENTITY_LIST_INVALID. Insufficient capacity returns
+ * ERROR_ENGINE_ENTITY_LIST_CAPACITY_EXCEEDED. Errors write no array elements;
+ * success writes count elements and leaves any remaining capacity untouched.
+ * NULL data with zero capacity is valid (success only when no entities live).
+ * The caller owns storage; the snapshot neither owns nor retains entities.
+ */
+EngineResult entity_list_get(EntityList *list);
+
+/**
+ * Copy names with the same storage, error and ordering contract as entity_list_get.
+ * Unnamed entities produce empty EntityName values. Names are independent copies
+ * unaffected by later renaming/deletion. ID and name entries correspond when
+ * no entities are created/deleted between the two calls.
+ */
+EngineResult entity_name_list_get(EntityNameList *list);
 
 /**
  * Return the entity id stored at a dense alive-list position.

@@ -321,6 +321,8 @@ void rohr_console_debug_set(bool state) { console_debug_set(state); }
 bool rohr_entity_alive_check(Entity entity) { return entity_alive_check(entity); }
 bool rohr_entity_index_alive_check(EntityIndex index) { return entity_index_alive_check(index); }
 uint32_t rohr_entity_alive_count_get(void) { return entity_alive_count_get(); }
+EngineResult rohr_entity_list_get(EntityList *list) { return entity_list_get(list); }
+EngineResult rohr_entity_name_list_get(EntityNameList *list) { return entity_name_list_get(list); }
 EntityResult rohr_entity_alive_at_get(uint32_t position) { return entity_alive_at_get(position); }
 EntityIndexResult rohr_entity_index_get(Entity entity) {
     EntityIndex index;

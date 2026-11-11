@@ -619,6 +619,25 @@ bool rohr_entity_index_alive_check(EntityIndex index);
 uint32_t rohr_entity_alive_count_get(void);
 
 /**
+ * Copy all live IDs into caller-owned storage, without allocation or sorting.
+ * Size storage with rohr_entity_alive_count_get(); count returns the required
+ * size even on error. Errors write no array elements. NULL list or NULL data
+ * with nonzero capacity is invalid; zero capacity is valid but insufficient
+ * when entities exist. Calls must be serialized between updates and mutations.
+ * Snapshots own no entities; deleted IDs become stale. Discovery order may
+ * change after creation/deletion. See entity_list_get for exact error codes.
+ */
+EngineResult rohr_entity_list_get(EntityList *list);
+
+/**
+ * Copy EntityName values using the entity_list_get storage/error contract.
+ * Unnamed entities produce empty names; copies do not change after renaming.
+ * Entries correspond to rohr_entity_list_get when no entities are created or
+ * deleted between calls. The caller owns storage; no entities are retained.
+ */
+EngineResult rohr_entity_name_list_get(EntityNameList *list);
+
+/**
  * @brief Returns the entity id stored at a dense alive-list position.
  *
  * The position is not a component table index and can change when entities are
