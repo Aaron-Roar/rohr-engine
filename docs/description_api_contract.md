@@ -715,17 +715,18 @@ below. Numeric constants, typedefs, struct fields, extern storage, and callback
 type declarations are not callable API entries; configuration types are covered
 in the family table and exemptions above.
 
-The current inventory contains **1614** classified declaration/macro entries.
+The current inventory contains **1646** classified declaration/macro entries.
 The additions after the milestone-4 inventory freeze are the direct and
 public-wrapper joint placement operations and directional response queries;
 the frozen baseline remains 1,602. Milestone 18 Goal 2 adds 14 direct/facade
 runtime-name query declarations. Goal 3 removes six listed public member-query
-declarations; other unlisted legacy aliases are also removed.
+declarations; other unlisted legacy aliases are also removed. Milestone 19 Goal 1
+adds 32 direct/facade [axis setter](physics_axis_setters.md) declarations.
 
 | Classification | Meaning | Owning goal | Entries |
 | --- | --- | --- | --- |
 | C: Compliant | Existing description interface | — | 342 |
-| EV: Intentionally exempt | Focused/basic-value mutation or lookup | — | 275 |
+| EV: Intentionally exempt | Focused/basic-value mutation or lookup | — | 307 |
 | EQ: Intentionally exempt | Query, validation, snapshot, or result access | — | 410 |
 | EO: Intentionally exempt | Operation, lifecycle, execution, or drawing | — | 458 |
 | EM: Intentionally exempt | Pure math or utility calculation | — | 77 |
@@ -1117,7 +1118,7 @@ Source: [object.h](../include/object.h).
 </details>
 
 <details>
-<summary>physics.h: 233 entries</summary>
+<summary>physics.h: 249 entries</summary>
 
 Source: [physics.h](../include/physics.h).
 
@@ -1141,6 +1142,15 @@ Source: [physics.h](../include/physics.h).
 - `physics_torque_description_set`, `physics_transform_lock_description_get`, `physics_transform_lock_description_set`.
 
 **EV — Focused/basic-value mutation or lookup**
+
+- `physics_velocity_x_set`, `physics_velocity_y_set`.
+- `physics_acceleration_x_set`, `physics_acceleration_y_set`.
+- `physics_gravity_x_set`, `physics_gravity_y_set`.
+- `physics_position_x_set`, `physics_position_y_set`.
+- `physics_center_of_mass_local_position_x_set`, `physics_center_of_mass_local_position_y_set`.
+- `physics_particle_origin_x_set`, `physics_particle_origin_y_set`.
+- `physics_joint_anchor_local_position_x_set`, `physics_joint_anchor_local_position_y_set`.
+- `physics_soft_body_node_local_position_x_set`, `physics_soft_body_node_local_position_y_set`.
 
 - `physics_acceleration_set`, `physics_angle_lock_radians_set`, `physics_angle_lock_set`.
 - `physics_angular_acceleration_radians_set`, `physics_angular_acceleration_set`, `physics_angular_velocity_maximum_radians_set`.
@@ -1236,7 +1246,7 @@ Source: [report.h](../include/report.h).
 </details>
 
 <details>
-<summary>rohr.h: 795 entries</summary>
+<summary>rohr.h: 811 entries</summary>
 
 Source: [rohr.h](../include/rohr.h).
 
@@ -1301,6 +1311,15 @@ Source: [rohr.h](../include/rohr.h).
 - `rohr_viewport_ui_slider_add`, `rohr_viewport_ui_text_add`.
 
 **EV — Focused/basic-value mutation or lookup**
+
+- `rohr_physics_velocity_x_set`, `rohr_physics_velocity_y_set`.
+- `rohr_physics_acceleration_x_set`, `rohr_physics_acceleration_y_set`.
+- `rohr_physics_gravity_x_set`, `rohr_physics_gravity_y_set`.
+- `rohr_physics_position_x_set`, `rohr_physics_position_y_set`.
+- `rohr_physics_center_of_mass_local_position_x_set`, `rohr_physics_center_of_mass_local_position_y_set`.
+- `rohr_physics_particle_origin_x_set`, `rohr_physics_particle_origin_y_set`.
+- `rohr_physics_joint_anchor_local_position_x_set`, `rohr_physics_joint_anchor_local_position_y_set`.
+- `rohr_physics_soft_body_node_local_position_x_set`, `rohr_physics_soft_body_node_local_position_y_set`.
 
 - `rohr_audio_music_loop_set`, `rohr_audio_music_playback_rate_set`, `rohr_audio_music_volume_set`.
 - `rohr_audio_sound_loop_set`, `rohr_audio_sound_pan_set`, `rohr_audio_sound_playback_rate_set`.

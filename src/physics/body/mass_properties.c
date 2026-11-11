@@ -135,6 +135,40 @@ float physics_inverse_inertia_by_index_get(EntityIndex index) {
     return (float)(1.0 / inertia);
 }
 
+EngineResult physics_center_of_mass_local_position_x_set(Entity entity, float x) {
+    EntityIndex index;
+    EngineResult result = physics_live_index_get(entity, &index);
+    if(result.kind == ERROR_RESULT_ERROR) return result;
+    Position value;
+    if(entity_index_components_check(index, ROHR_SOFT_BODY)) {
+        PositionResult current = physics_center_of_mass_local_position_get(entity);
+        if(current.kind == ERROR_RESULT_ERROR)
+            return error_result_error(current.result.error);
+        value = current.result.value;
+    } else {
+        value = physics_com_local_by_index_get(index);
+    }
+    value.x = x;
+    return physics_center_of_mass_local_position_set(entity, value);
+}
+
+EngineResult physics_center_of_mass_local_position_y_set(Entity entity, float y) {
+    EntityIndex index;
+    EngineResult result = physics_live_index_get(entity, &index);
+    if(result.kind == ERROR_RESULT_ERROR) return result;
+    Position value;
+    if(entity_index_components_check(index, ROHR_SOFT_BODY)) {
+        PositionResult current = physics_center_of_mass_local_position_get(entity);
+        if(current.kind == ERROR_RESULT_ERROR)
+            return error_result_error(current.result.error);
+        value = current.result.value;
+    } else {
+        value = physics_com_local_by_index_get(index);
+    }
+    value.y = y;
+    return physics_center_of_mass_local_position_set(entity, value);
+}
+
 EngineResult physics_center_of_mass_local_position_set(Entity entity, Position offset) {
     EntityIndex index;
     EngineResult result = physics_live_index_get(entity, &index);

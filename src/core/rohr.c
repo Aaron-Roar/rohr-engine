@@ -385,6 +385,8 @@ uint32_t rohr_physics_solver_iterations_get(void) { return physics_solver_iterat
 EngineResult rohr_physics_substeps_set(uint32_t substeps) { return physics_substeps_set(substeps); }
 uint32_t rohr_physics_substeps_get(void) { return physics_substeps_get(); }
 EngineResult rohr_physics_gravity_set(Acceleration gravity) { return physics_gravity_set(gravity); }
+EngineResult rohr_physics_gravity_x_set(float x) { return physics_gravity_x_set(x); }
+EngineResult rohr_physics_gravity_y_set(float y) { return physics_gravity_y_set(y); }
 Acceleration rohr_physics_gravity_get(void) { return physics_gravity_get(); }
 EngineResult rohr_physics_gravity_enable(Entity entity) { return physics_gravity_enable(entity); }
 EngineResult rohr_physics_gravity_disable(Entity entity) { return physics_gravity_disable(entity); }
@@ -408,6 +410,8 @@ OverlapInfo rohr_physics_sat_overlap_get(Shape shape_1, Shape shape_2) { return 
 Vec1D rohr_physics_circle_moment_of_inertia(Shape circle, Mass mass_value) { return physics_circle_moment_of_inertia(circle, mass_value); }
 bool rohr_physics_entity_held_get(EntityIndex index) { return physics_entity_held_get(index); }
 EngineResult rohr_physics_acceleration_set(Entity entity, Acceleration a) { return physics_acceleration_set(entity, a); }
+EngineResult rohr_physics_acceleration_x_set(Entity entity, float x) { return physics_acceleration_x_set(entity, x); }
+EngineResult rohr_physics_acceleration_y_set(Entity entity, float y) { return physics_acceleration_y_set(entity, y); }
 EngineResult rohr_physics_angular_acceleration_set(Entity entity, AngularAcceleration acceleration) {
     return physics_angular_acceleration_set(entity, acceleration);
 }
@@ -430,6 +434,8 @@ EngineResult rohr_physics_group_acceleration_away_from_entity_set(GroupId group,
     return physics_group_acceleration_away_from_entity_set(group, acceleration_magnitude, target);
 }
 EngineResult rohr_physics_velocity_set(Entity entity, Velocity v) { return physics_velocity_set(entity, v); }
+EngineResult rohr_physics_velocity_x_set(Entity entity, float x) { return physics_velocity_x_set(entity, x); }
+EngineResult rohr_physics_velocity_y_set(Entity entity, float y) { return physics_velocity_y_set(entity, y); }
 bool rohr_physics_world_position_check(Position position) { return physics_world_position_check(position); }
 EngineResult rohr_physics_hitbox_autoshape_circle_set(Entity entity, float radius) { return physics_hitbox_autoshape_circle_set(entity, radius); }
 EngineResult rohr_physics_hitbox_autoshape_rectangle_set(Entity entity, float width, float height) { return physics_hitbox_autoshape_rectangle_set(entity, width, height); }
@@ -460,6 +466,8 @@ EngineResult rohr_physics_group_entities_stop(GroupId group) { return physics_gr
 EngineResult rohr_physics_impulse_apply(Entity entity, Vec2D impulse) { return physics_impulse_apply(entity, impulse); }
 EngineResult rohr_physics_angular_impulse_apply(Entity entity, float impulse) { return physics_angular_impulse_apply(entity, impulse); }
 EngineResult rohr_physics_center_of_mass_local_position_set(Entity entity, Position offset) { return physics_center_of_mass_local_position_set(entity, offset); }
+EngineResult rohr_physics_center_of_mass_local_position_x_set(Entity entity, float x) { return physics_center_of_mass_local_position_x_set(entity, x); }
+EngineResult rohr_physics_center_of_mass_local_position_y_set(Entity entity, float y) { return physics_center_of_mass_local_position_y_set(entity, y); }
 PositionResult rohr_physics_center_of_mass_local_position_get(Entity entity) { return physics_center_of_mass_local_position_get(entity); }
 PositionResult rohr_physics_center_of_mass_world_position_get(Entity entity) { return physics_center_of_mass_world_position_get(entity); }
 EngineResult rohr_physics_center_of_mass_automatic_set(Entity entity) { return physics_center_of_mass_automatic_set(entity); }
@@ -467,6 +475,8 @@ BoolResult rohr_physics_center_of_mass_automatic_check(Entity entity) { return p
 MomentOfInertiaResult rohr_physics_moment_of_inertia_get(Entity entity) { return physics_moment_of_inertia_get(entity); }
 
 EngineResult rohr_physics_position_set(Entity entity, Position p) { return physics_position_set(entity, p); }
+EngineResult rohr_physics_position_x_set(Entity entity, float x) { return physics_position_x_set(entity, x); }
+EngineResult rohr_physics_position_y_set(Entity entity, float y) { return physics_position_y_set(entity, y); }
 PositionResult rohr_physics_position_get(Entity entity) { return physics_position_get(entity); }
 EngineResult rohr_physics_mass_set(Entity entity, Mass m) { return physics_mass_set(entity, m); }
 MassResult rohr_physics_mass_get(Entity entity) { return physics_mass_get(entity); }
@@ -573,6 +583,8 @@ JointAnchorListResult rohr_physics_joint_anchors_get(Entity entity) { return phy
 JointAnchorPositionResult rohr_physics_joint_anchor_local_position_get(JointAnchorId anchor) { return physics_joint_anchor_local_position_get(anchor); }
 JointAnchorPositionResult rohr_physics_joint_anchor_world_position_get(JointAnchorId anchor) { return physics_joint_anchor_world_position_get(anchor); }
 EngineResult rohr_physics_joint_anchor_local_position_set(JointAnchorId anchor, Vec2D local_offset) { return physics_joint_anchor_local_position_set(anchor, local_offset); }
+EngineResult rohr_physics_joint_anchor_local_position_x_set(JointAnchorId anchor, float x) { return physics_joint_anchor_local_position_x_set(anchor, x); }
+EngineResult rohr_physics_joint_anchor_local_position_y_set(JointAnchorId anchor, float y) { return physics_joint_anchor_local_position_y_set(anchor, y); }
 EngineResult rohr_physics_joint_anchor_remove(JointAnchorId anchor) { return physics_joint_anchor_remove(anchor); }
 
 EntityResult rohr_physics_soft_body_add(SoftBodyDescription description) { return physics_soft_body_add(description); }
@@ -583,6 +595,8 @@ EntityResult rohr_physics_soft_body_node_local_add(SoftBodyNodeDescription descr
 SoftBodyNodeResult rohr_physics_soft_body_node_get(Entity node) { return physics_soft_body_node_get(node); }
 PositionResult rohr_physics_soft_body_node_local_position_get(Entity node) { return physics_soft_body_node_local_position_get(node); }
 EngineResult rohr_physics_soft_body_node_local_position_set(Entity node, Position local_position) { return physics_soft_body_node_local_position_set(node, local_position); }
+EngineResult rohr_physics_soft_body_node_local_position_x_set(Entity entity, float x) { return physics_soft_body_node_local_position_x_set(entity, x); }
+EngineResult rohr_physics_soft_body_node_local_position_y_set(Entity entity, float y) { return physics_soft_body_node_local_position_y_set(entity, y); }
 EngineResult rohr_physics_soft_body_node_collision_filter_description_set(Entity entity, CollisionFilterDescription description) { return physics_soft_body_node_collision_filter_description_set(entity, description); }
 CollisionFilterDescriptionResult rohr_physics_soft_body_node_collision_filter_description_get(Entity entity) { return physics_soft_body_node_collision_filter_description_get(entity); }
 EngineResult rohr_physics_soft_body_node_impulse_apply(Entity node, Vec2D impulse) { return physics_soft_body_node_impulse_apply(node, impulse); }
@@ -611,6 +625,8 @@ EntityResult rohr_physics_particle_add(ParticleDescription config) { return phys
 EngineResult rohr_physics_particle_description_set(Entity entity, ParticleDescription description) { return physics_particle_description_set(entity, description); }
 ParticleDescriptionResult rohr_physics_particle_description_get(Entity entity) { return physics_particle_description_get(entity); }
 EngineResult rohr_physics_particle_origin_set(Entity entity, Position local_origin) { return physics_particle_origin_set(entity, local_origin); }
+EngineResult rohr_physics_particle_origin_x_set(Entity entity, float x) { return physics_particle_origin_x_set(entity, x); }
+EngineResult rohr_physics_particle_origin_y_set(Entity entity, float y) { return physics_particle_origin_y_set(entity, y); }
 PositionResult rohr_physics_particle_origin_get(Entity entity) { return physics_particle_origin_get(entity); }
 EngineResult rohr_physics_particle_radius_set(Entity entity, float radius) { return physics_particle_radius_set(entity, radius); }
 ParticleRadiusResult rohr_physics_particle_radius_get(Entity entity) { return physics_particle_radius_get(entity); }

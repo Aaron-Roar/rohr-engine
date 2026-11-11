@@ -65,6 +65,26 @@ EngineResult physics_angular_impulse_apply(Entity entity, float impulse) {
     return error_result_value(true);
 }
 
+EngineResult physics_acceleration_x_set(Entity entity, float x) {
+    EntityIndex index;
+    EngineResult result = physics_live_index_get(entity, &index);
+    if(result.kind == ERROR_RESULT_ERROR) return result;
+    Acceleration value = index < accelerations_pool.capacity && accelerations_pool.used[index]
+        ? accelerations[index] : (Acceleration){0};
+    value.x = x;
+    return physics_acceleration_set(entity, value);
+}
+
+EngineResult physics_acceleration_y_set(Entity entity, float y) {
+    EntityIndex index;
+    EngineResult result = physics_live_index_get(entity, &index);
+    if(result.kind == ERROR_RESULT_ERROR) return result;
+    Acceleration value = index < accelerations_pool.capacity && accelerations_pool.used[index]
+        ? accelerations[index] : (Acceleration){0};
+    value.y = y;
+    return physics_acceleration_set(entity, value);
+}
+
 EngineResult physics_acceleration_set(
         Entity entity, Acceleration acceleration) {
     EntityIndex index;
@@ -144,6 +164,18 @@ EngineResult physics_group_acceleration_away_from_entity_set(
     return physics_group_entity_target_apply(
         group, acceleration_magnitude, target,
         physics_acceleration_away_from_entity_set);
+}
+
+EngineResult physics_gravity_x_set(float x) {
+    Acceleration value = physics_gravity_get();
+    value.x = x;
+    return physics_gravity_set(value);
+}
+
+EngineResult physics_gravity_y_set(float y) {
+    Acceleration value = physics_gravity_get();
+    value.y = y;
+    return physics_gravity_set(value);
 }
 
 EngineResult physics_gravity_set(Acceleration gravity) {

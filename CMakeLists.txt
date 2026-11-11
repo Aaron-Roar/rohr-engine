@@ -652,6 +652,28 @@ if(ROHR_BUILD_TESTS)
     endif()
     add_test(NAME engine_reports COMMAND engine_reports_test)
 
+    add_executable(physics_axis_setters_test tests/physics_axis_setters.c)
+    target_link_libraries(physics_axis_setters_test PRIVATE rohr_engine)
+    set_target_properties(physics_axis_setters_test PROPERTIES
+        RUNTIME_OUTPUT_DIRECTORY ${ROHR_BUILD_OUTPUT_DIRECTORY}/tests)
+    if(MSVC)
+        target_compile_options(physics_axis_setters_test PRIVATE /UNDEBUG)
+    else()
+        target_compile_options(physics_axis_setters_test PRIVATE -Wall -Wextra -Wpedantic -UNDEBUG)
+    endif()
+    if(CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_C_COMPILER_ID MATCHES "GNU|Clang")
+        target_compile_definitions(physics_axis_setters_test PRIVATE ROHR_TEST_ALLOCATION_WRAP)
+        target_link_options(physics_axis_setters_test PRIVATE
+            -Wl,--wrap=malloc -Wl,--wrap=calloc -Wl,--wrap=realloc)
+    endif()
+    if(ROHR_ENABLE_SANITIZERS)
+        target_compile_options(physics_axis_setters_test PRIVATE ${ROHR_SANITIZER_COMPILE_OPTIONS})
+        target_link_options(physics_axis_setters_test PRIVATE ${ROHR_SANITIZER_LINK_OPTIONS})
+    endif()
+    add_test(NAME physics_axis_setters COMMAND physics_axis_setters_test)
+    set_tests_properties(physics_axis_setters PROPERTIES
+        ENVIRONMENT "SDL_VIDEODRIVER=dummy;SDL_AUDIODRIVER=dummy")
+
     add_executable(physics_reports_test tests/physics_reports.c)
     target_link_libraries(physics_reports_test PRIVATE rohr_engine)
     target_include_directories(physics_reports_test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
@@ -1673,6 +1695,7 @@ if(ROHR_BUILD_TESTS)
         report_storage_test
         graphics_reports_test
         physics_reports_test
+        physics_axis_setters_test
         physics_recovery_test
         audio_reports_test
         audio_test

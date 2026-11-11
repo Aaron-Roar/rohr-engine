@@ -18,6 +18,7 @@ priority order.
 | 16 | [Scoped creation and a teaching example](#16-scoped-creation-and-a-teaching-example) | Complete; all three creation paths and SDK workflows verified, final preview accepted |
 | 17 | [Consistent creation APIs and report checks](#17-consistent-creation-apis-and-report-checks) | Complete; all six goal results recorded below |
 | 18 | [Explicit runtime lists and ID/name access](#18-explicit-runtime-lists-and-idname-access) | Complete; Goals 1–3 verified and Linux preview accepted |
+| 19 | [Physics setters that preserve unrelated values](#19-physics-setters-that-preserve-unrelated-values) | Goal 1 complete for review; Goals 2–3 pending |
 | — | [C game experiment](#c-game-experiment) | Follows the current API work; agree concept and completion criteria with the user |
 | 13 | Physics rebuild from the simpler baseline | Paused by user direction for frame pacing and game development; goals 1, 2a, 2b and 4a complete; goals 2 and 3 failed; goal 4 blocking remains incomplete; goals 5–8 not started |
 | 12 | Real-time physics pipeline rework | Closed by user direction; superseded by milestone 13, not complete; goals 1–13 complete, goal 14 unfinished, goals 15–19 not started; evidence preserved |
@@ -29,12 +30,11 @@ priority order.
 | 7 | Editor implementation scalability | Deferred until after Python unless game development makes it necessary sooner |
 | 10 | End-to-end game | Pending; separate larger game directed by the user |
 
-**Current priority:** Milestone 18 is complete for review and commit. All three
-goals are verified, including real Linux preview acceptance. Milestone 17's six
-completed goals remain recorded below. Authored structures remain creation
-recipes; runtime access uses typed IDs, names and explicit lists. Preserve
-physics settings, frame pacing and known failure records. Stop for review;
-no later milestone or game implementation starts automatically.
+**Current priority:** Milestone 19 Goal 1 is complete for review and commit:
+axis setters for motion and positions preserve unrelated runtime values.
+Milestone 18 remains complete. This API work preserves physics settings, frame
+pacing and known failure records; it does not resume paused solver work.
+Stop for review. Goals 2–3 require explicit user direction.
 
 Milestone 15 is complete. Its Goal 1 defines the
 [creation and viewport contract](docs/creation_and_viewport_contract.md).
@@ -1193,6 +1193,47 @@ unfinished milestones.
 Boundaries: no generic `RohrType`/`RohrList`, hidden list allocation, sorting
 guarantee, or physics changes. IDs are the durable access mechanism; names may
 be reused. Complete and verify only one goal, then stop for review and commit.
+
+### 19. Physics setters that preserve unrelated values
+
+Game code changes individual physics coordinates and fields without acquiring
+snapshots or reconstructing complete configurations. Preserve existing validation,
+ownership, coordinate spaces and the side effects of full-value setters. This
+milestone is additive; it does not change solver behavior or simulation defaults.
+
+1. [x] **Add axis setters for motion and positions.** Add X/Y setters for
+   velocity, acceleration, gravity, world position, local center of mass,
+   particle origin, joint-anchor offsets and soft-body node local positions.
+   Expose both `rohr_physics_*` and direct-engine APIs. Verify preservation,
+   effective defaults, invalid inputs and stale IDs, rotated local coordinates,
+   particle geometry and soft-body transform/mass behavior. Document allocation
+   and error semantics; verify relevant regressions, examples, sanitizers,
+   installed SDK consumers and Windows cross-builds.
+   **Complete:** all 16 axis setters and direct-engine equivalents are implemented.
+   Eight Release regressions pass; focused ASan/UBSan checks pass with leak
+   detection. Public-only consumers pass against installed Nix, sanitizer and
+   generic Linux SDKs, and cross-build against Windows. Center-of-mass,
+   player-controller and soft-body examples compile/run through the installed
+   Release SDK and cross-build for Windows. The car completes 3,600 frames / 60
+   simulated seconds with unchanged baseline substep/candidate/contact counts.
+   This is functional verification, not performance acceptance. Native Windows
+   execution remains unverified. No final compiler warnings or sanitizer findings;
+   the API inventory retains 77 pre-existing diagnostics with none added.
+   See [contracts and verification](docs/physics_axis_setters.md) and
+   `sandbox/milestone_19/goal_1/`. Stop for review and commit.
+2. [ ] **Complete force and torque field setters.** Add force X/Y setters and
+   individual location-offset/reference setters. Proposed X/Y values use the
+   force's configured orientation reference and preserve target, location and
+   references; confirm any remaining semantic decisions when pursuing this goal.
+   Torque remains scalar. Verify preservation/errors and SDK/platform parity.
+3. [ ] **Complete remaining partial physics setters.** Audit locks, joints,
+   particles, soft bodies and collision configuration. Add missing setters for
+   independently editable fields, preserving related state and automatically
+   calculated rest values when another property changes. Document and verify
+   the completed inventory, error behavior and SDK/platform parity.
+
+See [axis setter contracts](docs/physics_axis_setters.md). Complete and verify
+only one goal, then stop for review and commit.
 
 ### 13. Physics rebuild from the simpler baseline
 

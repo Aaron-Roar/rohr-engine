@@ -237,6 +237,24 @@ float physics_particle_radius_by_index_get(EntityIndex index) {
     return physics_particle_geometry_effective_get(index).radius;
 }
 
+EngineResult physics_particle_origin_x_set(Entity entity, float x) {
+    EntityIndex index;
+    EngineResult result = physics_live_index_get(entity, &index);
+    if(result.kind == ERROR_RESULT_ERROR) return result;
+    Position value = physics_particle_geometry_effective_get(index).local_origin;
+    value.x = x;
+    return physics_particle_origin_set(entity, value);
+}
+
+EngineResult physics_particle_origin_y_set(Entity entity, float y) {
+    EntityIndex index;
+    EngineResult result = physics_live_index_get(entity, &index);
+    if(result.kind == ERROR_RESULT_ERROR) return result;
+    Position value = physics_particle_geometry_effective_get(index).local_origin;
+    value.y = y;
+    return physics_particle_origin_set(entity, value);
+}
+
 EngineResult physics_particle_origin_set(Entity entity, Position local_origin) {
     EntityIndex index;
     EngineResult result = physics_live_index_get(entity, &index);

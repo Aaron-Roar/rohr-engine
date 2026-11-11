@@ -435,6 +435,24 @@ PositionResult physics_soft_body_node_local_position_get(Entity node) {
         math_vector_rotate(offset, -orientations[body_index]));
 }
 
+EngineResult physics_soft_body_node_local_position_x_set(Entity entity, float x) {
+    PositionResult current = physics_soft_body_node_local_position_get(entity);
+    if(current.kind == ERROR_RESULT_ERROR)
+        return error_result_error(current.result.error);
+    Position value = current.result.value;
+    value.x = x;
+    return physics_soft_body_node_local_position_set(entity, value);
+}
+
+EngineResult physics_soft_body_node_local_position_y_set(Entity entity, float y) {
+    PositionResult current = physics_soft_body_node_local_position_get(entity);
+    if(current.kind == ERROR_RESULT_ERROR)
+        return error_result_error(current.result.error);
+    Position value = current.result.value;
+    value.y = y;
+    return physics_soft_body_node_local_position_set(entity, value);
+}
+
 EngineResult physics_soft_body_node_local_position_set(
         Entity node, Position local_position) {
     EntityIndex node_index;

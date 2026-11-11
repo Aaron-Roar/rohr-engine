@@ -1,5 +1,9 @@
 # Physics
 
+For runtime edits that preserve the other coordinate, see
+[physics axis setters](physics_axis_setters.md).
+
+
 Rohr provides a standard 2D physics pipeline and exposes its stages for games
 that need custom orchestration. Most games should call
 `rohr_system_physics_update(dt)` or `rohr_physics_pipeline_update(dt)`.

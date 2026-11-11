@@ -61,6 +61,26 @@ EngineResult physics_group_entity_target_apply(
     return error_result_value(true);
 }
 
+EngineResult physics_velocity_x_set(Entity entity, float x) {
+    EntityIndex index;
+    EngineResult result = physics_live_index_get(entity, &index);
+    if(result.kind == ERROR_RESULT_ERROR) return result;
+    Velocity value = index < velocities_pool.capacity && velocities_pool.used[index]
+        ? velocities[index] : (Velocity){0};
+    value.x = x;
+    return physics_velocity_set(entity, value);
+}
+
+EngineResult physics_velocity_y_set(Entity entity, float y) {
+    EntityIndex index;
+    EngineResult result = physics_live_index_get(entity, &index);
+    if(result.kind == ERROR_RESULT_ERROR) return result;
+    Velocity value = index < velocities_pool.capacity && velocities_pool.used[index]
+        ? velocities[index] : (Velocity){0};
+    value.y = y;
+    return physics_velocity_set(entity, value);
+}
+
 EngineResult physics_velocity_set(Entity entity, Velocity velocity) {
     EntityIndex index;
     EngineResult result = physics_live_index_get(entity, &index);
@@ -126,6 +146,26 @@ EngineResult physics_entity_stop(Entity entity) {
 
 EngineResult physics_group_entities_stop(GroupId group) {
     return physics_group_entity_apply(group, physics_entity_stop);
+}
+
+EngineResult physics_position_x_set(Entity entity, float x) {
+    EntityIndex index;
+    EngineResult result = physics_live_index_get(entity, &index);
+    if(result.kind == ERROR_RESULT_ERROR) return result;
+    Position value = index < positions_pool.capacity && positions_pool.used[index]
+        ? positions[index] : (Position){0};
+    value.x = x;
+    return physics_position_set(entity, value);
+}
+
+EngineResult physics_position_y_set(Entity entity, float y) {
+    EntityIndex index;
+    EngineResult result = physics_live_index_get(entity, &index);
+    if(result.kind == ERROR_RESULT_ERROR) return result;
+    Position value = index < positions_pool.capacity && positions_pool.used[index]
+        ? positions[index] : (Position){0};
+    value.y = y;
+    return physics_position_set(entity, value);
 }
 
 EngineResult physics_position_set(Entity entity, Position position) {

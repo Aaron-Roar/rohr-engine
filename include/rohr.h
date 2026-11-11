@@ -895,6 +895,10 @@ EngineResult rohr_physics_substeps_set(uint32_t substeps);
 uint32_t rohr_physics_substeps_get(void);
 /** Sets the global acceleration applied to ROHR_GRAVITY entities. */
 EngineResult rohr_physics_gravity_set(Acceleration gravity);
+/** Set one coordinate, preserving the other in the same coordinate space.
+ * Validation and transform effects match the full-value setter. */
+EngineResult rohr_physics_gravity_x_set(float x);
+EngineResult rohr_physics_gravity_y_set(float y);
 /** Returns the current global gravity acceleration. */
 Acceleration rohr_physics_gravity_get(void);
 /** Enables engine gravity for an entity. */
@@ -979,6 +983,10 @@ bool rohr_physics_entity_held_get(EntityIndex index);
  * @return EngineResult describing success or failure.
  */
 EngineResult rohr_physics_acceleration_set(Entity entity, Acceleration a);
+/** Set one coordinate, preserving the other in the same coordinate space. Missing storage starts with zero for the other coordinate.
+ * Validation and transform effects match the full-value setter. */
+EngineResult rohr_physics_acceleration_x_set(Entity entity, float x);
+EngineResult rohr_physics_acceleration_y_set(Entity entity, float y);
 
 /**
  * @brief Sets an entity angular acceleration component value.
@@ -1057,6 +1065,10 @@ EngineResult rohr_physics_group_acceleration_away_from_entity_set(GroupId group,
  * @return EngineResult describing success or failure.
  */
 EngineResult rohr_physics_velocity_set(Entity entity, Velocity v);
+/** Set one coordinate, preserving the other in the same coordinate space. Missing storage starts with zero for the other coordinate.
+ * Validation and transform effects match the full-value setter. */
+EngineResult rohr_physics_velocity_x_set(Entity entity, float x);
+EngineResult rohr_physics_velocity_y_set(Entity entity, float y);
 
 /** Check that both coordinates are finite and inside the supported world. */
 bool rohr_physics_world_position_check(Position position);
@@ -1168,6 +1180,10 @@ EngineResult rohr_physics_angular_impulse_apply(Entity entity, float impulse);
  * @return EngineResult describing success or failure.
  */
 EngineResult rohr_physics_position_set(Entity entity, Position p);
+/** Set one coordinate, preserving the other in the same coordinate space. Missing storage starts with zero for the other coordinate.
+ * Validation and transform effects match the full-value setter. */
+EngineResult rohr_physics_position_x_set(Entity entity, float x);
+EngineResult rohr_physics_position_y_set(Entity entity, float y);
 /** Returns an entity's world position. */
 PositionResult rohr_physics_position_get(Entity entity);
 
@@ -1180,6 +1196,10 @@ PositionResult rohr_physics_position_get(Entity entity);
  * Failure preserves configuration; success preserves origin, geometry, and velocities.
  */
 EngineResult rohr_physics_center_of_mass_local_position_set(Entity entity, Position local_offset);
+/** Set one coordinate, preserving the other in the same coordinate space. Uses the effective center; rigid bodies become explicit.
+ * Validation and transform effects match the full-value setter. */
+EngineResult rohr_physics_center_of_mass_local_position_x_set(Entity entity, float x);
+EngineResult rohr_physics_center_of_mass_local_position_y_set(Entity entity, float y);
 /**
  * @brief Returns the effective COM in local origin axes.
  * Automatic COM requires valid active geometry; an explicit offset does not.
@@ -1598,6 +1618,10 @@ JointAnchorPositionResult rohr_physics_joint_anchor_world_position_get(JointAnch
  * @return EngineResult describing success or failure.
  */
 EngineResult rohr_physics_joint_anchor_local_position_set(JointAnchorId anchor, Vec2D local_offset);
+/** Set one coordinate, preserving the other in the same coordinate space.
+ * Validation and transform effects match the full-value setter. */
+EngineResult rohr_physics_joint_anchor_local_position_x_set(JointAnchorId anchor, float x);
+EngineResult rohr_physics_joint_anchor_local_position_y_set(JointAnchorId anchor, float y);
 /**
  * @brief Removes an anchor and disconnects joint endpoints that reference it.
  * @param anchor Anchor to remove.
@@ -1639,6 +1663,10 @@ PositionResult rohr_physics_soft_body_node_local_position_get(Entity node);
 /** Sets a node position relative to its soft-body origin. */
 EngineResult rohr_physics_soft_body_node_local_position_set(
     Entity node, Position local_position);
+/** Set one coordinate, preserving the other in the same coordinate space.
+ * Validation and transform effects match the full-value setter. */
+EngineResult rohr_physics_soft_body_node_local_position_x_set(Entity entity, float x);
+EngineResult rohr_physics_soft_body_node_local_position_y_set(Entity entity, float y);
 /**
  * @brief Sets node-versus-rigid collision filtering.
  * @param node Node entity.
@@ -1761,6 +1789,10 @@ EngineResult rohr_physics_particle_description_set(Entity entity, ParticleDescri
 ParticleDescriptionResult rohr_physics_particle_description_get(Entity entity);
 /** Set the circle origin and synchronize standalone particle polygon geometry. */
 EngineResult rohr_physics_particle_origin_set(Entity entity, Position local_origin);
+/** Set one coordinate, preserving the other in the same coordinate space. Preserves radius and synchronizes standalone particle geometry.
+ * Validation and transform effects match the full-value setter. */
+EngineResult rohr_physics_particle_origin_x_set(Entity entity, float x);
+EngineResult rohr_physics_particle_origin_y_set(Entity entity, float y);
 /** Get a particle circle's origin relative to its rigid-body origin. */
 PositionResult rohr_physics_particle_origin_get(Entity entity);
 /** Set the circle radius and synchronize standalone particle polygon geometry. */

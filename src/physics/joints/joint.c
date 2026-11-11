@@ -214,6 +214,24 @@ JointAnchorPositionResult physics_joint_anchor_world_position_get(JointAnchorId 
     }));
 }
 
+EngineResult physics_joint_anchor_local_position_x_set(JointAnchorId anchor, float x) {
+    JointAnchorPositionResult current = physics_joint_anchor_local_position_get(anchor);
+    if(current.kind == ERROR_RESULT_ERROR)
+        return error_result_error(current.result.error);
+    Position value = current.result.value;
+    value.x = x;
+    return physics_joint_anchor_local_position_set(anchor, value);
+}
+
+EngineResult physics_joint_anchor_local_position_y_set(JointAnchorId anchor, float y) {
+    JointAnchorPositionResult current = physics_joint_anchor_local_position_get(anchor);
+    if(current.kind == ERROR_RESULT_ERROR)
+        return error_result_error(current.result.error);
+    Position value = current.result.value;
+    value.y = y;
+    return physics_joint_anchor_local_position_set(anchor, value);
+}
+
 EngineResult physics_joint_anchor_local_position_set(JointAnchorId anchor, Vec2D local_offset) {
     uint32_t slot;
 
