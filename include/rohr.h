@@ -2372,6 +2372,27 @@ AnimationFrameDescriptionResult rohr_graphics_animation_frame_description_get(An
  */
 AnimationPlayerResult rohr_graphics_animation_player_create(AnimationPlayerDescription description);
 
+/** Mode changes preserve frame, clocks and completion. */
+EngineResult rohr_graphics_animation_player_loop_set(AnimationPlayer *player, bool loop);
+bool rohr_graphics_animation_player_loop_check(const AnimationPlayer *player);
+/** True freezes the current frame. False resumes with a fresh interval measured
+ * from the last observed clocks. Neither changes configured timing or mode. */
+EngineResult rohr_graphics_animation_player_completed_set(AnimationPlayer *player, bool is_completed);
+/** Persistent state; NULL returns false. */
+bool rohr_graphics_animation_player_completed_check(const AnimationPlayer *player);
+/** Clear completion and reset to frame zero at the last observed clocks. */
+EngineResult rohr_graphics_animation_player_restart(AnimationPlayer *player);
+
+/** Entity controls use current engine clocks when clearing completion/restarting.
+ * Mode changes retain progress and completion, even when enabling looping.
+ * Checks return false for invalid entities or missing animation components. */
+EngineResult rohr_graphics_animated_sprite_loop_set(Entity animation, bool loop);
+bool rohr_graphics_animated_sprite_loop_check(Entity animation);
+EngineResult rohr_graphics_animated_sprite_completed_set(Entity animation, bool is_completed);
+bool rohr_graphics_animated_sprite_completed_check(Entity animation);
+EngineResult rohr_graphics_animated_sprite_restart(Entity animation);
+
+
 /** @brief Advances one animation player's frame state. */
 void rohr_graphics_animation_player_update(AnimationPlayer *player,
     Tick current_tick, Time current_time);

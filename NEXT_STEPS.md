@@ -20,6 +20,7 @@ priority order.
 | 18 | [Explicit runtime lists and ID/name access](#18-explicit-runtime-lists-and-idname-access) | Complete; Goals 1–3 verified and Linux preview accepted |
 | 19 | [Physics setters that preserve unrelated values](#19-physics-setters-that-preserve-unrelated-values) | Complete; all three API goals verified, baseline solver failures preserved |
 | 20 | [Independent animation attachments](#20-independent-animation-attachments) | Complete; all three goals verified, Linux editor and application previews accepted |
+| 21 | [Animation playback modes and completion](#21-animation-playback-modes-and-completion) | Goal 1 complete; stopped for review; editor integration follows |
 | — | [C game experiment](#c-game-experiment) | Follows the current API work; agree concept and completion criteria with the user |
 | 13 | Physics rebuild from the simpler baseline | Paused by user direction for frame pacing and game development; goals 1, 2a, 2b and 4a complete; goals 2 and 3 failed; goal 4 blocking remains incomplete; goals 5–8 not started |
 | 12 | Real-time physics pipeline rework | Closed by user direction; superseded by milestone 13, not complete; goals 1–13 complete, goal 14 unfinished, goals 15–19 not started; evidence preserved |
@@ -31,13 +32,11 @@ priority order.
 | 7 | Editor implementation scalability | Deferred until after Python unless game development makes it necessary sooner |
 | 10 | End-to-end game | Pending; separate larger game directed by the user |
 
-**Current priority:** Milestone 20 is complete. Stop for review and commit of
-Goal 3's workflow verification and test-fixture repairs. Independent attachments
-and the explicit hitbox driver are verified across installed Linux SDKs and
-Windows cross-builds, with real Linux previews accepted. The next roadmap item
-is the C game experiment; agree its concept and completion criteria with the
-user before beginning. Physics milestones remain paused and simulation defaults
-are unchanged.
+**Current priority:** Milestone 21 Goal 1 is complete: runtime loop/play-once
+modes, writable persistent completion, restart, descriptions and save/load are
+verified. Stop for review and commit. Goal 2 adds editor and generated-project
+support after separate user instruction. The C game experiment follows this API
+work; physics milestones remain paused and simulation defaults are unchanged.
 
 Milestone 15 is complete. Its Goal 1 defines the
 [creation and viewport contract](docs/creation_and_viewport_contract.md).
@@ -1336,6 +1335,39 @@ This is simultaneous rendering, not a one-active-clip state machine.
 
 See [runtime contract and verification](docs/animation_attachments.md).
 Complete and verify only one goal, then stop for review and commit.
+
+### 21. Animation playback modes and completion
+
+Animations can loop forever or play once and freeze after the last frame's full
+interval. Mode is per-player description configuration; completion is persistent,
+writable runtime state. Changing mode preserves progress and completion. Clearing
+completion resumes from the current frame with a fresh interval; restart selects
+frame zero. Existing zero-initialized descriptions continue looping.
+
+1. [x] **Runtime playback, descriptions and persistence.** Add playback mode to
+   player/sprite and authored object descriptions; provide public/direct entity
+   and standalone-player loop, completion and restart controls. Preserve state
+   through compatible description edits and runtime saves, migrate old saves to
+   looping/not completed, and reject invalid values without partial mutation.
+   Verify clocks, single/empty animations, manual completion, seeks, resets,
+   independent attachments, stale IDs and final-frame hitbox drivers. Run focused
+   Release and ASan/UBSan suites, installed Linux SDK consumers, affected standalone
+   examples and Windows cross-builds. Stop for review and commit.
+   Complete: twelve focused Release regressions and seven sanitizer regressions
+   pass; installed Linux playback consumers, external example launches and Windows
+   cross-builds pass. See the [verification record](docs/animation_playback.md#goal-1-verification).
+2. [ ] **Editor and generated workflows.** Add Loop Forever/Play Once authoring,
+   preview Restart, JSON migration, command/CLI support, undo/redo and copying.
+   Preview uses the runtime playback rules; Play does not clear completion.
+   Generate the mode through descriptions and all three creation paths, preserving
+   edited mains. Verify deterministic generation, installed Nix-built/generic
+   Linux SDKs, sanitizers and Windows cross-builds; obtain editor/application
+   preview acceptance. Authoring continues showing all visible hitbox variants.
+   Stop for review and commit.
+
+No callbacks, event queues, cycle counters, reverse playback, state machines,
+physics changes or new dependencies. See [playback contract](docs/animation_playback.md).
+Complete and verify only one goal at a time.
 
 ### 13. Physics rebuild from the simpler baseline
 

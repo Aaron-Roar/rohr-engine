@@ -1029,6 +1029,22 @@ if(ROHR_BUILD_TESTS)
         RUNTIME_OUTPUT_DIRECTORY ${ROHR_BUILD_OUTPUT_DIRECTORY}/tests)
     add_test(NAME animation_assets COMMAND animation_assets_test)
 
+    add_executable(animation_playback_test tests/animation_playback.c)
+    target_link_libraries(animation_playback_test PRIVATE rohr_engine)
+    if(MSVC)
+        target_compile_options(animation_playback_test PRIVATE /UNDEBUG)
+    else()
+        target_compile_options(animation_playback_test PRIVATE -Wall -Wextra -Wpedantic -UNDEBUG)
+    endif()
+    if(ROHR_ENABLE_SANITIZERS)
+        target_compile_options(animation_playback_test PRIVATE ${ROHR_SANITIZER_COMPILE_OPTIONS})
+    endif()
+    set_target_properties(animation_playback_test PROPERTIES
+        RUNTIME_OUTPUT_DIRECTORY ${ROHR_BUILD_OUTPUT_DIRECTORY}/tests)
+    add_test(NAME animation_playback COMMAND animation_playback_test)
+    set_tests_properties(animation_playback PROPERTIES
+        ENVIRONMENT "SDL_VIDEODRIVER=dummy;SDL_AUDIODRIVER=dummy")
+
     add_executable(animation_attachments_test tests/animation_attachments.c)
     target_include_directories(animation_attachments_test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
     target_link_libraries(animation_attachments_test PRIVATE rohr_engine)

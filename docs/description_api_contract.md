@@ -715,7 +715,7 @@ below. Numeric constants, typedefs, struct fields, extern storage, and callback
 type declarations are not callable API entries; configuration types are covered
 in the family table and exemptions above.
 
-The current inventory contains **2012** classified declaration/macro entries.
+The current inventory contains **2032** classified declaration/macro entries.
 The additions after the milestone-4 inventory freeze are the direct and
 public-wrapper joint placement operations and directional response queries;
 the frozen baseline remains 1,602. Milestone 18 Goal 2 adds 14 direct/facade
@@ -728,13 +728,14 @@ physics getters and the shared `ScalarResult` value type. Goal 3 adds 70
 focused mutation declarations and two anchor-entity query declarations.
 Milestone 20 Goal 1 adds ten direct/facade [animation attachment](animation_attachments.md) declarations.
 Goal 2 adds four direct/facade hitbox animation driver setter/getter declarations.
+Milestone 21 Goal 1 adds 20 direct/facade playback-mode, completion and restart declarations.
 
 | Classification | Meaning | Owning goal | Entries |
 | --- | --- | --- | --- |
 | C: Compliant | Existing description interface | — | 344 |
-| EV: Intentionally exempt | Focused/basic-value mutation or lookup | — | 443 |
-| EQ: Intentionally exempt | Query, validation, snapshot, or result access | — | 638 |
-| EO: Intentionally exempt | Operation, lifecycle, execution, or drawing | — | 458 |
+| EV: Intentionally exempt | Focused/basic-value mutation or lookup | — | 451 |
+| EQ: Intentionally exempt | Query, validation, snapshot, or result access | — | 646 |
+| EO: Intentionally exempt | Operation, lifecycle, execution, or drawing | — | 462 |
 | EM: Intentionally exempt | Pure math or utility calculation | — | 77 |
 | ES: Intentionally exempt | Internal storage, reporting, or macro machinery | — | 48 |
 | ET: Intentionally exempt | Build-time tooling | — | 4 |
@@ -898,7 +899,7 @@ Source: [game_state.h](../include/game_state.h).
 </details>
 
 <details>
-<summary>graphics.h: 270 entries</summary>
+<summary>graphics.h: 280 entries</summary>
 
 Source: [graphics.h](../include/graphics.h).
 
@@ -936,6 +937,10 @@ Source: [graphics.h](../include/graphics.h).
 
 **EV — Focused/basic-value mutation or lookup**
 
+- `graphics_animation_player_loop_set`, `graphics_animation_player_completed_set`.
+- `graphics_animated_sprite_loop_set`, `graphics_animated_sprite_completed_set`.
+
+
 - `graphics_animated_sprite_attachment_set`.
 - `graphics_aabb_tree_debug_set`, `graphics_animated_sprite_body_offset_set`, `graphics_animated_sprite_frame_index_set`.
 - `graphics_animated_sprite_frame_offset_set`, `graphics_animated_sprite_frame_rotation_radians_set`, `graphics_animated_sprite_frame_rotation_set`.
@@ -957,6 +962,10 @@ Source: [graphics.h](../include/graphics.h).
 - `graphics_viewport_enable_set`, `graphics_viewport_item_drag_mode_set`, `graphics_vsync_set`.
 
 **EQ — Query, validation, snapshot, or result access**
+
+- `graphics_animation_player_loop_check`, `graphics_animation_player_completed_check`.
+- `graphics_animated_sprite_loop_check`, `graphics_animated_sprite_completed_check`.
+
 
 - `graphics_animated_sprite_attachment_get`, `graphics_animated_sprite_attachment_list_get`, `graphics_animated_sprite_pose_get`.
 - `graphics_viewport_by_name_get`, `graphics_viewport_name_get`.
@@ -980,6 +989,10 @@ Source: [graphics.h](../include/graphics.h).
 - `graphics_world_to_screen_get`.
 
 **EO — Operation, lifecycle, execution, or drawing**
+
+- `graphics_animation_player_restart`.
+- `graphics_animated_sprite_restart`.
+
 
 - `graphics_aabb_tree_draw`, `graphics_animated_sprite_draw`, `graphics_animated_sprite_update`.
 - `graphics_animated_sprites_draw`, `graphics_animation_player_update`, `graphics_animation_release`.
@@ -1322,7 +1335,7 @@ Source: [report.h](../include/report.h).
 </details>
 
 <details>
-<summary>rohr.h: 994 entries</summary>
+<summary>rohr.h: 1004 entries</summary>
 
 Source: [rohr.h](../include/rohr.h).
 
@@ -1388,6 +1401,10 @@ Source: [rohr.h](../include/rohr.h).
 - `rohr_viewport_ui_slider_add`, `rohr_viewport_ui_text_add`.
 
 **EV — Focused/basic-value mutation or lookup**
+
+- `rohr_graphics_animation_player_loop_set`, `rohr_graphics_animation_player_completed_set`.
+- `rohr_graphics_animated_sprite_loop_set`, `rohr_graphics_animated_sprite_completed_set`.
+
 
 - `rohr_graphics_animated_sprite_attachment_set`.
 - `rohr_physics_angle_lock_min_set`, `rohr_physics_angle_lock_min_radians_set`, `rohr_physics_angle_lock_max_set`.
@@ -1473,6 +1490,10 @@ Source: [rohr.h](../include/rohr.h).
 - `rohr_viewport_disable_set`, `rohr_viewport_enable_set`, `rohr_viewport_item_drag_mode_set`.
 
 **EQ — Query, validation, snapshot, or result access**
+
+- `rohr_graphics_animation_player_loop_check`, `rohr_graphics_animation_player_completed_check`.
+- `rohr_graphics_animated_sprite_loop_check`, `rohr_graphics_animated_sprite_completed_check`.
+
 
 - `rohr_graphics_animated_sprite_attachment_get`, `rohr_graphics_animated_sprite_attachment_list_get`, `rohr_graphics_animated_sprite_pose_get`.
 - `rohr_physics_joint_anchor_entity_get`.
@@ -1587,6 +1608,10 @@ Source: [rohr.h](../include/rohr.h).
 - `rohr_viewport_ui_slider_changed_check`.
 
 **EO — Operation, lifecycle, execution, or drawing**
+
+- `rohr_graphics_animation_player_restart`.
+- `rohr_graphics_animated_sprite_restart`.
+
 
 - `rohr_audio_music_destroy`, `rohr_audio_music_pause`, `rohr_audio_music_play`.
 - `rohr_audio_music_resume`, `rohr_audio_music_stop`, `rohr_audio_sound_destroy`.

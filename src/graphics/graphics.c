@@ -5268,11 +5268,13 @@ AnimationPlayerDescriptionResult graphics_animation_player_description_get(const
     if(player == NULL) return ERROR_RESULT_MAKE_ERROR(AnimationPlayerDescriptionResult, ERROR_ENGINE_STATE_INVALID);
     return ERROR_RESULT_MAKE_VALUE(AnimationPlayerDescriptionResult, ((AnimationPlayerDescription){
         .animation = player->animation, .ticks_per_frame = player->ticks_per_frame,
-        .time_per_frame = player->time_per_frame}));
+        .time_per_frame = player->time_per_frame, .playback_mode = player->playback_mode}));
 }
 
 EngineResult graphics_animation_player_description_set(AnimationPlayer *player, AnimationPlayerDescription description) {
-    if(player == NULL || !isfinite(description.time_per_frame) || description.time_per_frame < 0)
+    if(player == NULL || !isfinite(description.time_per_frame) || description.time_per_frame < 0 ||
+            (description.playback_mode != ROHR_ANIMATION_PLAYBACK_LOOP &&
+             description.playback_mode != ROHR_ANIMATION_PLAYBACK_ONCE))
         return error_result_error(ERROR_ENGINE_STATE_INVALID);
     size_t frame_count = 0;
     if(description.animation.handle != ANIMATION_HANDLE_INVALID) {
@@ -5284,16 +5286,44 @@ EngineResult graphics_animation_player_description_set(AnimationPlayer *player, 
     if(next.animation.handle != description.animation.handle ||
             (frame_count > 0 && next.frame_index >= frame_count)) {
         next.frame_index = 0;
+        next.completed = false;
         next.last_update_tick = next.observed_tick;
         next.last_update_time = next.observed_time;
     }
     if(frame_count == 0) next.frame_index = 0;
+    next.playback_mode = description.playback_mode;
     next.animation = description.animation;
     next.frame_count = frame_count;
     next.ticks_per_frame = description.ticks_per_frame;
     next.time_per_frame = description.time_per_frame;
     *player = next;
     return error_result_value(true);
+}
+
+EngineResult graphics_animation_player_loop_set(AnimationPlayer *player, bool loop) {
+    if(player == NULL) return error_result_error(ERROR_ENGINE_STATE_INVALID);
+    player->playback_mode = loop ? ROHR_ANIMATION_PLAYBACK_LOOP : ROHR_ANIMATION_PLAYBACK_ONCE;
+    return error_result_value(true);
+}
+bool graphics_animation_player_loop_check(const AnimationPlayer *player) {
+    return player != NULL && player->playback_mode == ROHR_ANIMATION_PLAYBACK_LOOP;
+}
+EngineResult graphics_animation_player_completed_set(AnimationPlayer *player, bool is_completed) {
+    if(player == NULL) return error_result_error(ERROR_ENGINE_STATE_INVALID);
+    player->completed = is_completed;
+    if(!is_completed) {
+        player->last_update_tick = player->observed_tick;
+        player->last_update_time = player->observed_time;
+    }
+    return error_result_value(true);
+}
+bool graphics_animation_player_completed_check(const AnimationPlayer *player) {
+    return player != NULL && player->completed;
+}
+EngineResult graphics_animation_player_restart(AnimationPlayer *player) {
+    if(player == NULL) return error_result_error(ERROR_ENGINE_STATE_INVALID);
+    player->frame_index = 0;
+    return graphics_animation_player_completed_set(player, false);
 }
 
 AnimationPlayerResult graphics_animation_player_create(AnimationPlayerDescription description) {
@@ -5313,7 +5343,7 @@ void graphics_animation_player_update(AnimationPlayer *player,
     if(player == NULL) return;
     player->observed_tick = current_tick;
     player->observed_time = current_time;
-    if(player->frame_count == 0) return;
+    if(player->frame_count == 0 || player->completed) return;
     if(player->frame_index >= player->frame_count)
         player->frame_index = 0;
     frame_need_update_tick = player->ticks_per_frame != 0 &&
@@ -5321,8 +5351,10 @@ void graphics_animation_player_update(AnimationPlayer *player,
     frame_need_update_time = player->time_per_frame != 0 &&
         player->time_per_frame <= current_time - player->last_update_time;
     if(frame_need_update_tick || frame_need_update_time) {
-        player->frame_index = (player->frame_index + 1) %
-            player->frame_count;
+        if(player->playback_mode == ROHR_ANIMATION_PLAYBACK_ONCE &&
+                player->frame_index == player->frame_count - 1)
+            player->completed = true;
+        else player->frame_index = (player->frame_index + 1) % player->frame_count;
         player->last_update_tick = current_tick;
         player->last_update_time = current_time;
     }
@@ -5748,6 +5780,7 @@ EngineResult graphics_animated_sprite_value_frame_description_set(AnimatedSprite
     bool reset = sprite->player.frame_index == index && sprite->frames[index].id != frame.id;
     sprite->frames[index] = frame;
     if(reset) {
+        sprite->player.completed = false;
         sprite->player.frame_index = 0;
         sprite->player.last_update_tick = sprite->player.observed_tick;
         sprite->player.last_update_time = sprite->player.observed_time;
@@ -5784,6 +5817,45 @@ static AnimatedSprite *graphics_animated_sprite_entity_get(Entity entity) {
             index >= animated_sprites_pool.capacity || !animated_sprites_pool.used[index])
         return NULL;
     return &animated_sprites[index];
+}
+
+static EngineResult graphics_animated_sprite_player_get(Entity entity, AnimationPlayer **player) {
+    AnimatedSprite *sprite = graphics_animated_sprite_entity_get(entity);
+    if(sprite == NULL) return error_result_error(entity_alive_check(entity) ?
+        ERROR_ENGINE_COMPONENT_MISSING : ERROR_ENGINE_INVALID_ENTITY);
+    *player = &sprite->player;
+    return error_result_value(true);
+}
+
+EngineResult graphics_animated_sprite_loop_set(Entity animation, bool loop) {
+    AnimationPlayer *player;
+    EngineResult result = graphics_animated_sprite_player_get(animation, &player);
+    if(error_check(result)) return result;
+    return graphics_animation_player_loop_set(player, loop);
+}
+EngineResult graphics_animated_sprite_completed_set(Entity animation, bool is_completed) {
+    AnimationPlayer *player;
+    EngineResult result = graphics_animated_sprite_player_get(animation, &player);
+    if(error_check(result)) return result;
+    player->observed_tick = engine_tick_get();
+    player->observed_time = engine_time_get();
+    return graphics_animation_player_completed_set(player, is_completed);
+}
+EngineResult graphics_animated_sprite_restart(Entity animation) {
+    AnimationPlayer *player;
+    EngineResult result = graphics_animated_sprite_player_get(animation, &player);
+    if(error_check(result)) return result;
+    player->observed_tick = engine_tick_get();
+    player->observed_time = engine_time_get();
+    return graphics_animation_player_restart(player);
+}
+bool graphics_animated_sprite_loop_check(Entity animation) {
+    AnimatedSprite *sprite = graphics_animated_sprite_entity_get(animation);
+    return sprite != NULL && graphics_animation_player_loop_check(&sprite->player);
+}
+bool graphics_animated_sprite_completed_check(Entity animation) {
+    AnimatedSprite *sprite = graphics_animated_sprite_entity_get(animation);
+    return sprite != NULL && graphics_animation_player_completed_check(&sprite->player);
 }
 
 AnimationFrameDescriptionResult graphics_animated_sprite_frame_description_get(Entity entity, size_t index) {
@@ -6742,7 +6814,8 @@ AnimatedSpriteDescriptionResult graphics_animated_sprite_description_from_animat
 AnimatedSpriteDescription graphics_animated_sprite_value_description_get(AnimatedSprite sprite) {
     AnimatedSpriteDescription description = {
         .player = {.animation = sprite.player.animation,
-            .ticks_per_frame = sprite.player.ticks_per_frame, .time_per_frame = sprite.player.time_per_frame},
+            .ticks_per_frame = sprite.player.ticks_per_frame, .time_per_frame = sprite.player.time_per_frame,
+            .playback_mode = sprite.player.playback_mode},
         .frame_count = sprite.frame_count, .direction = sprite.direction, .scale = sprite.scale,
         .body_offset = sprite.body_offset, .orientation_offset = sprite.orientation_offset,
         .follow_entity_rotation = sprite.follow_entity_rotation, .visible = sprite.visible};
@@ -6754,7 +6827,9 @@ EngineResult graphics_animated_sprite_value_description_set(AnimatedSprite *spri
     if(sprite == NULL || description.frame_count > MAX_ANIMATIONS_FRAMES ||
             !graphics_sprite_transform_valid_check(description.direction, description.scale,
                 description.body_offset, description.orientation_offset) ||
-            !isfinite(description.player.time_per_frame) || description.player.time_per_frame < 0)
+            !isfinite(description.player.time_per_frame) || description.player.time_per_frame < 0 ||
+            (description.player.playback_mode != ROHR_ANIMATION_PLAYBACK_LOOP &&
+             description.player.playback_mode != ROHR_ANIMATION_PLAYBACK_ONCE))
         return error_result_error(ERROR_ENGINE_STATE_INVALID);
     if(description.player.animation.handle != ANIMATION_HANDLE_INVALID &&
             !graphics_animation_valid_check(description.player.animation))
@@ -6781,11 +6856,13 @@ EngineResult graphics_animated_sprite_value_description_set(AnimatedSprite *spri
         }
     }
     if(!matched) {
+        player.completed = false;
         player.frame_index = 0;
         player.last_update_tick = player.observed_tick;
         player.last_update_time = player.observed_time;
     }
     if(description.frame_count == 0) player.frame_index = 0;
+    player.playback_mode = description.player.playback_mode;
     player.animation = description.player.animation;
     player.frame_count = description.frame_count;
     player.ticks_per_frame = description.player.ticks_per_frame;

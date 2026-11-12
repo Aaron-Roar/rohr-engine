@@ -38,6 +38,14 @@ endif()
 add_executable(rohr_installed_sdk_consumer main.c)
 target_link_libraries(rohr_installed_sdk_consumer PRIVATE Rohr::Engine)
 
+add_executable(rohr_animation_playback ../animation_playback.c)
+target_link_libraries(rohr_animation_playback PRIVATE Rohr::Engine)
+if(MSVC)
+    target_compile_options(rohr_animation_playback PRIVATE /UNDEBUG)
+else()
+    target_compile_options(rohr_animation_playback PRIVATE -Wall -Wextra -Wpedantic -UNDEBUG)
+endif()
+
 add_executable(rohr_animation_attachments animation_attachments.c)
 target_link_libraries(rohr_animation_attachments PRIVATE Rohr::Engine)
 if(MSVC)
@@ -209,7 +217,7 @@ endif()
 
 if(BUILD_TESTING AND NOT CMAKE_CROSSCOMPILING)
     foreach(consumer
-            rohr_installed_sdk_consumer rohr_object_descriptions rohr_creation_dispatch rohr_animation_attachments
+            rohr_installed_sdk_consumer rohr_object_descriptions rohr_creation_dispatch rohr_animation_attachments rohr_animation_playback
             rohr_system_reports rohr_entity_info rohr_entity_info_adversarial
             rohr_forces rohr_physics_fields rohr_physics_getters rohr_physics_axis_setters rohr_physics_force_setters rohr_runtime_persistence rohr_runtime_names rohr_asset_descriptions
             rohr_audio_descriptions rohr_input_descriptions rohr_controller_creation

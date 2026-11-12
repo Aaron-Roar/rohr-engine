@@ -508,14 +508,21 @@ ERROR_DECLARE_RESULT_TYPE(AnimationAssetResult, AnimationAsset);
 ERROR_DECLARE_RESULT_TYPE(AnimationInfoResult, AnimationInfo);
 ERROR_DECLARE_RESULT_TYPE(AnimationFrameDescriptionResult, AnimationFrameDescription);
 
-/**
- * Mutable playback state owned independently by each consumer. Creating a
- * player does not retain its animation; its owner must keep the asset alive.
- */
+/** Per-player playback policy. Zero preserves legacy looping. */
+typedef enum AnimationPlaybackMode {
+    ROHR_ANIMATION_PLAYBACK_LOOP = 0,
+    ROHR_ANIMATION_PLAYBACK_ONCE
+} AnimationPlaybackMode;
+
+/** Mutable playback state owned independently by each consumer. Creating a
+ * player does not retain its animation; its owner must keep the asset alive. */
 typedef struct AnimationPlayer {
     AnimationAsset animation;
     size_t frame_index;
     size_t frame_count;
+    AnimationPlaybackMode playback_mode;
+    /** Persistent latch; completed players keep their current frame. */
+    bool completed;
     Tick last_update_tick;
     Time last_update_time;
     /** Last supplied update clocks; used when resetting a standalone player. */
@@ -530,6 +537,7 @@ typedef struct AnimationPlayer {
  * either-threshold stepping behavior. The animation handle is borrowed. */
 typedef struct AnimationPlayerDescription {
     AnimationAsset animation;
+    AnimationPlaybackMode playback_mode;
     Tick ticks_per_frame;
     Time time_per_frame;
 } AnimationPlayerDescription;
@@ -925,6 +933,27 @@ AnimationFrameDescriptionResult graphics_animation_frame_description_get(Animati
 
 /** Create independent mutable playback state for a shared animation. */
 AnimationPlayerResult graphics_animation_player_create(AnimationPlayerDescription description);
+
+/** Mode changes preserve frame, clocks and completion. */
+EngineResult graphics_animation_player_loop_set(AnimationPlayer *player, bool loop);
+bool graphics_animation_player_loop_check(const AnimationPlayer *player);
+/** True freezes the current frame. False resumes with a fresh interval measured
+ * from the last observed clocks. Neither changes configured timing or mode. */
+EngineResult graphics_animation_player_completed_set(AnimationPlayer *player, bool is_completed);
+/** Persistent state; NULL returns false. */
+bool graphics_animation_player_completed_check(const AnimationPlayer *player);
+/** Clear completion and reset to frame zero at the last observed clocks. */
+EngineResult graphics_animation_player_restart(AnimationPlayer *player);
+
+/** Entity controls use current engine clocks when clearing completion/restarting.
+ * Mode changes retain progress and completion, even when enabling looping.
+ * Checks return false for invalid entities or missing animation components. */
+EngineResult graphics_animated_sprite_loop_set(Entity animation, bool loop);
+bool graphics_animated_sprite_loop_check(Entity animation);
+EngineResult graphics_animated_sprite_completed_set(Entity animation, bool is_completed);
+bool graphics_animated_sprite_completed_check(Entity animation);
+EngineResult graphics_animated_sprite_restart(Entity animation);
+
 /** Advance one player's frame state. */
 void graphics_animation_player_update(AnimationPlayer *player,
     Tick current_tick, Time current_time);

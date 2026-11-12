@@ -829,6 +829,16 @@ SpriteOrientationResult rohr_graphics_animated_sprite_frame_rotation_get(Entity 
 SpriteOrientationResult rohr_graphics_animated_sprite_frame_rotation_radians_get(Entity entity, size_t index) { return graphics_animated_sprite_frame_rotation_radians_get(entity, index); }
 AnimationFrameDescriptionResult rohr_graphics_animation_frame_description_get(AnimationAsset asset, size_t frame_index) { return graphics_animation_frame_description_get(asset, frame_index); }
 AnimationPlayerResult rohr_graphics_animation_player_create(AnimationPlayerDescription description) { return graphics_animation_player_create(description); }
+EngineResult rohr_graphics_animation_player_loop_set(AnimationPlayer *player, bool loop) { return graphics_animation_player_loop_set(player, loop); }
+bool rohr_graphics_animation_player_loop_check(const AnimationPlayer *player) { return graphics_animation_player_loop_check(player); }
+EngineResult rohr_graphics_animation_player_completed_set(AnimationPlayer *player, bool is_completed) { return graphics_animation_player_completed_set(player, is_completed); }
+bool rohr_graphics_animation_player_completed_check(const AnimationPlayer *player) { return graphics_animation_player_completed_check(player); }
+EngineResult rohr_graphics_animation_player_restart(AnimationPlayer *player) { return graphics_animation_player_restart(player); }
+EngineResult rohr_graphics_animated_sprite_loop_set(Entity animation, bool loop) { return graphics_animated_sprite_loop_set(animation, loop); }
+bool rohr_graphics_animated_sprite_loop_check(Entity animation) { return graphics_animated_sprite_loop_check(animation); }
+EngineResult rohr_graphics_animated_sprite_completed_set(Entity animation, bool is_completed) { return graphics_animated_sprite_completed_set(animation, is_completed); }
+bool rohr_graphics_animated_sprite_completed_check(Entity animation) { return graphics_animated_sprite_completed_check(animation); }
+EngineResult rohr_graphics_animated_sprite_restart(Entity animation) { return graphics_animated_sprite_restart(animation); }
 void rohr_graphics_animation_player_update(AnimationPlayer *player, Tick current_tick, Time current_time) { graphics_animation_player_update(player, current_tick, current_time); }
 AnimatedSpriteResult rohr_graphics_animated_sprite_create(AnimatedSpriteDescription description) { return graphics_animated_sprite_create(description); }
 void rohr_graphics_animated_sprite_update(AnimatedSprite *sprite, Tick current_tick, Time current_time) { graphics_animated_sprite_update(sprite, current_tick, current_time); }

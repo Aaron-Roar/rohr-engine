@@ -207,6 +207,7 @@ typedef struct ObjectDescription ObjectDescription;
     Tick ticks_per_frame; \
     Time time_per_frame; \
     uint32_t starting_frame; \
+    AnimationPlaybackMode playback_mode; \
     Direction direction; \
     bool playing; \
     bool follow_position; \

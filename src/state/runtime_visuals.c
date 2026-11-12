@@ -217,6 +217,8 @@ bool state_visuals_write(yyjson_mut_doc *doc,yyjson_mut_val *components,Entity e
         WRITE(v && frames && s->frame_count<=MAX_ANIMATIONS_FRAMES &&
             sprite_write(doc,v,s->scale,s->body_offset,s->orientation_offset,s->direction,s->follow_entity_rotation,s->visible));
         WRITE(yyjson_mut_obj_add_uint(doc,v,"id",error_check(info) ? 0 : info.result.value.id) &&
+            yyjson_mut_obj_add_uint(doc,v,"playback_mode",s->player.playback_mode) &&
+            yyjson_mut_obj_add_bool(doc,v,"completed",s->player.completed) &&
             yyjson_mut_obj_add_uint(doc,v,"frame_index",s->player.frame_index) &&
             yyjson_mut_obj_add_uint(doc,v,"ticks_per_frame",s->player.ticks_per_frame) &&
             yyjson_mut_obj_add_real(doc,v,"time_per_frame",s->player.time_per_frame) &&
@@ -274,6 +276,13 @@ static EngineResult animation_read(Entity entity,yyjson_val *v) {
             !integer(v,"ticks_per_frame",&descriptor.ticks_per_frame) || !number(v,"time_per_frame",&descriptor.time_per_frame) ||
             descriptor.time_per_frame<0 || !integer(v,"elapsed_ticks",&elapsed) || !number(v,"elapsed_time",&time_elapsed))
         return error_result_error(ERROR_ENGINE_STATE_INVALID);
+    yyjson_val *mode = yyjson_obj_get(v, "playback_mode");
+    yyjson_val *completed = yyjson_obj_get(v, "completed");
+    if((mode && (!yyjson_is_uint(mode) || yyjson_get_uint(mode) > ROHR_ANIMATION_PLAYBACK_ONCE)) ||
+            (completed && !yyjson_is_bool(completed)))
+        return error_result_error(ERROR_ENGINE_STATE_INVALID);
+    AnimationPlaybackMode playback_mode = mode ? (AnimationPlaybackMode)yyjson_get_uint(mode) : ROHR_ANIMATION_PLAYBACK_LOOP;
+    bool is_completed = completed && yyjson_get_bool(completed);
     descriptor.id=(AnimationId)id; descriptor.frame_count=(uint8_t)yyjson_arr_size(frames);
     sprite.frame_count=descriptor.frame_count;
     for(size_t i=0;i<sprite.frame_count;++i) {
@@ -290,6 +299,7 @@ static EngineResult animation_read(Entity entity,yyjson_val *v) {
         ERROR_RESULT_MAKE_VALUE(AnimationAssetResult, ((AnimationAsset){0}));
     if(error_check(loaded)) return error_result_error(loaded.result.error);
     sprite.player=graphics_animation_player_create(graphics_animation_player_description_from_animation_get(loaded.result.value).result.value).result.value;
+    sprite.player.playback_mode=playback_mode;
     sprite.player.ticks_per_frame=descriptor.ticks_per_frame;
     sprite.player.time_per_frame=descriptor.time_per_frame;
     sprite.player.frame_index=(size_t)index;
@@ -306,6 +316,7 @@ static EngineResult animation_read(Entity entity,yyjson_val *v) {
         EntityIndex entity_index;
         if(entity_index_get(entity, &entity_index)) {
             /* Saved playback is restored explicitly, outside full configuration. */
+            animated_sprites[entity_index].player.completed = is_completed;
             animated_sprites[entity_index].player.frame_index = sprite.frame_count ? (size_t)index : 0;
             animated_sprites[entity_index].player.last_update_tick = sprite.player.last_update_tick;
             animated_sprites[entity_index].player.last_update_time = sprite.player.last_update_time;

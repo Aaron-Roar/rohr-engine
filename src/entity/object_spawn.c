@@ -584,6 +584,7 @@ static EngineResult visuals_apply(Entity entity, const ObjectDescription *d, boo
         }
         AnimatedSpriteDescription sprite = prepared.result.value;
         sprite.scale = d->scale;
+        sprite.player.playback_mode = d->playback_mode;
         sprite.player.ticks_per_frame = d->playing ? d->ticks_per_frame : 0;
         sprite.player.time_per_frame = d->playing ? d->time_per_frame : 0;
         sprite.body_offset = attached ? d->position : (Position){0};

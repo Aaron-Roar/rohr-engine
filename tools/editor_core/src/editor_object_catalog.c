@@ -19,7 +19,7 @@ static bool reserved(const char *name) {
         "center_of_mass", "particle_origin", "particle_vertices", "collision_filter", "geometry", "geometry_count",
         "active_geometry", "hitbox_bindings", "hitbox_binding_count", "hitbox_animation_driver", "color", "border_color", "color_overridden", "layer", "layer_name",
         "target", "endpoint_a", "endpoint_b", "joint_type", "rest_length", "stiffness", "damping", "rest_angle", "thickness",
-        "area", "asset_path", "size", "scale", "frames", "frame_count", "ticks_per_frame", "time_per_frame", "starting_frame",
+        "area", "asset_path", "size", "scale", "frames", "frame_count", "ticks_per_frame", "time_per_frame", "starting_frame", "playback_mode",
         "direction", "playing", "follow_position", "follow_orientation", "pause_with_engine", "zoom", "force", "torque", "visuals", "source_instance"};
     for(size_t i = 0; i < sizeof(fields)/sizeof(fields[0]); ++i) if(!strcmp(name, fields[i])) return true;
     return false;
