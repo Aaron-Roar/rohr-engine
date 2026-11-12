@@ -634,6 +634,7 @@ static yyjson_mut_val *editor_json_animated_sprite_write(yyjson_mut_doc *documen
         sprite->ticks_per_frame);
     yyjson_mut_obj_add_real(document, value, "time_per_frame",
         sprite->time_per_frame);
+    yyjson_mut_obj_add_uint(document, value, "playback_mode", sprite->playback_mode);
     yyjson_mut_obj_add_uint(document, value, "starting_frame",
         sprite->starting_frame);
     yyjson_mut_obj_add_real(document, value, "scale_x", sprite->scale.x);
@@ -1767,6 +1768,10 @@ static bool editor_json_animated_sprite_read(yyjson_val *value,
             !editor_json_bool(value, "visible", &sprite->visible) ||
             (!editor_json_app_visibility_read(value, &sprite->app_hidden) || !editor_entity_settings_json_read(value, &sprite->entity_settings)) ||
             !editor_json_bool(value, "playing", &sprite->playing)) return false;
+    yyjson_val *mode = yyjson_obj_get(value, "playback_mode");
+    if(mode && (!yyjson_is_uint(mode) || yyjson_get_uint(mode) > ROHR_ANIMATION_PLAYBACK_ONCE))
+        return false;
+    sprite->playback_mode = mode ? (AnimationPlaybackMode)yyjson_get_uint(mode) : ROHR_ANIMATION_PLAYBACK_LOOP;
     time = yyjson_obj_get(value, "time_per_frame");
     frames = yyjson_obj_get(value, "frames");
     if(!yyjson_is_num(time) || yyjson_get_real(time) < 0.0 ||
@@ -2101,7 +2106,9 @@ static bool editor_json_references_valid(EditorProject *project) {
             if(sprite->rigid_body != 0 &&
                     editor_project_rigid_body_get(object, sprite->rigid_body) == NULL)
                 return false;
-            if(sprite->frame_count > MAX_ANIMATIONS_FRAMES ||
+            if((sprite->playback_mode != ROHR_ANIMATION_PLAYBACK_LOOP &&
+                    sprite->playback_mode != ROHR_ANIMATION_PLAYBACK_ONCE) ||
+                    sprite->frame_count > MAX_ANIMATIONS_FRAMES ||
                     (sprite->frame_count > 0 &&
                         sprite->starting_frame >= sprite->frame_count))
                 return false;

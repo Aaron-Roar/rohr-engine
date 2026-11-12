@@ -65,6 +65,7 @@ typedef enum EditorCommandType {
     EDITOR_COMMAND_ANIMATED_SPRITE_POSITION_SET,
     EDITOR_COMMAND_ANIMATED_SPRITE_ROTATION_SET,
     EDITOR_COMMAND_ANIMATED_SPRITE_SCALE_SET,
+    EDITOR_COMMAND_ANIMATED_SPRITE_PLAYBACK_MODE_SET,
     EDITOR_COMMAND_ANIMATED_SPRITE_TIMING_SET,
     EDITOR_COMMAND_ANIMATED_SPRITE_STARTING_FRAME_SET,
     EDITOR_COMMAND_ANIMATED_SPRITE_DIRECTION_SET,
@@ -567,6 +568,8 @@ typedef struct EditorCommand {
             animated_sprite_scale_set;
         struct { EditorObjectId object; EditorAnimatedSpriteId sprite;
             Tick ticks; Time time; } animated_sprite_timing_set;
+        struct { EditorObjectId object; EditorAnimatedSpriteId sprite;
+            AnimationPlaybackMode mode; } animated_sprite_playback_mode_set;
         struct { EditorObjectId object; EditorAnimatedSpriteId sprite; uint32_t frame; }
             animated_sprite_starting_frame_set;
         struct { EditorObjectId object; EditorAnimatedSpriteId sprite;

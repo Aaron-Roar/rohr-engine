@@ -55,6 +55,21 @@ int main(void) {
         assert(rohr_entity_info_check(&snapshot.result.value, ROHR_ENTITY_INFO_PHYSICS_HITBOX_BINDINGS));
         assert(!rohr_error_check(rohr_entity_info_release(&snapshot.result.value)));
         assert(rohr_physics_hitbox_animation_driver_get(body.result.value).result.value == b.result.value);
+        assert(!rohr_graphics_animated_sprite_loop_check(a.result.value));
+        assert(!rohr_graphics_animated_sprite_loop_check(b.result.value));
+        assert(!rohr_graphics_animated_sprite_loop_check(hidden.result.value));
+        EntityResult looping = rohr_entity_by_name_get("animation_2"); assert(!rohr_error_check(looping));
+        assert(rohr_graphics_animated_sprite_loop_check(looping.result.value));
+        Tick start = rohr_engine_tick_get(); Time time = rohr_engine_time_get();
+        for(Tick step = 40; step <= 120; step += 40)
+            (void)rohr_graphics_sprite_frames_update(start + step, time);
+        assert(rohr_graphics_animated_sprite_completed_check(a.result.value));
+        assert(rohr_graphics_animated_sprite_completed_check(b.result.value));
+        assert(rohr_graphics_animated_sprite_completed_check(hidden.result.value));
+        assert(!rohr_graphics_animated_sprite_completed_check(looping.result.value));
+        assert(rohr_graphics_animated_sprite_frame_index_get(b.result.value).result.value == 1);
+        assert(!rohr_error_check(rohr_graphics_animated_sprite_restart(a.result.value)));
+        assert(!rohr_error_check(rohr_graphics_animated_sprite_restart(b.result.value)));
         if(path == 0) {
             ProjectIdResult second = rohr_project_create(project); assert(!rohr_error_check(second));
             second_project_id = second.result.value;

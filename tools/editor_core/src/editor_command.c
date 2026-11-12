@@ -2324,6 +2324,7 @@ property_invalid:
         case EDITOR_COMMAND_ANIMATED_SPRITE_ROTATION_SET:
         case EDITOR_COMMAND_ANIMATED_SPRITE_SCALE_SET:
         case EDITOR_COMMAND_ANIMATED_SPRITE_TIMING_SET:
+        case EDITOR_COMMAND_ANIMATED_SPRITE_PLAYBACK_MODE_SET:
         case EDITOR_COMMAND_ANIMATED_SPRITE_STARTING_FRAME_SET:
         case EDITOR_COMMAND_ANIMATED_SPRITE_DIRECTION_SET:
         case EDITOR_COMMAND_ANIMATED_SPRITE_FOLLOW_ROTATION_SET:
@@ -2351,6 +2352,8 @@ property_invalid:
                 ANIMATED_IDS(animated_sprite_rotation_set);
             else if(command->type == EDITOR_COMMAND_ANIMATED_SPRITE_SCALE_SET)
                 ANIMATED_IDS(animated_sprite_scale_set);
+            else if(command->type == EDITOR_COMMAND_ANIMATED_SPRITE_PLAYBACK_MODE_SET)
+                ANIMATED_IDS(animated_sprite_playback_mode_set);
             else if(command->type == EDITOR_COMMAND_ANIMATED_SPRITE_TIMING_SET)
                 ANIMATED_IDS(animated_sprite_timing_set);
             else if(command->type == EDITOR_COMMAND_ANIMATED_SPRITE_STARTING_FRAME_SET)
@@ -2432,6 +2435,12 @@ property_invalid:
                         EDITOR_ERROR_INVALID_ARGUMENT,
                         "animated sprite scale must be positive").result.error);
                 sprite->scale = scale;
+            } else if(command->type == EDITOR_COMMAND_ANIMATED_SPRITE_PLAYBACK_MODE_SET) {
+                AnimationPlaybackMode mode = command->data.animated_sprite_playback_mode_set.mode;
+                if(mode != ROHR_ANIMATION_PLAYBACK_LOOP && mode != ROHR_ANIMATION_PLAYBACK_ONCE)
+                    return editor_command_error(editor_result_error(EDITOR_ERROR_INVALID_ARGUMENT,
+                        "playback mode must be loop or once").result.error);
+                sprite->playback_mode = mode;
             } else if(command->type == EDITOR_COMMAND_ANIMATED_SPRITE_TIMING_SET) {
                 sprite->ticks_per_frame = command->data.animated_sprite_timing_set.ticks;
                 sprite->time_per_frame = command->data.animated_sprite_timing_set.time;
@@ -3868,6 +3877,15 @@ EditorResult editor_command_cli_parse(int count, char **arguments,
                 command->data.animated_sprite_rotation_set.sprite = id;
                 return editor_result_value(true);
             }
+            if(strcmp(property, "playback-mode") == 0 && count == 8 &&
+                    (strcmp(arguments[7], "loop") == 0 || strcmp(arguments[7], "once") == 0)) {
+                command->type = EDITOR_COMMAND_ANIMATED_SPRITE_PLAYBACK_MODE_SET;
+                command->data.animated_sprite_playback_mode_set.object = object;
+                command->data.animated_sprite_playback_mode_set.sprite = id;
+                command->data.animated_sprite_playback_mode_set.mode = strcmp(arguments[7], "once") == 0 ?
+                    ROHR_ANIMATION_PLAYBACK_ONCE : ROHR_ANIMATION_PLAYBACK_LOOP;
+                return editor_result_value(true);
+            }
             if(strcmp(property, "timing") == 0 && count == 9) {
                 char *tick_end, *time_end;
                 unsigned long long ticks = strtoull(arguments[7], &tick_end, 10);
@@ -4738,6 +4756,7 @@ EditorResult editor_command_cli_write(const EditorCommand *command,
         case EDITOR_COMMAND_ANIMATED_SPRITE_BODY_SET:
         case EDITOR_COMMAND_ANIMATED_SPRITE_SCALE_SET:
         case EDITOR_COMMAND_ANIMATED_SPRITE_TIMING_SET:
+        case EDITOR_COMMAND_ANIMATED_SPRITE_PLAYBACK_MODE_SET:
         case EDITOR_COMMAND_ANIMATED_SPRITE_STARTING_FRAME_SET:
         case EDITOR_COMMAND_ANIMATED_SPRITE_DIRECTION_SET:
         case EDITOR_COMMAND_ANIMATED_SPRITE_FOLLOW_ROTATION_SET:
@@ -4780,6 +4799,10 @@ EditorResult editor_command_cli_write(const EditorCommand *command,
                 snprintf(values, sizeof(values), " scale %.9g %.9g",
                     command->data.animated_sprite_scale_set.scale.x,
                     command->data.animated_sprite_scale_set.scale.y);
+                if(!editor_command_text_append(output, output_capacity, &used, values)) goto capacity_error;
+            } else if(command->type == EDITOR_COMMAND_ANIMATED_SPRITE_PLAYBACK_MODE_SET) {
+                snprintf(values, sizeof(values), " playback-mode %s",
+                    command->data.animated_sprite_playback_mode_set.mode == ROHR_ANIMATION_PLAYBACK_ONCE ? "once" : "loop");
                 if(!editor_command_text_append(output, output_capacity, &used, values)) goto capacity_error;
             } else if(command->type == EDITOR_COMMAND_ANIMATED_SPRITE_TIMING_SET) {
                 snprintf(values, sizeof(values), " timing %llu %.17g",

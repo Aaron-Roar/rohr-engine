@@ -194,9 +194,9 @@ static size_t editor_preview_texture_capacity;
 typedef struct EditorAnimationPreview {
     EditorObjectId object;
     EditorAnimatedSpriteId animation;
-    size_t frame_index;
-    Tick last_update_tick;
-    Time last_update_time;
+    AnimationPlayer player;
+    EditorSpriteId frame_id;
+    uint32_t starting_frame;
     bool was_playing;
 } EditorAnimationPreview;
 
@@ -211,61 +211,88 @@ static Position editor_camera_world_get(const EditorObject *object,
 static Orientation editor_camera_attachment_rotation_get(
     const EditorObject *object, const EditorCamera *camera);
 
-static size_t editor_animation_preview_frame_get(const EditorObject *object,
-        const EditorAnimatedSprite *animation, const EditorViewportState *state) {
-    EditorAnimationPreview *preview = NULL;
-    Tick tick = editor_animation_preview_tick;
-    Time time = editor_animation_preview_time;
-    if(object == NULL || animation == NULL || animation->frame_count == 0) return 0;
-    if(state != NULL && state->mode == EDITOR_VIEWPORT_ANIMATION_FRAME &&
-            state->selected_animated_sprite == animation->id) {
-        for(size_t i = 0; i < animation->frame_count; i += 1)
-            if(animation->frames[i].id == state->selected_animation_frame) return i;
-    }
-    for(size_t i = 0; i < editor_animation_preview_count; i += 1)
+static EditorAnimationPreview *editor_animation_preview_get(const EditorObject *object,
+        const EditorAnimatedSprite *animation) {
+    if(object == NULL || animation == NULL) return NULL;
+    for(size_t i = 0; i < editor_animation_preview_count; ++i)
         if(editor_animation_previews[i].object == object->id &&
                 editor_animation_previews[i].animation == animation->id)
-            preview = &editor_animation_previews[i];
-    if(preview == NULL) {
-        if(editor_animation_preview_count == editor_animation_preview_capacity) {
-            size_t capacity = editor_animation_preview_capacity == 0 ? 8 :
-                editor_animation_preview_capacity * 2;
-            EditorAnimationPreview *items = realloc(editor_animation_previews,
-                capacity * sizeof(*items));
-            if(items == NULL) return 0;
-            editor_animation_previews = items;
-            editor_animation_preview_capacity = capacity;
-        }
-        preview = &editor_animation_previews[editor_animation_preview_count++];
-        *preview = (EditorAnimationPreview){.object = object->id,
-            .animation = animation->id};
+            return &editor_animation_previews[i];
+    if(editor_animation_preview_count == editor_animation_preview_capacity) {
+        size_t capacity = editor_animation_preview_capacity == 0 ? 8 :
+            editor_animation_preview_capacity * 2;
+        EditorAnimationPreview *items = realloc(editor_animation_previews,
+            capacity * sizeof(*items));
+        if(items == NULL) return NULL;
+        editor_animation_previews = items;
+        editor_animation_preview_capacity = capacity;
     }
-    if(!animation->playing) {
-        preview->frame_index = animation->starting_frame < animation->frame_count ?
-            animation->starting_frame : 0;
-        preview->last_update_tick = tick;
-        preview->last_update_time = time;
-    } else {
-        if(!preview->was_playing) {
-            preview->frame_index = animation->starting_frame < animation->frame_count ?
-                animation->starting_frame : 0;
-            preview->last_update_tick = tick;
-            preview->last_update_time = time;
-        } else if((animation->ticks_per_frame != 0 &&
-                animation->ticks_per_frame <= tick - preview->last_update_tick) ||
-                (animation->time_per_frame != 0 &&
-                animation->time_per_frame <= time - preview->last_update_time)) {
-            preview->frame_index = (preview->frame_index + 1) %
-                animation->frame_count;
-            preview->last_update_tick = tick;
-            preview->last_update_time = time;
+    EditorAnimationPreview *preview = &editor_animation_previews[editor_animation_preview_count++];
+    size_t start = animation->starting_frame < animation->frame_count ? animation->starting_frame : 0;
+    *preview = (EditorAnimationPreview){.object = object->id, .animation = animation->id,
+        .starting_frame = animation->starting_frame, .was_playing = animation->playing,
+        .frame_id = animation->frame_count ? animation->frames[start].id : 0,
+        .player = {.frame_index = start, .frame_count = animation->frame_count,
+            .observed_tick = editor_animation_preview_tick, .observed_time = editor_animation_preview_time,
+            .last_update_tick = editor_animation_preview_tick, .last_update_time = editor_animation_preview_time}};
+    return preview;
+}
+
+AnimationPlayer editor_viewport_animation_player_get(const EditorObject *object,
+        const EditorAnimatedSprite *animation) {
+    EditorAnimationPreview *preview = editor_animation_preview_get(object, animation);
+    if(preview == NULL) return (AnimationPlayer){0};
+    AnimationPlayer *player = &preview->player;
+    player->observed_tick = editor_animation_preview_tick;
+    player->observed_time = editor_animation_preview_time;
+    /* Match runtime description replacement by the current frame's identity. */
+    bool found = player->frame_count == 0 && animation->frame_count == 0;
+    for(size_t i = 0; i < animation->frame_count; ++i)
+        if(animation->frames[i].id == preview->frame_id) {
+            player->frame_index = i;
+            found = true;
+            break;
         }
+    if(!found) (void)rohr_graphics_animation_player_restart(player);
+    player->frame_count = animation->frame_count;
+    if(preview->starting_frame != animation->starting_frame) {
+        player->frame_index = animation->starting_frame < animation->frame_count ? animation->starting_frame : 0;
+        preview->starting_frame = animation->starting_frame;
     }
+    player->playback_mode = animation->playback_mode;
+    player->ticks_per_frame = animation->ticks_per_frame;
+    player->time_per_frame = animation->time_per_frame;
+    if(!animation->playing || !preview->was_playing) {
+        /* Pausing and resuming preserve the frame and completion latch. */
+        player->last_update_tick = player->observed_tick;
+        player->last_update_time = player->observed_time;
+    }
+    if(animation->playing)
+        rohr_graphics_animation_player_update(player, editor_animation_preview_tick, editor_animation_preview_time);
     preview->was_playing = animation->playing;
-    if(preview->frame_index >= animation->frame_count)
-        preview->frame_index = animation->starting_frame < animation->frame_count ?
-            animation->starting_frame : 0;
-    return preview->frame_index;
+    preview->frame_id = animation->frame_count ? animation->frames[player->frame_index].id : 0;
+    return *player;
+}
+
+void editor_viewport_animation_restart(const EditorObject *object,
+        const EditorAnimatedSprite *animation) {
+    (void)editor_viewport_animation_player_get(object, animation);
+    EditorAnimationPreview *preview = editor_animation_preview_get(object, animation);
+    if(preview == NULL) return;
+    (void)rohr_graphics_animation_player_restart(&preview->player);
+    preview->frame_id = animation->frame_count ? animation->frames[0].id : 0;
+}
+
+static size_t editor_animation_preview_frame_get(const EditorObject *object,
+        const EditorAnimatedSprite *animation, const EditorViewportState *state) {
+    AnimationPlayer player = editor_viewport_animation_player_get(object, animation);
+    if(animation == NULL) return 0;
+    if(state != NULL && state->mode == EDITOR_VIEWPORT_ANIMATION_FRAME &&
+            state->selected_animated_sprite == animation->id) {
+        for(size_t i = 0; i < animation->frame_count; ++i)
+            if(animation->frames[i].id == state->selected_animation_frame) return i;
+    }
+    return player.frame_index;
 }
 
 static Scale editor_animation_frame_size_get(const EditorAnimationFrame *frame);
@@ -7491,6 +7518,11 @@ static void editor_viewport_content_draw(const EditorProject *project,
     if(project == NULL || state == NULL) return;
     editor_animation_preview_tick += 1;
     editor_animation_preview_time = (Time)SDL_GetTicksNS() / 1000000000.0;
+    /* Visibility and camera composition never control animation progression. */
+    for(size_t i = 0; i < project->object_count; ++i)
+        for(size_t j = 0; j < project->objects[i].animated_sprite_count; ++j)
+            (void)editor_viewport_animation_player_get(&project->objects[i],
+                &project->objects[i].animated_sprite_items[j]);
     if((state->mode == EDITOR_VIEWPORT_HIERARCHY &&
                 !state->project_elements_hidden) ||
             state->mode == EDITOR_VIEWPORT_LAYOUT ||

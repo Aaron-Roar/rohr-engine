@@ -655,6 +655,9 @@ static EditorHistoryAggregateChange *editor_history_command_aggregate_capture(
         case EDITOR_COMMAND_ANIMATED_SPRITE_SCALE_SET:
             return editor_history_aggregate_capture(project, EDITOR_ITEM_OBJECT,
                 command->data.animated_sprite_scale_set.object, 0);
+        case EDITOR_COMMAND_ANIMATED_SPRITE_PLAYBACK_MODE_SET:
+            return editor_history_aggregate_capture(project, EDITOR_ITEM_OBJECT,
+                command->data.animated_sprite_playback_mode_set.object, 0);
         case EDITOR_COMMAND_ANIMATED_SPRITE_TIMING_SET:
             return editor_history_aggregate_capture(project, EDITOR_ITEM_OBJECT,
                 command->data.animated_sprite_timing_set.object, 0);

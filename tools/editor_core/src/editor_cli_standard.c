@@ -319,6 +319,9 @@ static EditorResult cli_sprite_command_write(const EditorProject *project,
             ADD("scale");
             snprintf(number, sizeof(number), "%.9g", command->data.animated_sprite_scale_set.scale.x); ADD(number);
             snprintf(number, sizeof(number), "%.9g", command->data.animated_sprite_scale_set.scale.y); ADD(number);
+        } else if(command->type == EDITOR_COMMAND_ANIMATED_SPRITE_PLAYBACK_MODE_SET) {
+            ADD("playback-mode"); ADD(command->data.animated_sprite_playback_mode_set.mode ==
+                ROHR_ANIMATION_PLAYBACK_ONCE ? "once" : "loop");
         } else if(command->type == EDITOR_COMMAND_ANIMATED_SPRITE_TIMING_SET) {
             ADD("timing");
             snprintf(number, sizeof(number), "%llu", (unsigned long long)command->data.animated_sprite_timing_set.ticks); ADD(number);

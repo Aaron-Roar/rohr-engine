@@ -325,6 +325,7 @@ static bool attachments_read(ImportContext *c, ObjectDescription *root, const Ed
         if(!d) return false;
         d->target = target ? target->id : 0; d->position = s->editor_position; d->orientation = s->editor_rotation;
         d->scale = s->scale; d->ticks_per_frame = s->ticks_per_frame; d->time_per_frame = s->time_per_frame;
+        d->playback_mode = s->playback_mode;
         d->starting_frame = s->starting_frame; d->direction = s->direction; d->playing = s->playing;
         d->follow_orientation = s->follow_body_rotation; d->visible = !s->app_hidden;
         layer_set(c->project, d, s->graphics_layer);

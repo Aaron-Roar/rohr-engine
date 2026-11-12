@@ -444,6 +444,7 @@ typedef struct EditorAnimatedSprite {
     Tick ticks_per_frame;
     Time time_per_frame;
     uint32_t starting_frame;
+    AnimationPlaybackMode playback_mode;
     Scale scale;
     Direction direction;
     bool follow_body_rotation;

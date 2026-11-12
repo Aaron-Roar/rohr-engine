@@ -1,8 +1,7 @@
 # Animation playback modes and completion
 
-Milestone 21 adds per-player playback policy and persistent completion. Goal 1
-covers runtime configuration and persistence; editor controls and generated mode
-settings belong to Goal 2 and are not implemented yet.
+Milestone 21 adds per-player playback policy and persistent completion. Runtime
+descriptions, editor authoring and generated applications use the same modes.
 
 ## Description configuration
 
@@ -87,8 +86,50 @@ Completed and running one-shots retain their states through save/load.
 
 Rebuild the engine and SDK consumers together: public player/description layouts
 have changed. Existing source using defaults or designated initializers continues
-looping. Editor mode selection, JSON authoring, and emitted non-default mode
-configuration remain Goal 2 work. Developer-edited mains remain developer-owned.
+looping. Developer-edited mains remain developer-owned.
+
+## Editor and generated applications
+
+Open an animation's **Playback** section and select **Loop Forever** or **Play
+Once** in **Mode**. Mode edits use the shared command/history system and support
+undo/redo, copying and save/reload. Old authoring documents without `playback_mode`
+default to looping; malformed values reject loading.
+
+**Restart** resets only that animation's preview to frame zero and clears its
+completion latch. **Completed** appears after the final frame's interval finishes.
+Changing mode, switching Playing off/on or editing a compatible frame transform
+does not clear completion. Select Restart to resume a completed preview, including
+after switching it to Loop Forever. Restart preserves the Playing setting, so a
+paused preview remains paused. Playing off/on preserves the current frame and
+resumes with a fresh interval; it no longer seeks to Starting Frame.
+
+Preview completion and Restart are transient and do not create authoring history
+entries or serialize a completed flag. Opening a project creates fresh players at
+their authored Starting Frame. Editing Starting Frame seeks without clearing the
+completion latch. Replacing/removing the current frame's identity clears completion
+and resets to zero. Selecting a frame for editing still displays that selected
+frame; it does not change the underlying player's progress. Hidden attachments
+continue updating. The authoring canvas still displays all visible hitbox variants.
+
+The editor uses the runtime `AnimationPlayer` update and restart operations. Its
+tick clock remains one tick per viewport draw, while seconds use wall time; runtime
+applications use their configured engine clocks. Timing therefore depends on the
+chosen clock, while stepping and completion rules match.
+
+CLI configuration uses the same command as the panel:
+
+```sh
+rohr-cli --project /path/to/project --object actor \
+  --animated-sprite walk --property playback-mode once
+```
+
+Use `loop` to restore looping. Generated descriptions emit `playback_mode` for
+project, object and individual creation; generated mains retain all three explicit
+pathways. Regenerating updates editor-owned modules and preserves developer-edited
+mains. Existing custom code that manually reconstructs descriptions should copy
+the authored mode into `ObjectDescription.playback_mode` or
+`AnimatedSpriteDescription.player.playback_mode`; completion should be read through
+the runtime API rather than authored as configuration.
 
 ## Goal 1 verification
 
@@ -110,6 +151,34 @@ Verification artifacts are under `sandbox/milestone_21/goal_1/`:
   includes all twenty new public/direct declarations; its 77 existing diagnostics
   are unchanged from Milestone 20. `git diff --check` passes.
 
-Editor mode authoring, generated non-default modes, generic Linux packaging and
-real editor/application preview acceptance remain Goal 2 verification. Goal 1
-does not claim sanitizer verification of the editor workflow.
+Goal 1 did not include editor workflow sanitizer or visual acceptance checks;
+those belong to Goal 2 below.
+
+## Goal 2 verification
+
+Artifacts are under `sandbox/milestone_21/goal_2/`.
+
+- Release and ASan/UBSan with leak detection: all nine focused suites pass, covering
+  runtime playback, editor history/navigation, authoring persistence, construction
+  parity, CLI commands and generated workflows. Hidden preview completion,
+  pause/Play, sticky mode changes, restart and frame replacement have state checks.
+- The forty-attachment generated consumer verifies mixed looping/play-once modes,
+  hidden completion and independent attachments across project, object and
+  individual creation. Save/reload produces deterministic C; edited mains survive
+  regeneration. All three emitted main alternatives also build and run against
+  the installed Release and sanitizer SDKs.
+- Windows engine/editor/CLI, focused tests, the installed SDK generated attachment
+  consumer and all three emitted main alternatives cross-build. Windows executables
+  have not been run.
+- Generic Linux: a fresh Rocky Linux 8 build installs the engine, editor and CLI;
+  runtime playback and both generated workflow suites pass against that SDK.
+  Regeneration by its installed CLI preserves generated-file hashes and the
+  customized main. The generated-pathway harness now stages shared assets once,
+  fixing a concurrent directory-copy failure exposed by the parallel build.
+- The user accepted the real application preview: left columns play once and
+  freeze, right columns loop, R restarts playback and closing works. The installed
+  editor's Mode/Restart/completion controls, undo/redo and save/reload were also
+  accepted.
+- Verification builds report no compiler warnings, sanitizer findings or remaining
+  failures. `git diff --check` passes. Milestone 21 is complete; stop for review
+  and commit.

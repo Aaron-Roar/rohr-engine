@@ -24,6 +24,8 @@ bool editor_animated_sprite_editor_create(EditorAnimatedSpriteEditor *editor,
     CREATE("Add Frame", add_frame_label); CREATE("Visible in App", visibility_label);
     CREATE("[X]", visible_label); CREATE("[ ]", hidden_label);
     CREATE("None", none_label);
+    CREATE("Mode", mode_label); CREATE("Loop Forever", loop_label); CREATE("Play Once", once_label);
+    CREATE("Restart", restart_label); CREATE("Completed", completed_label);
     CREATE("Drives Hitboxes", driver_label);
     CREATE("Delete Animation", delete_label); CREATE("", x_field);
     CREATE("", y_field); CREATE("", rotation_field); CREATE("", scale_x_field);
@@ -56,6 +58,8 @@ void editor_animated_sprite_editor_destroy(EditorAnimatedSpriteEditor *editor) {
     DESTROY(follow_label); DESTROY(playing_label); DESTROY(add_frame_label);
     DESTROY(visibility_label); DESTROY(visible_label); DESTROY(hidden_label);
     DESTROY(none_label);
+    DESTROY(mode_label); DESTROY(loop_label); DESTROY(once_label);
+    DESTROY(restart_label); DESTROY(completed_label);
     DESTROY(driver_label); DESTROY(name_value);
     DESTROY(delete_label); DESTROY(x_field); DESTROY(y_field);
     DESTROY(rotation_field); DESTROY(scale_x_field); DESTROY(scale_y_field);
@@ -102,11 +106,11 @@ bool editor_animated_sprite_editor_draw(EditorAnimatedSpriteEditor *editor,
     UIFieldResult name_result, x_result = {0}, y_result = {0}, rotation_result = {0};
     UIFieldResult sx_result = {0}, sy_result = {0}, ticks_result = {0},
         time_result = {0}, start_result = {0};
-    UIDropdownResult body_result = {0}, direction_result = {0};
+    UIDropdownResult body_result = {0}, direction_result = {0}, mode_result = {0};
     bool follow_changed = false, playing_changed = false, layer_active = false;
     bool transform_open, attachment_open, playback_open, frames_open;
     float attachment_y;
-    float transform_row_y[6] = {0}, playback_row_y[5] = {0};
+    float transform_row_y[6] = {0}, playback_row_y[8] = {0};
     float add_frame_y = 0.0f, frame_list_y = 0.0f, frame_row_stride = 0.0f;
     float section_y = 80.0f;
     if(editor == NULL || context == NULL || context->project == NULL ||
@@ -139,7 +143,7 @@ bool editor_animated_sprite_editor_draw(EditorAnimatedSpriteEditor *editor,
             28.0f, 28.0f, 28.0f, 28.0f, 28.0f, 28.0f};
         const float attachment_rows[] = {28.0f, 28.0f};
         const float playback_rows[] = {
-            28.0f, 28.0f, 28.0f, 28.0f, 28.0f};
+            28.0f, 28.0f, 28.0f, 28.0f, 28.0f, 28.0f, 28.0f, 28.0f};
         const EditorModeAccordionLayoutGroup frame_groups[] = {
             {.row_count = 1, .row_height = 28.0f},
             {.row_count = sprite->frame_count, .row_height = 26.0f,
@@ -168,7 +172,7 @@ bool editor_animated_sprite_editor_draw(EditorAnimatedSpriteEditor *editor,
             editor_mode_accordion_layout_section(&accordion,
                 &editor->playback_section,
                 "editor.animated_sprite.section.playback",
-                playback_rows, 5, 10.0f);
+                playback_rows, editor_viewport_animation_player_get(object, sprite).completed ? 8 : 7, 10.0f);
         EditorModeAccordionLayoutResult frames =
             editor_mode_accordion_layout_nested_section(&accordion,
                 &editor->frames_section,
@@ -182,7 +186,7 @@ bool editor_animated_sprite_editor_draw(EditorAnimatedSpriteEditor *editor,
         for(size_t row = 0; row < 6; row += 1)
             transform_row_y[row] = editor_mode_accordion_layout_row_y(
                 &transform, transform_rows, row, 10.0f);
-        for(size_t row = 0; row < 5; row += 1)
+        for(size_t row = 0; row < 8; row += 1)
             playback_row_y[row] = editor_mode_accordion_layout_row_y(
                 &playback, playback_rows, row, 10.0f);
         add_frame_y = editor_mode_accordion_layout_group_row_y(
@@ -287,6 +291,18 @@ bool editor_animated_sprite_editor_draw(EditorAnimatedSpriteEditor *editor,
             "editor.animated_sprite.playing", &editor->playing_label,
             (UIRect){context->x + 10.0f, playback_row_y[4],
                 context->width - 20.0f, 28.0f}, &playing);
+        const TextAsset *modes[] = {&editor->loop_label, &editor->once_label};
+        rohr_ui_label(&editor->mode_label,
+            (UIRect){context->x + 8.0f, playback_row_y[5], 90.0f, 28.0f});
+        mode_result = editor_mode_dropdown("editor.animated_sprite.playback_mode",
+            modes, 2, sprite->playback_mode,
+            (UIRect){context->x + 100.0f, playback_row_y[5], context->width - 110.0f, 28.0f}, &style);
+        if(rohr_ui_button("editor.animated_sprite.restart", &editor->restart_label,
+                (UIRect){context->x + 10.0f, playback_row_y[6], context->width - 20.0f, 28.0f}, NULL).clicked)
+            editor_viewport_animation_restart(object, sprite);
+        if(editor_viewport_animation_player_get(object, sprite).completed)
+            rohr_ui_label(&editor->completed_label,
+                (UIRect){context->x + 10.0f, playback_row_y[7], context->width - 20.0f, 28.0f});
     }
     if(name_result.changed) {
         EditorCommand command = {.type = EDITOR_COMMAND_ANIMATED_SPRITE_RENAME,
@@ -329,6 +345,12 @@ bool editor_animated_sprite_editor_draw(EditorAnimatedSpriteEditor *editor,
         EditorCommand command = {.type = EDITOR_COMMAND_ANIMATED_SPRITE_STARTING_FRAME_SET,
             .data.animated_sprite_starting_frame_set = {object->id, sprite->id,
                 (uint32_t)starting}};
+        (void)editor_command_execute(context->project, &command);
+    }
+    if(mode_result.changed) {
+        EditorCommand command = {.type = EDITOR_COMMAND_ANIMATED_SPRITE_PLAYBACK_MODE_SET,
+            .data.animated_sprite_playback_mode_set = {object->id, sprite->id,
+                (AnimationPlaybackMode)mode_result.selected_index}};
         (void)editor_command_execute(context->project, &command);
     }
     if(direction_result.changed) {

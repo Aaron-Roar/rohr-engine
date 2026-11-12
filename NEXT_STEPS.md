@@ -20,7 +20,7 @@ priority order.
 | 18 | [Explicit runtime lists and ID/name access](#18-explicit-runtime-lists-and-idname-access) | Complete; Goals 1–3 verified and Linux preview accepted |
 | 19 | [Physics setters that preserve unrelated values](#19-physics-setters-that-preserve-unrelated-values) | Complete; all three API goals verified, baseline solver failures preserved |
 | 20 | [Independent animation attachments](#20-independent-animation-attachments) | Complete; all three goals verified, Linux editor and application previews accepted |
-| 21 | [Animation playback modes and completion](#21-animation-playback-modes-and-completion) | Goal 1 complete; stopped for review; editor integration follows |
+| 21 | [Animation playback modes and completion](#21-animation-playback-modes-and-completion) | Complete; both goals verified and editor/application previews accepted |
 | — | [C game experiment](#c-game-experiment) | Follows the current API work; agree concept and completion criteria with the user |
 | 13 | Physics rebuild from the simpler baseline | Paused by user direction for frame pacing and game development; goals 1, 2a, 2b and 4a complete; goals 2 and 3 failed; goal 4 blocking remains incomplete; goals 5–8 not started |
 | 12 | Real-time physics pipeline rework | Closed by user direction; superseded by milestone 13, not complete; goals 1–13 complete, goal 14 unfinished, goals 15–19 not started; evidence preserved |
@@ -32,11 +32,11 @@ priority order.
 | 7 | Editor implementation scalability | Deferred until after Python unless game development makes it necessary sooner |
 | 10 | End-to-end game | Pending; separate larger game directed by the user |
 
-**Current priority:** Milestone 21 Goal 1 is complete: runtime loop/play-once
-modes, writable persistent completion, restart, descriptions and save/load are
-verified. Stop for review and commit. Goal 2 adds editor and generated-project
-support after separate user instruction. The C game experiment follows this API
-work; physics milestones remain paused and simulation defaults are unchanged.
+**Current priority:** Milestone 21 is complete: runtime modes, completion,
+restart, editor authoring and generated-project support are verified, with real
+editor/application previews accepted. Stop for review and commit. The C game
+experiment follows this API work after agreeing its scope with the user; physics
+milestones remain paused and simulation defaults are unchanged.
 
 Milestone 15 is complete. Its Goal 1 defines the
 [creation and viewport contract](docs/creation_and_viewport_contract.md).
@@ -1356,7 +1356,7 @@ frame zero. Existing zero-initialized descriptions continue looping.
    Complete: twelve focused Release regressions and seven sanitizer regressions
    pass; installed Linux playback consumers, external example launches and Windows
    cross-builds pass. See the [verification record](docs/animation_playback.md#goal-1-verification).
-2. [ ] **Editor and generated workflows.** Add Loop Forever/Play Once authoring,
+2. [x] **Editor and generated workflows.** Add Loop Forever/Play Once authoring,
    preview Restart, JSON migration, command/CLI support, undo/redo and copying.
    Preview uses the runtime playback rules; Play does not clear completion.
    Generate the mode through descriptions and all three creation paths, preserving
@@ -1364,6 +1364,12 @@ frame zero. Existing zero-initialized descriptions continue looping.
    Linux SDKs, sanitizers and Windows cross-builds; obtain editor/application
    preview acceptance. Authoring continues showing all visible hitbox variants.
    Stop for review and commit.
+   Complete: nine focused Release and nine ASan/UBSan suites pass. Generated
+   attachment and all three main workflows pass against installed Nix-built,
+   sanitizer and generic Linux SDKs and cross-build for Windows. Mode migration,
+   command/history/copy behavior, deterministic generation and edited-main
+   preservation are verified. The user accepted application playback/restart/close
+   and editor controls/persistence. See the [verification record](docs/animation_playback.md#goal-2-verification).
 
 No callbacks, event queues, cycle counters, reverse playback, state machines,
 physics changes or new dependencies. See [playback contract](docs/animation_playback.md).

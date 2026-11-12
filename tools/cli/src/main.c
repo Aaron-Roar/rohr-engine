@@ -109,9 +109,9 @@ static const CliHelpDomain cli_help_domains[] = {
         "--object car --sprite wheel --property path assets/wheel.png", 1},
     {"--animated-sprite", "animated sprite", "body <body|none>, "
         "position <x> <y>, rotation <degrees>, scale <x> <y>, "
-        "timing <ticks> <seconds>, starting-frame <index>, "
+        "timing <ticks> <seconds>, starting-frame <index>, playback-mode <loop|once>, "
         "direction <left|right>, follow-body-rotation <true|false>, "
-        "visibility <true|false>",
+        "visibility <true|false>, playing <true|false>",
         "--object car --animated-sprite wheel_animation --property scale 2 2", 2},
     {"--controller", "input controller", "controller-set <name> <true|false>",
         "--controller gameplay add true", 0},

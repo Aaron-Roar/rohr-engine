@@ -330,6 +330,8 @@ static void value_write(FILE *f, const Catalog *c, const ObjectDescription *d) {
     V(size); V(scale); U(frame_count);
     if(d->frame_count) fprintf(f, ",.frames=%s_frames_%llu", c->prefix, id);
     U(ticks_per_frame); fprintf(f, ",.time_per_frame=%.17g", d->time_per_frame);
+    fprintf(f, ",.playback_mode=%s", d->playback_mode == ROHR_ANIMATION_PLAYBACK_ONCE ?
+        "ROHR_ANIMATION_PLAYBACK_ONCE" : "ROHR_ANIMATION_PLAYBACK_LOOP");
     U(starting_frame); fprintf(f, ",.direction=%d", (int)d->direction);
     U(playing); U(follow_position); U(follow_orientation); F(zoom);
     U(pause_with_engine);

@@ -123,6 +123,18 @@ static void animation_attachments_history_check(void) {
     callback_history = &history;
     editor_command_executing_callback_set(history_begin, NULL);
     editor_command_finished_callback_set(history_finish, NULL);
+    EditorCommand mode = {.type = EDITOR_COMMAND_ANIMATED_SPRITE_PLAYBACK_MODE_SET,
+        .data.animated_sprite_playback_mode_set = {object_id, ids[39], ROHR_ANIMATION_PLAYBACK_ONCE}};
+    assert(editor_command_execute(&project, &mode).kind == ERROR_RESULT_VALUE);
+    assert(editor_history_undo(&history));
+    object = &project.objects[0];
+    assert(editor_project_animated_sprite_get(object, ids[39])->playback_mode == ROHR_ANIMATION_PLAYBACK_LOOP);
+    assert(editor_history_redo(&history));
+    object = &project.objects[0]; body = &object->rigid_bodies[0];
+    assert(editor_project_animated_sprite_get(object, ids[39])->playback_mode == ROHR_ANIMATION_PLAYBACK_ONCE);
+    mode.data.animated_sprite_playback_mode_set.mode = (AnimationPlaybackMode)99;
+    assert(editor_command_execute(&project, &mode).kind == ERROR_RESULT_ERROR);
+    assert(editor_project_animated_sprite_get(object, ids[39])->playback_mode == ROHR_ANIMATION_PLAYBACK_ONCE);
     EditorCommand driver = {.type = EDITOR_COMMAND_PROPERTY_SET,
         .data.property_set = {.kind = EDITOR_ITEM_RIGID_BODY, .object = object_id,
             .item = body_id, .property = EDITOR_PROPERTY_HITBOX_ANIMATION_DRIVER,
@@ -154,6 +166,7 @@ static void animation_attachments_history_check(void) {
         assert(sprite && sprite->rigid_body == body_id && sprite->ticks_per_frame == i + 1);
         assert(sprite->playing == ((i % 2) == 0) && sprite->app_hidden == ((i % 3) == 0));
         assert(sprite->frame_count == 1 && sprite->editor_position.x == (float)i);
+        assert(sprite->playback_mode == (i == 39 ? ROHR_ANIMATION_PLAYBACK_ONCE : ROHR_ANIMATION_PLAYBACK_LOOP));
     }
     size_t size;
     char *json = SDL_LoadFile("animation_attachments_history.json", &size); assert(json);
@@ -162,6 +175,28 @@ static void animation_attachments_history_check(void) {
     assert(SDL_SaveFile("animation_attachments_history.json", json, size)); SDL_free(json);
     assert(!editor_result_check(editor_project_load(&loaded, "animation_attachments_history.json")));
     assert(loaded.objects[0].rigid_bodies[0].hitbox_animation_driver == ids[0]);
+    /* Old authoring documents default to looping; malformed modes reject loading. */
+    assert(editor_project_save(&project, "animation_playback_history.json"));
+    json = SDL_LoadFile("animation_playback_history.json", &size); assert(json);
+    char *mode_key = json;
+    while((mode_key = strstr(mode_key, "\"playback_mode\"")) != NULL) mode_key[1] = '_';
+    assert(SDL_SaveFile("animation_playback_history.json", json, size)); SDL_free(json);
+    assert(!editor_result_check(editor_project_load(&loaded, "animation_playback_history.json")));
+    for(size_t i = 0; i < 40; ++i)
+        assert(loaded.objects[0].animated_sprite_items[i].playback_mode == ROHR_ANIMATION_PLAYBACK_LOOP);
+    assert(editor_project_save(&project, "animation_playback_history.json"));
+    json = SDL_LoadFile("animation_playback_history.json", &size); assert(json);
+    mode_key = strstr(json, "\"playback_mode\""); assert(mode_key);
+    mode_key = strchr(mode_key, ':') + 1;
+    while(*mode_key == ' ') ++mode_key;
+    *mode_key = '9';
+    assert(SDL_SaveFile("animation_playback_history.json", json, size)); SDL_free(json);
+    assert(editor_result_check(editor_project_load(&loaded, "animation_playback_history.json")));
+    assert(SDL_RemovePath("animation_playback_history.json"));
+    EditorObject *copy = editor_project_object_duplicate(&project, object_id); assert(copy);
+    assert(copy->animated_sprite_count == 40);
+    assert(copy->animated_sprite_items[39].playback_mode == ROHR_ANIMATION_PLAYBACK_ONCE);
+    object = &project.objects[0]; body = &object->rigid_bodies[0];
     body->hitbox_animation_driver = 0;
     assert(editor_project_save(&project, "animation_attachments_history.json"));
     assert(!editor_result_check(editor_project_load(&loaded, "animation_attachments_history.json")));

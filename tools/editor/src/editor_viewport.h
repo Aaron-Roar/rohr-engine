@@ -269,4 +269,11 @@ void editor_viewport_assets_destroy(void);
 bool editor_viewport_selection_nudge(EditorViewportState *state,
     EditorProject *project, Vec2D screen_delta);
 
+/** Preview state uses runtime playback rules; returned state is a non-owning copy. */
+AnimationPlayer editor_viewport_animation_player_get(const EditorObject *object,
+    const EditorAnimatedSprite *animation);
+/** Restart preview only; does not change authored configuration or history. */
+void editor_viewport_animation_restart(const EditorObject *object,
+    const EditorAnimatedSprite *animation);
+
 #endif

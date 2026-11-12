@@ -2,6 +2,7 @@
  * SPDX-License-Identifier: LGPL-3.0-only
  */
 #include "editor_workspace.h"
+#include "editor_command.h"
 #include "entity/object_internal.h"
 #include "../../../tests/test_png.h"
 #include <assert.h>
@@ -33,6 +34,7 @@ int main(int argc, char **argv) {
         animation->rigid_body = body->id;
         animation->editor_position = (Position){(float)i, 2};
         animation->playing = true; animation->ticks_per_frame = i + 1;
+        animation->playback_mode = (i == 0 || i == 1 || i == 39) ? ROHR_ANIMATION_PLAYBACK_ONCE : ROHR_ANIMATION_PLAYBACK_LOOP;
         animation->app_hidden = i == 1;
         animation->graphics_layer.value = (int)i;
         assert(editor_project_animation_frame_add(&project, animation, "first", "assets/attachment.png", (Scale){20,20}));
@@ -41,6 +43,23 @@ int main(int argc, char **argv) {
             animation->frames[0].id, body->hitboxes[i % 2].id, true));
         if(i == 39) body->hitbox_animation_driver = animation->id;
     }
+    /* Standard CLI and emitted commands carry the mode by name. */
+    EditorCommand command, parsed;
+    const char *document;
+    char *args[] = {"rohr-cli", "--project", "project.json", "--object", "actor",
+        "--animated-sprite", "animation_39", "--property", "playback-mode", "once"};
+    assert(!editor_result_check(editor_command_cli_standard_parse(&project, 10, args, &document, &command)));
+    EditorCommandResult result = editor_command_execute(&project, &command);
+    assert(result.kind == ERROR_RESULT_VALUE);
+    char serialized[1024];
+    assert(!editor_result_check(editor_command_cli_standard_write(&project, &command, &result,
+        "project.json", serialized, sizeof(serialized))));
+    char *tokens[32]; int count = 0;
+    for(char *token = strtok(serialized, " "); token; token = strtok(NULL, " ")) tokens[count++] = token;
+    assert(!editor_result_check(editor_command_cli_standard_parse(&project, count, tokens, &document, &parsed)));
+    assert(parsed.type == command.type && parsed.data.animated_sprite_playback_mode_set.mode == ROHR_ANIMATION_PLAYBACK_ONCE);
+    args[9] = "invalid";
+    assert(editor_result_check(editor_command_cli_standard_parse(&project, 10, args, &document, &parsed)));
     assert(editor_workspace_save(&workspace, &project));
     assert(editor_workspace_c_generate(&workspace, &project));
     snprintf(path, sizeof(path), "%s/src/generated/project_objects.c", workspace.directory);

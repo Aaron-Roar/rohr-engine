@@ -581,6 +581,7 @@ static bool animation_direction_check(void) {
             for(int playing = 0; playing < 2; playing += 1) {
                 unsigned seen = 0;
                 animation->playing = playing != 0;
+                editor_viewport_animation_restart(object, animation);
                 for(int frame = 0; frame < 3; frame += 1) {
                     draw(&project, &state);
                     if(preview == 2) {
@@ -595,6 +596,33 @@ static bool animation_direction_check(void) {
             }
         }
     }
+    /* Hidden attachments use the same runtime completion and restart rules. */
+    state.mode = EDITOR_VIEWPORT_OBJECT;
+    animation->playback_mode = ROHR_ANIMATION_PLAYBACK_ONCE;
+    animation->visible = false; animation->playing = true;
+    editor_viewport_animation_restart(object, animation);
+    draw(&project, &state);
+    AnimationPlayer player = editor_viewport_animation_player_get(object, animation);
+    CHECK(player.frame_index == 1 && !player.completed);
+    draw(&project, &state);
+    player = editor_viewport_animation_player_get(object, animation);
+    CHECK(player.frame_index == 1 && player.completed);
+    animation->playing = false; draw(&project, &state);
+    animation->playback_mode = ROHR_ANIMATION_PLAYBACK_LOOP;
+    animation->playing = true; draw(&project, &state);
+    CHECK(editor_viewport_animation_player_get(object, animation).completed);
+    editor_viewport_animation_restart(object, animation);
+    CHECK(!editor_viewport_animation_player_get(object, animation).completed);
+    CHECK(editor_viewport_animation_player_get(object, animation).frame_index == 0);
+    draw(&project, &state);
+    CHECK(editor_viewport_animation_player_get(object, animation).frame_index == 1);
+    animation->playback_mode = ROHR_ANIMATION_PLAYBACK_ONCE;
+    draw(&project, &state);
+    CHECK(editor_viewport_animation_player_get(object, animation).completed);
+    animation->frames[1].id += 100; /* Current identity replacement clears completion. */
+    player = editor_viewport_animation_player_get(object, animation);
+    CHECK(!player.completed && player.frame_index == 0);
+    animation->playback_mode = ROHR_ANIMATION_PLAYBACK_LOOP; animation->visible = true;
     /* Selecting a later frame freezes its preview and uses that frame's alignment. */
     state.mode = EDITOR_VIEWPORT_ANIMATION_FRAME;
     state.selection = EDITOR_SELECTION_ANIMATION_FRAME;
@@ -624,6 +652,7 @@ static bool animation_direction_check(void) {
     animation->scale = (Scale){1,1};
     animation->editor_rotation = 0;
     animation->playing = false;
+    editor_viewport_animation_restart(object, animation);
     animation->frames[0].offset = (Position){20,10};
     animation->frames[0].rotation = 90;
     state.mode = EDITOR_VIEWPORT_LAYOUT;
