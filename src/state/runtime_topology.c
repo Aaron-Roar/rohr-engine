@@ -261,6 +261,41 @@ bool state_topology_write(yyjson_mut_doc *doc, yyjson_mut_val *components, Entit
     EntityIndex index;
     if(!entity_index_get(entity, &index)) return false;
 #define WRITE(condition) do { if(!(condition)) return false; } while(0)
+    if(index < hitbox_animation_bindings_pool.capacity &&
+            hitbox_animation_bindings_pool.used[index]) {
+        const HitboxAnimationBindingList *list = &hitbox_animation_bindings_pool.objects[index];
+        yyjson_mut_val *state = yyjson_mut_obj(doc), *shapes = yyjson_mut_arr(doc),
+            *bindings = yyjson_mut_arr(doc);
+        WRITE(state && shapes && bindings && reference_write(doc, state, "driver", list->driver));
+        HitboxIndexResult count = physics_hitbox_count_get(entity);
+        HitboxIdResult active = physics_hitbox_active_id_get(entity);
+        size_t shape_count = error_check(count) ? 0 : count.result.value;
+        WRITE(yyjson_mut_obj_add_uint(doc, state, "active", error_check(active) ? 0 : active.result.value));
+        for(size_t h = 0; h < shape_count; ++h) {
+            ShapeResult shape = physics_hitbox_at_get(entity, h);
+            HitboxIdResult id = physics_hitbox_id_at_get(entity, h);
+            yyjson_mut_val *item = yyjson_mut_obj(doc), *vertices = yyjson_mut_arr(doc);
+            WRITE(!error_check(shape) && !error_check(id) && item && vertices &&
+                yyjson_mut_obj_add_uint(doc, item, "id", id.result.value));
+            for(size_t v = 0; v < shape.result.value.amount_of_vertices; ++v) {
+                yyjson_mut_val *point = yyjson_mut_obj(doc);
+                WRITE(point && yyjson_mut_obj_add_real(doc, point, "x", shape.result.value.vertices[v].x) &&
+                    yyjson_mut_obj_add_real(doc, point, "y", shape.result.value.vertices[v].y) &&
+                    yyjson_mut_arr_add_val(vertices, point));
+            }
+            WRITE(yyjson_mut_obj_add_val(doc, item, "vertices", vertices) && yyjson_mut_arr_add_val(shapes, item));
+        }
+        for(size_t b = 0; b < list->count; ++b) {
+            HitboxAnimationBinding binding = list->values[b];
+            yyjson_mut_val *item = yyjson_mut_obj(doc);
+            WRITE(item && yyjson_mut_obj_add_uint(doc, item, "animation", binding.animation_id) &&
+                yyjson_mut_obj_add_uint(doc, item, "frame", binding.frame_id) &&
+                yyjson_mut_obj_add_uint(doc, item, "hitbox", binding.hitbox_id) && yyjson_mut_arr_add_val(bindings, item));
+        }
+        WRITE(yyjson_mut_obj_add_val(doc, state, "shapes", shapes) &&
+            yyjson_mut_obj_add_val(doc, state, "bindings", bindings) &&
+            yyjson_mut_obj_add_val(doc, components, "hitbox_animation", state));
+    }
     JointAnchorIdResult anchor = entity_object_anchor_get(entity);
     if(!error_check(anchor)) {
         Entity owner = object_instance_anchor_owner_get(entity);
@@ -360,6 +395,64 @@ bool state_topology_write(yyjson_mut_doc *doc, yyjson_mut_val *components, Entit
     }
 #undef WRITE
     return true;
+}
+
+EngineResult state_hitbox_animation_load(Entity entity, yyjson_val *components) {
+    yyjson_val *state = yyjson_obj_get(components, "hitbox_animation");
+    if(!state) return error_result_value(true);
+    yyjson_val *shapes = yyjson_obj_get(state, "shapes"), *bindings = yyjson_obj_get(state, "bindings");
+    Entity driver;
+    uint64_t active;
+    if(!yyjson_is_obj(state) || !yyjson_is_arr(shapes) || !yyjson_is_arr(bindings) ||
+            yyjson_arr_size(shapes) > MAX_ENTITIES || !uint64(state, "active", &active) || active > UINT32_MAX ||
+            !reference(yyjson_obj_get(state, "driver"), &driver)) goto invalid;
+    EngineResult result;
+#define APPLY(call) do { result = (call); if(error_check(result)) return result; } while(0)
+    if(entity_components_check(entity, ROHR_HIT_BOX)) APPLY(physics_hitbox_remove(entity));
+    for(size_t h = 0; h < yyjson_arr_size(shapes); ++h) {
+        yyjson_val *item = yyjson_arr_get(shapes, h), *vertices = yyjson_obj_get(item, "vertices");
+        uint64_t id;
+        Shape shape = {0};
+        if(!uint64(item, "id", &id) || !id || id > UINT32_MAX || !yyjson_is_arr(vertices) ||
+                yyjson_arr_size(vertices) < MIN_VERTICIES || yyjson_arr_size(vertices) > MAX_VERTICIES) goto invalid;
+        shape.amount_of_vertices = (uint16_t)yyjson_arr_size(vertices);
+        for(size_t v = 0; v < shape.amount_of_vertices; ++v) {
+            yyjson_val *point = yyjson_arr_get(vertices, v);
+            if(!number(point, "x", &shape.vertices[v].x) || !number(point, "y", &shape.vertices[v].y)) goto invalid;
+        }
+        /* Assign IDs after all inserts so reordered stable IDs cannot collide
+         * with the temporary sequential IDs from hitbox_add. */
+        APPLY(physics_hitbox_add(entity, shape));
+    }
+    EntityIndex index;
+    if(!entity_index_get(entity, &index)) goto invalid;
+    if(yyjson_arr_size(shapes)) {
+        HitboxVariantList *variants = &hitbox_variants_pool.objects[index];
+        HitboxId next = 1;
+        for(size_t h = 0; h < variants->count; ++h) {
+            uint64_t id;
+            if(!uint64(yyjson_arr_get(shapes, h), "id", &id)) goto invalid;
+            for(size_t j = 0; j < h; ++j) if(variants->values[j].id == id) goto invalid;
+            variants->values[h].id = (HitboxId)id;
+            if(id >= next) next = id == UINT32_MAX ? 0 : (HitboxId)id + 1;
+        }
+        variants->next_id = next;
+        APPLY(physics_hitbox_active_id_set(entity, (HitboxId)active));
+    } else if(active) goto invalid;
+    APPLY(physics_hitbox_animation_driver_set(entity, driver));
+    for(size_t b = 0; b < yyjson_arr_size(bindings); ++b) {
+        yyjson_val *item = yyjson_arr_get(bindings, b);
+        uint64_t animation, frame, hitbox;
+        if(!uint64(item, "animation", &animation) || animation > UINT32_MAX ||
+                !uint64(item, "frame", &frame) || frame > UINT32_MAX ||
+                !uint64(item, "hitbox", &hitbox) || hitbox > UINT32_MAX) goto invalid;
+        if(!error_check(physics_hitbox_animation_binding_get(entity, animation, frame))) goto invalid;
+        APPLY(physics_hitbox_animation_binding_set(entity, animation, frame, hitbox));
+    }
+    return error_result_value(true);
+invalid:
+    return error_result_error(ERROR_ENGINE_STATE_INVALID);
+#undef APPLY
 }
 
 bool state_joint_anchor_read(yyjson_val *value, Entity owner, JointAnchorId *anchor) {

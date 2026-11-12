@@ -503,18 +503,21 @@ static void section_capture(Snapshot *s, EntityIndex index, EntityInfoFlags flag
                     object(ROHR_ENTITY_INFO_OBJECT_HITBOX, list.values[i].hitbox_id, entity), true, i,
                     "Bound hitbox is missing");
             bool frame_found = false;
-            if(USED(animated_sprites_pool, index)) {
-                const AnimatedSprite *a = &animated_sprites[index];
+            for(EntityIndex a_index = 0; a_index < animated_sprites_pool.capacity; ++a_index) {
+                if(!USED(animated_sprites_pool, a_index) || !entity_index_alive_check(a_index)) continue;
+                const AnimatedSprite *a = &animated_sprites[a_index];
+                if(a_index != index && a->attachment_target != entity) continue;
                 AnimationInfoResult metadata = graphics_animation_info_get(a->player.animation);
                 if(metadata.kind == ERROR_RESULT_VALUE && metadata.result.value.id == list.values[i].animation_id)
                     for(size_t f = 0; f < a->frame_count && f < MAX_ANIMATIONS_FRAMES; ++f)
                         if(a->frames[f].id == list.values[i].frame_id) frame_found = true;
+                if(frame_found) break;
             }
             if(!frame_found)
                 issue_add(s, flag, ROHR_ENTITY_INFO_FIELD_ANIMATION_FRAME,
                     ROHR_ENTITY_INFO_REFERENCE_DATA_MISSING,
                     object(ROHR_ENTITY_INFO_OBJECT_ENTITY, entity, 0), true, i,
-                    "Bound animation or frame is missing from the entity");
+                    "Bound animation or frame is missing from the entity and its attachments");
         }
         break;
     }

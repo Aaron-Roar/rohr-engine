@@ -208,6 +208,7 @@ typedef struct EditorRigidBody {
     EditorHitboxAnimationBinding *hitbox_animation_bindings;
     size_t hitbox_animation_binding_count;
     size_t hitbox_animation_binding_capacity;
+    EditorAnimatedSpriteId hitbox_animation_driver;
     /** Runtime rendering only; zero initialization means visible in app. */
     bool app_hidden;
     ObjectEntitySettings entity_settings;

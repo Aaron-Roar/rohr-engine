@@ -584,6 +584,8 @@ EngineResult rohr_physics_hitbox_by_id_set(Entity entity, HitboxId id, Shape hit
 EngineResult rohr_physics_hitbox_by_id_remove(Entity entity, HitboxId id) { return physics_hitbox_by_id_remove(entity, id); }
 HitboxIdResult rohr_physics_hitbox_active_id_get(Entity entity) { return physics_hitbox_active_id_get(entity); }
 EngineResult rohr_physics_hitbox_active_id_set(Entity entity, HitboxId id) { return physics_hitbox_active_id_set(entity, id); }
+EngineResult rohr_physics_hitbox_animation_driver_set(Entity entity, Entity animation) { return physics_hitbox_animation_driver_set(entity, animation); }
+EntityResult rohr_physics_hitbox_animation_driver_get(Entity entity) { return physics_hitbox_animation_driver_get(entity); }
 EngineResult rohr_physics_hitbox_animation_binding_set(Entity entity, AnimationId animation_id, AnimationFrameId frame_id, HitboxId hitbox_id) { return physics_hitbox_animation_binding_set(entity, animation_id, frame_id, hitbox_id); }
 EngineResult rohr_physics_hitbox_animation_binding_remove(Entity entity, AnimationId animation_id, AnimationFrameId frame_id) { return physics_hitbox_animation_binding_remove(entity, animation_id, frame_id); }
 HitboxIdResult rohr_physics_hitbox_animation_binding_get(Entity entity, AnimationId animation_id, AnimationFrameId frame_id) { return physics_hitbox_animation_binding_get(entity, animation_id, frame_id); }

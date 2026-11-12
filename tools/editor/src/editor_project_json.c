@@ -396,6 +396,7 @@ static yyjson_mut_val *editor_json_body_write(yyjson_mut_doc *document,
         yyjson_mut_arr_add_val(bindings, item);
     }
     yyjson_mut_obj_add_val(document, value, "hitbox_animation_bindings", bindings);
+    yyjson_mut_obj_add_uint(document, value, "hitbox_animation_driver", body->hitbox_animation_driver);
     return value;
 }
 
@@ -1416,6 +1417,13 @@ static bool editor_json_body_read(yyjson_val *value, EditorRigidBody *body,
     }
     if(!editor_json_graphics_layer_binding_read(value, &body->graphics_layer))
         return false;
+    if(yyjson_obj_get(value, "hitbox_animation_driver")) {
+        if(!editor_json_uint(value, "hitbox_animation_driver", &body->hitbox_animation_driver))
+            return false;
+    } else if(body->hitbox_animation_binding_count) {
+        /* Legacy documents allowed only one attached animation. */
+        body->hitbox_animation_driver = body->hitbox_animation_bindings[0].animation;
+    }
     if(project->next_rigid_body_id <= body->id) project->next_rigid_body_id = body->id + 1;
     return true;
 }
@@ -2103,10 +2111,6 @@ static bool editor_json_references_valid(EditorProject *project) {
                         !isfinite(frame->offset.x) || !isfinite(frame->offset.y) ||
                         !isfinite(frame->rotation)) return false;
             }
-            for(size_t other = 0; other < j; other += 1)
-                if(sprite->rigid_body != 0 &&
-                        object->animated_sprite_items[other].rigid_body ==
-                            sprite->rigid_body) return false;
         }
         for(size_t j = 0; j < object->camera_count; j += 1) {
             EditorCamera *camera = &object->cameras[j];
@@ -2131,6 +2135,11 @@ static bool editor_json_references_valid(EditorProject *project) {
         }
         for(size_t j = 0; j < object->rigid_body_count; j += 1) {
             EditorRigidBody *body = &object->rigid_bodies[j];
+            if(body->hitbox_animation_driver) {
+                EditorAnimatedSprite *driver = editor_project_animated_sprite_get(object,
+                    body->hitbox_animation_driver);
+                if(!driver || driver->rigid_body != body->id) return false;
+            }
             for(size_t k = 0; k < body->hitbox_animation_binding_count; k += 1) {
                 EditorHitboxAnimationBinding *binding =
                     &body->hitbox_animation_bindings[k];

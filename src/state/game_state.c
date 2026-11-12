@@ -2135,6 +2135,9 @@ EngineResult game_state_files_load(const char *const *paths, size_t path_count) 
 
     /* All entity components must exist before validating source references. */
     for(size_t source = 0; source < total_created; ++source) {
+        result = state_hitbox_animation_load(loaded[source].entity,
+            yyjson_obj_get(loaded[source].description, "components"));
+        if(error_check(result)) goto cleanup;
         result = state_sources_load(loaded[source].entity,
             yyjson_obj_get(loaded[source].description, "components"));
         if(error_check(result)) goto cleanup;

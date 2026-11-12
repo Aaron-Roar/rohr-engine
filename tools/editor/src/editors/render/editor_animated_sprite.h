@@ -20,11 +20,11 @@ typedef struct EditorAnimatedSpriteEditor {
     TextAsset follow_label, playing_label, add_frame_label;
     TextAsset visibility_label, visible_label, hidden_label;
     TextAsset none_label, delete_label;
-    TextAsset name_values[32], body_names[EDITOR_RIGID_BODY_MAX];
+    TextAsset driver_label, name_value, body_names[EDITOR_RIGID_BODY_MAX];
     TextAsset frame_names[64];
     TextAsset x_field, y_field, rotation_field, scale_x_field, scale_y_field;
     TextAsset ticks_field, time_field, starting_field;
-    char name_cache[32][EDITOR_OBJECT_NAME_MAX];
+    char name_cache[EDITOR_OBJECT_NAME_MAX];
     char body_cache[EDITOR_RIGID_BODY_MAX][EDITOR_OBJECT_NAME_MAX];
     char frame_cache[64][EDITOR_OBJECT_NAME_MAX];
     EditorModeAccordionSection transform_section;

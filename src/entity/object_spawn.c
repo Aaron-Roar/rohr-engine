@@ -7,6 +7,7 @@
 #include "physics/soft_body/soft_body_area.h"
 #include "graphics/object_drawing.h"
 #include "graphics/marker_geometry.h"
+#include "graphics/animation_attachments.h"
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -458,6 +459,11 @@ static EngineResult creation_validate(SpawnContext *c) {
         if((d->kind == OBJECT_SPRITE || d->kind == OBJECT_ANIMATION ||
                 d->kind == OBJECT_CAMERA) && d->target && !optional_reference_get(c, d->target))
             return error_result_error(ERROR_ENGINE_STATE_REFERENCE_NOT_FOUND);
+        if(d->hitbox_animation_driver) {
+            const ObjectDescription *driver = optional_reference_get(c, d->hitbox_animation_driver);
+            if(!driver || driver->kind != OBJECT_ANIMATION || driver->target != d->id)
+                return error_result_error(ERROR_ENGINE_STATE_REFERENCE_NOT_FOUND);
+        }
         if(d->kind == OBJECT_ANCHOR && d->target && !reference_get(c, d->target))
             return error_result_error(ERROR_ENGINE_STATE_REFERENCE_NOT_FOUND);
         if(d->kind == OBJECT_JOINT || d->kind == OBJECT_BEAM) {
@@ -582,7 +588,10 @@ static EngineResult visuals_apply(Entity entity, const ObjectDescription *d, boo
         sprite.player.time_per_frame = d->playing ? d->time_per_frame : 0;
         sprite.body_offset = attached ? d->position : (Position){0};
         sprite.orientation_offset = attached ? d->orientation : 0;
-        sprite.follow_entity_rotation = attached ? d->follow_orientation : true; sprite.visible = object_description_visible_check(d);
+        sprite.follow_entity_rotation = attached ? d->follow_orientation : true;
+        /* Ownership visibility suppresses drawing without changing this
+         * animation's independently authored visibility. */
+        sprite.visible = d->visible;
         sprite.direction = d->direction;
         for(size_t i = 0; i < d->frame_count; ++i) {
             sprite.frames[i].scale = d->frames[i].scale;
@@ -621,7 +630,8 @@ static EngineResult spawn_entry(SpawnContext *c, size_t i, unsigned pass) {
         settings.lifetime.deadline.tick_enabled || settings.gameplay_target.id ||
         settings.transform_driver.id || settings.axis_lock_enabled ||
         settings.angular_acceleration || settings.angular_velocity_maximum_enabled;
-    if(attached_visual && !independent_settings && (!c->strict || entry_get(c, d->target)) &&
+    if(attached_visual && d->kind == OBJECT_SPRITE && !independent_settings &&
+            (!c->strict || entry_get(c, d->target)) &&
             !entity_components_check(target, visual_component)) {
         entry->entity = target; entry->alias = true;
         result = visuals_apply(target, d, true);
@@ -718,10 +728,12 @@ static EngineResult spawn_entry(SpawnContext *c, size_t i, unsigned pass) {
     }
     if(visual) {
         APPLY(description_layer_set(e, d, OBJECT_BODY));
-        APPLY(visuals_apply(e, d, false));
-        /* A component stores one sprite of each kind. Keep additional attached
-         * descriptions as owned entities instead of replacing the first. */
-        if(attached_visual) {
+        APPLY(visuals_apply(e, d, attached_visual && d->kind == OBJECT_ANIMATION));
+        if(attached_visual && d->kind == OBJECT_ANIMATION) {
+            /* Authored hierarchy owns lifetime; the drawing target is a
+             * separate relationship and never needs a physics transform lock. */
+            APPLY(graphics_animated_sprite_attachment_restore(e, target));
+        } else if(attached_visual) {
             APPLY(physics_dynamic_set(e));
             APPLY(physics_velocity_set(e, (Velocity){0}));
             APPLY(physics_transform_lock_description_set(e, (TransformLockDescription){
@@ -990,8 +1002,20 @@ static EntityResult description_spawn(const ObjectDescription *description,
         const ObjectDescription *d = c.entries[i].description;
         if((d->kind == OBJECT_BODY || d->kind == OBJECT_PARTICLE) &&
                 (d->categories & options.flags & ROHR_ENTITY_OBJECT_PHYSICS)) {
+            if(!(options.flags & ROHR_ENTITY_OBJECT_VISUALS)) continue;
+            Entity driver = target_get(&c, d->hitbox_animation_driver);
+            if(d->hitbox_animation_driver && !driver &&
+                    !optional_reference_omitted_check(&c, d->hitbox_animation_driver)) {
+                result = error_result_error(ERROR_ENGINE_STATE_REFERENCE_NOT_FOUND);
+                goto fail;
+            }
+            if(driver) {
+                result = physics_hitbox_animation_driver_set(c.entries[i].entity, driver);
+                if(error_check(result)) goto fail;
+            }
             for(size_t binding = 0; binding < d->hitbox_binding_count; ++binding) {
                 const HitboxAnimationBinding *b = &d->hitbox_bindings[binding];
+                if(optional_reference_omitted_check(&c, b->animation_id)) continue;
                 result = physics_hitbox_animation_binding_set(c.entries[i].entity,
                     b->animation_id, b->frame_id, b->hitbox_id);
                 if(error_check(result)) goto fail;

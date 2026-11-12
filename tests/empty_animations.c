@@ -99,7 +99,9 @@ static void catalog(void) {
     EntityResult a=rohr_entity_object_description_add(&root,(ObjectSpawnDescription){.flags=ROHR_ENTITY_OBJECT_ALL}); OK(a);
     EntityResult b=rohr_entity_object_description_add(&root,(ObjectSpawnDescription){.flags=ROHR_ENTITY_OBJECT_ALL}); OK(b);
     Entity attached_a=member(a.result.value,"attached"), free_a=member(a.result.value,"free");
-    assert(attached_a==member(a.result.value,"body"));
+    assert(attached_a!=member(a.result.value,"body"));
+    EntityResult target=rohr_graphics_animated_sprite_attachment_get(attached_a); OK(target);
+    assert(target.result.value==member(a.result.value,"body"));
     assert(member(a.result.value,"sibling")!=attached_a);
     assert(free_a!=member(b.result.value,"free"));
     EntityInfo info=empty_info(attached_a);

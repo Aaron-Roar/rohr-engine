@@ -17,7 +17,7 @@ static bool reserved(const char *name) {
         "position", "orientation", "velocity", "acceleration", "angular_velocity", "entity_settings", "mass", "radius", "friction", "restitution",
         "kinematic_driven", "static_body", "gravity_enabled", "collision_enabled", "rotation_locked", "visible", "center_of_mass_explicit",
         "center_of_mass", "particle_origin", "particle_vertices", "collision_filter", "geometry", "geometry_count",
-        "active_geometry", "hitbox_bindings", "hitbox_binding_count", "color", "border_color", "color_overridden", "layer", "layer_name",
+        "active_geometry", "hitbox_bindings", "hitbox_binding_count", "hitbox_animation_driver", "color", "border_color", "color_overridden", "layer", "layer_name",
         "target", "endpoint_a", "endpoint_b", "joint_type", "rest_length", "stiffness", "damping", "rest_angle", "thickness",
         "area", "asset_path", "size", "scale", "frames", "frame_count", "ticks_per_frame", "time_per_frame", "starting_frame",
         "direction", "playing", "follow_position", "follow_orientation", "pause_with_engine", "zoom", "force", "torque", "visuals", "source_instance"};
@@ -313,7 +313,7 @@ static void value_write(FILE *f, const Catalog *c, const ObjectDescription *d) {
     U(center_of_mass_explicit); V(center_of_mass); V(particle_origin); U(particle_vertices);
     fprintf(f, ",.collision_filter={UINT64_C(%llu),UINT64_C(%llu)}",
         (unsigned long long)d->collision_filter.category, (unsigned long long)d->collision_filter.responds_to);
-    U(geometry_count); U(active_geometry); U(hitbox_binding_count);
+    U(geometry_count); U(active_geometry); U(hitbox_binding_count); U(hitbox_animation_driver);
     if(d->geometry_count) fprintf(f, ",.geometry=%s_geometry_%llu", c->prefix, id);
     if(d->hitbox_binding_count) fprintf(f, ",.hitbox_bindings=%s_bindings_%llu", c->prefix, id);
     if(d->visuals.main.specified || d->visuals.endpoint_a.specified || d->visuals.endpoint_b.specified) {

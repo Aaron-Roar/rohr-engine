@@ -182,6 +182,7 @@ typedef struct ObjectDescription ObjectDescription;
     size_t active_geometry; \
     const HitboxAnimationBinding *hitbox_bindings; \
     size_t hitbox_binding_count; \
+    uint64_t hitbox_animation_driver; \
     Color color; \
     Color border_color; \
     bool color_overridden; \

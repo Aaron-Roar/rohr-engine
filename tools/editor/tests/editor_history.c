@@ -88,6 +88,94 @@ static void shortcut_apply(EditorHistory *history, SDL_Keycode key) {
     assert(result.consumed && result.restored);
 }
 
+static void animation_attachments_history_check(void) {
+    EditorProject project, loaded;
+    EditorHistory history;
+    editor_project_init(&project);
+    editor_project_init(&loaded);
+    EditorObject *object = editor_project_object_add(&project, (Position){0});
+    EditorRigidBody *body = editor_project_rigid_body_add(&project, object);
+    assert(body);
+    EditorObjectId object_id = object->id;
+    EditorRigidBodyId body_id = body->id;
+    EditorAnimatedSpriteId ids[40];
+    for(size_t i = 0; i < 40; ++i) {
+        EditorAnimatedSprite *sprite = editor_project_animated_sprite_add(&project, object);
+        assert(sprite);
+        ids[i] = sprite->id;
+        sprite->ticks_per_frame = i + 1;
+        sprite->playing = (i % 2) == 0;
+        sprite->app_hidden = (i % 3) == 0;
+        sprite->editor_position = (Position){(float)i, 5};
+        assert(editor_project_animation_frame_add(&project, sprite, "frame",
+            "editor_history_frame.png", (Scale){20,20}));
+        EditorCommand attach = {.type = EDITOR_COMMAND_ANIMATED_SPRITE_BODY_SET,
+            .data.animated_sprite_body_set = {object_id, sprite->id, body_id}};
+        assert(editor_command_execute(&project, &attach).kind == ERROR_RESULT_VALUE);
+    }
+    EditorAnimatedSprite *first = editor_project_animated_sprite_get(object, ids[0]);
+    EditorAnimatedSprite *last = editor_project_animated_sprite_get(object, ids[39]);
+    assert(editor_project_hitbox_animation_binding_set(body, first->id,
+        first->frames[0].id, body->hitboxes[0].id, true));
+    assert(editor_project_hitbox_animation_binding_set(body, last->id,
+        last->frames[0].id, body->hitboxes[0].id, true));
+    assert(editor_history_init(&history, &project));
+    callback_history = &history;
+    editor_command_executing_callback_set(history_begin, NULL);
+    editor_command_finished_callback_set(history_finish, NULL);
+    EditorCommand driver = {.type = EDITOR_COMMAND_PROPERTY_SET,
+        .data.property_set = {.kind = EDITOR_ITEM_RIGID_BODY, .object = object_id,
+            .item = body_id, .property = EDITOR_PROPERTY_HITBOX_ANIMATION_DRIVER,
+            .value_kind = EDITOR_PROPERTY_VALUE_UINT, .value.integer = ids[39]}};
+    assert(editor_command_execute(&project, &driver).kind == ERROR_RESULT_VALUE);
+    assert(editor_history_undo(&history));
+    object = &project.objects[0]; body = &object->rigid_bodies[0];
+    assert(body->hitbox_animation_driver == 0);
+    assert(editor_history_redo(&history));
+    object = &project.objects[0]; body = &object->rigid_bodies[0];
+    assert(body->hitbox_animation_driver == ids[39]);
+    EditorCommand detach = {.type = EDITOR_COMMAND_ANIMATED_SPRITE_BODY_SET,
+        .data.animated_sprite_body_set = {object_id, ids[39], 0}};
+    assert(editor_command_execute(&project, &detach).kind == ERROR_RESULT_VALUE);
+    object = &project.objects[0]; body = &object->rigid_bodies[0];
+    assert(body->hitbox_animation_driver == 0);
+    assert(body->hitbox_animation_binding_count == 1 &&
+        body->hitbox_animation_bindings[0].animation == ids[0]);
+    assert(editor_history_undo(&history));
+    object = &project.objects[0]; body = &object->rigid_bodies[0];
+    assert(body->hitbox_animation_driver == ids[39]);
+    assert(body->hitbox_animation_binding_count == 2);
+    assert(editor_project_save(&project, "animation_attachments_history.json"));
+    assert(!editor_result_check(editor_project_load(&loaded, "animation_attachments_history.json")));
+    assert(loaded.objects[0].animated_sprite_count == 40);
+    assert(loaded.objects[0].rigid_bodies[0].hitbox_animation_driver == ids[39]);
+    for(size_t i = 0; i < 40; ++i) {
+        EditorAnimatedSprite *sprite = editor_project_animated_sprite_get(&loaded.objects[0], ids[i]);
+        assert(sprite && sprite->rigid_body == body_id && sprite->ticks_per_frame == i + 1);
+        assert(sprite->playing == ((i % 2) == 0) && sprite->app_hidden == ((i % 3) == 0));
+        assert(sprite->frame_count == 1 && sprite->editor_position.x == (float)i);
+    }
+    size_t size;
+    char *json = SDL_LoadFile("animation_attachments_history.json", &size); assert(json);
+    char *driver_key = strstr(json, "\"hitbox_animation_driver\""); assert(driver_key);
+    driver_key[1] = '_'; /* Simulate an old document without the driver property. */
+    assert(SDL_SaveFile("animation_attachments_history.json", json, size)); SDL_free(json);
+    assert(!editor_result_check(editor_project_load(&loaded, "animation_attachments_history.json")));
+    assert(loaded.objects[0].rigid_bodies[0].hitbox_animation_driver == ids[0]);
+    body->hitbox_animation_driver = 0;
+    assert(editor_project_save(&project, "animation_attachments_history.json"));
+    assert(!editor_result_check(editor_project_load(&loaded, "animation_attachments_history.json")));
+    assert(loaded.objects[0].rigid_bodies[0].hitbox_animation_driver == 0 &&
+        loaded.objects[0].rigid_bodies[0].hitbox_animation_binding_count == 2);
+    editor_command_executing_callback_set(NULL, NULL);
+    editor_command_finished_callback_set(NULL, NULL);
+    callback_history = NULL;
+    editor_history_destroy(&history);
+    editor_project_destroy(&loaded);
+    editor_project_destroy(&project);
+    (void)SDL_RemovePath("animation_attachments_history.json");
+}
+
 static void animation_frame_history_check(void) {
     const float zooms[] = {0.1f, 1.0f, 10.0f};
     for(size_t zoom = 0; zoom < 3; zoom += 1) {
@@ -689,6 +777,7 @@ int main(void) {
     default_shapes_history_check();
     if(!SDL_SaveFile("editor_history_frame.png", test_png, sizeof(test_png))) return 1;
     angular_history_check();
+    animation_attachments_history_check();
     animation_frame_history_check();
     center_of_mass_interaction_check();
     static EditorProject project;
@@ -912,7 +1001,7 @@ int main(void) {
         project.physics_solver_iterations == 12);
     assert(editor_history_undo(&history) &&
         fabs(project.engine_time_per_tick - 1.0 / 60.0) < 0.000001 &&
-        !project.physics_timestep_override && project.physics_substeps == 1 &&
+        !project.physics_timestep_override && project.physics_substeps == PHYSICS_SUBSTEPS_DEFAULT &&
         project.physics_solver_iterations == PHYSICS_SOLVER_ITERATIONS_DEFAULT);
     assert(editor_history_redo(&history) &&
         fabs(project.physics_dt_per_tick - 1.0 / 240.0) < 0.000001 &&

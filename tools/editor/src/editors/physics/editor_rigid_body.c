@@ -244,7 +244,7 @@ bool editor_rigid_body_editor_draw(EditorRigidBodyEditor *editor,
         if(editor->binding_hitbox_open != 0) {
             for(size_t animation = 0; animation < object->animated_sprite_count;
                     animation += 1) {
-                if(object->animated_sprite_items[animation].rigid_body != body->id)
+                if(object->animated_sprite_items[animation].id != body->hitbox_animation_driver)
                     continue;
                 binding_frame_count = object->animated_sprite_items[
                     animation].frame_count < MAX_ANIMATIONS_FRAMES ?
@@ -672,8 +672,8 @@ bool editor_rigid_body_editor_draw(EditorRigidBodyEditor *editor,
             for(size_t animation_index = 0;
                     animation_index < object->animated_sprite_count;
                     animation_index += 1) {
-                if(object->animated_sprite_items[animation_index].rigid_body ==
-                        body->id) {
+                if(object->animated_sprite_items[animation_index].id ==
+                        body->hitbox_animation_driver) {
                     animation = &object->animated_sprite_items[animation_index];
                     break;
                 }

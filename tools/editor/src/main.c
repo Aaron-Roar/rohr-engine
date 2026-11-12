@@ -1001,8 +1001,8 @@ static float editor_panel_content_height_get(const EditorProject *project,
                     for(size_t animation = 0;
                             animation < object->animated_sprite_count;
                             animation += 1)
-                        if(object->animated_sprite_items[animation].rigid_body ==
-                                object->rigid_bodies[i].id) {
+                        if(object->animated_sprite_items[animation].id ==
+                                object->rigid_bodies[i].hitbox_animation_driver) {
                             expanded_frames = (float)object->
                                 animated_sprite_items[animation].frame_count * 30.0f;
                             break;

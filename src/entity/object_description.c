@@ -186,6 +186,7 @@ static ObjectDescription *tree_copy(const ObjectDescription *s, ObjectDescriptio
     d->name = NULL; d->children = NULL; d->child_count = 0;
     d->geometry = NULL; d->geometry_count = 0;
     d->hitbox_bindings = NULL; d->hitbox_binding_count = 0;
+    if(!(flags & ROHR_ENTITY_OBJECT_VISUALS)) d->hitbox_animation_driver = 0;
     d->area = NULL; d->asset_path = NULL; d->frames = NULL; d->frame_count = 0;
     d->name = object_string_copy(s->name);
     if(!d->name) goto fail;
@@ -195,7 +196,7 @@ static ObjectDescription *tree_copy(const ObjectDescription *s, ObjectDescriptio
             if(!d->geometry) goto fail;
             d->geometry_count = s->geometry_count;
         }
-        if(s->hitbox_binding_count) {
+        if(s->hitbox_binding_count && (flags & ROHR_ENTITY_OBJECT_VISUALS)) {
             d->hitbox_bindings = array_copy(s->hitbox_bindings, s->hitbox_binding_count, sizeof(*d->hitbox_bindings));
             if(!d->hitbox_bindings) goto fail;
             d->hitbox_binding_count = s->hitbox_binding_count;

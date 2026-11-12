@@ -1493,14 +1493,18 @@ static EditorCommandResult editor_command_execute_internal(EditorProject *projec
                         set->value_kind == EDITOR_PROPERTY_VALUE_UINT &&
                         set->value.integer < body->hitbox_count)
                     body->active_hitbox_index = set->value.integer;
+                else if(set->property == EDITOR_PROPERTY_HITBOX_ANIMATION_DRIVER &&
+                        set->value_kind == EDITOR_PROPERTY_VALUE_UINT) {
+                    EditorAnimatedSprite *animation = editor_project_animated_sprite_get(
+                        object, set->value.integer);
+                    if(set->value.integer && (!animation || animation->rigid_body != body->id))
+                        return editor_command_not_found("attached animation", set->value.integer);
+                    body->hitbox_animation_driver = set->value.integer;
+                }
                 else if(set->property == EDITOR_PROPERTY_HITBOX_FRAME_BINDING &&
                         set->value_kind == EDITOR_PROPERTY_VALUE_BOOL) {
-                    EditorAnimatedSprite *animation = NULL;
-                    for(size_t i = 0; i < object->animated_sprite_count; i += 1)
-                        if(object->animated_sprite_items[i].rigid_body == body->id) {
-                            animation = &object->animated_sprite_items[i];
-                            break;
-                        }
+                    EditorAnimatedSprite *animation = editor_project_animated_sprite_get(
+                        object, body->hitbox_animation_driver);
                     if(animation == NULL || editor_project_hitbox_get(body,
                             set->parent) == NULL ||
                             !editor_project_hitbox_animation_binding_set(body,
@@ -2381,14 +2385,18 @@ property_invalid:
                 Orientation world_rotation;
                 if(body != 0 && editor_project_rigid_body_get(object, body) == NULL)
                     return editor_command_not_found("rigid body", body);
-                for(size_t i = 0; body != 0 && i < object->animated_sprite_count; i += 1)
-                    if(object->animated_sprite_items[i].id != sprite->id &&
-                            object->animated_sprite_items[i].rigid_body == body)
-                        return editor_command_error(editor_result_error(
-                            EDITOR_ERROR_REFERENCE_INVALID,
-                            "rigid body already has an animated sprite").result.error);
                 old_body = editor_project_rigid_body_get(object, sprite->rigid_body);
                 new_body = editor_project_rigid_body_get(object, body);
+                if(old_body && old_body != new_body) {
+                    if(old_body->hitbox_animation_driver == sprite->id)
+                        old_body->hitbox_animation_driver = 0;
+                    for(size_t i = 0; i < old_body->hitbox_animation_binding_count;) {
+                        EditorHitboxAnimationBinding b = old_body->hitbox_animation_bindings[i];
+                        if(b.animation != sprite->id) { ++i; continue; }
+                        (void)editor_project_hitbox_animation_binding_set(old_body,
+                            b.animation, b.frame, b.hitbox, false);
+                    }
+                }
                 object_local = sprite->editor_position;
                 world_rotation = sprite->editor_rotation;
                 if(old_body != NULL) {
@@ -3396,6 +3404,7 @@ static bool editor_command_property_parse(const char *name,
     EDITOR_BOOL_PROPERTY("particle-auto-fit", EDITOR_PROPERTY_PARTICLE_AUTO_FIT)
     EDITOR_BOOL_PROPERTY("hitbox-frame-binding",
         EDITOR_PROPERTY_HITBOX_FRAME_BINDING)
+    EDITOR_UINT_PROPERTY("hitbox-animation-driver", EDITOR_PROPERTY_HITBOX_ANIMATION_DRIVER)
     if(strcmp(name, "active-hitbox") == 0) {
         *property = EDITOR_PROPERTY_ACTIVE_HITBOX;
         *value_kind = EDITOR_PROPERTY_VALUE_UINT;
@@ -3454,6 +3463,8 @@ static const char *editor_command_property_name_get(EditorPropertyKind property)
         case EDITOR_PROPERTY_ACTIVE_HITBOX: return "active-hitbox";
         case EDITOR_PROPERTY_HITBOX_FRAME_BINDING:
             return "hitbox-frame-binding";
+        case EDITOR_PROPERTY_HITBOX_ANIMATION_DRIVER:
+            return "hitbox-animation-driver";
         case EDITOR_PROPERTY_NODE_RADIUS: return "node-radius";
         case EDITOR_PROPERTY_POSITION_LOCKED: return "position-locked";
         case EDITOR_PROPERTY_VISUAL_SIZE: return "visual-size";
@@ -4120,6 +4131,7 @@ collision_filter_invalid:
             } else if(set->property == EDITOR_PROPERTY_TEXT_WRAP_WIDTH ||
                     set->property == EDITOR_PROPERTY_RENDER_WIDTH || set->property == EDITOR_PROPERTY_RENDER_HEIGHT ||
                     set->property == EDITOR_PROPERTY_ACTIVE_HITBOX ||
+                    set->property == EDITOR_PROPERTY_HITBOX_ANIMATION_DRIVER ||
                     set->property == EDITOR_PROPERTY_PARTICLE_RIGID_VERTICES) {
                 if(!editor_command_uint_parse(arguments[value_index],
                         &set->value.integer)) goto property_parse_invalid;
@@ -5292,6 +5304,7 @@ EditorResult editor_command_cli_write(const EditorCommand *command,
                 else if(set->property == EDITOR_PROPERTY_TEXT_WRAP_WIDTH ||
                         set->property == EDITOR_PROPERTY_RENDER_WIDTH || set->property == EDITOR_PROPERTY_RENDER_HEIGHT ||
                         set->property == EDITOR_PROPERTY_ACTIVE_HITBOX ||
+                        set->property == EDITOR_PROPERTY_HITBOX_ANIMATION_DRIVER ||
                         set->property == EDITOR_PROPERTY_PARTICLE_RIGID_VERTICES)
                     snprintf(value, sizeof(value), "%u", set->value.integer);
                 else {

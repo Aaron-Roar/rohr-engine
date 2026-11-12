@@ -214,7 +214,9 @@ static void visual_resources(void) {
     EntityResult a=entity_object_add(copy.result.value), b=entity_object_add(copy.result.value); OK(a); OK(b);
     OK(object_destroy(copy.result.value));
     Entity box_a=member(a.result.value,"box"), box_b=member(b.result.value,"box");
-    assert(member(a.result.value,"animation")==box_a);
+    Entity animation_a=member(a.result.value,"animation"), animation_b=member(b.result.value,"animation");
+    assert(animation_a!=box_a);
+    assert(graphics_animated_sprite_attachment_get(animation_a).result.value==box_a);
     assert(member(a.result.value,"overlay")!=box_a);
     OK(physics_velocity_set(box_a,(Velocity){12,0}));
     assert(rohr_system_physics_update(1.0/60.0).header.status!=ROHR_REPORT_FAILED);
@@ -223,8 +225,8 @@ static void visual_resources(void) {
     Position body_position=physics_position_get(box_a).result.value;
     assert(fabsf(proxy_position.x-body_position.x-1)<0.001f);
     assert(fabsf(proxy_position.y-body_position.y-2)<0.001f);
-    OK(graphics_animated_sprite_frame_index_set(box_a,1));
-    assert(animated_sprites[index_of(box_b)].player.frame_index==0);
+    OK(graphics_animated_sprite_frame_index_set(animation_a,1));
+    assert(animated_sprites[index_of(animation_b)].player.frame_index==0);
     OK(entity_name_set(box_a,"renamed_box"));
     for(unsigned i=0;i<3;++i) {
         OK(game_state_file_save("object_resources.json"));
@@ -234,11 +236,14 @@ static void visual_resources(void) {
         OK(game_state_file_load("object_resources.json"));
         a=entity_by_name_get("scene"); b=entity_by_name_get("scene_1"); OK(a); OK(b);
         box_a=member(a.result.value,"box"); box_b=member(b.result.value,"box");
-        assert(member(a.result.value,"animation")==box_a);
-        assert(animated_sprites[index_of(box_a)].player.frame_index==1);
-        assert(animated_sprites[index_of(box_b)].player.frame_index==0);
+        animation_a=member(a.result.value,"animation"); animation_b=member(b.result.value,"animation");
+        assert(animation_a!=box_a);
+        assert(graphics_animated_sprite_attachment_get(animation_a).result.value==box_a);
+        assert(graphics_animated_sprite_attachment_get(animation_b).result.value==box_b);
+        assert(animated_sprites[index_of(animation_a)].player.frame_index==1);
+        assert(animated_sprites[index_of(animation_b)].player.frame_index==0);
         assert(animated_sprites[index_of(member(a.result.value,"overlay"))].player.frame_index==0);
-        assert(graphics_layer_animation_get(box_a).result.value==7);
+        assert(graphics_layer_animation_get(animation_a).result.value==7);
         OK(entity_object_camera_get(member(a.result.value,"camera")));
         JointAnchorIdResult owned=entity_object_anchor_get(member(a.result.value,"anchor")); OK(owned);
         Joint j=joints[index_of(member(a.result.value,"joint"))];
@@ -256,8 +261,15 @@ static void visual_resources(void) {
     OK(object_destroy(visual.result.value)); OK(entity_delete(a.result.value));
     root.visible=false;
     a=entity_object_add(root); OK(a);
-    assert(!animated_sprites[index_of(member(a.result.value,"box"))].visible);
-    assert(!animated_sprites[index_of(member(a.result.value,"overlay"))].visible);
+    assert(animated_sprites[index_of(member(a.result.value,"animation"))].visible);
+    assert(animated_sprites[index_of(member(a.result.value,"overlay"))].visible);
+    assert(!entity_visible_check(member(a.result.value,"animation")));
+    assert(!entity_visible_check(member(a.result.value,"overlay")));
+    ObjectAppearanceResult appearance=entity_appearance_get(a.result.value); OK(appearance);
+    appearance.result.value.visible=true;
+    OK(entity_appearance_set(a.result.value,appearance.result.value));
+    assert(entity_visible_check(member(a.result.value,"animation")));
+    assert(entity_visible_check(member(a.result.value,"overlay")));
     assert(entity_components_check(member(a.result.value,"box"),ROHR_MASS));
     assert(animation.visible && overlay.visible && camera.visible);
     OK(entity_delete(a.result.value)); root.visible=true;

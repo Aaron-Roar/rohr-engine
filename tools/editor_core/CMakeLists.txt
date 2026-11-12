@@ -62,7 +62,8 @@ if(ROHR_BUILD_TESTS)
     add_executable(editor_workspace_paths_test tests/editor_workspace_paths.c)
     add_test(NAME editor_workspace_paths COMMAND editor_workspace_paths_test "${CMAKE_CURRENT_BINARY_DIR}/path fixtures")
     add_executable(editor_scene_generation_test tests/editor_scene_generation.c)
-    foreach(scene_target editor_numeric_locks_test editor_collision_migration_test editor_workspace_paths_test scene_child_test editor_scene_session_test editor_build_test editor_scene_generation_test editor_configuration_parity_test editor_construction_parity_test editor_incomplete_joints_test editor_interaction_fixture)
+    add_executable(editor_animation_attachments_test tests/editor_animation_attachments.c)
+    foreach(scene_target editor_animation_attachments_test editor_numeric_locks_test editor_collision_migration_test editor_workspace_paths_test scene_child_test editor_scene_session_test editor_build_test editor_scene_generation_test editor_configuration_parity_test editor_construction_parity_test editor_incomplete_joints_test editor_interaction_fixture)
         target_include_directories(${scene_target} PRIVATE ${PROJECT_SOURCE_DIR}/src)
         target_link_libraries(${scene_target} PRIVATE rohr_editor_core)
         if(NOT MSVC)
@@ -86,6 +87,12 @@ if(ROHR_BUILD_TESTS)
     set_tests_properties(editor_configuration_parity PROPERTIES
         ENVIRONMENT "SDL_VIDEODRIVER=dummy;SDL_AUDIODRIVER=dummy")
     if(ROHR_BUILD_SDK_CONSUMER_TESTS AND NOT CMAKE_CROSSCOMPILING)
+        add_test(NAME editor_animation_attachments_generated COMMAND ${CMAKE_COMMAND}
+            -DTEST_EXECUTABLE=$<TARGET_FILE:editor_animation_attachments_test>
+            "-DFIXTURE=${CMAKE_CURRENT_BINARY_DIR}/animation attachments project"
+            "-DSDK_PREFIX=${ROHR_SDK_INSTALL_PREFIX}"
+            -P "${CMAKE_CURRENT_SOURCE_DIR}/tests/animation_attachments_generation.cmake")
+        set_tests_properties(editor_animation_attachments_generated PROPERTIES LABELS "sdk;linux" TIMEOUT 180)
         if(ROHR_BUILD_CLI)
             add_test(NAME editor_example_pathways COMMAND ${CMAKE_COMMAND}
                 -DCLI=$<TARGET_FILE:rohr_editor_cli>

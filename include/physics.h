@@ -108,6 +108,7 @@ typedef struct HitboxAnimationBindingList {
     HitboxAnimationBinding *values;
     size_t count;
     size_t capacity;
+    Entity driver;
 } HitboxAnimationBindingList;
 
 /** Geometric overlap information from narrow-phase shape tests. */
@@ -1149,6 +1150,11 @@ EngineResult physics_hitbox_by_id_set(Entity entity, HitboxId id, Shape hitbox);
 EngineResult physics_hitbox_by_id_remove(Entity entity, HitboxId id);
 HitboxIdResult physics_hitbox_active_id_get(Entity entity);
 EngineResult physics_hitbox_active_id_set(Entity entity, HitboxId id);
+/** Select one attached animation (or the entity's legacy component) to drive
+ * hitbox selection. Zero disables selection; bindings remain stored. */
+EngineResult physics_hitbox_animation_driver_set(Entity entity, Entity animation);
+/** Return the selected ID, including a stale ID after deletion; zero is disabled. */
+EntityResult physics_hitbox_animation_driver_get(Entity entity);
 EngineResult physics_hitbox_animation_binding_set(Entity entity,
     AnimationId animation_id, AnimationFrameId frame_id, HitboxId hitbox_id);
 EngineResult physics_hitbox_animation_binding_remove(Entity entity,

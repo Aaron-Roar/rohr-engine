@@ -5,9 +5,11 @@
 #include "editor_object.h"
 
 #include "editor_navigation.h"
+#include "editor_array.h"
 #include "editors/editor_mode_controls.h"
 
 #include <stdio.h>
+#include <stdlib.h>
 
 static UIButtonStyle selected_style_get(void) {
     UIButtonStyle style = rohr_ui_button_style_default_get();
@@ -61,7 +63,9 @@ void editor_object_editor_destroy(EditorObjectEditor *editor) {
     DESTROY_ARRAY(editor->joint_names, EDITOR_JOINT_MAX);
     DESTROY_ARRAY(editor->soft_body_names, EDITOR_SOFT_BODY_MAX);
     DESTROY_ARRAY(editor->sprite_names, 64);
-    DESTROY_ARRAY(editor->animation_names, 32);
+    for(size_t i = 0; i < editor->animation_name_capacity; ++i)
+        rohr_graphics_text_destroy(&editor->animation_names[i].text);
+    free(editor->animation_names);
     DESTROY_ARRAY(editor->camera_names, EDITOR_CAMERA_MAX);
     DESTROY_ARRAY(editor->force_names, EDITOR_SOURCE_MAX);
     DESTROY_ARRAY(editor->torque_names, EDITOR_SOURCE_MAX);
@@ -112,11 +116,11 @@ static bool item_info_get(EditorObjectEditor *editor, EditorObject *object,
             }
         *selection = EDITOR_SELECTION_SPRITE; *visibility = EDITOR_VISIBILITY_OBJECT;
     } else if(item.kind == EDITOR_HIERARCHY_ANIMATED_SPRITE) {
-        for(size_t i = 0; i < object->animated_sprite_count && i < 32; i += 1)
+        for(size_t i = 0; i < object->animated_sprite_count; i += 1)
             if(object->animated_sprite_items[i].id == item.id) {
                 *name = object->animated_sprite_items[i].name;
                 *visible = object->animated_sprite_items[i].visible;
-                *label = &editor->animation_names[i]; *cache = editor->animation_cache[i];
+                *label = &editor->animation_names[i].text; *cache = editor->animation_names[i].cache;
             }
         *selection = EDITOR_SELECTION_ANIMATED_SPRITE;
         *visibility = EDITOR_VISIBILITY_OBJECT;
@@ -182,6 +186,11 @@ bool editor_object_editor_draw(EditorObjectEditor *editor,
             context->viewport == NULL) return false;
     object = editor_project_selected_get(context->project);
     if(object == NULL) return false;
+    size_t old_animation_capacity = editor->animation_name_capacity;
+    if(!EDITOR_ARRAY_RESERVE(editor->animation_names, editor->animation_name_capacity,
+            object->animated_sprite_count)) return false;
+    for(size_t i = old_animation_capacity; i < editor->animation_name_capacity; ++i)
+        editor->animation_names[i] = (EditorAnimationName){0};
     object_index = (size_t)(object - context->project->objects);
     if(object_index >= EDITOR_OBJECT_MAX) return false;
     if(!editor_mode_named_text_sync(editor->font, object->name,

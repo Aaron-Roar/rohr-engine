@@ -1484,6 +1484,10 @@ EngineResult rohr_physics_hitbox_by_id_set(Entity entity, HitboxId id,
 EngineResult rohr_physics_hitbox_by_id_remove(Entity entity, HitboxId id);
 HitboxIdResult rohr_physics_hitbox_active_id_get(Entity entity);
 EngineResult rohr_physics_hitbox_active_id_set(Entity entity, HitboxId id);
+/** Select an attached animation or the body's legacy component; zero disables. */
+EngineResult rohr_physics_hitbox_animation_driver_set(Entity entity, Entity animation);
+/** Return the selected animation Entity ID; zero means disabled. */
+EntityResult rohr_physics_hitbox_animation_driver_get(Entity entity);
 EngineResult rohr_physics_hitbox_animation_binding_set(Entity entity,
     AnimationId animation_id, AnimationFrameId frame_id, HitboxId hitbox_id);
 EngineResult rohr_physics_hitbox_animation_binding_remove(Entity entity,

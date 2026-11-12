@@ -19,7 +19,7 @@ priority order.
 | 17 | [Consistent creation APIs and report checks](#17-consistent-creation-apis-and-report-checks) | Complete; all six goal results recorded below |
 | 18 | [Explicit runtime lists and ID/name access](#18-explicit-runtime-lists-and-idname-access) | Complete; Goals 1–3 verified and Linux preview accepted |
 | 19 | [Physics setters that preserve unrelated values](#19-physics-setters-that-preserve-unrelated-values) | Complete; all three API goals verified, baseline solver failures preserved |
-| 20 | [Independent animation attachments](#20-independent-animation-attachments) | Goal 1 complete; editor and full workflow verification follow |
+| 20 | [Independent animation attachments](#20-independent-animation-attachments) | Goals 1–2 complete; full workflow verification follows |
 | — | [C game experiment](#c-game-experiment) | Follows the current API work; agree concept and completion criteria with the user |
 | 13 | Physics rebuild from the simpler baseline | Paused by user direction for frame pacing and game development; goals 1, 2a, 2b and 4a complete; goals 2 and 3 failed; goal 4 blocking remains incomplete; goals 5–8 not started |
 | 12 | Real-time physics pipeline rework | Closed by user direction; superseded by milestone 13, not complete; goals 1–13 complete, goal 14 unfinished, goals 15–19 not started; evidence preserved |
@@ -31,10 +31,11 @@ priority order.
 | 7 | Editor implementation scalability | Deferred until after Python unless game development makes it necessary sooner |
 | 10 | End-to-end game | Pending; separate larger game directed by the user |
 
-**Current priority:** Milestone 20 Goal 1 is complete. Stop for review and commit
-of runtime animation attachments. Storage grows within the existing entity limit;
-each attachment uses its own Entity ID. Editor and generated-project changes wait
-for explicit instruction to pursue Goal 2. The C game experiment and paused
+**Current priority:** Milestone 20 Goal 2 is complete. Stop for review and commit
+of independent editor/generated animation attachments and the explicit hitbox
+animation driver. Goal 3 awaits user instruction for full workflow and real
+preview verification. Storage grows within the existing entity limit;
+each attachment uses its own Entity ID. The C game experiment and paused
 physics milestones remain deferred; simulation defaults are unchanged.
 
 Milestone 15 is complete. Its Goal 1 defines the
@@ -1299,9 +1300,22 @@ This is simultaneous rendering, not a one-active-clip state machine.
    retains 77 pre-existing diagnostics with none added. See the
    [verification record](docs/animation_attachments.md#persistence-and-verification)
    and `sandbox/milestone_20/goal_1/`. Stop for review and commit.
-2. [ ] **Editor and generation support.** Allow multiple attachments in editor
+2. [x] **Editor and generation support.** Allow multiple attachments in editor
    controls, JSON save/load, undo/redo and generated projects. Give each authored
    animation its own runtime identity and preserve sibling controls and bindings.
+   **Complete:** dynamic editor rows and independent generated Entity identities
+   support many attachments. Authored member access, editor controls and runtime
+   ID-based APIs select one hitbox animation driver without changing sibling
+   playback or bindings. JSON migration, undo/redo, runtime persistence and
+   parent visibility preserve independent settings. Sixteen Release regressions,
+   three ASan/UBSan suites with leak detection, all three generated creation
+   paths with 40 attachments, repeated instances, deterministic generation and
+   edited-main preservation pass. Engine/editor and affected tests cross-build
+   for Windows; installed Nix/Linux SDK consumers and affected examples pass.
+   No final compiler warnings or sanitizer findings; the API inventory retains
+   77 pre-existing diagnostics with none added. See `sandbox/milestone_20/goal_2/`
+   and the [verification record](docs/animation_attachments.md#persistence-and-verification).
+   Stop for review and commit.
 3. [ ] **Full workflow verification.** Verify examples, installed SDKs, Linux and
    Windows builds, and obtain real editor/generated-app preview acceptance.
 

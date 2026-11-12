@@ -1,9 +1,72 @@
 # Independent animation attachments
 
-Milestone 20 Goal 1 adds runtime attachments. Multiple animations can follow the
+Multiple animations can follow the
 same body and render simultaneously, with independent frames, timing, visibility,
-layers and transforms. Editor controls and authored/generated creation are Goal 2;
-the editor's existing single-attachment validation remains until that goal.
+layers and transforms. Editor attachments and generated creation use the same
+independent Entity identities; the body no longer doubles as its first animation.
+
+## Editor and generated projects
+
+Attach any number of animations to the same body using each animation's
+Attachment section. The editor stores them dynamically and supports more than
+32 animation rows and property panels. Visibility, transforms, layers and
+playback remain per animation. Body detachment preserves its world pose and
+removes only that animation's former hitbox bindings. Undo restores the
+attachment, driver selection and bindings together.
+
+Authored animations create distinct named entities in project and object
+creation. Connections use authored identities within that creation, so repeated
+instances remain isolated. Drawing attachment and lifetime ownership are
+separate; generated animations are owned by their authored parent. Their
+transforms resolve when drawn without adding physics transform locks.
+
+Game code that previously controlled the first animation through the body's ID
+must look up the animation's runtime name or enumerate the body's attachments.
+Developer-edited `main.c` files are preserved and require this manual migration.
+Individual creation leaves omitted optional links unbound; provide explicit
+`ObjectCreateBinding` entries to attach an individually created animation.
+
+## Hitbox animation driver
+
+One animation may drive a body's active hitbox. In its Attachment section,
+enable **Drives Hitboxes**. Choosing a sibling replaces the driver; clearing
+the checkbox disables automatic selection. The body's **Bind Frames** control
+edits the selected driver's frame bindings. Switching drivers retains sibling
+bindings, playback, visibility and layers. Editor saves record this choice;
+older documents without the field select their previously bound animation.
+
+The authored `ObjectDescription.hitbox_animation_driver` member contains the
+chosen animation's description ID. Generated named views expose the same field,
+for example `project.actor.body.hitbox_animation_driver`. Generated catalogs
+remain immutable creation recipes; use the runtime API to change a live body:
+
+```c
+EntityResult driver = rohr_entity_by_name_get("walk");
+if(!rohr_error_check(driver)) {
+    EngineResult result = rohr_physics_hitbox_animation_driver_set(body, driver.result.value);
+    /* Check result before relying on the change. */
+}
+EntityResult selected = rohr_physics_hitbox_animation_driver_get(body);
+/* ENTITY_INVALID disables selection while retaining bindings. */
+EngineResult disabled = rohr_physics_hitbox_animation_driver_set(body, ENTITY_INVALID);
+```
+
+The driver must be an animation attached directly to that body, or its legacy
+animation component (pass the body's ID). A deleted or rebound driver is ignored
+and the last active hitbox remains; the getter retains the stored ID and never
+follows a reused slot. Index-based binding APIs address the selected driver's
+frames. ID-based binding APIs also accept other attached animations so their
+bindings can be prepared before switching drivers. Legacy same-entity binding
+creation selects that component automatically unless a driver choice was already
+stored. Runtime saves retain the driver, hitbox variants and all frame bindings.
+For hand-authored mutable descriptions, assign the driver's authored ID before
+creation, for example `body.hitbox_animation_driver = walk.id`. A zero member
+means disabled. Existing hand-authored recipes with frame bindings must now
+select this field explicitly; old editor JSON documents migrate automatically.
+
+This does not add simultaneous collision shapes: only the selected driver's
+matching frame changes the existing active hitbox. For movement, a stable body
+collider often remains preferable to changing its shape every visual frame.
 
 ## Creation and access
 
@@ -104,7 +167,9 @@ configuration and playback state. Reload resolves new live IDs and restores
 lifetime ownership independently, including attachments whose owner was moved
 away from their drawing target. Existing states without an attachment target
 remain compatible. Rebuild consumers against the updated SDK: `AnimatedSprite`
-has gained a field, so previously compiled struct layouts are not ABI compatible.
+has gained a field. Goal 2 also extends `ObjectDescription` and
+`HitboxAnimationBindingList`; previously compiled struct layouts are not ABI
+compatible.
 
 The focused `animation_attachments` suite covers independent playback, visibility,
 render-command submission, layers, transforms, naming, snapshot capacity errors,
@@ -136,3 +201,29 @@ Logs and reproduction scripts are in `sandbox/milestone_20/goal_1/`. The disk-fu
 link failure and tool paths invalidated by Nix garbage collection were resolved
 before the final runs. Generic Linux SDK parity and real editor/generated-app
 preview acceptance remain scheduled for Goal 3 after editor integration.
+
+Goal 2 verification (2026-11-12):
+
+- Sixteen focused Release regressions pass, including object instance lifecycle,
+  runtime names, editor history, authored JSON, configuration and construction
+  parity, snapshots, animation assets, runtime persistence and viewport discovery.
+- The history fixture authors 40 attachments on one body and verifies independent
+  settings, driver changes, detach/undo, sibling bindings, JSON round trips,
+  legacy driver migration and explicit disabling. History assertions now run in
+  Release as well as Debug.
+- A freshly generated installed-SDK consumer builds and runs project, object and
+  individual-entity creation with 40 attachments. It verifies distinct runtime
+  IDs, selected-driver behavior, frame/layer/visibility independence, immediate
+  poses, runtime snapshots, simultaneous project instances and grouped cleanup.
+  The fixture checks deterministic generation and edited-main preservation.
+- The attachment, hitbox binding and editor history suites pass ASan/UBSan with
+  leak detection. Driver tests cover switching, disabling, deleted IDs, slot
+  reuse and runtime persistence of driver, variants and bindings.
+- Engine, editor and the affected animation tests cross-build for Windows.
+  Game-state and view-port examples build against the installed Nix/Linux SDK
+  and run from `/tmp`, with the latter limited to a three-second smoke run and
+  clean SIGINT exit. Native Windows execution and full preview acceptance remain
+  Goal 3 work.
+- Final builds have no compiler warnings or sanitizer findings. The API audit
+  still reports the same 77 pre-existing diagnostics; the four added declarations
+  are classified. Logs are under `sandbox/milestone_20/goal_2/`.

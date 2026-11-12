@@ -16,6 +16,47 @@ static HitboxAnimationBindingList *binding_list_get(EntityIndex index) {
     return &hitbox_animation_bindings_pool.objects[index];
 }
 
+static bool animation_target_check(Entity entity, Entity animation, EntityIndex *index) {
+    if(error_check(physics_live_index_get(animation, index)) ||
+            *index >= animated_sprites_pool.capacity || !animated_sprites_pool.used[*index])
+        return false;
+    return entity == animation || animated_sprites[*index].attachment_target == entity;
+}
+
+EngineResult physics_hitbox_animation_driver_set(Entity entity, Entity animation) {
+    EntityIndex index, animation_index;
+    EngineResult result = physics_live_index_get(entity, &index);
+    if(error_check(result)) return result;
+    if(animation && !animation_target_check(entity, animation, &animation_index))
+        return error_result_error(ERROR_ENGINE_INVALID_ENTITY);
+    HitboxAnimationBindingList *list = binding_list_get(index);
+    if(!list) {
+        HitboxAnimationBindingListPoolObjectResult stored = HitboxAnimationBindingListPool_store_at(&hitbox_animation_bindings_pool,
+            index, (HitboxAnimationBindingList){0});
+        if(error_check(stored)) return error_result_error(stored.result.error);
+        list = binding_list_get(index);
+    }
+    list->driver = animation;
+    entity_mask[index] |= ROHR_HITBOX_ANIMATION_BINDING;
+    return error_result_value(true);
+}
+
+EntityResult physics_hitbox_animation_driver_get(Entity entity) {
+    EntityIndex index;
+    EngineResult result = physics_live_index_get(entity, &index);
+    if(error_check(result)) return ERROR_RESULT_MAKE_ERROR(EntityResult, result.result.error);
+    HitboxAnimationBindingList *list = binding_list_get(index);
+    return ERROR_RESULT_MAKE_VALUE(EntityResult, list ? list->driver : ENTITY_INVALID);
+}
+
+static AnimatedSprite *driver_sprite_get(Entity entity, EntityIndex index) {
+    HitboxAnimationBindingList *list = binding_list_get(index);
+    EntityIndex driver_index;
+    Entity driver = list ? list->driver : entity;
+    return driver && animation_target_check(entity, driver, &driver_index) ?
+        &animated_sprites[driver_index] : NULL;
+}
+
 static bool hitbox_id_check(EntityIndex index, HitboxId id) {
     if(index >= hitbox_variants_pool.capacity ||
             !hitbox_variants_pool.used[index]) return false;
@@ -42,6 +83,16 @@ static bool animation_frame_id_check(EntityIndex index, AnimationId animation_id
     return false;
 }
 
+static bool attached_frame_id_check(Entity entity, EntityIndex index,
+        AnimationId animation_id, AnimationFrameId frame_id) {
+    if(animation_frame_id_check(index, animation_id, frame_id)) return true;
+    for(EntityIndex i = 0; i < animated_sprites_pool.capacity; ++i)
+        if(animated_sprites_pool.used[i] && entity_index_alive_check(i) &&
+                animated_sprites[i].attachment_target == entity &&
+                animation_frame_id_check(i, animation_id, frame_id)) return true;
+    return false;
+}
+
 EngineResult physics_hitbox_animation_binding_set(Entity entity,
         AnimationId animation_id, AnimationFrameId frame_id,
         HitboxId hitbox_id) {
@@ -50,12 +101,13 @@ EngineResult physics_hitbox_animation_binding_set(Entity entity,
     HitboxAnimationBinding *values;
     EngineResult result = physics_live_index_get(entity, &index);
     if(result.kind == ERROR_RESULT_ERROR) return result;
-    if(!animation_frame_id_check(index, animation_id, frame_id) ||
+    if(!attached_frame_id_check(entity, index, animation_id, frame_id) ||
             !hitbox_id_check(index, hitbox_id))
         return error_result_error(ERROR_ENGINE_INDEX_OUT_OF_RANGE);
     list = binding_list_get(index);
     if(list == NULL) {
-        HitboxAnimationBindingList empty = {0};
+        HitboxAnimationBindingList empty = {.driver =
+            entity_components_check(entity, ROHR_ANIMATED_SPRITE) ? entity : ENTITY_INVALID};
         if(HitboxAnimationBindingListPool_store_at(
                 &hitbox_animation_bindings_pool, index, empty).kind ==
                 ERROR_RESULT_ERROR)
@@ -97,7 +149,7 @@ EngineResult physics_hitbox_animation_binding_remove(Entity entity,
         for(size_t j = i + 1; j < list->count; j += 1)
             list->values[j - 1] = list->values[j];
         list->count -= 1;
-        if(list->count == 0) physics_hitbox_animation_bindings_entity_clear(index);
+        if(!list->count) entity_mask[index] &= ~ROHR_HITBOX_ANIMATION_BINDING;
         return error_result_value(true);
     }
     return error_result_error(ERROR_ENGINE_INDEX_OUT_OF_RANGE);
@@ -132,10 +184,9 @@ EngineResult physics_hitbox_animation_binding_at_set(Entity entity,
     HitboxVariantList *variants;
     EngineResult result = physics_live_index_get(entity, &index);
     if(result.kind == ERROR_RESULT_ERROR) return result;
-    if(index >= animated_sprites_pool.capacity ||
-            !animated_sprites_pool.used[index])
+    sprite = driver_sprite_get(entity, index);
+    if(!sprite)
         return error_result_error(ERROR_ENGINE_COMPONENT_MISSING);
-    sprite = &animated_sprites[index];
     info = graphics_animation_info_get(sprite->player.animation);
     variants = index < hitbox_variants_pool.capacity &&
         hitbox_variants_pool.used[index] ? &hitbox_variants_pool.objects[index] : NULL;
@@ -159,10 +210,9 @@ EngineResult physics_hitbox_animation_binding_at_remove(Entity entity,
     AnimationFrameDescriptionResult frame;
     EngineResult result = physics_live_index_get(entity, &index);
     if(result.kind == ERROR_RESULT_ERROR) return result;
-    if(index >= animated_sprites_pool.capacity ||
-            !animated_sprites_pool.used[index])
+    sprite = driver_sprite_get(entity, index);
+    if(!sprite)
         return error_result_error(ERROR_ENGINE_COMPONENT_MISSING);
-    sprite = &animated_sprites[index];
     info = graphics_animation_info_get(sprite->player.animation);
     if(info.kind == ERROR_RESULT_ERROR ||
             frame_index >= sprite->frame_count)
@@ -185,11 +235,10 @@ HitboxIndexResult physics_hitbox_animation_binding_at_get(Entity entity,
     EngineResult result = physics_live_index_get(entity, &index);
     if(result.kind == ERROR_RESULT_ERROR)
         return ERROR_RESULT_MAKE_ERROR(HitboxIndexResult, result.result.error);
-    if(index >= animated_sprites_pool.capacity ||
-            !animated_sprites_pool.used[index])
+    sprite = driver_sprite_get(entity, index);
+    if(!sprite)
         return ERROR_RESULT_MAKE_ERROR(HitboxIndexResult,
             ERROR_ENGINE_COMPONENT_MISSING);
-    sprite = &animated_sprites[index];
     info = graphics_animation_info_get(sprite->player.animation);
     if(info.kind == ERROR_RESULT_ERROR ||
             frame_index >= sprite->frame_count)
@@ -221,7 +270,7 @@ void physics_hitbox_animation_binding_hitbox_remove(EntityIndex index,
             list->values[j - 1] = list->values[j];
         list->count -= 1;
     }
-    if(list->count == 0) physics_hitbox_animation_bindings_entity_clear(index);
+    if(!list->count) entity_mask[index] &= ~ROHR_HITBOX_ANIMATION_BINDING;
 }
 
 void physics_hitbox_animation_bindings_entity_clear(EntityIndex index) {
@@ -245,12 +294,14 @@ void physics_hitbox_animation_bindings_report_update(Report *report) {
         EntityResult entity;
         if(!entity_index_alive_check(index) ||
                 !entity_index_components_check(index,
-                    ROHR_HITBOX_ANIMATION_BINDING | ROHR_ANIMATED_SPRITE))
+                    ROHR_HITBOX_ANIMATION_BINDING))
             continue;
         list = binding_list_get(index);
-        if(list == NULL || index >= animated_sprites_pool.capacity ||
-                !animated_sprites_pool.used[index]) continue;
-        sprite = &animated_sprites[index];
+        if(list == NULL) continue;
+        entity = entity_from_index_get(index);
+        if(entity.kind == ERROR_RESULT_ERROR) continue;
+        sprite = driver_sprite_get(entity.result.value, index);
+        if(!sprite) continue;
         info = graphics_animation_info_get(sprite->player.animation);
         if(info.kind == ERROR_RESULT_ERROR ||
                 sprite->player.frame_index >= sprite->frame_count)

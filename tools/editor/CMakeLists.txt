@@ -552,6 +552,11 @@ if(ROHR_BUILD_TESTS)
     target_include_directories(editor_history_test PRIVATE
         src ${PROJECT_SOURCE_DIR}/lib ${PROJECT_SOURCE_DIR}/src)
     target_link_libraries(editor_history_test PRIVATE rohr_engine rohr_editor_core)
+    if(MSVC)
+        target_compile_options(editor_history_test PRIVATE /UNDEBUG)
+    else()
+        target_compile_options(editor_history_test PRIVATE -UNDEBUG)
+    endif()
     set_target_properties(editor_history_test PROPERTIES
         RUNTIME_OUTPUT_DIRECTORY ${ROHR_BUILD_OUTPUT_DIRECTORY}/tests
     )

@@ -98,6 +98,51 @@ int main(void) {
     active = rohr_physics_hitbox_active_index_get(entity);
     if(rohr_error_check(active) || active.result.value != 0) goto fail;
 
+    /* Two clocks can share an asset; only the selected Entity drives collision. */
+    AnimatedSpriteDescriptionResult description = rohr_graphics_animated_sprite_description_get(entity);
+    if(rohr_error_check(description)) goto fail;
+    EntityResult left = rohr_graphics_animated_sprite_attachment_add(entity, "left", description.result.value);
+    EntityResult right = rohr_graphics_animated_sprite_attachment_add(entity, "right", description.result.value);
+    if(rohr_error_check(left) || rohr_error_check(right) ||
+            rohr_error_check(rohr_graphics_animated_sprite_frame_index_set(left.result.value, 0)) ||
+            rohr_error_check(rohr_graphics_animated_sprite_frame_index_set(right.result.value, 2)) ||
+            rohr_error_check(rohr_physics_hitbox_animation_driver_set(entity, left.result.value))) goto fail;
+    rohr_physics_hitbox_animation_bindings_update();
+    if(rohr_physics_hitbox_active_index_get(entity).result.value != 1 ||
+            rohr_physics_hitbox_animation_driver_get(entity).result.value != left.result.value ||
+            rohr_physics_hitbox_animation_binding_at_get(entity, 0).result.value != 1) goto fail;
+    if(rohr_error_check(rohr_physics_hitbox_animation_driver_set(entity, right.result.value))) goto fail;
+    rohr_physics_hitbox_animation_bindings_update();
+    if(rohr_physics_hitbox_active_index_get(entity).result.value != 0) goto fail;
+    if(rohr_error_check(rohr_entity_name_set(entity, "driver_body")) ||
+            rohr_error_check(rohr_game_state_file_save("hitbox_driver_state.json")) ||
+            rohr_error_check(rohr_entity_delete(entity)) ||
+            rohr_error_check(rohr_game_state_file_load("hitbox_driver_state.json"))) goto fail;
+    EntityResult restored = rohr_entity_by_name_get("driver_body");
+    left = rohr_entity_by_name_get("left"); right = rohr_entity_by_name_get("right");
+    if(rohr_error_check(restored) || rohr_error_check(left) || rohr_error_check(right)) goto fail;
+    entity = restored.result.value;
+    if(rohr_physics_hitbox_animation_driver_get(entity).result.value != right.result.value ||
+            rohr_physics_hitbox_count_get(entity).result.value != 2 ||
+            rohr_physics_hitbox_animation_binding_get(entity, 41, 101).result.value != second_id.result.value)
+        goto fail;
+    if(rohr_error_check(rohr_physics_hitbox_animation_driver_set(entity, ENTITY_INVALID)) ||
+            rohr_error_check(rohr_graphics_animated_sprite_frame_index_set(right.result.value, 0))) goto fail;
+    rohr_physics_hitbox_animation_bindings_update();
+    if(rohr_physics_hitbox_active_index_get(entity).result.value != 0 ||
+            rohr_physics_hitbox_animation_driver_get(entity).result.value != ENTITY_INVALID) goto fail;
+    if(rohr_error_check(rohr_physics_hitbox_animation_driver_set(entity, right.result.value)) ||
+            rohr_error_check(rohr_entity_delete(right.result.value))) goto fail;
+    EntityResult replacement = rohr_entity_add();
+    if(rohr_error_check(replacement) ||
+            !rohr_error_check(rohr_physics_hitbox_animation_driver_set(entity, replacement.result.value))) goto fail;
+    rohr_physics_hitbox_animation_bindings_update();
+    if(rohr_physics_hitbox_active_index_get(entity).result.value != 0 ||
+            rohr_physics_hitbox_animation_driver_get(entity).result.value != right.result.value) goto fail;
+    if(rohr_error_check(rohr_entity_delete(left.result.value)) ||
+            rohr_error_check(rohr_entity_delete(replacement.result.value)) ||
+            rohr_error_check(rohr_physics_hitbox_animation_driver_set(entity, entity))) goto fail;
+
     /* Reordering configuration keeps the same stable frame and hitbox binding. */
     AnimatedSpriteDescriptionResult current = rohr_graphics_animated_sprite_description_get(entity);
     if(rohr_error_check(current)) goto fail;
@@ -118,6 +163,7 @@ int main(void) {
     rohr_graphics_stop();
     rohr_engine_stop();
     (void)SDL_RemovePath("hitbox_animation_binding.png");
+    (void)SDL_RemovePath("hitbox_driver_state.json");
     return 0;
 fail:
     fprintf(stderr, "hitbox animation binding test failed\n");

@@ -24,6 +24,7 @@ bool editor_animated_sprite_editor_create(EditorAnimatedSpriteEditor *editor,
     CREATE("Add Frame", add_frame_label); CREATE("Visible in App", visibility_label);
     CREATE("[X]", visible_label); CREATE("[ ]", hidden_label);
     CREATE("None", none_label);
+    CREATE("Drives Hitboxes", driver_label);
     CREATE("Delete Animation", delete_label); CREATE("", x_field);
     CREATE("", y_field); CREATE("", rotation_field); CREATE("", scale_x_field);
     CREATE("", scale_y_field); CREATE("", ticks_field); CREATE("", time_field);
@@ -55,6 +56,7 @@ void editor_animated_sprite_editor_destroy(EditorAnimatedSpriteEditor *editor) {
     DESTROY(follow_label); DESTROY(playing_label); DESTROY(add_frame_label);
     DESTROY(visibility_label); DESTROY(visible_label); DESTROY(hidden_label);
     DESTROY(none_label);
+    DESTROY(driver_label); DESTROY(name_value);
     DESTROY(delete_label); DESTROY(x_field); DESTROY(y_field);
     DESTROY(rotation_field); DESTROY(scale_x_field); DESTROY(scale_y_field);
     DESTROY(ticks_field); DESTROY(time_field); DESTROY(starting_field);
@@ -64,8 +66,6 @@ void editor_animated_sprite_editor_destroy(EditorAnimatedSpriteEditor *editor) {
     editor_mode_accordion_section_destroy(&editor->attachment_section);
     editor_mode_accordion_section_destroy(&editor->playback_section);
     editor_mode_accordion_section_destroy(&editor->frames_section);
-    for(size_t i = 0; i < 32; i += 1)
-        rohr_graphics_text_destroy(&editor->name_values[i]);
     for(size_t i = 0; i < EDITOR_RIGID_BODY_MAX; i += 1)
         rohr_graphics_text_destroy(&editor->body_names[i]);
     for(size_t i = 0; i < 64; i += 1)
@@ -91,7 +91,7 @@ bool editor_animated_sprite_editor_draw(EditorAnimatedSpriteEditor *editor,
         bool *frame_multi_edit_open) {
     EditorObject *object;
     EditorAnimatedSprite *sprite;
-    size_t index, body_selected = 0;
+    size_t body_selected = 0;
     char name[EDITOR_OBJECT_NAME_MAX];
     Position position;
     float rotation, scale_x, scale_y, ticks, seconds, starting;
@@ -115,11 +115,9 @@ bool editor_animated_sprite_editor_draw(EditorAnimatedSpriteEditor *editor,
     sprite = editor_project_animated_sprite_get(object,
         context->viewport->selected_animated_sprite);
     if(sprite == NULL || object == NULL) return false;
-    index = (size_t)(sprite - object->animated_sprite_items);
-    if(index >= 32) return false;
     snprintf(name, sizeof(name), "%s", sprite->name);
     if(!editor_mode_named_text_sync(editor->font, sprite->name,
-            &editor->name_values[index], editor->name_cache[index],
+            &editor->name_value, editor->name_cache,
             EDITOR_OBJECT_NAME_MAX)) return false;
     visible = !sprite->app_hidden;
     bool visible_changed = false;
@@ -127,7 +125,7 @@ bool editor_animated_sprite_editor_draw(EditorAnimatedSpriteEditor *editor,
         (UIRect){context->x + 8.0f, 42.0f, 74.0f, 28.0f});
     name_result = editor_mode_field("editor.animated_sprite.name",
         (UIFieldBinding){.kind = UI_FIELD_STRING, .string = name,
-            .string_capacity = sizeof(name)}, &editor->name_values[index],
+            .string_capacity = sizeof(name)}, &editor->name_value,
         (UIRect){context->x + 88.0f, 42.0f, context->width - 96.0f, 28.0f}, NULL);
     visible_changed = editor_mode_checkbox_left(
         "editor.animated_sprite.visible", &editor->visibility_label,
@@ -139,7 +137,7 @@ bool editor_animated_sprite_editor_draw(EditorAnimatedSpriteEditor *editor,
             sprite->graphics_layer, NULL);
         const float transform_rows[] = {
             28.0f, 28.0f, 28.0f, 28.0f, 28.0f, 28.0f};
-        const float attachment_rows[] = {28.0f};
+        const float attachment_rows[] = {28.0f, 28.0f};
         const float playback_rows[] = {
             28.0f, 28.0f, 28.0f, 28.0f, 28.0f};
         const EditorModeAccordionLayoutGroup frame_groups[] = {
@@ -165,7 +163,7 @@ bool editor_animated_sprite_editor_draw(EditorAnimatedSpriteEditor *editor,
             editor_mode_accordion_layout_section(&accordion,
                 &editor->attachment_section,
                 "editor.animated_sprite.section.attachment",
-                attachment_rows, 1, 10.0f);
+                attachment_rows, sprite->rigid_body ? 2 : 1, 10.0f);
         EditorModeAccordionLayoutResult playback =
             editor_mode_accordion_layout_section(&accordion,
                 &editor->playback_section,
@@ -218,6 +216,21 @@ bool editor_animated_sprite_editor_draw(EditorAnimatedSpriteEditor *editor,
                 context->width - 110.0f, 28.0f}, &style, context, references);
         if(preview != NULL)
             preview(preview_context, object, body_result, sprite->rigid_body);
+        EditorRigidBody *body = editor_project_rigid_body_get(object, sprite->rigid_body);
+        if(body) {
+            bool driver = body->hitbox_animation_driver == sprite->id;
+            if(editor_mode_checkbox_left("editor.animated_sprite.hitbox_driver", &editor->driver_label,
+                    (UIRect){context->x + 10.0f, attachment_y + 38.0f,
+                        context->width - 20.0f, 28.0f}, &driver)) {
+                EditorCommand command = {.type = EDITOR_COMMAND_PROPERTY_SET,
+                    .data.property_set = {.kind = EDITOR_ITEM_RIGID_BODY,
+                        .object = object->id, .item = body->id,
+                        .property = EDITOR_PROPERTY_HITBOX_ANIMATION_DRIVER,
+                        .value_kind = EDITOR_PROPERTY_VALUE_UINT,
+                        .value.integer = driver ? sprite->id : 0}};
+                (void)editor_command_execute(context->project, &command);
+            }
+        }
     }
     position = sprite->editor_position; rotation = sprite->editor_rotation;
     scale_x = sprite->scale.x; scale_y = sprite->scale.y;

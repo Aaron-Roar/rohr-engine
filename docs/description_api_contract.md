@@ -715,7 +715,7 @@ below. Numeric constants, typedefs, struct fields, extern storage, and callback
 type declarations are not callable API entries; configuration types are covered
 in the family table and exemptions above.
 
-The current inventory contains **2008** classified declaration/macro entries.
+The current inventory contains **2012** classified declaration/macro entries.
 The additions after the milestone-4 inventory freeze are the direct and
 public-wrapper joint placement operations and directional response queries;
 the frozen baseline remains 1,602. Milestone 18 Goal 2 adds 14 direct/facade
@@ -727,12 +727,13 @@ Goal 2 adds 62 force/torque mutation and 218 query/check declarations; its
 physics getters and the shared `ScalarResult` value type. Goal 3 adds 70
 focused mutation declarations and two anchor-entity query declarations.
 Milestone 20 Goal 1 adds ten direct/facade [animation attachment](animation_attachments.md) declarations.
+Goal 2 adds four direct/facade hitbox animation driver setter/getter declarations.
 
 | Classification | Meaning | Owning goal | Entries |
 | --- | --- | --- | --- |
 | C: Compliant | Existing description interface | — | 344 |
-| EV: Intentionally exempt | Focused/basic-value mutation or lookup | — | 441 |
-| EQ: Intentionally exempt | Query, validation, snapshot, or result access | — | 636 |
+| EV: Intentionally exempt | Focused/basic-value mutation or lookup | — | 443 |
+| EQ: Intentionally exempt | Query, validation, snapshot, or result access | — | 638 |
 | EO: Intentionally exempt | Operation, lifecycle, execution, or drawing | — | 458 |
 | EM: Intentionally exempt | Pure math or utility calculation | — | 77 |
 | ES: Intentionally exempt | Internal storage, reporting, or macro machinery | — | 48 |
@@ -1126,7 +1127,7 @@ Source: [object.h](../include/object.h).
 </details>
 
 <details>
-<summary>physics.h: 425 entries</summary>
+<summary>physics.h: 427 entries</summary>
 
 Source: [physics.h](../include/physics.h).
 
@@ -1194,6 +1195,7 @@ Source: [physics.h](../include/physics.h).
 - `physics_force_magnitude_set`, `physics_force_orientation_set`, `physics_force_target_set`.
 - `physics_friction_set`, `physics_gravity_set`, `physics_hitbox_active_id_set`.
 - `physics_hitbox_active_index_set`, `physics_hitbox_animation_binding_at_set`, `physics_hitbox_animation_binding_set`.
+- `physics_hitbox_animation_driver_set`.
 - `physics_hitbox_at_set`, `physics_hitbox_by_id_set`, `physics_hitbox_id_at_set`.
 - `physics_hitbox_set`, `physics_joint_anchor_local_position_set`, `physics_kinematic_driven_set`.
 - `physics_mass_set`, `physics_orientation_radians_set`, `physics_orientation_set`.
@@ -1257,6 +1259,7 @@ Source: [physics.h](../include/physics.h).
 - `physics_global_hit_box_get`, `physics_gravity_check`, `physics_gravity_get`.
 - `physics_hitbox_active_id_get`, `physics_hitbox_active_index_get`, `physics_hitbox_animation_binding_at_get`.
 - `physics_hitbox_animation_binding_get`, `physics_hitbox_at_get`, `physics_hitbox_by_id_get`.
+- `physics_hitbox_animation_driver_get`.
 - `physics_hitbox_count_get`, `physics_hitbox_get`, `physics_hitbox_id_at_get`.
 - `physics_joint_anchor_local_position_get`, `physics_joint_anchor_world_position_get`, `physics_joint_anchors_get`.
 - `physics_kinematic_driven_check`, `physics_mass_check`, `physics_mass_get`.
@@ -1319,7 +1322,7 @@ Source: [report.h](../include/report.h).
 </details>
 
 <details>
-<summary>rohr.h: 992 entries</summary>
+<summary>rohr.h: 994 entries</summary>
 
 Source: [rohr.h](../include/rohr.h).
 
@@ -1457,6 +1460,7 @@ Source: [rohr.h](../include/rohr.h).
 - `rohr_physics_force_magnitude_set`, `rohr_physics_force_orientation_set`, `rohr_physics_force_target_set`.
 - `rohr_physics_friction_set`, `rohr_physics_gravity_set`, `rohr_physics_hitbox_active_id_set`.
 - `rohr_physics_hitbox_active_index_set`, `rohr_physics_hitbox_animation_binding_at_set`, `rohr_physics_hitbox_animation_binding_set`.
+- `rohr_physics_hitbox_animation_driver_set`.
 - `rohr_physics_hitbox_at_set`, `rohr_physics_hitbox_by_id_set`, `rohr_physics_hitbox_id_at_set`.
 - `rohr_physics_hitbox_set`, `rohr_physics_joint_anchor_local_position_set`, `rohr_physics_kinematic_driven_set`.
 - `rohr_physics_mass_set`, `rohr_physics_orientation_radians_set`, `rohr_physics_orientation_set`.
@@ -1563,6 +1567,7 @@ Source: [rohr.h](../include/rohr.h).
 - `rohr_physics_force_target_get`, `rohr_physics_global_hit_box_get`, `rohr_physics_gravity_check`.
 - `rohr_physics_gravity_get`, `rohr_physics_hitbox_active_id_get`, `rohr_physics_hitbox_active_index_get`.
 - `rohr_physics_hitbox_animation_binding_at_get`, `rohr_physics_hitbox_animation_binding_get`, `rohr_physics_hitbox_at_get`.
+- `rohr_physics_hitbox_animation_driver_get`.
 - `rohr_physics_hitbox_by_id_get`, `rohr_physics_hitbox_count_get`, `rohr_physics_hitbox_get`.
 - `rohr_physics_hitbox_id_at_get`, `rohr_physics_joint_anchor_local_position_get`, `rohr_physics_joint_anchor_world_position_get`.
 - `rohr_physics_joint_anchors_get`, `rohr_physics_kinematic_driven_check`, `rohr_physics_mass_check`.

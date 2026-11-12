@@ -373,6 +373,12 @@ ObjectDescriptionResult object_description_project_read(const EditorProject *pro
         for(size_t j = 0; j < o->rigid_body_count; ++j) {
             ObjectDescription *body = find(&c, o, NULL, OBJECT_BODY, o->rigid_bodies[j].id);
             HitboxAnimationBinding *bindings = (HitboxAnimationBinding *)body->hitbox_bindings;
+            if(o->rigid_bodies[j].hitbox_animation_driver) {
+                ObjectDescription *driver = find(&c, o, NULL, OBJECT_ANIMATION,
+                    o->rigid_bodies[j].hitbox_animation_driver);
+                if(!driver) goto fail;
+                body->hitbox_animation_driver = driver->id;
+            }
             for(size_t b = 0; b < body->hitbox_binding_count; ++b) {
                 ObjectDescription *animation = find(&c, o, NULL, OBJECT_ANIMATION, bindings[b].animation_id);
                 if(!animation) goto fail;

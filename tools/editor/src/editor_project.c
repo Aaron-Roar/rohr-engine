@@ -2988,6 +2988,7 @@ bool editor_project_animated_sprite_remove(EditorObject *object,
         for(size_t body_index = 0; body_index < object->rigid_body_count;
                 body_index += 1) {
             EditorRigidBody *body = &object->rigid_bodies[body_index];
+            if(body->hitbox_animation_driver == id) body->hitbox_animation_driver = 0;
             for(size_t binding = 0;
                     binding < body->hitbox_animation_binding_count;) {
                 if(body->hitbox_animation_bindings[binding].animation != id) {
