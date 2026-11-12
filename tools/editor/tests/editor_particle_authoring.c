@@ -211,13 +211,13 @@ int main(int argc, char **argv) {
     assert(editor_workspace_c_generate(&loaded_workspace, &loaded));
     char source_path[2048]; snprintf(source_path, sizeof(source_path), "%s/src/generated/project_objects.c", fixture);
     char *source = SDL_LoadFile(source_path, NULL); assert(source != NULL);
-    const char *config = strstr(source, "const ParticleDescription example_particle_final_config");
+    const char *config = strstr(source, "._description={.name=\"particle_final\"");
     assert(config != NULL);
-    const char *end = strstr(config, "};"); assert(end != NULL);
-    const char *expected[] = {".mass_value = 17.0000000f", ".friction = 0.250000000f",
-        ".restitution = 0.750000000f", ".position = {12.0000000f, -24.0000000f}",
-        ".velocity = {3.00000000f, -4.00000000f}", ".acceleration = {5.00000000f, -6.00000000f}",
-        ".local_origin = {7.00000000f, -8.00000000f}", ".static_body = true", ".gravity_enabled = false"};
+    const char *end = strstr(config, ".entity_settings="); assert(end != NULL);
+    const char *expected[] = {".mass=17.0000000f", ".friction=0.250000000f",
+        ".restitution=0.750000000f", ".position={12.0000000f,-24.0000000f}",
+        ".velocity={3.00000000f,-4.00000000f}", ".acceleration={5.00000000f,-6.00000000f}",
+        ".particle_origin={7.00000000f,-8.00000000f}", ".static_body=UINT64_C(1)", ".gravity_enabled=UINT64_C(0)"};
     for(size_t i = 0; i < sizeof(expected) / sizeof(expected[0]); i += 1) {
         const char *match = strstr(config, expected[i]); assert(match != NULL && match < end);
     }

@@ -45,7 +45,6 @@ if(MSVC)
 else()
     target_compile_options(rohr_animation_attachments PRIVATE -Wall -Wextra -Wpedantic -UNDEBUG)
 endif()
-add_test(NAME rohr_animation_attachments COMMAND rohr_animation_attachments)
 
 add_executable(rohr_system_reports ../system_reports.c)
 target_link_libraries(rohr_system_reports PRIVATE Rohr::Engine)
@@ -210,7 +209,7 @@ endif()
 
 if(BUILD_TESTING AND NOT CMAKE_CROSSCOMPILING)
     foreach(consumer
-            rohr_installed_sdk_consumer rohr_object_descriptions rohr_creation_dispatch
+            rohr_installed_sdk_consumer rohr_object_descriptions rohr_creation_dispatch rohr_animation_attachments
             rohr_system_reports rohr_entity_info rohr_entity_info_adversarial
             rohr_forces rohr_physics_fields rohr_physics_getters rohr_physics_axis_setters rohr_physics_force_setters rohr_runtime_persistence rohr_runtime_names rohr_asset_descriptions
             rohr_audio_descriptions rohr_input_descriptions rohr_controller_creation

@@ -262,7 +262,7 @@ documentation tool is available. Run just its audit and validation cases with
 `ctest --test-dir build -R '^api_inventory' --output-on-failure`.
 See the [inventory workflow](README.md#api-inventory-check) for direct use.
 
-Installed-SDK consumer builds also register their twelve executables with CTest
+Installed-SDK consumer builds also register their executables with CTest
 on native platforms. Configure `tests/installed_sdk_consumer` against an installed
 SDK, build it, then run `ctest --test-dir <consumer-build> --output-on-failure`.
 Tests use isolated build-tree working directories and SDL dummy drivers. The

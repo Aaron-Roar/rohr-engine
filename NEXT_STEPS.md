@@ -19,7 +19,7 @@ priority order.
 | 17 | [Consistent creation APIs and report checks](#17-consistent-creation-apis-and-report-checks) | Complete; all six goal results recorded below |
 | 18 | [Explicit runtime lists and ID/name access](#18-explicit-runtime-lists-and-idname-access) | Complete; Goals 1–3 verified and Linux preview accepted |
 | 19 | [Physics setters that preserve unrelated values](#19-physics-setters-that-preserve-unrelated-values) | Complete; all three API goals verified, baseline solver failures preserved |
-| 20 | [Independent animation attachments](#20-independent-animation-attachments) | Goals 1–2 complete; full workflow verification follows |
+| 20 | [Independent animation attachments](#20-independent-animation-attachments) | Complete; all three goals verified, Linux editor and application previews accepted |
 | — | [C game experiment](#c-game-experiment) | Follows the current API work; agree concept and completion criteria with the user |
 | 13 | Physics rebuild from the simpler baseline | Paused by user direction for frame pacing and game development; goals 1, 2a, 2b and 4a complete; goals 2 and 3 failed; goal 4 blocking remains incomplete; goals 5–8 not started |
 | 12 | Real-time physics pipeline rework | Closed by user direction; superseded by milestone 13, not complete; goals 1–13 complete, goal 14 unfinished, goals 15–19 not started; evidence preserved |
@@ -31,12 +31,13 @@ priority order.
 | 7 | Editor implementation scalability | Deferred until after Python unless game development makes it necessary sooner |
 | 10 | End-to-end game | Pending; separate larger game directed by the user |
 
-**Current priority:** Milestone 20 Goal 2 is complete. Stop for review and commit
-of independent editor/generated animation attachments and the explicit hitbox
-animation driver. Goal 3 awaits user instruction for full workflow and real
-preview verification. Storage grows within the existing entity limit;
-each attachment uses its own Entity ID. The C game experiment and paused
-physics milestones remain deferred; simulation defaults are unchanged.
+**Current priority:** Milestone 20 is complete. Stop for review and commit of
+Goal 3's workflow verification and test-fixture repairs. Independent attachments
+and the explicit hitbox driver are verified across installed Linux SDKs and
+Windows cross-builds, with real Linux previews accepted. The next roadmap item
+is the C game experiment; agree its concept and completion criteria with the
+user before beginning. Physics milestones remain paused and simulation defaults
+are unchanged.
 
 Milestone 15 is complete. Its Goal 1 defines the
 [creation and viewport contract](docs/creation_and_viewport_contract.md).
@@ -1316,8 +1317,22 @@ This is simultaneous rendering, not a one-active-clip state machine.
    77 pre-existing diagnostics with none added. See `sandbox/milestone_20/goal_2/`
    and the [verification record](docs/animation_attachments.md#persistence-and-verification).
    Stop for review and commit.
-3. [ ] **Full workflow verification.** Verify examples, installed SDKs, Linux and
+3. [x] **Full workflow verification.** Verify examples, installed SDKs, Linux and
    Windows builds, and obtain real editor/generated-app preview acceptance.
+   **Complete:** 73 selected Release regressions and all 23 installed consumers
+   pass; all 13 standalone examples build/run against Nix-built and generic
+   Linux SDKs. Both generated workflow suites verify all three creation paths,
+   save/reload determinism and developer-file preservation, including sanitizer
+   runs with leak detection. Engine/editor, consumers, examples and generated
+   workflows cross-build for Windows; native Windows execution remains unverified.
+   The archived generic SDK passes relocation checks. Real Linux editor controls,
+   independent animation/closing and runtime hitbox switching were accepted.
+   Authoring-canvas behavior is documented: it shows all visible hitbox variants.
+   Release test assertions and stale generation/relocation fixtures are repaired;
+   final builds have no compiler warnings or sanitizer findings. The API audit
+   retains 77 existing diagnostics. See `sandbox/milestone_20/goal_3/` and the
+   [verification record](docs/animation_attachments.md#persistence-and-verification).
+   Stop for review and commit.
 
 See [runtime contract and verification](docs/animation_attachments.md).
 Complete and verify only one goal, then stop for review and commit.

@@ -16,13 +16,14 @@ int main(int argc, char **argv) {
     editor_project_destroy(&project);
     editor_project_init(&project);
     EditorObject *object = editor_project_object_add(&project, (Position){0});
-    assert(object); snprintf(object->name, sizeof(object->name), "actor");
+    assert(object);
+    editor_project_object_name_format(object->name, sizeof(object->name), "actor");
     EditorRigidBody *body = editor_project_rigid_body_add(&project, object);
     assert(body); snprintf(body->name, sizeof(body->name), "body");
     body->gravity_enabled = false;
     body->rotation = 90;
     assert(editor_project_hitbox_add(&project, body));
-    char path[EDITOR_WORKSPACE_PATH_MAX];
+    char path[EDITOR_WORKSPACE_PATH_MAX + 64];
     snprintf(path, sizeof(path), "%s/assets/attachment.png", workspace.directory);
     assert(SDL_SaveFile(path, test_png, sizeof(test_png)));
     for(size_t i = 0; i < 40; ++i) {
@@ -45,6 +46,9 @@ int main(int argc, char **argv) {
     snprintf(path, sizeof(path), "%s/src/generated/project_objects.c", workspace.directory);
     size_t before_size = 0, after_size = 0;
     char *before = SDL_LoadFile(path, &before_size); assert(before);
+    editor_project_destroy(&project);
+    editor_project_init(&project);
+    assert(!editor_result_check(editor_workspace_load(&workspace, &project, argv[1])));
     assert(editor_workspace_c_generate(&workspace, &project));
     char *after = SDL_LoadFile(path, &after_size); assert(after);
     assert(before_size == after_size && !memcmp(before, after, before_size));

@@ -16,15 +16,16 @@ set(root "${FIXTURE}/project")
 run("${CLI}" --project "${root}" create)
 file(WRITE "${root}/src/main.c" [=[
 #include "rohr.h"
-#include "project_objects.h"
+#include "project.h"
 #include <assert.h>
 int main(void) {
     assert(!rohr_error_check(rohr_engine_start()));
     assert(!rohr_error_check(rohr_graphics_start()));
     assert(!rohr_error_check(rohr_directory_working_set(rohr_directory_base_get())));
-    Example example = {0};
-    assert(!rohr_error_check(example_create(&example, (Position){0})));
-    example_destroy(&example);
+    EntityResult example = rohr_object_create(project.example);
+    assert(!rohr_error_check(example));
+    assert(!rohr_error_check(rohr_entity_delete(example.result.value)));
+    rohr_graphics_stop();
     rohr_engine_stop();
     return 0;
 }

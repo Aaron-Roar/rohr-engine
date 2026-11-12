@@ -35,6 +35,12 @@ edits the selected driver's frame bindings. Switching drivers retains sibling
 bindings, playback, visibility and layers. Editor saves record this choice;
 older documents without the field select their previously bound animation.
 
+The authoring canvas draws all visible hitbox variants; its animation preview
+does not switch the displayed hitbox. Use **Simulate Scene** or the generated
+application to observe the driver selecting the active physics hitbox. Bind
+each desired frame to its variant; an unbound frame leaves the last active
+hitbox unchanged.
+
 The authored `ObjectDescription.hitbox_animation_driver` member contains the
 chosen animation's description ID. Generated named views expose the same field,
 for example `project.actor.body.hitbox_animation_driver`. Generated catalogs
@@ -227,3 +233,47 @@ Goal 2 verification (2026-11-12):
 - Final builds have no compiler warnings or sanitizer findings. The API audit
   still reports the same 77 pre-existing diagnostics; the four added declarations
   are classified. Logs are under `sandbox/milestone_20/goal_2/`.
+
+Goal 3 verification (2026-11-12):
+
+- All 73 selected Release editor, animation, instance, persistence, naming and
+  rendering regressions pass. The final run passed 71; the two obsolete
+  relocation fixtures passed after migrating their developer mains to current
+  creation and Entity deletion. Release assertions now remain enabled throughout
+  editor tests, so setup and checks actually execute. The particle authoring
+  fixture now checks the current generated description format.
+- All 23 installed consumers pass against the Nix-built Linux SDK and the
+  generic Linux SDK built inside Rocky Linux 8. All 13 standalone examples build
+  independently against both SDKs and launch outside their source directories.
+  Interactive examples use three-second smoke runs followed by clean SIGINT
+  shutdown; these runs do not establish long-duration physics accuracy.
+- The Windows engine/editor, all 23 SDK consumers, all 13 examples and both
+  generated workflow suites cross-build. Native Windows execution was not
+  performed. Cross-built consumers are no longer registered as runnable tests.
+- The 40-attachment fixture exercises project, object and individual creation,
+  independent playback and visibility, driver switching, instance isolation,
+  enumeration and cleanup against Release, sanitizer and generic Linux SDKs;
+  it also cross-builds for Windows. Generation is byte-identical after JSON
+  save/reload and across the Nix-built and generic Linux CLIs. The fixture uses
+  the editor's normal object-name formatting and preserves developer-edited
+  mains and custom CMake files.
+- All three shipped starter mains compile and run with Release, sanitizer and
+  generic Linux SDKs, including pause/resume and report/cleanup cases; they
+  cross-build for Windows. The original explicit alternatives remain intact.
+- Attachment, hitbox-binding and editor-history suites pass ASan/UBSan with
+  leak detection, as do both generated workflow suites linked to the sanitizer
+  SDK. No sanitizer findings or final compiler warnings remain. The API audit
+  retains its 77 pre-existing diagnostics without changes.
+- The generic SDK was archived, extracted into a different directory, and used
+  to build/run the public attachment consumer and validate the saved project
+  with its relocated CLI.
+- The user accepted independent animation and closing in the real 40-attachment
+  Linux application, reported that the editor controls worked, and accepted a
+  second application visibly switching between square and wide hitboxes while
+  all attachments continued playing. Their observation that the authoring canvas
+  does not switch variants is documented above; authoring draws all visible
+  variants, while simulation and application physics select the active variant.
+
+Logs, SDKs, preview projects and reproduction scripts are under
+`sandbox/milestone_20/goal_3/`. The preview projects are temporary review fixtures;
+developer changes to the first preview were preserved when creating the second.
