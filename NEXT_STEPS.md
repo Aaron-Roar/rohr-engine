@@ -18,7 +18,7 @@ priority order.
 | 16 | [Scoped creation and a teaching example](#16-scoped-creation-and-a-teaching-example) | Complete; all three creation paths and SDK workflows verified, final preview accepted |
 | 17 | [Consistent creation APIs and report checks](#17-consistent-creation-apis-and-report-checks) | Complete; all six goal results recorded below |
 | 18 | [Explicit runtime lists and ID/name access](#18-explicit-runtime-lists-and-idname-access) | Complete; Goals 1–3 verified and Linux preview accepted |
-| 19 | [Physics setters that preserve unrelated values](#19-physics-setters-that-preserve-unrelated-values) | Goals 1–2 complete, including physics getters; Goal 3 pending |
+| 19 | [Physics setters that preserve unrelated values](#19-physics-setters-that-preserve-unrelated-values) | Complete; all three API goals verified, baseline solver failures preserved |
 | — | [C game experiment](#c-game-experiment) | Follows the current API work; agree concept and completion criteria with the user |
 | 13 | Physics rebuild from the simpler baseline | Paused by user direction for frame pacing and game development; goals 1, 2a, 2b and 4a complete; goals 2 and 3 failed; goal 4 blocking remains incomplete; goals 5–8 not started |
 | 12 | Real-time physics pipeline rework | Closed by user direction; superseded by milestone 13, not complete; goals 1–13 complete, goal 14 unfinished, goals 15–19 not started; evidence preserved |
@@ -30,11 +30,12 @@ priority order.
 | 7 | Editor implementation scalability | Deferred until after Python unless game development makes it necessary sooner |
 | 10 | End-to-end game | Pending; separate larger game directed by the user |
 
-**Current priority:** Milestone 19 Goal 2 is complete: force/torque field access
-and, by explicit user direction, the missing physics getters. New errorable
-scalar reads use shared `ScalarResult`. Stop for review and commit; Goal 3's
-remaining partial setters await explicit instruction. Preserve physics settings,
-frame pacing and known solver failures.
+**Current priority:** Milestone 19 is complete. Stop for review and commit of
+Goal 3's remaining partial setters and collision-filter snapshot consistency fix.
+The C game experiment follows this API work, but requires explicit instruction
+and agreement on its concept and completion criteria. Physics settings and known
+solver failures remain unchanged; the joint numerical baseline failure found
+during Goal 3 is recorded below rather than treated as a passing regression.
 
 Milestone 15 is complete. Its Goal 1 defines the
 [creation and viewport contract](docs/creation_and_viewport_contract.md).
@@ -1243,11 +1244,30 @@ milestone is additive; it does not change solver behavior or simulation defaults
    warnings or sanitizer findings. The API audit retains 77 pre-existing
    diagnostics with none added. See [verification](docs/physics_field_access.md#verification)
    and `sandbox/milestone_19/goal_2/`. Stop for review and commit.
-3. [ ] **Complete remaining partial physics setters.** Audit locks, joints,
+3. [x] **Complete remaining partial physics setters.** Audit locks, joints,
    particles, soft bodies and collision configuration. Add missing setters for
    independently editable fields, preserving related state and automatically
    calculated rest values when another property changes. Document and verify
    the completed inventory, error behavior and SDK/platform parity.
+   **Complete:** 35 setters and one anchor-entity getter, with direct-engine and
+   facade equivalents. Preserve resolved joint/beam rest values, owner/lifetime,
+   coordinate semantics and particle geometry relationships. Generic node filter
+   edits now keep node snapshots consistent. Fourteen Release regressions pass;
+   the focused suite and installed consumer pass ASan/UBSan with leak detection.
+   Installed Nix and generic Linux consumers pass; Windows engine, suite,
+   consumer and affected examples cross-build. Player-controller and soft-body
+   examples run from outside their source directories; the car completes 3,600
+   frames / 60 simulated seconds with unchanged baseline operation counts.
+   Its existing performance gate remains unmet. Enabling assertions in older
+   joint/frame/mass tests fixes skipped Release setup; frame/mass tests pass.
+   The separate joint high-speed angular-velocity assertion still fails and
+   reproduces against the unchanged Goal 2 SDK; both diagnostic scenarios abort
+   early and are incomplete. This is a preserved solver failure, not a new API
+   regression or solver acceptance. Native Windows execution remains unverified.
+   No final compiler warnings or sanitizer findings; the API inventory retains
+   77 pre-existing diagnostics with none added. See
+   [verification](docs/physics_field_access.md#goal-3-verification) and
+   `sandbox/milestone_19/goal_3/`. Stop for review and commit.
 
 See [axis setter contracts](docs/physics_axis_setters.md) and
 [physics field access](docs/physics_field_access.md). Complete and verify

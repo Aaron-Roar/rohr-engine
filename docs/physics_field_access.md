@@ -144,6 +144,84 @@ setters' documented initialization behavior remains separate. Returned values
 are independent copies; a later physics update or setter affects the next read,
 not a previous result. Serialize reads and mutations with engine updates.
 
+## Remaining partial setters
+
+Milestone 19 Goal 3 adds the following focused edits. Prefix each name with
+`rohr_physics_` or `physics_`; all setters return `EngineResult`. They require
+the corresponding existing component, rather than creating a configuration
+with guessed values for its other fields.
+
+```c
+EngineResult changed = rohr_physics_joint_stiffness_set(joint_id, 25.0f);
+if(rohr_error_check(changed)) goto done;
+
+changed = rohr_physics_transform_lock_local_offset_x_set(entity_id, 8.0f);
+if(rohr_error_check(changed)) goto done;
+```
+
+| Configuration | Focused setters |
+|---|---|
+| Angle lock | `angle_lock_min_set`, `angle_lock_max_set`, and radians variants |
+| Axis lock | `axis_lock_axis_set`, `axis_lock_axis_x_set`, `axis_lock_axis_y_set`; `axis_lock_point_on_axis_set` and X/Y variants |
+| Transform lock | `transform_lock_driver_set`, `transform_lock_local_offset_set` and X/Y variants, `transform_lock_local_angle_set` and radians variant; `transform_lock_lock_position_set`, `transform_lock_lock_orientation_set`, `transform_lock_inherit_velocity_set` |
+| Joint | `joint_type_set`, `joint_anchor_a_set`, `joint_anchor_b_set`, `joint_rest_length_set`, `joint_stiffness_set`, `joint_damping_set`, `joint_rest_angle_set` and radians variant |
+| Joint anchor | `joint_anchor_entity_set`; the matching `joint_anchor_entity_get` returns `EntityResult`. Existing local-offset setters remain available. |
+| Standalone particle | `particle_rigid_vertices_set`; existing radius, origin and general body setters cover its other physics fields |
+| Soft-body node | `soft_body_node_radius_set`; existing local-position and general body setters cover its other physics fields |
+| Soft-body beam | `soft_body_beam_node_a_set`, `soft_body_beam_node_b_set`, `soft_body_beam_rest_length_set`, `soft_body_beam_stiffness_set`, `soft_body_beam_damping_set` |
+
+Joint and beam description getters expose their **resolved** rest values with
+explicit flags. Field edits retain those values, including zero, even after the
+connected bodies move or an endpoint is disconnected/replaced. Changing a
+joint's type also preserves them. To deliberately measure a new rest state, use
+the complete description setter with the corresponding explicit flag false.
+
+Anchor transfer preserves its local offset and ID and updates connected joints'
+body references. It can change the anchor's world position and lifetime parent;
+the old entity no longer owns that anchor. Joint ownership and rest values are
+unchanged. Joint endpoint setters accept `JOINT_ANCHOR_INVALID`; beam endpoint
+setters accept `ENTITY_INVALID` to disconnect that endpoint. Stale IDs fail.
+
+Axis direction is normalized by the existing full setter. Editing X or Y first
+retains the other stored component, then normalizes the resulting vector; both
+returned components can therefore change. A zero direction is rejected. Point
+edits retain the direction, subject to existing normalization precision. Angle
+limits retain the full setter's finite-value semantics. Radian conversion that
+overflows is rejected without changing the configuration.
+
+Particle vertex count changes only the active polygon through the existing
+geometry preparation/commit path. Zero selects the engine default; other values
+must lie between `MIN_VERTICIES` and `MAX_VERTICIES`. Circle radius, local origin,
+body state, inactive variants, hitbox IDs and animation bindings are preserved;
+geometry caches and derived mass properties refresh as usual. Soft-body node
+radius changes update its circle while retaining its independently editable
+polygon. These calls introduce no allocation of their own; underlying geometry
+or component setters retain their existing allocation and failure contracts.
+
+## Completed field-access inventory
+
+The new operations supplement existing focused access rather than creating
+duplicate names for every resource-specific spelling:
+
+- Motion, positions, materials and collision filters use the general entity
+  APIs. This includes soft-body nodes; generic material/filter setters dispatch
+  to independent beam state where applicable.
+- Collision category and response each have a setter preserving the other
+  mask. Collision/gravity modes use existing enable/disable operations;
+  static/dynamic and kinematic state retain their existing mode operations.
+  Beam collision enable/disable and thickness already preserve its other fields.
+  Generic filter edits now also update the node's `SoftBodyNode` snapshot,
+  keeping it consistent with the effective collision filter.
+- Soft-body transforms use position/orientation setters. Area geometry and
+  order already have focused setters. Polygon and area topology remain complete
+  validated geometry values, rather than independently mutable counts/vertices.
+- Entity ownership and lifetime use their existing APIs. Visual colors,
+  overrides and visibility use graphics/entity APIs and complete descriptions.
+  Focused physics edits preserve them.
+- World COM, world anchor positions, inertia, membership counts and other
+  derived values are read through their getters. Change their underlying
+  geometry, local coordinates, masses, membership or body transforms instead.
+
 ## Verification
 
 Milestone 19 Goal 2 adds 31 setters and 109 getters/checks, each exposed through
@@ -171,4 +249,45 @@ torque and soft-body node radius, use shared `ScalarResult`.
   inventory audit retains 77 pre-existing diagnostics, with none added.
 
 Commands and complete logs are retained in `sandbox/milestone_19/goal_2/`.
-Remaining partial setters belong to Goal 3 and await user instruction.
+
+## Goal 3 verification
+
+The goal adds 35 setters and one anchor-entity getter, each with direct-engine
+and facade entry points. The focused suite exercises both spellings, required
+components, invalid/stale IDs, rejected edits, ownership/lifetime preservation,
+automatic rest-value preservation after deformation and disconnection, anchor
+transfer, particle geometry and inactive hitbox variants, and collision-filter
+snapshot consistency. Ordinary edits are checked with allocation forbidden.
+
+Fourteen Release regressions pass: `physics_fields`, `physics_getters`,
+`physics_force_setters`, `physics_axis_setters`, `soft_body`, `soft_body_frame`,
+`soft_body_mass`, `soft_body_areas`, `particle_collision_mode`, `center_of_mass`,
+`origin_offsets`, `descriptor_creation`, `runtime_persistence` and
+`shared_sources`. The new installed Release SDK consumer also passes.
+
+The audit enabled assertions in the existing joint, soft-body frame and mass
+tests, whose setup calls were otherwise removed by Release's `NDEBUG`. The
+frame and mass regressions pass. The separate `joints` test still aborts at
+`tests/joints.c:340`, an angular-velocity tolerance in its high-speed independent
+motion scenario. Linking the same assertion-enabled test object against the
+unchanged Goal 2 SDK (`8479729e1330760e890547868cb598bcb95e696b`)
+reproduces the identical failure. Both runs are **incomplete**
+at that assertion; neither establishes full-run numerical bounds. This existing
+solver failure is preserved outside the additive field-access goal. It is not
+reported as a passing regression or performance acceptance.
+
+- The focused suite and installed SDK consumer pass ASan/UBSan with leak
+  detection. No final compiler warnings or sanitizer findings remain.
+- Public-only consumers build and run against installed Nix and generic Linux
+  SDKs. The engine, suite and installed SDK consumer cross-build for Windows;
+  native Windows execution remains unverified.
+- Player-controller and soft-body examples independently build against the
+  installed SDK, run from `/tmp` with SDL dummy drivers, and cross-build for
+  Windows. The car completes 3,600 frames / 60 simulated seconds with 14,400
+  substeps, 7,222,164 candidates and 1,195,541 contacts, matching the baseline.
+  Its existing `realtime_pass=0` remains unmet and outside this API goal.
+- All 72 new direct/facade declarations are classified in the API inventory.
+  Its 77 pre-existing diagnostics remain unchanged.
+
+Evidence, including both joint diagnostic logs, is in
+`sandbox/milestone_19/goal_3/`.

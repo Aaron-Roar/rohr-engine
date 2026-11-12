@@ -25,6 +25,12 @@ EngineResult physics_collision_filter_description_set(Entity entity,
             &collision_filters_pool, index, config).kind == ERROR_RESULT_ERROR)
         return error_result_error(ERROR_ENGINE_TABLE_EXPANSION_FAILED);
     entity_mask[index] |= ROHR_COLLISION_FILTER;
+    /* Node snapshots mirror the effective filter used by collision queries. */
+    if(entity_index_components_check(index, ROHR_SOFT_BODY_NODE) &&
+            index < soft_body_nodes_pool.capacity && soft_body_nodes_pool.used[index]) {
+        soft_body_nodes[index].category = config.category;
+        soft_body_nodes[index].responds_to = config.responds_to;
+    }
     return error_result_value(true);
 }
 

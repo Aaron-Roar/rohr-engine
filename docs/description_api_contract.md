@@ -715,7 +715,7 @@ below. Numeric constants, typedefs, struct fields, extern storage, and callback
 type declarations are not callable API entries; configuration types are covered
 in the family table and exemptions above.
 
-The current inventory contains **1926** classified declaration/macro entries.
+The current inventory contains **1998** classified declaration/macro entries.
 The additions after the milestone-4 inventory freeze are the direct and
 public-wrapper joint placement operations and directional response queries;
 the frozen baseline remains 1,602. Milestone 18 Goal 2 adds 14 direct/facade
@@ -724,13 +724,14 @@ declarations; other unlisted legacy aliases are also removed. Milestone 19 Goal 
 adds 32 direct/facade [axis setter](physics_axis_setters.md) declarations.
 Goal 2 adds 62 force/torque mutation and 218 query/check declarations; its
 [expanded field-access scope](physics_field_access.md) includes all missing
-physics getters and the shared `ScalarResult` value type.
+physics getters and the shared `ScalarResult` value type. Goal 3 adds 70
+focused mutation declarations and two anchor-entity query declarations.
 
 | Classification | Meaning | Owning goal | Entries |
 | --- | --- | --- | --- |
 | C: Compliant | Existing description interface | — | 342 |
-| EV: Intentionally exempt | Focused/basic-value mutation or lookup | — | 369 |
-| EQ: Intentionally exempt | Query, validation, snapshot, or result access | — | 628 |
+| EV: Intentionally exempt | Focused/basic-value mutation or lookup | — | 439 |
+| EQ: Intentionally exempt | Query, validation, snapshot, or result access | — | 630 |
 | EO: Intentionally exempt | Operation, lifecycle, execution, or drawing | — | 458 |
 | EM: Intentionally exempt | Pure math or utility calculation | — | 77 |
 | ES: Intentionally exempt | Internal storage, reporting, or macro machinery | — | 48 |
@@ -1121,7 +1122,7 @@ Source: [object.h](../include/object.h).
 </details>
 
 <details>
-<summary>physics.h: 389 entries</summary>
+<summary>physics.h: 425 entries</summary>
 
 Source: [physics.h](../include/physics.h).
 
@@ -1145,6 +1146,19 @@ Source: [physics.h](../include/physics.h).
 - `physics_torque_description_set`, `physics_transform_lock_description_get`, `physics_transform_lock_description_set`.
 
 **EV — Focused/basic-value mutation or lookup**
+
+- `physics_angle_lock_min_set`, `physics_angle_lock_min_radians_set`, `physics_angle_lock_max_set`.
+- `physics_angle_lock_max_radians_set`, `physics_axis_lock_axis_set`, `physics_axis_lock_axis_x_set`.
+- `physics_axis_lock_axis_y_set`, `physics_axis_lock_point_on_axis_set`, `physics_axis_lock_point_on_axis_x_set`.
+- `physics_axis_lock_point_on_axis_y_set`, `physics_transform_lock_driver_set`, `physics_transform_lock_local_offset_set`.
+- `physics_transform_lock_local_offset_x_set`, `physics_transform_lock_local_offset_y_set`, `physics_transform_lock_local_angle_set`.
+- `physics_transform_lock_lock_position_set`, `physics_transform_lock_lock_orientation_set`, `physics_transform_lock_inherit_velocity_set`.
+- `physics_transform_lock_local_angle_radians_set`, `physics_joint_type_set`, `physics_joint_anchor_a_set`.
+- `physics_joint_anchor_b_set`, `physics_joint_rest_length_set`, `physics_joint_stiffness_set`.
+- `physics_joint_damping_set`, `physics_joint_rest_angle_set`, `physics_joint_rest_angle_radians_set`.
+- `physics_joint_anchor_entity_set`, `physics_soft_body_beam_node_a_set`, `physics_soft_body_beam_node_b_set`.
+- `physics_soft_body_beam_rest_length_set`, `physics_soft_body_beam_stiffness_set`, `physics_soft_body_beam_damping_set`.
+- `physics_soft_body_node_radius_set`, `physics_particle_rigid_vertices_set`.
 
 - `physics_force_location_offset_set`, `physics_force_location_offset_x_set`, `physics_force_location_offset_y_set`.
 - `physics_force_location_reference_beam_anchor_set`, `physics_force_location_reference_beam_fraction_set`, `physics_force_location_reference_entity_set`.
@@ -1187,6 +1201,8 @@ Source: [physics.h](../include/physics.h).
 - `physics_velocity_set`.
 
 **EQ — Query, validation, snapshot, or result access**
+
+- `physics_joint_anchor_entity_get`.
 
 - `physics_acceleration_get`, `physics_acceleration_x_get`, `physics_acceleration_y_get`.
 - `physics_angle_lock_get`, `physics_angle_lock_max_get`, `physics_angle_lock_max_radians_get`.
@@ -1299,7 +1315,7 @@ Source: [report.h](../include/report.h).
 </details>
 
 <details>
-<summary>rohr.h: 951 entries</summary>
+<summary>rohr.h: 987 entries</summary>
 
 Source: [rohr.h](../include/rohr.h).
 
@@ -1364,6 +1380,19 @@ Source: [rohr.h](../include/rohr.h).
 - `rohr_viewport_ui_slider_add`, `rohr_viewport_ui_text_add`.
 
 **EV — Focused/basic-value mutation or lookup**
+
+- `rohr_physics_angle_lock_min_set`, `rohr_physics_angle_lock_min_radians_set`, `rohr_physics_angle_lock_max_set`.
+- `rohr_physics_angle_lock_max_radians_set`, `rohr_physics_axis_lock_axis_set`, `rohr_physics_axis_lock_axis_x_set`.
+- `rohr_physics_axis_lock_axis_y_set`, `rohr_physics_axis_lock_point_on_axis_set`, `rohr_physics_axis_lock_point_on_axis_x_set`.
+- `rohr_physics_axis_lock_point_on_axis_y_set`, `rohr_physics_transform_lock_driver_set`, `rohr_physics_transform_lock_local_offset_set`.
+- `rohr_physics_transform_lock_local_offset_x_set`, `rohr_physics_transform_lock_local_offset_y_set`, `rohr_physics_transform_lock_local_angle_set`.
+- `rohr_physics_transform_lock_lock_position_set`, `rohr_physics_transform_lock_lock_orientation_set`, `rohr_physics_transform_lock_inherit_velocity_set`.
+- `rohr_physics_transform_lock_local_angle_radians_set`, `rohr_physics_joint_type_set`, `rohr_physics_joint_anchor_a_set`.
+- `rohr_physics_joint_anchor_b_set`, `rohr_physics_joint_rest_length_set`, `rohr_physics_joint_stiffness_set`.
+- `rohr_physics_joint_damping_set`, `rohr_physics_joint_rest_angle_set`, `rohr_physics_joint_rest_angle_radians_set`.
+- `rohr_physics_joint_anchor_entity_set`, `rohr_physics_soft_body_beam_node_a_set`, `rohr_physics_soft_body_beam_node_b_set`.
+- `rohr_physics_soft_body_beam_rest_length_set`, `rohr_physics_soft_body_beam_stiffness_set`, `rohr_physics_soft_body_beam_damping_set`.
+- `rohr_physics_soft_body_node_radius_set`, `rohr_physics_particle_rigid_vertices_set`.
 
 - `rohr_physics_force_location_offset_set`, `rohr_physics_force_location_offset_x_set`, `rohr_physics_force_location_offset_y_set`.
 - `rohr_physics_force_location_reference_beam_anchor_set`, `rohr_physics_force_location_reference_beam_fraction_set`, `rohr_physics_force_location_reference_entity_set`.
@@ -1434,6 +1463,8 @@ Source: [rohr.h](../include/rohr.h).
 - `rohr_viewport_disable_set`, `rohr_viewport_enable_set`, `rohr_viewport_item_drag_mode_set`.
 
 **EQ — Query, validation, snapshot, or result access**
+
+- `rohr_physics_joint_anchor_entity_get`.
 
 - `rohr_physics_acceleration_get`, `rohr_physics_acceleration_x_get`, `rohr_physics_acceleration_y_get`.
 - `rohr_physics_angle_lock_get`, `rohr_physics_angle_lock_max_get`, `rohr_physics_angle_lock_max_radians_get`.

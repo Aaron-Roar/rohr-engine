@@ -1316,3 +1316,40 @@ PhysicsCountResult rohr_physics_soft_body_area_order_get(Entity entity) { return
 PhysicsCountResult rohr_physics_soft_body_node_count_get(Entity entity) { return physics_soft_body_node_count_get(entity); }
 PhysicsCountResult rohr_physics_soft_body_beam_count_get(Entity entity) { return physics_soft_body_beam_count_get(entity); }
 PhysicsCountResult rohr_physics_soft_body_area_count_get(Entity entity) { return physics_soft_body_area_count_get(entity); }
+
+EngineResult rohr_physics_angle_lock_min_set(Entity entity, Orientation value) { return physics_angle_lock_min_set(entity, value); }
+EngineResult rohr_physics_angle_lock_min_radians_set(Entity entity, Orientation value) { return physics_angle_lock_min_radians_set(entity, value); }
+EngineResult rohr_physics_angle_lock_max_set(Entity entity, Orientation value) { return physics_angle_lock_max_set(entity, value); }
+EngineResult rohr_physics_angle_lock_max_radians_set(Entity entity, Orientation value) { return physics_angle_lock_max_radians_set(entity, value); }
+EngineResult rohr_physics_axis_lock_axis_set(Entity entity, Axis value) { return physics_axis_lock_axis_set(entity, value); }
+EngineResult rohr_physics_axis_lock_axis_x_set(Entity entity, float value) { return physics_axis_lock_axis_x_set(entity, value); }
+EngineResult rohr_physics_axis_lock_axis_y_set(Entity entity, float value) { return physics_axis_lock_axis_y_set(entity, value); }
+EngineResult rohr_physics_axis_lock_point_on_axis_set(Entity entity, Position value) { return physics_axis_lock_point_on_axis_set(entity, value); }
+EngineResult rohr_physics_axis_lock_point_on_axis_x_set(Entity entity, float value) { return physics_axis_lock_point_on_axis_x_set(entity, value); }
+EngineResult rohr_physics_axis_lock_point_on_axis_y_set(Entity entity, float value) { return physics_axis_lock_point_on_axis_y_set(entity, value); }
+EngineResult rohr_physics_transform_lock_driver_set(Entity entity, Entity value) { return physics_transform_lock_driver_set(entity, value); }
+EngineResult rohr_physics_transform_lock_local_offset_set(Entity entity, Position value) { return physics_transform_lock_local_offset_set(entity, value); }
+EngineResult rohr_physics_transform_lock_local_offset_x_set(Entity entity, float value) { return physics_transform_lock_local_offset_x_set(entity, value); }
+EngineResult rohr_physics_transform_lock_local_offset_y_set(Entity entity, float value) { return physics_transform_lock_local_offset_y_set(entity, value); }
+EngineResult rohr_physics_transform_lock_local_angle_set(Entity entity, Orientation value) { return physics_transform_lock_local_angle_set(entity, value); }
+EngineResult rohr_physics_transform_lock_lock_position_set(Entity entity, bool value) { return physics_transform_lock_lock_position_set(entity, value); }
+EngineResult rohr_physics_transform_lock_lock_orientation_set(Entity entity, bool value) { return physics_transform_lock_lock_orientation_set(entity, value); }
+EngineResult rohr_physics_transform_lock_inherit_velocity_set(Entity entity, bool value) { return physics_transform_lock_inherit_velocity_set(entity, value); }
+EngineResult rohr_physics_transform_lock_local_angle_radians_set(Entity entity, Orientation value) { return physics_transform_lock_local_angle_radians_set(entity, value); }
+EngineResult rohr_physics_joint_type_set(Entity entity, JointType value) { return physics_joint_type_set(entity, value); }
+EngineResult rohr_physics_joint_anchor_a_set(Entity entity, JointAnchorId value) { return physics_joint_anchor_a_set(entity, value); }
+EngineResult rohr_physics_joint_anchor_b_set(Entity entity, JointAnchorId value) { return physics_joint_anchor_b_set(entity, value); }
+EngineResult rohr_physics_joint_rest_length_set(Entity entity, float value) { return physics_joint_rest_length_set(entity, value); }
+EngineResult rohr_physics_joint_stiffness_set(Entity entity, float value) { return physics_joint_stiffness_set(entity, value); }
+EngineResult rohr_physics_joint_damping_set(Entity entity, float value) { return physics_joint_damping_set(entity, value); }
+EngineResult rohr_physics_joint_rest_angle_set(Entity entity, Orientation value) { return physics_joint_rest_angle_set(entity, value); }
+EngineResult rohr_physics_joint_rest_angle_radians_set(Entity entity, Orientation value) { return physics_joint_rest_angle_radians_set(entity, value); }
+EngineResult rohr_physics_joint_anchor_entity_set(JointAnchorId anchor, Entity value) { return physics_joint_anchor_entity_set(anchor, value); }
+EntityResult rohr_physics_joint_anchor_entity_get(JointAnchorId anchor) { return physics_joint_anchor_entity_get(anchor); }
+EngineResult rohr_physics_soft_body_beam_node_a_set(Entity entity, Entity value) { return physics_soft_body_beam_node_a_set(entity, value); }
+EngineResult rohr_physics_soft_body_beam_node_b_set(Entity entity, Entity value) { return physics_soft_body_beam_node_b_set(entity, value); }
+EngineResult rohr_physics_soft_body_beam_rest_length_set(Entity entity, float value) { return physics_soft_body_beam_rest_length_set(entity, value); }
+EngineResult rohr_physics_soft_body_beam_stiffness_set(Entity entity, float value) { return physics_soft_body_beam_stiffness_set(entity, value); }
+EngineResult rohr_physics_soft_body_beam_damping_set(Entity entity, float value) { return physics_soft_body_beam_damping_set(entity, value); }
+EngineResult rohr_physics_soft_body_node_radius_set(Entity entity, float value) { return physics_soft_body_node_radius_set(entity, value); }
+EngineResult rohr_physics_particle_rigid_vertices_set(Entity entity, uint32_t value) { return physics_particle_rigid_vertices_set(entity, value); }

@@ -196,6 +196,22 @@ ParticleDescriptionResult physics_particle_description_get(Entity entity) {
     return ERROR_RESULT_MAKE_VALUE(ParticleDescriptionResult, description);
 }
 
+EngineResult physics_particle_rigid_vertices_set(Entity entity, uint32_t value) {
+    EntityIndex index;
+    EngineResult result = physics_live_index_get(entity, &index);
+    if(error_check(result)) return result;
+    if(!particle_standalone_check(index)) return error_result_error(ERROR_ENGINE_COMPONENT_MISSING);
+    uint32_t vertices = value ? value : ROHR_PARTICLE_RIGID_VERTICES_DEFAULT;
+    if(vertices < MIN_VERTICIES || vertices > MAX_VERTICIES)
+        return error_result_error(ERROR_ENGINE_STATE_INVALID);
+    ParticleGeometry geometry = particle_geometries_pool.objects[index];
+    ParticleShapeChange change;
+    result = physics_particle_shape_prepare(index, geometry.local_origin, geometry.radius, vertices, &change);
+    if(error_check(result)) return result;
+    physics_particle_shape_commit(index, geometry.local_origin, geometry.radius, &change, true);
+    return error_result_value(true);
+}
+
 static EngineResult particle_geometry_set(EntityIndex index, Position origin, float radius) {
     ParticleShapeChange change;
     EngineResult result = physics_particle_shape_prepare(index, origin, radius, particle_vertices_get(index), &change);

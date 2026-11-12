@@ -55,8 +55,8 @@ uses `rohr_physics_joint_anchor_local_position_x_set(anchor_id, 2.0f)`.
   Setting an axis does not lock it; subsequent simulation can change it.
 
 Matching scalar/vector getters and force/torque field access are documented in
-[physics field access](physics_field_access.md). Other partial descriptor setters
-remain milestone 19 Goal 3.
+[physics field access](physics_field_access.md). Milestone 19 Goal 3 completes
+the remaining partial setters; its inventory and verification are recorded there.
 
 ## Goal 1 verification
 

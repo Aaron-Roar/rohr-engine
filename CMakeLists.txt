@@ -274,6 +274,7 @@ set(ROHR_ENGINE_SOURCES
     src/physics/physics.c
     src/physics/physics_entity.c
     src/physics/physics_getters.c
+    src/physics/physics_fields.c
     src/physics/physics_step.c
     src/physics/physics_operation.c
     src/physics/pipeline/physics_pipeline.c
@@ -674,6 +675,28 @@ if(ROHR_BUILD_TESTS)
     endif()
     add_test(NAME physics_axis_setters COMMAND physics_axis_setters_test)
     set_tests_properties(physics_axis_setters PROPERTIES
+        ENVIRONMENT "SDL_VIDEODRIVER=dummy;SDL_AUDIODRIVER=dummy")
+
+    add_executable(physics_fields_test tests/physics_fields.c)
+    target_link_libraries(physics_fields_test PRIVATE rohr_engine)
+    set_target_properties(physics_fields_test PROPERTIES
+        RUNTIME_OUTPUT_DIRECTORY ${ROHR_BUILD_OUTPUT_DIRECTORY}/tests)
+    if(MSVC)
+        target_compile_options(physics_fields_test PRIVATE /UNDEBUG)
+    else()
+        target_compile_options(physics_fields_test PRIVATE -Wall -Wextra -Wpedantic -UNDEBUG)
+    endif()
+    if(CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_C_COMPILER_ID MATCHES "GNU|Clang")
+        target_compile_definitions(physics_fields_test PRIVATE ROHR_TEST_ALLOCATION_WRAP)
+        target_link_options(physics_fields_test PRIVATE
+            -Wl,--wrap=malloc -Wl,--wrap=calloc -Wl,--wrap=realloc)
+    endif()
+    if(ROHR_ENABLE_SANITIZERS)
+        target_compile_options(physics_fields_test PRIVATE ${ROHR_SANITIZER_COMPILE_OPTIONS})
+        target_link_options(physics_fields_test PRIVATE ${ROHR_SANITIZER_LINK_OPTIONS})
+    endif()
+    add_test(NAME physics_fields COMMAND physics_fields_test)
+    set_tests_properties(physics_fields PROPERTIES
         ENVIRONMENT "SDL_VIDEODRIVER=dummy;SDL_AUDIODRIVER=dummy")
 
     add_executable(physics_getters_test tests/physics_getters.c)
@@ -1091,6 +1114,12 @@ if(ROHR_BUILD_TESTS)
 
     add_executable(joints_test tests/joints.c)
     target_link_libraries(joints_test PRIVATE rohr_engine)
+    # These regressions use assert for both setup and verification.
+    if(MSVC)
+        target_compile_options(joints_test PRIVATE /UNDEBUG)
+    else()
+        target_compile_options(joints_test PRIVATE -UNDEBUG)
+    endif()
     set_target_properties(joints_test PROPERTIES RUNTIME_OUTPUT_DIRECTORY ${ROHR_BUILD_OUTPUT_DIRECTORY}/tests)
     add_test(NAME joints COMMAND joints_test)
 
@@ -1153,6 +1182,12 @@ if(ROHR_BUILD_TESTS)
     add_executable(soft_body_frame_test tests/soft_body_frame.c)
     target_include_directories(soft_body_frame_test PRIVATE src)
     target_link_libraries(soft_body_frame_test PRIVATE rohr_engine)
+    # These regressions use assert for both setup and verification.
+    if(MSVC)
+        target_compile_options(soft_body_frame_test PRIVATE /UNDEBUG)
+    else()
+        target_compile_options(soft_body_frame_test PRIVATE -UNDEBUG)
+    endif()
     set_target_properties(soft_body_frame_test PROPERTIES RUNTIME_OUTPUT_DIRECTORY ${ROHR_BUILD_OUTPUT_DIRECTORY}/tests)
     add_test(NAME soft_body_frame COMMAND soft_body_frame_test)
     set_tests_properties(soft_body_frame PROPERTIES ENVIRONMENT "SDL_VIDEODRIVER=dummy;SDL_AUDIODRIVER=dummy")
@@ -1185,6 +1220,12 @@ if(ROHR_BUILD_TESTS)
     add_executable(soft_body_mass_test tests/soft_body_mass.c)
     target_include_directories(soft_body_mass_test PRIVATE src)
     target_link_libraries(soft_body_mass_test PRIVATE rohr_engine)
+    # These regressions use assert for both setup and verification.
+    if(MSVC)
+        target_compile_options(soft_body_mass_test PRIVATE /UNDEBUG)
+    else()
+        target_compile_options(soft_body_mass_test PRIVATE -UNDEBUG)
+    endif()
     set_target_properties(soft_body_mass_test PROPERTIES RUNTIME_OUTPUT_DIRECTORY ${ROHR_BUILD_OUTPUT_DIRECTORY}/tests)
     add_test(NAME soft_body_mass COMMAND soft_body_mass_test)
     set_tests_properties(soft_body_mass PROPERTIES
@@ -1743,6 +1784,7 @@ if(ROHR_BUILD_TESTS)
         physics_reports_test
         physics_axis_setters_test
         physics_getters_test
+        physics_fields_test
         physics_force_setters_test
         physics_recovery_test
         audio_reports_test

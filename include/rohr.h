@@ -3165,4 +3165,78 @@ PhysicsCountResult rohr_physics_soft_body_node_count_get(Entity entity);
 PhysicsCountResult rohr_physics_soft_body_beam_count_get(Entity entity);
 /** Return current physics state by value without allocation; invalid IDs or missing storage return errors. */
 PhysicsCountResult rohr_physics_soft_body_area_count_get(Entity entity);
+
+/* Focused edits require the corresponding existing component. */
+/** Replace one angle limit in degrees; require an existing angle lock. */
+EngineResult rohr_physics_angle_lock_min_set(Entity entity, Orientation value);
+/** Replace one angle limit in radians; preserve the other limit. */
+EngineResult rohr_physics_angle_lock_min_radians_set(Entity entity, Orientation value);
+/** Replace one angle limit in degrees; require an existing angle lock. */
+EngineResult rohr_physics_angle_lock_max_set(Entity entity, Orientation value);
+/** Replace one angle limit in radians; preserve the other limit. */
+EngineResult rohr_physics_angle_lock_max_radians_set(Entity entity, Orientation value);
+/** Replace this field of an existing configuration; preserve other fields and ownership. */
+EngineResult rohr_physics_axis_lock_axis_set(Entity entity, Axis value);
+/** Replace this field of an existing configuration; preserve other fields and ownership. */
+EngineResult rohr_physics_axis_lock_axis_x_set(Entity entity, float value);
+/** Replace this field of an existing configuration; preserve other fields and ownership. */
+EngineResult rohr_physics_axis_lock_axis_y_set(Entity entity, float value);
+/** Replace this field of an existing configuration; preserve other fields and ownership. */
+EngineResult rohr_physics_axis_lock_point_on_axis_set(Entity entity, Position value);
+/** Replace this field of an existing configuration; preserve other fields and ownership. */
+EngineResult rohr_physics_axis_lock_point_on_axis_x_set(Entity entity, float value);
+/** Replace this field of an existing configuration; preserve other fields and ownership. */
+EngineResult rohr_physics_axis_lock_point_on_axis_y_set(Entity entity, float value);
+/** Replace this field of an existing configuration; preserve other fields and ownership. */
+EngineResult rohr_physics_transform_lock_driver_set(Entity entity, Entity value);
+/** Replace this field of an existing configuration; preserve other fields and ownership. */
+EngineResult rohr_physics_transform_lock_local_offset_set(Entity entity, Position value);
+/** Replace this field of an existing configuration; preserve other fields and ownership. */
+EngineResult rohr_physics_transform_lock_local_offset_x_set(Entity entity, float value);
+/** Replace this field of an existing configuration; preserve other fields and ownership. */
+EngineResult rohr_physics_transform_lock_local_offset_y_set(Entity entity, float value);
+/** Replace this field of an existing configuration; preserve other fields and ownership. */
+EngineResult rohr_physics_transform_lock_local_angle_set(Entity entity, Orientation value);
+/** Replace this field of an existing configuration; preserve other fields and ownership. */
+EngineResult rohr_physics_transform_lock_lock_position_set(Entity entity, bool value);
+/** Replace this field of an existing configuration; preserve other fields and ownership. */
+EngineResult rohr_physics_transform_lock_lock_orientation_set(Entity entity, bool value);
+/** Replace this field of an existing configuration; preserve other fields and ownership. */
+EngineResult rohr_physics_transform_lock_inherit_velocity_set(Entity entity, bool value);
+/** Replace the local angle in radians; preserve the driver, offset and flags. */
+EngineResult rohr_physics_transform_lock_local_angle_radians_set(Entity entity, Orientation value);
+/** Replace this field of an existing configuration; preserve other fields and ownership. */
+EngineResult rohr_physics_joint_type_set(Entity entity, JointType value);
+/** Replace this field of an existing configuration; preserve other fields and ownership. */
+EngineResult rohr_physics_joint_anchor_a_set(Entity entity, JointAnchorId value);
+/** Replace this field of an existing configuration; preserve other fields and ownership. */
+EngineResult rohr_physics_joint_anchor_b_set(Entity entity, JointAnchorId value);
+/** Replace this field of an existing configuration; preserve other fields and ownership. */
+EngineResult rohr_physics_joint_rest_length_set(Entity entity, float value);
+/** Replace this field of an existing configuration; preserve other fields and ownership. */
+EngineResult rohr_physics_joint_stiffness_set(Entity entity, float value);
+/** Replace this field of an existing configuration; preserve other fields and ownership. */
+EngineResult rohr_physics_joint_damping_set(Entity entity, float value);
+/** Replace this field of an existing configuration; preserve other fields and ownership. */
+EngineResult rohr_physics_joint_rest_angle_set(Entity entity, Orientation value);
+/** Replace the joint rest angle in radians; preserve its rest length and other fields. */
+EngineResult rohr_physics_joint_rest_angle_radians_set(Entity entity, Orientation value);
+/** Move an anchor to another live entity, preserving its local offset and connected joint rest values. */
+EngineResult rohr_physics_joint_anchor_entity_set(JointAnchorId anchor, Entity value);
+/** Return the entity currently holding this anchor. */
+EntityResult rohr_physics_joint_anchor_entity_get(JointAnchorId anchor);
+/** Replace one beam endpoint; preserve the other endpoint and measured rest length. */
+EngineResult rohr_physics_soft_body_beam_node_a_set(Entity entity, Entity value);
+/** Replace one beam endpoint; preserve the other endpoint and measured rest length. */
+EngineResult rohr_physics_soft_body_beam_node_b_set(Entity entity, Entity value);
+/** Replace this field of an existing configuration; preserve other fields and ownership. */
+EngineResult rohr_physics_soft_body_beam_rest_length_set(Entity entity, float value);
+/** Replace this field of an existing configuration; preserve other fields and ownership. */
+EngineResult rohr_physics_soft_body_beam_stiffness_set(Entity entity, float value);
+/** Replace this field of an existing configuration; preserve other fields and ownership. */
+EngineResult rohr_physics_soft_body_beam_damping_set(Entity entity, float value);
+/** Replace a node circle radius; preserve its independently editable polygon and all other node state. */
+EngineResult rohr_physics_soft_body_node_radius_set(Entity entity, float value);
+/** Replace standalone particle polygon quality; zero selects the default. Preserve radius, origin and motion. */
+EngineResult rohr_physics_particle_rigid_vertices_set(Entity entity, uint32_t value);
 #endif
