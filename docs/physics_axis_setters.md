@@ -54,8 +54,9 @@ uses `rohr_physics_joint_anchor_local_position_x_set(anchor_id, 2.0f)`.
 - Serialize mutations with engine updates, as with existing physics setters.
   Setting an axis does not lock it; subsequent simulation can change it.
 
-Force/torque field setters and other partial descriptor setters belong to the
-remaining goals of milestone 19.
+Matching scalar/vector getters and force/torque field access are documented in
+[physics field access](physics_field_access.md). Other partial descriptor setters
+remain milestone 19 Goal 3.
 
 ## Goal 1 verification
 

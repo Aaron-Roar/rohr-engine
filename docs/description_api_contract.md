@@ -715,19 +715,22 @@ below. Numeric constants, typedefs, struct fields, extern storage, and callback
 type declarations are not callable API entries; configuration types are covered
 in the family table and exemptions above.
 
-The current inventory contains **1646** classified declaration/macro entries.
+The current inventory contains **1926** classified declaration/macro entries.
 The additions after the milestone-4 inventory freeze are the direct and
 public-wrapper joint placement operations and directional response queries;
 the frozen baseline remains 1,602. Milestone 18 Goal 2 adds 14 direct/facade
 runtime-name query declarations. Goal 3 removes six listed public member-query
 declarations; other unlisted legacy aliases are also removed. Milestone 19 Goal 1
 adds 32 direct/facade [axis setter](physics_axis_setters.md) declarations.
+Goal 2 adds 62 force/torque mutation and 218 query/check declarations; its
+[expanded field-access scope](physics_field_access.md) includes all missing
+physics getters and the shared `ScalarResult` value type.
 
 | Classification | Meaning | Owning goal | Entries |
 | --- | --- | --- | --- |
 | C: Compliant | Existing description interface | — | 342 |
-| EV: Intentionally exempt | Focused/basic-value mutation or lookup | — | 307 |
-| EQ: Intentionally exempt | Query, validation, snapshot, or result access | — | 410 |
+| EV: Intentionally exempt | Focused/basic-value mutation or lookup | — | 369 |
+| EQ: Intentionally exempt | Query, validation, snapshot, or result access | — | 628 |
 | EO: Intentionally exempt | Operation, lifecycle, execution, or drawing | — | 458 |
 | EM: Intentionally exempt | Pure math or utility calculation | — | 77 |
 | ES: Intentionally exempt | Internal storage, reporting, or macro machinery | — | 48 |
@@ -1118,7 +1121,7 @@ Source: [object.h](../include/object.h).
 </details>
 
 <details>
-<summary>physics.h: 249 entries</summary>
+<summary>physics.h: 389 entries</summary>
 
 Source: [physics.h](../include/physics.h).
 
@@ -1142,6 +1145,18 @@ Source: [physics.h](../include/physics.h).
 - `physics_torque_description_set`, `physics_transform_lock_description_get`, `physics_transform_lock_description_set`.
 
 **EV — Focused/basic-value mutation or lookup**
+
+- `physics_force_location_offset_set`, `physics_force_location_offset_x_set`, `physics_force_location_offset_y_set`.
+- `physics_force_location_reference_beam_anchor_set`, `physics_force_location_reference_beam_fraction_set`, `physics_force_location_reference_entity_set`.
+- `physics_force_location_reference_set`, `physics_force_orientation_between_from_offset_set`, `physics_force_orientation_between_from_offset_x_set`.
+- `physics_force_orientation_between_from_offset_y_set`, `physics_force_orientation_between_from_reference_beam_anchor_set`, `physics_force_orientation_between_from_reference_beam_fraction_set`.
+- `physics_force_orientation_between_from_reference_entity_set`, `physics_force_orientation_between_from_reference_set`, `physics_force_orientation_between_from_set`.
+- `physics_force_orientation_between_to_offset_set`, `physics_force_orientation_between_to_offset_x_set`, `physics_force_orientation_between_to_offset_y_set`.
+- `physics_force_orientation_between_to_reference_beam_anchor_set`, `physics_force_orientation_between_to_reference_beam_fraction_set`, `physics_force_orientation_between_to_reference_entity_set`.
+- `physics_force_orientation_between_to_reference_set`, `physics_force_orientation_between_to_set`, `physics_force_orientation_offset_radians_set`.
+- `physics_force_orientation_offset_set`, `physics_force_orientation_reference_entity_set`, `physics_force_orientation_reference_set`.
+- `physics_force_set`, `physics_force_x_set`, `physics_force_y_set`.
+- `physics_torque_set`.
 
 - `physics_velocity_x_set`, `physics_velocity_y_set`.
 - `physics_acceleration_x_set`, `physics_acceleration_y_set`.
@@ -1172,6 +1187,44 @@ Source: [physics.h](../include/physics.h).
 - `physics_velocity_set`.
 
 **EQ — Query, validation, snapshot, or result access**
+
+- `physics_acceleration_get`, `physics_acceleration_x_get`, `physics_acceleration_y_get`.
+- `physics_angle_lock_get`, `physics_angle_lock_max_get`, `physics_angle_lock_max_radians_get`.
+- `physics_angle_lock_min_get`, `physics_angle_lock_min_radians_get`, `physics_angle_lock_radians_get`.
+- `physics_angular_acceleration_get`, `physics_angular_acceleration_radians_get`, `physics_axis_lock_axis_get`.
+- `physics_axis_lock_axis_x_get`, `physics_axis_lock_axis_y_get`, `physics_axis_lock_point_on_axis_get`.
+- `physics_axis_lock_point_on_axis_x_get`, `physics_axis_lock_point_on_axis_y_get`, `physics_center_of_mass_local_position_x_get`.
+- `physics_center_of_mass_local_position_y_get`, `physics_center_of_mass_world_position_x_get`, `physics_center_of_mass_world_position_y_get`.
+- `physics_collision_category_get`, `physics_collision_check`, `physics_collision_response_get`.
+- `physics_dynamic_check`, `physics_entity_held_check`, `physics_force_get`.
+- `physics_force_location_offset_get`, `physics_force_location_offset_x_get`, `physics_force_location_offset_y_get`.
+- `physics_force_location_reference_beam_anchor_get`, `physics_force_location_reference_beam_fraction_get`, `physics_force_location_reference_entity_get`.
+- `physics_force_location_reference_get`, `physics_force_orientation_between_from_get`, `physics_force_orientation_between_from_offset_get`.
+- `physics_force_orientation_between_from_offset_x_get`, `physics_force_orientation_between_from_offset_y_get`, `physics_force_orientation_between_from_reference_beam_anchor_get`.
+- `physics_force_orientation_between_from_reference_beam_fraction_get`, `physics_force_orientation_between_from_reference_entity_get`, `physics_force_orientation_between_from_reference_get`.
+- `physics_force_orientation_between_to_get`, `physics_force_orientation_between_to_offset_get`, `physics_force_orientation_between_to_offset_x_get`.
+- `physics_force_orientation_between_to_offset_y_get`, `physics_force_orientation_between_to_reference_beam_anchor_get`, `physics_force_orientation_between_to_reference_beam_fraction_get`.
+- `physics_force_orientation_between_to_reference_entity_get`, `physics_force_orientation_between_to_reference_get`, `physics_force_orientation_offset_get`.
+- `physics_force_orientation_offset_radians_get`, `physics_force_orientation_reference_entity_get`, `physics_force_orientation_reference_get`.
+- `physics_force_x_get`, `physics_force_y_get`, `physics_friction_get`.
+- `physics_gravity_x_get`, `physics_gravity_y_get`, `physics_joint_anchor_a_get`.
+- `physics_joint_anchor_b_get`, `physics_joint_anchor_local_position_x_get`, `physics_joint_anchor_local_position_y_get`.
+- `physics_joint_anchor_world_position_x_get`, `physics_joint_anchor_world_position_y_get`, `physics_joint_damping_get`.
+- `physics_joint_rest_angle_get`, `physics_joint_rest_angle_radians_get`, `physics_joint_rest_length_get`.
+- `physics_joint_stiffness_get`, `physics_joint_type_get`, `physics_orientation_get`.
+- `physics_orientation_radians_get`, `physics_particle_origin_x_get`, `physics_particle_origin_y_get`.
+- `physics_particle_rigid_vertices_get`, `physics_position_x_get`, `physics_position_y_get`.
+- `physics_restitution_get`, `physics_soft_body_area_count_get`, `physics_soft_body_area_geometry_get`.
+- `physics_soft_body_area_order_get`, `physics_soft_body_beam_collision_check`, `physics_soft_body_beam_collision_thickness_get`.
+- `physics_soft_body_beam_count_get`, `physics_soft_body_beam_damping_get`, `physics_soft_body_beam_node_a_get`.
+- `physics_soft_body_beam_node_b_get`, `physics_soft_body_beam_rest_length_get`, `physics_soft_body_beam_stiffness_get`.
+- `physics_soft_body_node_count_get`, `physics_soft_body_node_local_position_x_get`, `physics_soft_body_node_local_position_y_get`.
+- `physics_soft_body_node_radius_get`, `physics_static_check`, `physics_target_get`.
+- `physics_torque_get`, `physics_transform_lock_driver_get`, `physics_transform_lock_inherit_velocity_check`.
+- `physics_transform_lock_local_angle_get`, `physics_transform_lock_local_angle_radians_get`, `physics_transform_lock_local_offset_get`.
+- `physics_transform_lock_local_offset_x_get`, `physics_transform_lock_local_offset_y_get`, `physics_transform_lock_lock_orientation_check`.
+- `physics_transform_lock_lock_position_check`, `physics_velocity_get`, `physics_velocity_x_get`.
+- `physics_velocity_y_get`.
 
 - `physics_angular_velocity_get`, `physics_angular_velocity_maximum_get`, `physics_angular_velocity_maximum_radians_get`.
 - `physics_angular_velocity_radians_get`, `physics_center_of_mass_automatic_check`, `physics_center_of_mass_local_position_get`.
@@ -1246,7 +1299,7 @@ Source: [report.h](../include/report.h).
 </details>
 
 <details>
-<summary>rohr.h: 811 entries</summary>
+<summary>rohr.h: 951 entries</summary>
 
 Source: [rohr.h](../include/rohr.h).
 
@@ -1312,6 +1365,18 @@ Source: [rohr.h](../include/rohr.h).
 
 **EV — Focused/basic-value mutation or lookup**
 
+- `rohr_physics_force_location_offset_set`, `rohr_physics_force_location_offset_x_set`, `rohr_physics_force_location_offset_y_set`.
+- `rohr_physics_force_location_reference_beam_anchor_set`, `rohr_physics_force_location_reference_beam_fraction_set`, `rohr_physics_force_location_reference_entity_set`.
+- `rohr_physics_force_location_reference_set`, `rohr_physics_force_orientation_between_from_offset_set`, `rohr_physics_force_orientation_between_from_offset_x_set`.
+- `rohr_physics_force_orientation_between_from_offset_y_set`, `rohr_physics_force_orientation_between_from_reference_beam_anchor_set`, `rohr_physics_force_orientation_between_from_reference_beam_fraction_set`.
+- `rohr_physics_force_orientation_between_from_reference_entity_set`, `rohr_physics_force_orientation_between_from_reference_set`, `rohr_physics_force_orientation_between_from_set`.
+- `rohr_physics_force_orientation_between_to_offset_set`, `rohr_physics_force_orientation_between_to_offset_x_set`, `rohr_physics_force_orientation_between_to_offset_y_set`.
+- `rohr_physics_force_orientation_between_to_reference_beam_anchor_set`, `rohr_physics_force_orientation_between_to_reference_beam_fraction_set`, `rohr_physics_force_orientation_between_to_reference_entity_set`.
+- `rohr_physics_force_orientation_between_to_reference_set`, `rohr_physics_force_orientation_between_to_set`, `rohr_physics_force_orientation_offset_radians_set`.
+- `rohr_physics_force_orientation_offset_set`, `rohr_physics_force_orientation_reference_entity_set`, `rohr_physics_force_orientation_reference_set`.
+- `rohr_physics_force_set`, `rohr_physics_force_x_set`, `rohr_physics_force_y_set`.
+- `rohr_physics_torque_set`.
+
 - `rohr_physics_velocity_x_set`, `rohr_physics_velocity_y_set`.
 - `rohr_physics_acceleration_x_set`, `rohr_physics_acceleration_y_set`.
 - `rohr_physics_gravity_x_set`, `rohr_physics_gravity_y_set`.
@@ -1369,6 +1434,44 @@ Source: [rohr.h](../include/rohr.h).
 - `rohr_viewport_disable_set`, `rohr_viewport_enable_set`, `rohr_viewport_item_drag_mode_set`.
 
 **EQ — Query, validation, snapshot, or result access**
+
+- `rohr_physics_acceleration_get`, `rohr_physics_acceleration_x_get`, `rohr_physics_acceleration_y_get`.
+- `rohr_physics_angle_lock_get`, `rohr_physics_angle_lock_max_get`, `rohr_physics_angle_lock_max_radians_get`.
+- `rohr_physics_angle_lock_min_get`, `rohr_physics_angle_lock_min_radians_get`, `rohr_physics_angle_lock_radians_get`.
+- `rohr_physics_angular_acceleration_get`, `rohr_physics_angular_acceleration_radians_get`, `rohr_physics_axis_lock_axis_get`.
+- `rohr_physics_axis_lock_axis_x_get`, `rohr_physics_axis_lock_axis_y_get`, `rohr_physics_axis_lock_point_on_axis_get`.
+- `rohr_physics_axis_lock_point_on_axis_x_get`, `rohr_physics_axis_lock_point_on_axis_y_get`, `rohr_physics_center_of_mass_local_position_x_get`.
+- `rohr_physics_center_of_mass_local_position_y_get`, `rohr_physics_center_of_mass_world_position_x_get`, `rohr_physics_center_of_mass_world_position_y_get`.
+- `rohr_physics_collision_category_get`, `rohr_physics_collision_check`, `rohr_physics_collision_response_get`.
+- `rohr_physics_dynamic_check`, `rohr_physics_entity_held_check`, `rohr_physics_force_get`.
+- `rohr_physics_force_location_offset_get`, `rohr_physics_force_location_offset_x_get`, `rohr_physics_force_location_offset_y_get`.
+- `rohr_physics_force_location_reference_beam_anchor_get`, `rohr_physics_force_location_reference_beam_fraction_get`, `rohr_physics_force_location_reference_entity_get`.
+- `rohr_physics_force_location_reference_get`, `rohr_physics_force_orientation_between_from_get`, `rohr_physics_force_orientation_between_from_offset_get`.
+- `rohr_physics_force_orientation_between_from_offset_x_get`, `rohr_physics_force_orientation_between_from_offset_y_get`, `rohr_physics_force_orientation_between_from_reference_beam_anchor_get`.
+- `rohr_physics_force_orientation_between_from_reference_beam_fraction_get`, `rohr_physics_force_orientation_between_from_reference_entity_get`, `rohr_physics_force_orientation_between_from_reference_get`.
+- `rohr_physics_force_orientation_between_to_get`, `rohr_physics_force_orientation_between_to_offset_get`, `rohr_physics_force_orientation_between_to_offset_x_get`.
+- `rohr_physics_force_orientation_between_to_offset_y_get`, `rohr_physics_force_orientation_between_to_reference_beam_anchor_get`, `rohr_physics_force_orientation_between_to_reference_beam_fraction_get`.
+- `rohr_physics_force_orientation_between_to_reference_entity_get`, `rohr_physics_force_orientation_between_to_reference_get`, `rohr_physics_force_orientation_offset_get`.
+- `rohr_physics_force_orientation_offset_radians_get`, `rohr_physics_force_orientation_reference_entity_get`, `rohr_physics_force_orientation_reference_get`.
+- `rohr_physics_force_x_get`, `rohr_physics_force_y_get`, `rohr_physics_friction_get`.
+- `rohr_physics_gravity_x_get`, `rohr_physics_gravity_y_get`, `rohr_physics_joint_anchor_a_get`.
+- `rohr_physics_joint_anchor_b_get`, `rohr_physics_joint_anchor_local_position_x_get`, `rohr_physics_joint_anchor_local_position_y_get`.
+- `rohr_physics_joint_anchor_world_position_x_get`, `rohr_physics_joint_anchor_world_position_y_get`, `rohr_physics_joint_damping_get`.
+- `rohr_physics_joint_rest_angle_get`, `rohr_physics_joint_rest_angle_radians_get`, `rohr_physics_joint_rest_length_get`.
+- `rohr_physics_joint_stiffness_get`, `rohr_physics_joint_type_get`, `rohr_physics_orientation_get`.
+- `rohr_physics_orientation_radians_get`, `rohr_physics_particle_origin_x_get`, `rohr_physics_particle_origin_y_get`.
+- `rohr_physics_particle_rigid_vertices_get`, `rohr_physics_position_x_get`, `rohr_physics_position_y_get`.
+- `rohr_physics_restitution_get`, `rohr_physics_soft_body_area_count_get`, `rohr_physics_soft_body_area_geometry_get`.
+- `rohr_physics_soft_body_area_order_get`, `rohr_physics_soft_body_beam_collision_check`, `rohr_physics_soft_body_beam_collision_thickness_get`.
+- `rohr_physics_soft_body_beam_count_get`, `rohr_physics_soft_body_beam_damping_get`, `rohr_physics_soft_body_beam_node_a_get`.
+- `rohr_physics_soft_body_beam_node_b_get`, `rohr_physics_soft_body_beam_rest_length_get`, `rohr_physics_soft_body_beam_stiffness_get`.
+- `rohr_physics_soft_body_node_count_get`, `rohr_physics_soft_body_node_local_position_x_get`, `rohr_physics_soft_body_node_local_position_y_get`.
+- `rohr_physics_soft_body_node_radius_get`, `rohr_physics_static_check`, `rohr_physics_target_get`.
+- `rohr_physics_torque_get`, `rohr_physics_transform_lock_driver_get`, `rohr_physics_transform_lock_inherit_velocity_check`.
+- `rohr_physics_transform_lock_local_angle_get`, `rohr_physics_transform_lock_local_angle_radians_get`, `rohr_physics_transform_lock_local_offset_get`.
+- `rohr_physics_transform_lock_local_offset_x_get`, `rohr_physics_transform_lock_local_offset_y_get`, `rohr_physics_transform_lock_lock_orientation_check`.
+- `rohr_physics_transform_lock_lock_position_check`, `rohr_physics_velocity_get`, `rohr_physics_velocity_x_get`.
+- `rohr_physics_velocity_y_get`.
 
 - `rohr_audio_music_by_name_get`, `rohr_audio_music_name_get`, `rohr_audio_sound_by_name_get`, `rohr_audio_sound_name_get`, `rohr_input_controller_name_get`, `rohr_viewport_by_name_get`, `rohr_viewport_name_get`.
 

@@ -246,6 +246,9 @@ typedef enum EngineError {
 /** Result type for fallible APIs that return only success or failure. */
 ERROR_DECLARE_RESULT_TYPE(EngineResult, bool);
 
+/** Shared result type for a scalar floating-point value. */
+ERROR_DECLARE_RESULT_TYPE(ScalarResult, float);
+
 /**
  * Create a successful EngineResult.
  *

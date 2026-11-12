@@ -70,6 +70,22 @@ else()
     target_compile_options(rohr_physics_axis_setters PRIVATE -Wall -Wextra -Wpedantic -UNDEBUG)
 endif()
 
+add_executable(rohr_physics_getters ../physics_getters.c)
+target_link_libraries(rohr_physics_getters PRIVATE Rohr::Engine)
+if(MSVC)
+    target_compile_options(rohr_physics_getters PRIVATE /UNDEBUG)
+else()
+    target_compile_options(rohr_physics_getters PRIVATE -Wall -Wextra -Wpedantic -UNDEBUG)
+endif()
+
+add_executable(rohr_physics_force_setters ../physics_force_setters.c)
+target_link_libraries(rohr_physics_force_setters PRIVATE Rohr::Engine)
+if(MSVC)
+    target_compile_options(rohr_physics_force_setters PRIVATE /UNDEBUG)
+else()
+    target_compile_options(rohr_physics_force_setters PRIVATE -Wall -Wextra -Wpedantic -UNDEBUG)
+endif()
+
 add_executable(rohr_forces ../forces.c)
 target_link_libraries(rohr_forces PRIVATE Rohr::Engine)
 if(MSVC)
@@ -179,7 +195,7 @@ if(BUILD_TESTING AND NOT CMAKE_CROSSCOMPILING)
     foreach(consumer
             rohr_installed_sdk_consumer rohr_object_descriptions rohr_creation_dispatch
             rohr_system_reports rohr_entity_info rohr_entity_info_adversarial
-            rohr_forces rohr_physics_axis_setters rohr_runtime_persistence rohr_runtime_names rohr_asset_descriptions
+            rohr_forces rohr_physics_getters rohr_physics_axis_setters rohr_physics_force_setters rohr_runtime_persistence rohr_runtime_names rohr_asset_descriptions
             rohr_audio_descriptions rohr_input_descriptions rohr_controller_creation
             rohr_camera_descriptions rohr_viewport_descriptions rohr_automatic_viewports
             rohr_generated_workflow rohr_project_creation)

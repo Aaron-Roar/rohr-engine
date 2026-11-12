@@ -244,6 +244,7 @@ set(ROHR_ENGINE_SOURCES
     src/physics/body/body_state.c
     src/physics/body/mass_properties.c
     src/physics/body/force_state.c
+    src/physics/body/force_fields.c
     src/physics/body/motion_state.c
     src/physics/auto_shape.c
     src/physics/collision/contact_constraint.c
@@ -272,6 +273,7 @@ set(ROHR_ENGINE_SOURCES
     src/physics/particles/particle_solver.c
     src/physics/physics.c
     src/physics/physics_entity.c
+    src/physics/physics_getters.c
     src/physics/physics_step.c
     src/physics/physics_operation.c
     src/physics/pipeline/physics_pipeline.c
@@ -672,6 +674,50 @@ if(ROHR_BUILD_TESTS)
     endif()
     add_test(NAME physics_axis_setters COMMAND physics_axis_setters_test)
     set_tests_properties(physics_axis_setters PROPERTIES
+        ENVIRONMENT "SDL_VIDEODRIVER=dummy;SDL_AUDIODRIVER=dummy")
+
+    add_executable(physics_getters_test tests/physics_getters.c)
+    target_link_libraries(physics_getters_test PRIVATE rohr_engine)
+    set_target_properties(physics_getters_test PROPERTIES
+        RUNTIME_OUTPUT_DIRECTORY ${ROHR_BUILD_OUTPUT_DIRECTORY}/tests)
+    if(MSVC)
+        target_compile_options(physics_getters_test PRIVATE /UNDEBUG)
+    else()
+        target_compile_options(physics_getters_test PRIVATE -Wall -Wextra -Wpedantic -UNDEBUG)
+    endif()
+    if(CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_C_COMPILER_ID MATCHES "GNU|Clang")
+        target_compile_definitions(physics_getters_test PRIVATE ROHR_TEST_ALLOCATION_WRAP)
+        target_link_options(physics_getters_test PRIVATE
+            -Wl,--wrap=malloc -Wl,--wrap=calloc -Wl,--wrap=realloc)
+    endif()
+    if(ROHR_ENABLE_SANITIZERS)
+        target_compile_options(physics_getters_test PRIVATE ${ROHR_SANITIZER_COMPILE_OPTIONS})
+        target_link_options(physics_getters_test PRIVATE ${ROHR_SANITIZER_LINK_OPTIONS})
+    endif()
+    add_test(NAME physics_getters COMMAND physics_getters_test)
+    set_tests_properties(physics_getters PROPERTIES
+        ENVIRONMENT "SDL_VIDEODRIVER=dummy;SDL_AUDIODRIVER=dummy")
+
+    add_executable(physics_force_setters_test tests/physics_force_setters.c)
+    target_link_libraries(physics_force_setters_test PRIVATE rohr_engine)
+    set_target_properties(physics_force_setters_test PROPERTIES
+        RUNTIME_OUTPUT_DIRECTORY ${ROHR_BUILD_OUTPUT_DIRECTORY}/tests)
+    if(MSVC)
+        target_compile_options(physics_force_setters_test PRIVATE /UNDEBUG)
+    else()
+        target_compile_options(physics_force_setters_test PRIVATE -Wall -Wextra -Wpedantic -UNDEBUG)
+    endif()
+    if(CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_C_COMPILER_ID MATCHES "GNU|Clang")
+        target_compile_definitions(physics_force_setters_test PRIVATE ROHR_TEST_ALLOCATION_WRAP)
+        target_link_options(physics_force_setters_test PRIVATE
+            -Wl,--wrap=malloc -Wl,--wrap=calloc -Wl,--wrap=realloc)
+    endif()
+    if(ROHR_ENABLE_SANITIZERS)
+        target_compile_options(physics_force_setters_test PRIVATE ${ROHR_SANITIZER_COMPILE_OPTIONS})
+        target_link_options(physics_force_setters_test PRIVATE ${ROHR_SANITIZER_LINK_OPTIONS})
+    endif()
+    add_test(NAME physics_force_setters COMMAND physics_force_setters_test)
+    set_tests_properties(physics_force_setters PROPERTIES
         ENVIRONMENT "SDL_VIDEODRIVER=dummy;SDL_AUDIODRIVER=dummy")
 
     add_executable(physics_reports_test tests/physics_reports.c)
@@ -1696,6 +1742,8 @@ if(ROHR_BUILD_TESTS)
         graphics_reports_test
         physics_reports_test
         physics_axis_setters_test
+        physics_getters_test
+        physics_force_setters_test
         physics_recovery_test
         audio_reports_test
         audio_test

@@ -609,5 +609,9 @@ The description stores angle and signed magnitude. For a vector `v`, use
 `hypotf(v.x, v.y)` for magnitude and
 `rohr_math_radians_to_degrees(atan2f(v.x, v.y))` for the world orientation offset.
 Choose offset zero when both vector components are zero. These standard math
-operations require `<math.h>`; there is no separate vector overload. Select the
+operations require `<math.h>` when constructing a description. Select the
 location explicitly, including a COM reference when that is the intended point.
+
+For existing sources, [physics field access](physics_field_access.md) adds
+`rohr_physics_force_set/get`, X/Y access and focused reference/offset access.
+These preserve the existing source model and signed magnitude semantics.

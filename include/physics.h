@@ -329,6 +329,9 @@ ERROR_DECLARE_RESULT_TYPE(TorqueDescriptionResult, TorqueDescription);
 ERROR_DECLARE_RESULT_TYPE(ForceLocationResult, ForceLocation);
 ERROR_DECLARE_RESULT_TYPE(ForceOrientationResult, ForceOrientation);
 ERROR_DECLARE_RESULT_TYPE(ForceMagnitudeResult, float);
+ERROR_DECLARE_RESULT_TYPE(ForcePositionReferenceResult, ForcePositionReference);
+ERROR_DECLARE_RESULT_TYPE(ForceOrientationReferenceResult, ForceOrientationReference);
+ERROR_DECLARE_RESULT_TYPE(ForceBeamAnchorResult, ForceBeamAnchor);
 
 
 /** Default polygon vertex count used to approximate a particle circle. */
@@ -949,6 +952,162 @@ TorqueDescriptionResult physics_torque_description_get(Entity source);
 EngineResult physics_force_description_set(Entity source, ForceDescription description);
 EngineResult physics_torque_description_set(Entity source, TorqueDescription description);
 
+/** Return force components in the configured orientation reference, without resolving geometry. Allocates nothing. */
+ForceResult physics_force_get(Entity source);
+/** Return one force component in the configured orientation reference. Allocates nothing. */
+ScalarResult physics_force_x_get(Entity source);
+/** Return one force component in the configured orientation reference. Allocates nothing. */
+ScalarResult physics_force_y_get(Entity source);
+/** Return the stored field by value; requires the same reference mode as its setter. Allocates nothing. */
+PositionResult physics_force_location_offset_get(Entity source);
+/** Return the stored field by value; requires the same reference mode as its setter. Allocates nothing. */
+ScalarResult physics_force_location_offset_x_get(Entity source);
+/** Return the stored field by value; requires the same reference mode as its setter. Allocates nothing. */
+ScalarResult physics_force_location_offset_y_get(Entity source);
+/** Return the stored field by value; requires the same reference mode as its setter. Allocates nothing. */
+ForcePositionReferenceResult physics_force_location_reference_get(Entity source);
+/** Return the stored field by value; requires the same reference mode as its setter. Allocates nothing. */
+EntityResult physics_force_location_reference_entity_get(Entity source);
+/** Return the stored field by value; requires the same reference mode as its setter. Allocates nothing. */
+ForceBeamAnchorResult physics_force_location_reference_beam_anchor_get(Entity source);
+/** Return the stored field by value; requires the same reference mode as its setter. Allocates nothing. */
+ScalarResult physics_force_location_reference_beam_fraction_get(Entity source);
+/** Return the stored field by value; requires the same reference mode as its setter. Allocates nothing. */
+ForceLocationResult physics_force_orientation_between_from_get(Entity source);
+/** Return the stored field by value; requires the same reference mode as its setter. Allocates nothing. */
+PositionResult physics_force_orientation_between_from_offset_get(Entity source);
+/** Return the stored field by value; requires the same reference mode as its setter. Allocates nothing. */
+ScalarResult physics_force_orientation_between_from_offset_x_get(Entity source);
+/** Return the stored field by value; requires the same reference mode as its setter. Allocates nothing. */
+ScalarResult physics_force_orientation_between_from_offset_y_get(Entity source);
+/** Return the stored field by value; requires the same reference mode as its setter. Allocates nothing. */
+ForcePositionReferenceResult physics_force_orientation_between_from_reference_get(Entity source);
+/** Return the stored field by value; requires the same reference mode as its setter. Allocates nothing. */
+EntityResult physics_force_orientation_between_from_reference_entity_get(Entity source);
+/** Return the stored field by value; requires the same reference mode as its setter. Allocates nothing. */
+ForceBeamAnchorResult physics_force_orientation_between_from_reference_beam_anchor_get(Entity source);
+/** Return the stored field by value; requires the same reference mode as its setter. Allocates nothing. */
+ScalarResult physics_force_orientation_between_from_reference_beam_fraction_get(Entity source);
+/** Return the stored field by value; requires the same reference mode as its setter. Allocates nothing. */
+ForceLocationResult physics_force_orientation_between_to_get(Entity source);
+/** Return the stored field by value; requires the same reference mode as its setter. Allocates nothing. */
+PositionResult physics_force_orientation_between_to_offset_get(Entity source);
+/** Return the stored field by value; requires the same reference mode as its setter. Allocates nothing. */
+ScalarResult physics_force_orientation_between_to_offset_x_get(Entity source);
+/** Return the stored field by value; requires the same reference mode as its setter. Allocates nothing. */
+ScalarResult physics_force_orientation_between_to_offset_y_get(Entity source);
+/** Return the stored field by value; requires the same reference mode as its setter. Allocates nothing. */
+ForcePositionReferenceResult physics_force_orientation_between_to_reference_get(Entity source);
+/** Return the stored field by value; requires the same reference mode as its setter. Allocates nothing. */
+EntityResult physics_force_orientation_between_to_reference_entity_get(Entity source);
+/** Return the stored field by value; requires the same reference mode as its setter. Allocates nothing. */
+ForceBeamAnchorResult physics_force_orientation_between_to_reference_beam_anchor_get(Entity source);
+/** Return the stored field by value; requires the same reference mode as its setter. Allocates nothing. */
+ScalarResult physics_force_orientation_between_to_reference_beam_fraction_get(Entity source);
+/** Return the stored field by value; requires the same reference mode as its setter. Allocates nothing. */
+ScalarResult physics_force_orientation_offset_get(Entity source);
+/** Return the stored field by value; requires the same reference mode as its setter. Allocates nothing. */
+ForceOrientationReferenceResult physics_force_orientation_reference_get(Entity source);
+/** Return the stored field by value; requires the same reference mode as its setter. Allocates nothing. */
+EntityResult physics_force_orientation_reference_entity_get(Entity source);
+/** Return the stored field by value; requires the same reference mode as its setter. Allocates nothing. */
+ScalarResult physics_force_orientation_offset_radians_get(Entity source);
+/** Return signed scalar torque; equivalent to torque_magnitude_get. Allocates nothing. */
+ScalarResult physics_torque_get(Entity source);
+/** Set scalar torque, preserving the target, owner and lifetime. */
+EngineResult physics_torque_set(Entity source, Torque value);
+
+/** Set force components in the configured orientation reference; preserve references and magnitude sign.
+ * Requires an existing force source; errors preserve state. */
+EngineResult physics_force_set(Entity source, Force value);
+/** Set reference-frame force X, preserving Y within polar-conversion precision and all references.
+ * Requires an existing force source; errors preserve state. */
+EngineResult physics_force_x_set(Entity source, float value);
+/** Set reference-frame force Y, preserving X within polar-conversion precision and all references.
+ * Requires an existing force source; errors preserve state. */
+EngineResult physics_force_y_set(Entity source, float value);
+/** Set the location offset in its configured reference, preserving that reference.
+ * Requires an existing force source; errors preserve state. */
+EngineResult physics_force_location_offset_set(Entity source, Vec2D value);
+/** Set one location-offset coordinate, preserving the other and its reference.
+ * Requires an existing force source; errors preserve state. */
+EngineResult physics_force_location_offset_x_set(Entity source, float value);
+/** Set one location-offset coordinate, preserving the other and its reference.
+ * Requires an existing force source; errors preserve state. */
+EngineResult physics_force_location_offset_y_set(Entity source, float value);
+/** Replace the tagged position reference, preserving the location offset.
+ * Requires an existing force source; errors preserve state. */
+EngineResult physics_force_location_reference_set(Entity source, ForcePositionReference value);
+/** Change the referenced entity in the current COM, origin or beam mode.
+ * Requires an existing force source; errors preserve state. */
+EngineResult physics_force_location_reference_entity_set(Entity source, Entity value);
+/** Set the anchor in beam-position mode, preserving fraction and offset.
+ * Requires an existing force source; errors preserve state. */
+EngineResult physics_force_location_reference_beam_anchor_set(Entity source, ForceBeamAnchor value);
+/** Set the fraction in beam-position mode, preserving anchor and offset.
+ * Requires an existing force source; errors preserve state. */
+EngineResult physics_force_location_reference_beam_fraction_set(Entity source, float value);
+/** Set one aiming location; requires a between-locations orientation reference.
+ * Requires an existing force source; errors preserve state. */
+EngineResult physics_force_orientation_between_from_set(Entity source, ForceLocation value);
+/** Set the location offset in its configured reference, preserving that reference.
+ * Requires an existing force source; errors preserve state. */
+EngineResult physics_force_orientation_between_from_offset_set(Entity source, Vec2D value);
+/** Set one location-offset coordinate, preserving the other and its reference.
+ * Requires an existing force source; errors preserve state. */
+EngineResult physics_force_orientation_between_from_offset_x_set(Entity source, float value);
+/** Set one location-offset coordinate, preserving the other and its reference.
+ * Requires an existing force source; errors preserve state. */
+EngineResult physics_force_orientation_between_from_offset_y_set(Entity source, float value);
+/** Replace the tagged position reference, preserving the location offset.
+ * Requires an existing force source; errors preserve state. */
+EngineResult physics_force_orientation_between_from_reference_set(Entity source, ForcePositionReference value);
+/** Change the referenced entity in the current COM, origin or beam mode.
+ * Requires an existing force source; errors preserve state. */
+EngineResult physics_force_orientation_between_from_reference_entity_set(Entity source, Entity value);
+/** Set the anchor in beam-position mode, preserving fraction and offset.
+ * Requires an existing force source; errors preserve state. */
+EngineResult physics_force_orientation_between_from_reference_beam_anchor_set(Entity source, ForceBeamAnchor value);
+/** Set the fraction in beam-position mode, preserving anchor and offset.
+ * Requires an existing force source; errors preserve state. */
+EngineResult physics_force_orientation_between_from_reference_beam_fraction_set(Entity source, float value);
+/** Set one aiming location; requires a between-locations orientation reference.
+ * Requires an existing force source; errors preserve state. */
+EngineResult physics_force_orientation_between_to_set(Entity source, ForceLocation value);
+/** Set the location offset in its configured reference, preserving that reference.
+ * Requires an existing force source; errors preserve state. */
+EngineResult physics_force_orientation_between_to_offset_set(Entity source, Vec2D value);
+/** Set one location-offset coordinate, preserving the other and its reference.
+ * Requires an existing force source; errors preserve state. */
+EngineResult physics_force_orientation_between_to_offset_x_set(Entity source, float value);
+/** Set one location-offset coordinate, preserving the other and its reference.
+ * Requires an existing force source; errors preserve state. */
+EngineResult physics_force_orientation_between_to_offset_y_set(Entity source, float value);
+/** Replace the tagged position reference, preserving the location offset.
+ * Requires an existing force source; errors preserve state. */
+EngineResult physics_force_orientation_between_to_reference_set(Entity source, ForcePositionReference value);
+/** Change the referenced entity in the current COM, origin or beam mode.
+ * Requires an existing force source; errors preserve state. */
+EngineResult physics_force_orientation_between_to_reference_entity_set(Entity source, Entity value);
+/** Set the anchor in beam-position mode, preserving fraction and offset.
+ * Requires an existing force source; errors preserve state. */
+EngineResult physics_force_orientation_between_to_reference_beam_anchor_set(Entity source, ForceBeamAnchor value);
+/** Set the fraction in beam-position mode, preserving anchor and offset.
+ * Requires an existing force source; errors preserve state. */
+EngineResult physics_force_orientation_between_to_reference_beam_fraction_set(Entity source, float value);
+/** Set clockwise degrees relative to the orientation reference; preserve magnitude and reference.
+ * Requires an existing force source; errors preserve state. */
+EngineResult physics_force_orientation_offset_set(Entity source, Orientation value);
+/** Replace the tagged orientation reference, preserving angle offset and magnitude.
+ * Requires an existing force source; errors preserve state. */
+EngineResult physics_force_orientation_reference_set(Entity source, ForceOrientationReference value);
+/** Change the referenced entity in the current body- or beam-orientation mode.
+ * Requires an existing force source; errors preserve state. */
+EngineResult physics_force_orientation_reference_entity_set(Entity source, Entity value);
+/** Set the orientation offset in radians, preserving its reference and magnitude.
+ * Requires an existing force source; errors preserve state. */
+EngineResult physics_force_orientation_offset_radians_set(Entity source, Orientation value);
+
 EngineResult physics_force_target_set(Entity source, Entity target);
 EntityResult physics_force_target_get(Entity source);
 EngineResult physics_force_location_set(Entity source, ForceLocation location);
@@ -1282,4 +1441,171 @@ void physics_engine_time_per_tick_use(void);
 Report physics_update(Tick ticks);
 /** Advance physics once using an explicit exceptional delta. */
 Report physics_dt_update(Time dt);
+
+/* Focused runtime inspection. All values are copied; no snapshot ownership. */
+ERROR_DECLARE_RESULT_TYPE(VelocityResult, Velocity);
+ERROR_DECLARE_RESULT_TYPE(AccelerationResult, Acceleration);
+ERROR_DECLARE_RESULT_TYPE(AngleLockResult, AngleLock);
+ERROR_DECLARE_RESULT_TYPE(AxisResult, Axis);
+ERROR_DECLARE_RESULT_TYPE(CollisionCategoryResult, RohrCollisionCategoryMask);
+ERROR_DECLARE_RESULT_TYPE(JointTypeResult, JointType);
+ERROR_DECLARE_RESULT_TYPE(PhysicsCountResult, uint32_t);
+ERROR_DECLARE_RESULT_TYPE(SoftBodyAreaGeometryResult, SoftBodyAreaGeometry);
+
+/** Return current physics state by value without allocation; invalid IDs or missing storage return errors. */
+VelocityResult physics_velocity_get(Entity entity);
+/** Return current physics state by value without allocation; invalid IDs or missing storage return errors. */
+AccelerationResult physics_acceleration_get(Entity entity);
+/** Return current physics state by value without allocation; invalid IDs or missing storage return errors. */
+ScalarResult physics_orientation_get(Entity entity);
+/** Return current physics state by value without allocation; invalid IDs or missing storage return errors. */
+ScalarResult physics_angular_acceleration_get(Entity entity);
+/** Return current physics state by value without allocation; invalid IDs or missing storage return errors. */
+ScalarResult physics_friction_get(Entity entity);
+/** Return current physics state by value without allocation; invalid IDs or missing storage return errors. */
+ScalarResult physics_restitution_get(Entity entity);
+/** Return current physics state by value without allocation; invalid IDs or missing storage return errors. */
+AngleLockResult physics_angle_lock_get(Entity entity);
+/** Return current physics state by value without allocation; invalid IDs or missing storage return errors. */
+EntityResult physics_target_get(Entity entity);
+/** Return current physics state by value without allocation; invalid IDs or missing storage return errors. */
+ScalarResult physics_orientation_radians_get(Entity entity);
+/** Return current physics state by value without allocation; invalid IDs or missing storage return errors. */
+ScalarResult physics_angular_acceleration_radians_get(Entity entity);
+/** Return current physics state by value without allocation; invalid IDs or missing storage return errors. */
+ScalarResult physics_velocity_x_get(Entity entity);
+/** Return current physics state by value without allocation; invalid IDs or missing storage return errors. */
+ScalarResult physics_velocity_y_get(Entity entity);
+/** Return current physics state by value without allocation; invalid IDs or missing storage return errors. */
+ScalarResult physics_acceleration_x_get(Entity entity);
+/** Return current physics state by value without allocation; invalid IDs or missing storage return errors. */
+ScalarResult physics_acceleration_y_get(Entity entity);
+/** Return current physics state by value without allocation; invalid IDs or missing storage return errors. */
+ScalarResult physics_position_x_get(Entity entity);
+/** Return current physics state by value without allocation; invalid IDs or missing storage return errors. */
+ScalarResult physics_position_y_get(Entity entity);
+/** Return current physics state by value without allocation; invalid IDs or missing storage return errors. */
+ScalarResult physics_center_of_mass_local_position_x_get(Entity entity);
+/** Return current physics state by value without allocation; invalid IDs or missing storage return errors. */
+ScalarResult physics_center_of_mass_local_position_y_get(Entity entity);
+/** Return current physics state by value without allocation; invalid IDs or missing storage return errors. */
+ScalarResult physics_center_of_mass_world_position_x_get(Entity entity);
+/** Return current physics state by value without allocation; invalid IDs or missing storage return errors. */
+ScalarResult physics_center_of_mass_world_position_y_get(Entity entity);
+/** Return current physics state by value without allocation; invalid IDs or missing storage return errors. */
+ScalarResult physics_particle_origin_x_get(Entity entity);
+/** Return current physics state by value without allocation; invalid IDs or missing storage return errors. */
+ScalarResult physics_particle_origin_y_get(Entity entity);
+/** Return current physics state by value without allocation; invalid IDs or missing storage return errors. */
+ScalarResult physics_joint_anchor_local_position_x_get(JointAnchorId anchor);
+/** Return current physics state by value without allocation; invalid IDs or missing storage return errors. */
+ScalarResult physics_joint_anchor_local_position_y_get(JointAnchorId anchor);
+/** Return current physics state by value without allocation; invalid IDs or missing storage return errors. */
+ScalarResult physics_joint_anchor_world_position_x_get(JointAnchorId anchor);
+/** Return current physics state by value without allocation; invalid IDs or missing storage return errors. */
+ScalarResult physics_joint_anchor_world_position_y_get(JointAnchorId anchor);
+/** Return current physics state by value without allocation; invalid IDs or missing storage return errors. */
+ScalarResult physics_soft_body_node_local_position_x_get(Entity entity);
+/** Return current physics state by value without allocation; invalid IDs or missing storage return errors. */
+ScalarResult physics_soft_body_node_local_position_y_get(Entity entity);
+/** Return one coordinate of global gravity; no entity lookup can fail. */
+float physics_gravity_x_get(void);
+/** Return one coordinate of global gravity; no entity lookup can fail. */
+float physics_gravity_y_get(void);
+/** Return current physics state by value without allocation; invalid IDs or missing storage return errors. */
+CollisionCategoryResult physics_collision_category_get(Entity entity);
+/** Return current physics state by value without allocation; invalid IDs or missing storage return errors. */
+CollisionCategoryResult physics_collision_response_get(Entity entity);
+/** Return whether the live entity carries this mode; invalid or stale IDs return false. */
+bool physics_dynamic_check(Entity entity);
+/** Return whether the live entity carries this mode; invalid or stale IDs return false. */
+bool physics_static_check(Entity entity);
+/** Return whether the live entity carries this mode; invalid or stale IDs return false. */
+bool physics_entity_held_check(Entity entity);
+/** Return whether the live entity carries this mode; invalid or stale IDs return false. */
+bool physics_collision_check(Entity entity);
+/** Return current physics state by value without allocation; invalid IDs or missing storage return errors. */
+AxisResult physics_axis_lock_axis_get(Entity entity);
+/** Return current physics state by value without allocation; invalid IDs or missing storage return errors. */
+ScalarResult physics_axis_lock_axis_x_get(Entity entity);
+/** Return current physics state by value without allocation; invalid IDs or missing storage return errors. */
+ScalarResult physics_axis_lock_axis_y_get(Entity entity);
+/** Return current physics state by value without allocation; invalid IDs or missing storage return errors. */
+PositionResult physics_axis_lock_point_on_axis_get(Entity entity);
+/** Return current physics state by value without allocation; invalid IDs or missing storage return errors. */
+ScalarResult physics_axis_lock_point_on_axis_x_get(Entity entity);
+/** Return current physics state by value without allocation; invalid IDs or missing storage return errors. */
+ScalarResult physics_axis_lock_point_on_axis_y_get(Entity entity);
+/** Return current physics state by value without allocation; invalid IDs or missing storage return errors. */
+EntityResult physics_transform_lock_driver_get(Entity entity);
+/** Return current physics state by value without allocation; invalid IDs or missing storage return errors. */
+PositionResult physics_transform_lock_local_offset_get(Entity entity);
+/** Return current physics state by value without allocation; invalid IDs or missing storage return errors. */
+ScalarResult physics_transform_lock_local_offset_x_get(Entity entity);
+/** Return current physics state by value without allocation; invalid IDs or missing storage return errors. */
+ScalarResult physics_transform_lock_local_offset_y_get(Entity entity);
+/** Return current physics state by value without allocation; invalid IDs or missing storage return errors. */
+ScalarResult physics_transform_lock_local_angle_get(Entity entity);
+/** Return current physics state by value without allocation; invalid IDs or missing storage return errors. */
+ScalarResult physics_transform_lock_local_angle_radians_get(Entity entity);
+/** Return current physics state by value without allocation; invalid IDs or missing storage return errors. */
+JointTypeResult physics_joint_type_get(Entity entity);
+/** Return current physics state by value without allocation; invalid IDs or missing storage return errors. */
+JointAnchorIdResult physics_joint_anchor_a_get(Entity entity);
+/** Return current physics state by value without allocation; invalid IDs or missing storage return errors. */
+JointAnchorIdResult physics_joint_anchor_b_get(Entity entity);
+/** Return current physics state by value without allocation; invalid IDs or missing storage return errors. */
+ScalarResult physics_joint_rest_length_get(Entity entity);
+/** Return current physics state by value without allocation; invalid IDs or missing storage return errors. */
+ScalarResult physics_joint_stiffness_get(Entity entity);
+/** Return current physics state by value without allocation; invalid IDs or missing storage return errors. */
+ScalarResult physics_joint_damping_get(Entity entity);
+/** Return current physics state by value without allocation; invalid IDs or missing storage return errors. */
+ScalarResult physics_joint_rest_angle_get(Entity entity);
+/** Return current physics state by value without allocation; invalid IDs or missing storage return errors. */
+ScalarResult physics_joint_rest_angle_radians_get(Entity entity);
+/** Return current physics state by value without allocation; invalid IDs or missing storage return errors. */
+ScalarResult physics_soft_body_node_radius_get(Entity entity);
+/** Return current physics state by value without allocation; invalid IDs or missing storage return errors. */
+EntityResult physics_soft_body_beam_node_a_get(Entity entity);
+/** Return current physics state by value without allocation; invalid IDs or missing storage return errors. */
+EntityResult physics_soft_body_beam_node_b_get(Entity entity);
+/** Return current physics state by value without allocation; invalid IDs or missing storage return errors. */
+ScalarResult physics_soft_body_beam_rest_length_get(Entity entity);
+/** Return current physics state by value without allocation; invalid IDs or missing storage return errors. */
+ScalarResult physics_soft_body_beam_stiffness_get(Entity entity);
+/** Return current physics state by value without allocation; invalid IDs or missing storage return errors. */
+ScalarResult physics_soft_body_beam_damping_get(Entity entity);
+/** Return current physics state by value without allocation; invalid IDs or missing storage return errors. */
+PhysicsCountResult physics_particle_rigid_vertices_get(Entity entity);
+/** Return the configured flag; invalid IDs or missing components return false. */
+bool physics_transform_lock_lock_position_check(Entity entity);
+/** Return the configured flag; invalid IDs or missing components return false. */
+bool physics_transform_lock_lock_orientation_check(Entity entity);
+/** Return the configured flag; invalid IDs or missing components return false. */
+bool physics_transform_lock_inherit_velocity_check(Entity entity);
+/** Return current physics state by value without allocation; invalid IDs or missing storage return errors. */
+ScalarResult physics_angle_lock_min_get(Entity entity);
+/** Return current physics state by value without allocation; invalid IDs or missing storage return errors. */
+ScalarResult physics_angle_lock_min_radians_get(Entity entity);
+/** Return current physics state by value without allocation; invalid IDs or missing storage return errors. */
+ScalarResult physics_angle_lock_max_get(Entity entity);
+/** Return current physics state by value without allocation; invalid IDs or missing storage return errors. */
+ScalarResult physics_angle_lock_max_radians_get(Entity entity);
+/** Return current physics state by value without allocation; invalid IDs or missing storage return errors. */
+AngleLockResult physics_angle_lock_radians_get(Entity entity);
+/** Return current physics state by value without allocation; invalid IDs or missing storage return errors. */
+ScalarResult physics_soft_body_beam_collision_thickness_get(Entity entity);
+/** Return the beam collision flag; invalid IDs or missing components return false. */
+bool physics_soft_body_beam_collision_check(Entity entity);
+/** Return current physics state by value without allocation; invalid IDs or missing storage return errors. */
+SoftBodyAreaGeometryResult physics_soft_body_area_geometry_get(Entity entity);
+/** Return current physics state by value without allocation; invalid IDs or missing storage return errors. */
+PhysicsCountResult physics_soft_body_area_order_get(Entity entity);
+/** Return current physics state by value without allocation; invalid IDs or missing storage return errors. */
+PhysicsCountResult physics_soft_body_node_count_get(Entity entity);
+/** Return current physics state by value without allocation; invalid IDs or missing storage return errors. */
+PhysicsCountResult physics_soft_body_beam_count_get(Entity entity);
+/** Return current physics state by value without allocation; invalid IDs or missing storage return errors. */
+PhysicsCountResult physics_soft_body_area_count_get(Entity entity);
 #endif

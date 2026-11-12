@@ -491,6 +491,68 @@ ForceDescriptionResult rohr_physics_force_description_get(Entity source) { retur
 TorqueDescriptionResult rohr_physics_torque_description_get(Entity source) { return physics_torque_description_get(source); }
 EngineResult rohr_physics_force_description_set(Entity source, ForceDescription description) { return physics_force_description_set(source, description); }
 EngineResult rohr_physics_torque_description_set(Entity source, TorqueDescription description) { return physics_torque_description_set(source, description); }
+ForceResult rohr_physics_force_get(Entity source) { return physics_force_get(source); }
+ScalarResult rohr_physics_force_x_get(Entity source) { return physics_force_x_get(source); }
+ScalarResult rohr_physics_force_y_get(Entity source) { return physics_force_y_get(source); }
+PositionResult rohr_physics_force_location_offset_get(Entity source) { return physics_force_location_offset_get(source); }
+ScalarResult rohr_physics_force_location_offset_x_get(Entity source) { return physics_force_location_offset_x_get(source); }
+ScalarResult rohr_physics_force_location_offset_y_get(Entity source) { return physics_force_location_offset_y_get(source); }
+ForcePositionReferenceResult rohr_physics_force_location_reference_get(Entity source) { return physics_force_location_reference_get(source); }
+EntityResult rohr_physics_force_location_reference_entity_get(Entity source) { return physics_force_location_reference_entity_get(source); }
+ForceBeamAnchorResult rohr_physics_force_location_reference_beam_anchor_get(Entity source) { return physics_force_location_reference_beam_anchor_get(source); }
+ScalarResult rohr_physics_force_location_reference_beam_fraction_get(Entity source) { return physics_force_location_reference_beam_fraction_get(source); }
+ForceLocationResult rohr_physics_force_orientation_between_from_get(Entity source) { return physics_force_orientation_between_from_get(source); }
+PositionResult rohr_physics_force_orientation_between_from_offset_get(Entity source) { return physics_force_orientation_between_from_offset_get(source); }
+ScalarResult rohr_physics_force_orientation_between_from_offset_x_get(Entity source) { return physics_force_orientation_between_from_offset_x_get(source); }
+ScalarResult rohr_physics_force_orientation_between_from_offset_y_get(Entity source) { return physics_force_orientation_between_from_offset_y_get(source); }
+ForcePositionReferenceResult rohr_physics_force_orientation_between_from_reference_get(Entity source) { return physics_force_orientation_between_from_reference_get(source); }
+EntityResult rohr_physics_force_orientation_between_from_reference_entity_get(Entity source) { return physics_force_orientation_between_from_reference_entity_get(source); }
+ForceBeamAnchorResult rohr_physics_force_orientation_between_from_reference_beam_anchor_get(Entity source) { return physics_force_orientation_between_from_reference_beam_anchor_get(source); }
+ScalarResult rohr_physics_force_orientation_between_from_reference_beam_fraction_get(Entity source) { return physics_force_orientation_between_from_reference_beam_fraction_get(source); }
+ForceLocationResult rohr_physics_force_orientation_between_to_get(Entity source) { return physics_force_orientation_between_to_get(source); }
+PositionResult rohr_physics_force_orientation_between_to_offset_get(Entity source) { return physics_force_orientation_between_to_offset_get(source); }
+ScalarResult rohr_physics_force_orientation_between_to_offset_x_get(Entity source) { return physics_force_orientation_between_to_offset_x_get(source); }
+ScalarResult rohr_physics_force_orientation_between_to_offset_y_get(Entity source) { return physics_force_orientation_between_to_offset_y_get(source); }
+ForcePositionReferenceResult rohr_physics_force_orientation_between_to_reference_get(Entity source) { return physics_force_orientation_between_to_reference_get(source); }
+EntityResult rohr_physics_force_orientation_between_to_reference_entity_get(Entity source) { return physics_force_orientation_between_to_reference_entity_get(source); }
+ForceBeamAnchorResult rohr_physics_force_orientation_between_to_reference_beam_anchor_get(Entity source) { return physics_force_orientation_between_to_reference_beam_anchor_get(source); }
+ScalarResult rohr_physics_force_orientation_between_to_reference_beam_fraction_get(Entity source) { return physics_force_orientation_between_to_reference_beam_fraction_get(source); }
+ScalarResult rohr_physics_force_orientation_offset_get(Entity source) { return physics_force_orientation_offset_get(source); }
+ForceOrientationReferenceResult rohr_physics_force_orientation_reference_get(Entity source) { return physics_force_orientation_reference_get(source); }
+EntityResult rohr_physics_force_orientation_reference_entity_get(Entity source) { return physics_force_orientation_reference_entity_get(source); }
+ScalarResult rohr_physics_force_orientation_offset_radians_get(Entity source) { return physics_force_orientation_offset_radians_get(source); }
+ScalarResult rohr_physics_torque_get(Entity source) { return physics_torque_get(source); }
+EngineResult rohr_physics_torque_set(Entity source, Torque value) { return physics_torque_set(source, value); }
+EngineResult rohr_physics_force_set(Entity source, Force value) { return physics_force_set(source, value); }
+EngineResult rohr_physics_force_x_set(Entity source, float value) { return physics_force_x_set(source, value); }
+EngineResult rohr_physics_force_y_set(Entity source, float value) { return physics_force_y_set(source, value); }
+EngineResult rohr_physics_force_location_offset_set(Entity source, Vec2D value) { return physics_force_location_offset_set(source, value); }
+EngineResult rohr_physics_force_location_offset_x_set(Entity source, float value) { return physics_force_location_offset_x_set(source, value); }
+EngineResult rohr_physics_force_location_offset_y_set(Entity source, float value) { return physics_force_location_offset_y_set(source, value); }
+EngineResult rohr_physics_force_location_reference_set(Entity source, ForcePositionReference value) { return physics_force_location_reference_set(source, value); }
+EngineResult rohr_physics_force_location_reference_entity_set(Entity source, Entity value) { return physics_force_location_reference_entity_set(source, value); }
+EngineResult rohr_physics_force_location_reference_beam_anchor_set(Entity source, ForceBeamAnchor value) { return physics_force_location_reference_beam_anchor_set(source, value); }
+EngineResult rohr_physics_force_location_reference_beam_fraction_set(Entity source, float value) { return physics_force_location_reference_beam_fraction_set(source, value); }
+EngineResult rohr_physics_force_orientation_between_from_set(Entity source, ForceLocation value) { return physics_force_orientation_between_from_set(source, value); }
+EngineResult rohr_physics_force_orientation_between_from_offset_set(Entity source, Vec2D value) { return physics_force_orientation_between_from_offset_set(source, value); }
+EngineResult rohr_physics_force_orientation_between_from_offset_x_set(Entity source, float value) { return physics_force_orientation_between_from_offset_x_set(source, value); }
+EngineResult rohr_physics_force_orientation_between_from_offset_y_set(Entity source, float value) { return physics_force_orientation_between_from_offset_y_set(source, value); }
+EngineResult rohr_physics_force_orientation_between_from_reference_set(Entity source, ForcePositionReference value) { return physics_force_orientation_between_from_reference_set(source, value); }
+EngineResult rohr_physics_force_orientation_between_from_reference_entity_set(Entity source, Entity value) { return physics_force_orientation_between_from_reference_entity_set(source, value); }
+EngineResult rohr_physics_force_orientation_between_from_reference_beam_anchor_set(Entity source, ForceBeamAnchor value) { return physics_force_orientation_between_from_reference_beam_anchor_set(source, value); }
+EngineResult rohr_physics_force_orientation_between_from_reference_beam_fraction_set(Entity source, float value) { return physics_force_orientation_between_from_reference_beam_fraction_set(source, value); }
+EngineResult rohr_physics_force_orientation_between_to_set(Entity source, ForceLocation value) { return physics_force_orientation_between_to_set(source, value); }
+EngineResult rohr_physics_force_orientation_between_to_offset_set(Entity source, Vec2D value) { return physics_force_orientation_between_to_offset_set(source, value); }
+EngineResult rohr_physics_force_orientation_between_to_offset_x_set(Entity source, float value) { return physics_force_orientation_between_to_offset_x_set(source, value); }
+EngineResult rohr_physics_force_orientation_between_to_offset_y_set(Entity source, float value) { return physics_force_orientation_between_to_offset_y_set(source, value); }
+EngineResult rohr_physics_force_orientation_between_to_reference_set(Entity source, ForcePositionReference value) { return physics_force_orientation_between_to_reference_set(source, value); }
+EngineResult rohr_physics_force_orientation_between_to_reference_entity_set(Entity source, Entity value) { return physics_force_orientation_between_to_reference_entity_set(source, value); }
+EngineResult rohr_physics_force_orientation_between_to_reference_beam_anchor_set(Entity source, ForceBeamAnchor value) { return physics_force_orientation_between_to_reference_beam_anchor_set(source, value); }
+EngineResult rohr_physics_force_orientation_between_to_reference_beam_fraction_set(Entity source, float value) { return physics_force_orientation_between_to_reference_beam_fraction_set(source, value); }
+EngineResult rohr_physics_force_orientation_offset_set(Entity source, Orientation value) { return physics_force_orientation_offset_set(source, value); }
+EngineResult rohr_physics_force_orientation_reference_set(Entity source, ForceOrientationReference value) { return physics_force_orientation_reference_set(source, value); }
+EngineResult rohr_physics_force_orientation_reference_entity_set(Entity source, Entity value) { return physics_force_orientation_reference_entity_set(source, value); }
+EngineResult rohr_physics_force_orientation_offset_radians_set(Entity source, Orientation value) { return physics_force_orientation_offset_radians_set(source, value); }
 EngineResult rohr_physics_force_target_set(Entity source, Entity target) { return physics_force_target_set(source, target); }
 EntityResult rohr_physics_force_target_get(Entity source) { return physics_force_target_get(source); }
 EngineResult rohr_physics_force_location_set(Entity source, ForceLocation location) { return physics_force_location_set(source, location); }
@@ -1174,3 +1236,83 @@ SoundResult rohr_audio_sound_by_name_get(const char *name) { return audio_sound_
 SoundNameResult rohr_audio_sound_name_get(Sound sound) { return audio_sound_name_get(sound); }
 MusicResult rohr_audio_music_by_name_get(const char *name) { return audio_music_by_name_get(name); }
 MusicNameResult rohr_audio_music_name_get(Music music) { return audio_music_name_get(music); }
+
+/* Focused physics inspection facade. */
+VelocityResult rohr_physics_velocity_get(Entity entity) { return physics_velocity_get(entity); }
+AccelerationResult rohr_physics_acceleration_get(Entity entity) { return physics_acceleration_get(entity); }
+ScalarResult rohr_physics_orientation_get(Entity entity) { return physics_orientation_get(entity); }
+ScalarResult rohr_physics_angular_acceleration_get(Entity entity) { return physics_angular_acceleration_get(entity); }
+ScalarResult rohr_physics_friction_get(Entity entity) { return physics_friction_get(entity); }
+ScalarResult rohr_physics_restitution_get(Entity entity) { return physics_restitution_get(entity); }
+AngleLockResult rohr_physics_angle_lock_get(Entity entity) { return physics_angle_lock_get(entity); }
+EntityResult rohr_physics_target_get(Entity entity) { return physics_target_get(entity); }
+ScalarResult rohr_physics_orientation_radians_get(Entity entity) { return physics_orientation_radians_get(entity); }
+ScalarResult rohr_physics_angular_acceleration_radians_get(Entity entity) { return physics_angular_acceleration_radians_get(entity); }
+ScalarResult rohr_physics_velocity_x_get(Entity entity) { return physics_velocity_x_get(entity); }
+ScalarResult rohr_physics_velocity_y_get(Entity entity) { return physics_velocity_y_get(entity); }
+ScalarResult rohr_physics_acceleration_x_get(Entity entity) { return physics_acceleration_x_get(entity); }
+ScalarResult rohr_physics_acceleration_y_get(Entity entity) { return physics_acceleration_y_get(entity); }
+ScalarResult rohr_physics_position_x_get(Entity entity) { return physics_position_x_get(entity); }
+ScalarResult rohr_physics_position_y_get(Entity entity) { return physics_position_y_get(entity); }
+ScalarResult rohr_physics_center_of_mass_local_position_x_get(Entity entity) { return physics_center_of_mass_local_position_x_get(entity); }
+ScalarResult rohr_physics_center_of_mass_local_position_y_get(Entity entity) { return physics_center_of_mass_local_position_y_get(entity); }
+ScalarResult rohr_physics_center_of_mass_world_position_x_get(Entity entity) { return physics_center_of_mass_world_position_x_get(entity); }
+ScalarResult rohr_physics_center_of_mass_world_position_y_get(Entity entity) { return physics_center_of_mass_world_position_y_get(entity); }
+ScalarResult rohr_physics_particle_origin_x_get(Entity entity) { return physics_particle_origin_x_get(entity); }
+ScalarResult rohr_physics_particle_origin_y_get(Entity entity) { return physics_particle_origin_y_get(entity); }
+ScalarResult rohr_physics_joint_anchor_local_position_x_get(JointAnchorId anchor) { return physics_joint_anchor_local_position_x_get(anchor); }
+ScalarResult rohr_physics_joint_anchor_local_position_y_get(JointAnchorId anchor) { return physics_joint_anchor_local_position_y_get(anchor); }
+ScalarResult rohr_physics_joint_anchor_world_position_x_get(JointAnchorId anchor) { return physics_joint_anchor_world_position_x_get(anchor); }
+ScalarResult rohr_physics_joint_anchor_world_position_y_get(JointAnchorId anchor) { return physics_joint_anchor_world_position_y_get(anchor); }
+ScalarResult rohr_physics_soft_body_node_local_position_x_get(Entity entity) { return physics_soft_body_node_local_position_x_get(entity); }
+ScalarResult rohr_physics_soft_body_node_local_position_y_get(Entity entity) { return physics_soft_body_node_local_position_y_get(entity); }
+float rohr_physics_gravity_x_get(void) { return physics_gravity_x_get(); }
+float rohr_physics_gravity_y_get(void) { return physics_gravity_y_get(); }
+CollisionCategoryResult rohr_physics_collision_category_get(Entity entity) { return physics_collision_category_get(entity); }
+CollisionCategoryResult rohr_physics_collision_response_get(Entity entity) { return physics_collision_response_get(entity); }
+bool rohr_physics_dynamic_check(Entity entity) { return physics_dynamic_check(entity); }
+bool rohr_physics_static_check(Entity entity) { return physics_static_check(entity); }
+bool rohr_physics_entity_held_check(Entity entity) { return physics_entity_held_check(entity); }
+bool rohr_physics_collision_check(Entity entity) { return physics_collision_check(entity); }
+AxisResult rohr_physics_axis_lock_axis_get(Entity entity) { return physics_axis_lock_axis_get(entity); }
+ScalarResult rohr_physics_axis_lock_axis_x_get(Entity entity) { return physics_axis_lock_axis_x_get(entity); }
+ScalarResult rohr_physics_axis_lock_axis_y_get(Entity entity) { return physics_axis_lock_axis_y_get(entity); }
+PositionResult rohr_physics_axis_lock_point_on_axis_get(Entity entity) { return physics_axis_lock_point_on_axis_get(entity); }
+ScalarResult rohr_physics_axis_lock_point_on_axis_x_get(Entity entity) { return physics_axis_lock_point_on_axis_x_get(entity); }
+ScalarResult rohr_physics_axis_lock_point_on_axis_y_get(Entity entity) { return physics_axis_lock_point_on_axis_y_get(entity); }
+EntityResult rohr_physics_transform_lock_driver_get(Entity entity) { return physics_transform_lock_driver_get(entity); }
+PositionResult rohr_physics_transform_lock_local_offset_get(Entity entity) { return physics_transform_lock_local_offset_get(entity); }
+ScalarResult rohr_physics_transform_lock_local_offset_x_get(Entity entity) { return physics_transform_lock_local_offset_x_get(entity); }
+ScalarResult rohr_physics_transform_lock_local_offset_y_get(Entity entity) { return physics_transform_lock_local_offset_y_get(entity); }
+ScalarResult rohr_physics_transform_lock_local_angle_get(Entity entity) { return physics_transform_lock_local_angle_get(entity); }
+ScalarResult rohr_physics_transform_lock_local_angle_radians_get(Entity entity) { return physics_transform_lock_local_angle_radians_get(entity); }
+JointTypeResult rohr_physics_joint_type_get(Entity entity) { return physics_joint_type_get(entity); }
+JointAnchorIdResult rohr_physics_joint_anchor_a_get(Entity entity) { return physics_joint_anchor_a_get(entity); }
+JointAnchorIdResult rohr_physics_joint_anchor_b_get(Entity entity) { return physics_joint_anchor_b_get(entity); }
+ScalarResult rohr_physics_joint_rest_length_get(Entity entity) { return physics_joint_rest_length_get(entity); }
+ScalarResult rohr_physics_joint_stiffness_get(Entity entity) { return physics_joint_stiffness_get(entity); }
+ScalarResult rohr_physics_joint_damping_get(Entity entity) { return physics_joint_damping_get(entity); }
+ScalarResult rohr_physics_joint_rest_angle_get(Entity entity) { return physics_joint_rest_angle_get(entity); }
+ScalarResult rohr_physics_joint_rest_angle_radians_get(Entity entity) { return physics_joint_rest_angle_radians_get(entity); }
+ScalarResult rohr_physics_soft_body_node_radius_get(Entity entity) { return physics_soft_body_node_radius_get(entity); }
+EntityResult rohr_physics_soft_body_beam_node_a_get(Entity entity) { return physics_soft_body_beam_node_a_get(entity); }
+EntityResult rohr_physics_soft_body_beam_node_b_get(Entity entity) { return physics_soft_body_beam_node_b_get(entity); }
+ScalarResult rohr_physics_soft_body_beam_rest_length_get(Entity entity) { return physics_soft_body_beam_rest_length_get(entity); }
+ScalarResult rohr_physics_soft_body_beam_stiffness_get(Entity entity) { return physics_soft_body_beam_stiffness_get(entity); }
+ScalarResult rohr_physics_soft_body_beam_damping_get(Entity entity) { return physics_soft_body_beam_damping_get(entity); }
+PhysicsCountResult rohr_physics_particle_rigid_vertices_get(Entity entity) { return physics_particle_rigid_vertices_get(entity); }
+bool rohr_physics_transform_lock_lock_position_check(Entity entity) { return physics_transform_lock_lock_position_check(entity); }
+bool rohr_physics_transform_lock_lock_orientation_check(Entity entity) { return physics_transform_lock_lock_orientation_check(entity); }
+bool rohr_physics_transform_lock_inherit_velocity_check(Entity entity) { return physics_transform_lock_inherit_velocity_check(entity); }
+ScalarResult rohr_physics_angle_lock_min_get(Entity entity) { return physics_angle_lock_min_get(entity); }
+ScalarResult rohr_physics_angle_lock_min_radians_get(Entity entity) { return physics_angle_lock_min_radians_get(entity); }
+ScalarResult rohr_physics_angle_lock_max_get(Entity entity) { return physics_angle_lock_max_get(entity); }
+ScalarResult rohr_physics_angle_lock_max_radians_get(Entity entity) { return physics_angle_lock_max_radians_get(entity); }
+AngleLockResult rohr_physics_angle_lock_radians_get(Entity entity) { return physics_angle_lock_radians_get(entity); }
+ScalarResult rohr_physics_soft_body_beam_collision_thickness_get(Entity entity) { return physics_soft_body_beam_collision_thickness_get(entity); }
+bool rohr_physics_soft_body_beam_collision_check(Entity entity) { return physics_soft_body_beam_collision_check(entity); }
+SoftBodyAreaGeometryResult rohr_physics_soft_body_area_geometry_get(Entity entity) { return physics_soft_body_area_geometry_get(entity); }
+PhysicsCountResult rohr_physics_soft_body_area_order_get(Entity entity) { return physics_soft_body_area_order_get(entity); }
+PhysicsCountResult rohr_physics_soft_body_node_count_get(Entity entity) { return physics_soft_body_node_count_get(entity); }
+PhysicsCountResult rohr_physics_soft_body_beam_count_get(Entity entity) { return physics_soft_body_beam_count_get(entity); }
+PhysicsCountResult rohr_physics_soft_body_area_count_get(Entity entity) { return physics_soft_body_area_count_get(entity); }

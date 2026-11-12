@@ -1,7 +1,8 @@
 # Physics
 
 For runtime edits that preserve the other coordinate, see
-[physics axis setters](physics_axis_setters.md).
+[physics axis setters](physics_axis_setters.md). For direct reads and force-field
+updates, see [physics field access](physics_field_access.md).
 
 
 Rohr provides a standard 2D physics pipeline and exposes its stages for games
