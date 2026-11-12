@@ -715,7 +715,7 @@ below. Numeric constants, typedefs, struct fields, extern storage, and callback
 type declarations are not callable API entries; configuration types are covered
 in the family table and exemptions above.
 
-The current inventory contains **1998** classified declaration/macro entries.
+The current inventory contains **2008** classified declaration/macro entries.
 The additions after the milestone-4 inventory freeze are the direct and
 public-wrapper joint placement operations and directional response queries;
 the frozen baseline remains 1,602. Milestone 18 Goal 2 adds 14 direct/facade
@@ -726,12 +726,13 @@ Goal 2 adds 62 force/torque mutation and 218 query/check declarations; its
 [expanded field-access scope](physics_field_access.md) includes all missing
 physics getters and the shared `ScalarResult` value type. Goal 3 adds 70
 focused mutation declarations and two anchor-entity query declarations.
+Milestone 20 Goal 1 adds ten direct/facade [animation attachment](animation_attachments.md) declarations.
 
 | Classification | Meaning | Owning goal | Entries |
 | --- | --- | --- | --- |
-| C: Compliant | Existing description interface | — | 342 |
-| EV: Intentionally exempt | Focused/basic-value mutation or lookup | — | 439 |
-| EQ: Intentionally exempt | Query, validation, snapshot, or result access | — | 630 |
+| C: Compliant | Existing description interface | — | 344 |
+| EV: Intentionally exempt | Focused/basic-value mutation or lookup | — | 441 |
+| EQ: Intentionally exempt | Query, validation, snapshot, or result access | — | 636 |
 | EO: Intentionally exempt | Operation, lifecycle, execution, or drawing | — | 458 |
 | EM: Intentionally exempt | Pure math or utility calculation | — | 77 |
 | ES: Intentionally exempt | Internal storage, reporting, or macro machinery | — | 48 |
@@ -896,12 +897,13 @@ Source: [game_state.h](../include/game_state.h).
 </details>
 
 <details>
-<summary>graphics.h: 265 entries</summary>
+<summary>graphics.h: 270 entries</summary>
 
 Source: [graphics.h](../include/graphics.h).
 
 **C — Existing description interface**
 
+- `graphics_animated_sprite_attachment_add`.
 - `graphics_animated_sprite_add`, `graphics_animated_sprite_create`, `graphics_animated_sprite_description_default_get`.
 - `graphics_animated_sprite_description_from_animation_get`, `graphics_animated_sprite_description_get`, `graphics_animated_sprite_description_set`.
 - `graphics_animated_sprite_frame_add`, `graphics_animated_sprite_frame_description_get`, `graphics_animated_sprite_frame_description_set`.
@@ -933,6 +935,7 @@ Source: [graphics.h](../include/graphics.h).
 
 **EV — Focused/basic-value mutation or lookup**
 
+- `graphics_animated_sprite_attachment_set`.
 - `graphics_aabb_tree_debug_set`, `graphics_animated_sprite_body_offset_set`, `graphics_animated_sprite_frame_index_set`.
 - `graphics_animated_sprite_frame_offset_set`, `graphics_animated_sprite_frame_rotation_radians_set`, `graphics_animated_sprite_frame_rotation_set`.
 - `graphics_animated_sprite_frame_scale_set`, `graphics_animated_sprite_orientation_offset_radians_set`, `graphics_animated_sprite_orientation_offset_set`.
@@ -954,6 +957,7 @@ Source: [graphics.h](../include/graphics.h).
 
 **EQ — Query, validation, snapshot, or result access**
 
+- `graphics_animated_sprite_attachment_get`, `graphics_animated_sprite_attachment_list_get`, `graphics_animated_sprite_pose_get`.
 - `graphics_viewport_by_name_get`, `graphics_viewport_name_get`.
 
 - `graphics_aabb_tree_debug_check`, `graphics_animated_sprite_body_offset_get`, `graphics_animated_sprite_frame_index_get`.
@@ -1315,12 +1319,13 @@ Source: [report.h](../include/report.h).
 </details>
 
 <details>
-<summary>rohr.h: 987 entries</summary>
+<summary>rohr.h: 992 entries</summary>
 
 Source: [rohr.h](../include/rohr.h).
 
 **C — Existing description interface**
 
+- `rohr_graphics_animated_sprite_attachment_add`.
 - `rohr_audio_music_create`, `rohr_audio_music_description_default_get`, `rohr_audio_music_description_get`.
 - `rohr_audio_music_description_set`, `rohr_audio_sound_create`, `rohr_audio_sound_description_default_get`.
 - `rohr_audio_sound_description_get`, `rohr_audio_sound_description_set`, `rohr_camera_attachment_description_default_get`.
@@ -1381,6 +1386,7 @@ Source: [rohr.h](../include/rohr.h).
 
 **EV — Focused/basic-value mutation or lookup**
 
+- `rohr_graphics_animated_sprite_attachment_set`.
 - `rohr_physics_angle_lock_min_set`, `rohr_physics_angle_lock_min_radians_set`, `rohr_physics_angle_lock_max_set`.
 - `rohr_physics_angle_lock_max_radians_set`, `rohr_physics_axis_lock_axis_set`, `rohr_physics_axis_lock_axis_x_set`.
 - `rohr_physics_axis_lock_axis_y_set`, `rohr_physics_axis_lock_point_on_axis_set`, `rohr_physics_axis_lock_point_on_axis_x_set`.
@@ -1464,6 +1470,7 @@ Source: [rohr.h](../include/rohr.h).
 
 **EQ — Query, validation, snapshot, or result access**
 
+- `rohr_graphics_animated_sprite_attachment_get`, `rohr_graphics_animated_sprite_attachment_list_get`, `rohr_graphics_animated_sprite_pose_get`.
 - `rohr_physics_joint_anchor_entity_get`.
 
 - `rohr_physics_acceleration_get`, `rohr_physics_acceleration_x_get`, `rohr_physics_acceleration_y_get`.

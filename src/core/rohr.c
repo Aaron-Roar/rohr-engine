@@ -831,6 +831,11 @@ void rohr_graphics_animation_player_update(AnimationPlayer *player, Tick current
 AnimatedSpriteResult rohr_graphics_animated_sprite_create(AnimatedSpriteDescription description) { return graphics_animated_sprite_create(description); }
 void rohr_graphics_animated_sprite_update(AnimatedSprite *sprite, Tick current_tick, Time current_time) { graphics_animated_sprite_update(sprite, current_tick, current_time); }
 EngineResult rohr_graphics_animated_sprite_add(Entity entity, AnimatedSpriteDescription description) { return graphics_animated_sprite_add(entity, description); }
+EntityResult rohr_graphics_animated_sprite_attachment_add(Entity target, const char *name, AnimatedSpriteDescription description) { return graphics_animated_sprite_attachment_add(target, name, description); }
+EngineResult rohr_graphics_animated_sprite_attachment_set(Entity animation, Entity target) { return graphics_animated_sprite_attachment_set(animation, target); }
+EntityResult rohr_graphics_animated_sprite_attachment_get(Entity animation) { return graphics_animated_sprite_attachment_get(animation); }
+EngineResult rohr_graphics_animated_sprite_attachment_list_get(Entity target, EntityList *list) { return graphics_animated_sprite_attachment_list_get(target, list); }
+AnimatedSpritePoseResult rohr_graphics_animated_sprite_pose_get(Entity animation) { return graphics_animated_sprite_pose_get(animation); }
 Sprite rohr_graphics_sprite_create(SpriteDescription description) { return graphics_sprite_create(description); }
 EngineResult rohr_graphics_sprite_add(Entity entity, SpriteDescription sprite) { return graphics_sprite_add(entity, sprite); }
 EngineResult rohr_graphics_sprite_body_offset_set(Entity entity, Position offset) { return graphics_sprite_body_offset_set(entity, offset); }

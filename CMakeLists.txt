@@ -1029,6 +1029,28 @@ if(ROHR_BUILD_TESTS)
         RUNTIME_OUTPUT_DIRECTORY ${ROHR_BUILD_OUTPUT_DIRECTORY}/tests)
     add_test(NAME animation_assets COMMAND animation_assets_test)
 
+    add_executable(animation_attachments_test tests/animation_attachments.c)
+    target_include_directories(animation_attachments_test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
+    target_link_libraries(animation_attachments_test PRIVATE rohr_engine)
+    if(UNIX AND NOT APPLE)
+        target_compile_definitions(animation_attachments_test PRIVATE ROHR_TEST_ATTACHMENT_WRAP)
+        target_link_options(animation_attachments_test PRIVATE
+            -Wl,--wrap=calloc -Wl,--wrap=realloc -Wl,--wrap=graphics_texture_retain)
+    endif()
+    if(MSVC)
+        target_compile_options(animation_attachments_test PRIVATE /UNDEBUG)
+    else()
+        target_compile_options(animation_attachments_test PRIVATE -Wall -Wextra -Wpedantic -UNDEBUG)
+    endif()
+    if(ROHR_ENABLE_SANITIZERS)
+        target_compile_options(animation_attachments_test PRIVATE ${ROHR_SANITIZER_COMPILE_OPTIONS})
+    endif()
+    set_target_properties(animation_attachments_test PROPERTIES
+        RUNTIME_OUTPUT_DIRECTORY ${ROHR_BUILD_OUTPUT_DIRECTORY}/tests)
+    add_test(NAME animation_attachments COMMAND animation_attachments_test)
+    set_tests_properties(animation_attachments PROPERTIES
+        ENVIRONMENT "SDL_VIDEODRIVER=dummy;SDL_AUDIODRIVER=dummy")
+
     add_executable(font_assets_test tests/font_assets.c)
     target_include_directories(font_assets_test PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}/src)

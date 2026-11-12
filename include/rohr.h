@@ -2390,6 +2390,16 @@ void rohr_graphics_animated_sprite_update(AnimatedSprite *sprite, Tick current_t
  * @return EngineResult describing success or failure.
  */
 EngineResult rohr_graphics_animated_sprite_add(Entity entity, AnimatedSpriteDescription description);
+/** Independent, dynamically allocated animation entity owned by target.
+ * See graphics_animated_sprite_attachment_add for naming, limits and lifetime. */
+EntityResult rohr_graphics_animated_sprite_attachment_add(Entity target,
+    const char *name, AnimatedSpriteDescription description);
+/** Rebind and transfer ownership atomically; preserve offsets and playback. */
+EngineResult rohr_graphics_animated_sprite_attachment_set(Entity animation, Entity target);
+EntityResult rohr_graphics_animated_sprite_attachment_get(Entity animation);
+/** Caller-owned snapshot; same capacity/error contract as rohr_entity_list_get. */
+EngineResult rohr_graphics_animated_sprite_attachment_list_get(Entity target, EntityList *list);
+AnimatedSpritePoseResult rohr_graphics_animated_sprite_pose_get(Entity animation);
 EngineResult rohr_graphics_animated_sprite_frame_index_set(Entity entity,
     size_t frame_index);
 AnimationFrameIndexResult rohr_graphics_animated_sprite_frame_index_get(

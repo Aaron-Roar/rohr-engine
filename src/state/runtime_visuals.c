@@ -3,6 +3,7 @@
  */
 #include "entity/object_visuals.h"
 #include "runtime_visuals.h"
+#include "graphics/animation_attachments.h"
 #include "entity/object_internal.h"
 #include "graphics/texture_assets.h"
 #include "graphics/camera_state.h"
@@ -227,6 +228,11 @@ bool state_visuals_write(yyjson_mut_doc *doc,yyjson_mut_val *components,Entity e
                 vector_write(doc,f,"scale",frame->scale.x,frame->scale.y) && vector_write(doc,f,"offset",frame->offset.x,frame->offset.y) &&
                 yyjson_mut_obj_add_real(doc,f,"rotation",frame->rotation) && yyjson_mut_arr_add_val(frames,f));
         }
+        if(s->attachment_target) {
+            EntityNameResult target = entity_name_get(s->attachment_target);
+            WRITE(!error_check(target) && target.result.value.value[0] &&
+                yyjson_mut_obj_add_strcpy(doc,v,"attachment_target",target.result.value.value));
+        }
         WRITE(yyjson_mut_obj_add_val(doc,v,"frames",frames) && yyjson_mut_obj_add_val(doc,components,"animation_state",v));
     }
     CameraIdResult owned=entity_object_camera_get(entity);
@@ -345,7 +351,20 @@ EngineResult state_visuals_load(Entity entity,yyjson_val *components) {
         if(error_check(result)) return result;
     }
     v=yyjson_obj_get(components,"animation_state");
-    if(v) { EngineResult result=animation_read(entity,v); if(error_check(result)) return result; }
+    if(v) {
+        EngineResult result=animation_read(entity,v);
+        if(error_check(result)) return result;
+        yyjson_val *target = yyjson_obj_get(v,"attachment_target");
+        if(target) {
+            if(!yyjson_is_str(target) || !yyjson_get_len(target) ||
+                    strlen(yyjson_get_str(target)) != yyjson_get_len(target))
+                return error_result_error(ERROR_ENGINE_STATE_INVALID);
+            EntityResult found = entity_by_name_get(yyjson_get_str(target));
+            if(error_check(found)) return error_result_error(found.result.error);
+            result = graphics_animated_sprite_attachment_restore(entity, found.result.value);
+            if(error_check(result)) return result;
+        }
+    }
     v=yyjson_obj_get(components,"object_camera");
     if(v) {
         CameraDescription config = {0}; bool enabled,paused;

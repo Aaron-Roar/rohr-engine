@@ -576,7 +576,17 @@ typedef struct {
     bool follow_entity_rotation;
     /** Whether bulk sprite drawing includes this sprite. */
     bool visible;
+    /** Retained entity ID for an independent attachment; zero uses this entity's
+     * own pose. Managed by the attachment API, not value descriptions. */
+    Entity attachment_target;
 } AnimatedSprite;
+
+/** Resolved drawing pose, including attachment and sprite offsets (degrees). */
+typedef struct AnimatedSpritePose {
+    Position position;
+    Orientation orientation;
+} AnimatedSpritePose;
+ERROR_DECLARE_RESULT_TYPE(AnimatedSpritePoseResult, AnimatedSpritePose);
 
 /** Complete instance configuration. Frames are copied and authoritative;
  * zero frame_count means empty even when a catalog is supplied. The catalog
@@ -928,6 +938,26 @@ void graphics_animated_sprite_update(AnimatedSprite *sprite, Tick current_tick,
 
 /** Attach an animated sprite to an entity. */
 EngineResult graphics_animated_sprite_add(Entity entity, AnimatedSpriteDescription description);
+/** Allocate an independent animation entity owned by target. NULL/empty name
+ * uses "animation"; occupied names receive the usual suffix. Storage grows
+ * dynamically within MAX_ENTITIES; there is no separate per-target cap.
+ * Existing animation controls take the returned Entity. Delete it individually
+ * with entity_delete; deleting its owner deletes it too. Failure rolls back
+ * the new entity and every retained asset reference. */
+EntityResult graphics_animated_sprite_attachment_add(Entity target,
+    const char *name, AnimatedSpriteDescription description);
+/** Rebind an existing animation and transfer its lifetime ownership atomically.
+ * target must be live and acyclic. Local offsets and playback are preserved. */
+EngineResult graphics_animated_sprite_attachment_set(Entity animation, Entity target);
+/** Return the bound target, or ENTITY_INVALID for an ordinary component. */
+EntityResult graphics_animated_sprite_attachment_get(Entity animation);
+/** Copy direct attachment IDs into caller-owned storage, with entity_list_get's
+ * capacity/null rules. A zero-capacity query reports the required count.
+ * Snapshots own nothing; deleted IDs become stale. No sorting guarantee. */
+EngineResult graphics_animated_sprite_attachment_list_get(Entity target, EntityList *list);
+/** Resolve the pose used by drawing immediately, without a physics update.
+ * Stale targets fail; they never bind to a replacement entity in the same slot. */
+AnimatedSpritePoseResult graphics_animated_sprite_pose_get(Entity animation);
 EngineResult graphics_animated_sprite_frame_index_set(Entity entity,
     size_t frame_index);
 AnimationFrameIndexResult graphics_animated_sprite_frame_index_get(Entity entity);

@@ -28,6 +28,7 @@
 #include "window_presentation.h"
 #include "graphics_layer_order.h"
 #include "graphics/animation_assets.h"
+#include "graphics/animation_attachments.h"
 #include "graphics/font_assets.h"
 #include "graphics/text_assets.h"
 #include "graphics/texture_assets.h"
@@ -6018,6 +6019,128 @@ SpriteOrientationResult graphics_animated_sprite_orientation_offset_get(
         animated_sprites[index].orientation_offset);
 }
 
+EntityResult graphics_animated_sprite_attachment_get(Entity animation) {
+    if(!entity_alive_check(animation))
+        return ERROR_RESULT_MAKE_ERROR(EntityResult, ERROR_ENGINE_INVALID_ENTITY);
+    AnimatedSprite *sprite = graphics_animated_sprite_entity_get(animation);
+    if(!sprite) return ERROR_RESULT_MAKE_ERROR(EntityResult, ERROR_ENGINE_COMPONENT_MISSING);
+    return ERROR_RESULT_MAKE_VALUE(EntityResult, sprite->attachment_target);
+}
+
+static EngineResult graphics_animated_sprite_attachment_validate(Entity animation, Entity target) {
+    if(!entity_alive_check(animation) || !entity_alive_check(target))
+        return error_result_error(ERROR_ENGINE_INVALID_ENTITY);
+    AnimatedSprite *sprite = graphics_animated_sprite_entity_get(animation);
+    if(!sprite) return error_result_error(ERROR_ENGINE_COMPONENT_MISSING);
+    /* Ownership can be changed separately, so also validate the drawing chain. */
+    Entity current = target;
+    for(size_t depth = 0; current; ++depth) {
+        if(current == animation || depth >= MAX_ENTITIES)
+            return error_result_error(ERROR_ENGINE_STATE_INVALID);
+        if(!entity_alive_check(current)) return error_result_error(ERROR_ENGINE_INVALID_ENTITY);
+        AnimatedSprite *parent = graphics_animated_sprite_entity_get(current);
+        current = parent ? parent->attachment_target : ENTITY_INVALID;
+    }
+    return error_result_value(true);
+}
+
+EngineResult graphics_animated_sprite_attachment_restore(Entity animation, Entity target) {
+    EngineResult result = graphics_animated_sprite_attachment_validate(animation, target);
+    if(error_check(result)) return result;
+    graphics_animated_sprite_entity_get(animation)->attachment_target = target;
+    return error_result_value(true);
+}
+
+EngineResult graphics_animated_sprite_attachment_set(Entity animation, Entity target) {
+    EngineResult result = graphics_animated_sprite_attachment_validate(animation, target);
+    if(error_check(result)) return result;
+    result = entity_owner_set(animation, target);
+    if(error_check(result)) return result;
+    graphics_animated_sprite_entity_get(animation)->attachment_target = target;
+    return error_result_value(true);
+}
+
+EntityResult graphics_animated_sprite_attachment_add(Entity target,
+        const char *name, AnimatedSpriteDescription description) {
+    if(!entity_alive_check(target))
+        return ERROR_RESULT_MAKE_ERROR(EntityResult, ERROR_ENGINE_INVALID_ENTITY);
+    EntityDescription metadata = {0};
+    if(name && name[0]) {
+        if(!memchr(name, '\0', sizeof(metadata.name)))
+            return ERROR_RESULT_MAKE_ERROR(EntityResult, ERROR_ENGINE_ENTITY_NAME_TOO_LONG);
+        snprintf(metadata.name, sizeof(metadata.name), "%s", name);
+    } else snprintf(metadata.name, sizeof(metadata.name), "animation");
+    /* Acquire the component before committing ownership, leaving target intact
+     * on validation, allocation or asset-retention failure. */
+    EntityResult created = entity_description_add(metadata);
+    if(error_check(created)) return created;
+    EngineResult result = graphics_animated_sprite_add(created.result.value, description);
+    if(!error_check(result))
+        result = graphics_animated_sprite_attachment_set(created.result.value, target);
+    if(error_check(result)) {
+        (void)entity_delete(created.result.value);
+        return ERROR_RESULT_MAKE_ERROR(EntityResult, result.result.error);
+    }
+    return created;
+}
+
+EngineResult graphics_animated_sprite_attachment_list_get(Entity target, EntityList *list) {
+    if(!list) return error_result_error(ERROR_ENGINE_ENTITY_LIST_INVALID);
+    list->count = 0;
+    if(!entity_alive_check(target)) return error_result_error(ERROR_ENGINE_INVALID_ENTITY);
+    for(size_t i = 0; i < animated_sprites_pool.capacity; ++i)
+        if(animated_sprites_pool.used[i] && entity_index_alive_check(i) &&
+                animated_sprites[i].attachment_target == target) ++list->count;
+    if(!list->data && list->capacity)
+        return error_result_error(ERROR_ENGINE_ENTITY_LIST_INVALID);
+    if(list->capacity < list->count)
+        return error_result_error(ERROR_ENGINE_ENTITY_LIST_CAPACITY_EXCEEDED);
+    size_t written = 0;
+    for(size_t i = 0; i < animated_sprites_pool.capacity; ++i)
+        if(animated_sprites_pool.used[i] && entity_index_alive_check(i) &&
+                animated_sprites[i].attachment_target == target)
+            list->data[written++] = entity_from_index_get(i).result.value;
+    return error_result_value(true);
+}
+
+AnimatedSpritePoseResult graphics_animated_sprite_pose_get(Entity animation) {
+    EntityIndex chain[MAX_ENTITIES];
+    size_t count = 0;
+    Entity current = animation;
+    AnimatedSpritePose pose = {0};
+    for(;;) {
+        EntityIndex index;
+        if(!entity_index_get(current, &index) || !entity_index_alive_check(index))
+            return ERROR_RESULT_MAKE_ERROR(AnimatedSpritePoseResult, ERROR_ENGINE_INVALID_ENTITY);
+        AnimatedSprite *sprite = graphics_animated_sprite_entity_get(current);
+        if(!count && !sprite)
+            return ERROR_RESULT_MAKE_ERROR(AnimatedSpritePoseResult, ERROR_ENGINE_COMPONENT_MISSING);
+        /* An ordinary target contributes its entity origin, not an unrelated
+         * legacy animation's local drawing offset. Nested attachments contribute
+         * their resolved drawing pose. */
+        if(count && (!sprite || !sprite->attachment_target)) {
+            pose = (AnimatedSpritePose){positions[index], orientations[index]};
+            break;
+        }
+        if(count == MAX_ENTITIES)
+            return ERROR_RESULT_MAKE_ERROR(AnimatedSpritePoseResult, ERROR_ENGINE_STATE_INVALID);
+        chain[count++] = index;
+        if(!sprite->attachment_target) {
+            pose = (AnimatedSpritePose){positions[index], orientations[index]};
+            break;
+        }
+        current = sprite->attachment_target;
+    }
+    while(count) {
+        AnimatedSprite *sprite = &animated_sprites[chain[--count]];
+        pose.position = graphics_sprite_world_position_get(pose.position,
+            pose.orientation, sprite->body_offset);
+        pose.orientation = sprite->orientation_offset +
+            (sprite->follow_entity_rotation ? pose.orientation : 0);
+    }
+    return ERROR_RESULT_MAKE_VALUE(AnimatedSpritePoseResult, pose);
+}
+
 bool graphics_animated_sprite_draw(Entity entity) {
     EntityIndex index;
 
@@ -6030,14 +6153,16 @@ bool graphics_animated_sprite_draw(Entity entity) {
         return false;
     }
     if(!animated_sprites[index].visible) return false;
+    AnimatedSpritePoseResult pose = graphics_animated_sprite_pose_get(entity);
+    if(error_check(pose)) {
+        graphics_submission_issue(pose.result.error,
+            (ReportObjectRef){ROHR_REPORT_OBJECT_ENTITY, entity}, "Animated sprite attachment target is unavailable");
+        return false;
+    }
     int previous_layer = graphics_component_layer_begin(
         graphics_animation_layer_bindings, entity);
     graphics_animated_sprite_value_draw(animated_sprites[index],
-        graphics_sprite_world_position_get(positions[index], orientations[index],
-            animated_sprites[index].body_offset),
-        animated_sprites[index].orientation_offset +
-            (animated_sprites[index].follow_entity_rotation ?
-                orientations[index] : 0.0f));
+        pose.result.value.position, pose.result.value.orientation);
     graphics_layer_active_set(previous_layer);
     return true;
 }
@@ -6665,7 +6790,8 @@ EngineResult graphics_animated_sprite_value_description_set(AnimatedSprite *spri
     player.frame_count = description.frame_count;
     player.ticks_per_frame = description.player.ticks_per_frame;
     player.time_per_frame = description.player.time_per_frame;
-    AnimatedSprite candidate = {.player = player, .frame_count = description.frame_count,
+    AnimatedSprite candidate = {.attachment_target = sprite->attachment_target,
+        .player = player, .frame_count = description.frame_count,
         .direction = description.direction, .scale = description.scale, .body_offset = description.body_offset,
         .orientation_offset = description.orientation_offset,
         .follow_entity_rotation = description.follow_entity_rotation, .visible = description.visible};

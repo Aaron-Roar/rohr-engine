@@ -19,6 +19,7 @@ priority order.
 | 17 | [Consistent creation APIs and report checks](#17-consistent-creation-apis-and-report-checks) | Complete; all six goal results recorded below |
 | 18 | [Explicit runtime lists and ID/name access](#18-explicit-runtime-lists-and-idname-access) | Complete; Goals 1–3 verified and Linux preview accepted |
 | 19 | [Physics setters that preserve unrelated values](#19-physics-setters-that-preserve-unrelated-values) | Complete; all three API goals verified, baseline solver failures preserved |
+| 20 | [Independent animation attachments](#20-independent-animation-attachments) | Goal 1 complete; editor and full workflow verification follow |
 | — | [C game experiment](#c-game-experiment) | Follows the current API work; agree concept and completion criteria with the user |
 | 13 | Physics rebuild from the simpler baseline | Paused by user direction for frame pacing and game development; goals 1, 2a, 2b and 4a complete; goals 2 and 3 failed; goal 4 blocking remains incomplete; goals 5–8 not started |
 | 12 | Real-time physics pipeline rework | Closed by user direction; superseded by milestone 13, not complete; goals 1–13 complete, goal 14 unfinished, goals 15–19 not started; evidence preserved |
@@ -30,12 +31,11 @@ priority order.
 | 7 | Editor implementation scalability | Deferred until after Python unless game development makes it necessary sooner |
 | 10 | End-to-end game | Pending; separate larger game directed by the user |
 
-**Current priority:** Milestone 19 is complete. Stop for review and commit of
-Goal 3's remaining partial setters and collision-filter snapshot consistency fix.
-The C game experiment follows this API work, but requires explicit instruction
-and agreement on its concept and completion criteria. Physics settings and known
-solver failures remain unchanged; the joint numerical baseline failure found
-during Goal 3 is recorded below rather than treated as a passing regression.
+**Current priority:** Milestone 20 Goal 1 is complete. Stop for review and commit
+of runtime animation attachments. Storage grows within the existing entity limit;
+each attachment uses its own Entity ID. Editor and generated-project changes wait
+for explicit instruction to pursue Goal 2. The C game experiment and paused
+physics milestones remain deferred; simulation defaults are unchanged.
 
 Milestone 15 is complete. Its Goal 1 defines the
 [creation and viewport contract](docs/creation_and_viewport_contract.md).
@@ -1272,6 +1272,41 @@ milestone is additive; it does not change solver behavior or simulation defaults
 See [axis setter contracts](docs/physics_axis_setters.md) and
 [physics field access](docs/physics_field_access.md). Complete and verify
 only one goal, then stop for review and commit.
+
+### 20. Independent animation attachments
+
+A rigid body can have many independently playing and rendered animations,
+each with its own identity, visibility, transform, layer and playback state.
+Use dynamically growing storage with no separate per-body attachment cap;
+entity-backed attachments share the engine's existing MAX_ENTITIES limit.
+This is simultaneous rendering, not a one-active-clip state machine.
+
+1. [x] **Runtime attachments and controls.** Add creation, individual access,
+   caller-owned enumeration and safe grouped cleanup. Reuse existing Entity
+   IDs and animation controls; retain the legacy single-component API. Resolve
+   target poses at drawing time without changing physics. Preserve bindings in
+   runtime saves. Verify independent playback/rendering, dynamic growth,
+   allocation/retain rollback, stale IDs, individual deletion and slot reuse.
+   **Complete:** independent entity-backed attachments reuse existing animation
+   controls, preserve legacy component behavior, and resolve drawing transforms
+   without physics updates. Runtime saves preserve drawing targets and lifetime
+   owners separately. Ten Release regressions and the focused ASan/UBSan suite
+   pass, including 256 simultaneous attachments and allocation-failure rollback.
+   Installed Nix/Linux SDK consumer and game-state/view-port examples pass;
+   engine, suite, consumer and examples cross-build for Windows. Native Windows
+   execution and generic Linux SDK parity remain unverified in this goal.
+   Final builds have no compiler warnings or sanitizer findings. The API audit
+   retains 77 pre-existing diagnostics with none added. See the
+   [verification record](docs/animation_attachments.md#persistence-and-verification)
+   and `sandbox/milestone_20/goal_1/`. Stop for review and commit.
+2. [ ] **Editor and generation support.** Allow multiple attachments in editor
+   controls, JSON save/load, undo/redo and generated projects. Give each authored
+   animation its own runtime identity and preserve sibling controls and bindings.
+3. [ ] **Full workflow verification.** Verify examples, installed SDKs, Linux and
+   Windows builds, and obtain real editor/generated-app preview acceptance.
+
+See [runtime contract and verification](docs/animation_attachments.md).
+Complete and verify only one goal, then stop for review and commit.
 
 ### 13. Physics rebuild from the simpler baseline
 
